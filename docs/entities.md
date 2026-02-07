@@ -51,6 +51,8 @@
 - `Status` (enum: Pending, Completed, Failed, Refunded) — статус  
 - `PaymentMethod` (varchar) — метод оплаты  
 - `TransactionId` (varchar) — внешний ID транзакции  
+- `AttachmentFileName` (varchar) — название чека
+- `AttachmentFileUrl` (varchar) — ссылка на чек
 
 ## 6. Отчёты об оценке (AssessmentReports)
 - `Id` (UUID, PK) — идентификатор отчёта  
@@ -77,6 +79,19 @@
 - `EntityId` (UUID) — ID объекта действия  
 - `Timestamp` (timestamp) — время действия  
 - `Details` (jsonb) — дополнительные данные
+
+## 9. Промокоды (Promos)
+- `Id` (UUID, PK) — идентификатор промокода
+- `Code` (varchar) - код
+- `Description` (text) - описание промокода
+
+## 9. Скидки (Sales)
+- `Id` (UUID, PK) — идентификатор промокода
+- `SourceId` (UUID, FK) - ID промокода или товара, если есть
+- `StartDate` (date) — дата начала  
+- `EndDate` (date) — дата окончания 
+- `Percent` (numeric) - процент скидки
+- `Type` (enum: Permanent, Subscription, Product, Promo) - тип скидки
 
 ---
 
