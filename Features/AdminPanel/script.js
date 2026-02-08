@@ -9,76 +9,111 @@ function generateUUID() {
     });
 }
 
+// Получение полного имени пользователя
+function getFullName(user) {
+    return `${user.lastName} ${user.firstName} ${user.middleName}`;
+}
+
 // Инициализация тестовых данных
 function initializeData() {
+    // Миграция: если данные в старом формате (fullName), сбрасываем
+    const existing = localStorage.getItem('users');
+    if (existing) {
+        const parsed = JSON.parse(existing);
+        if (parsed.length > 0 && parsed[0].fullName !== undefined) {
+            localStorage.removeItem('users');
+        }
+    }
+
     if (!localStorage.getItem('users')) {
         const testUsers = [
             {
                 id: generateUUID(),
-                fullName: 'Иванов Иван Иванович',
+                firstName: 'Иван',
+                lastName: 'Иванов',
+                middleName: 'Иванович',
                 email: 'ivanov@example.com',
                 phoneNumber: '+7 (999) 123-45-67',
                 role: 'Applicant',
+                subscriptionPlan: 'Basic',
                 isActive: true,
                 createdAt: '2024-01-15T10:30:00',
                 updatedAt: '2024-01-15T10:30:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Петрова Мария Сергеевна',
+                firstName: 'Мария',
+                lastName: 'Петрова',
+                middleName: 'Сергеевна',
                 email: 'petrova@example.com',
                 phoneNumber: '+7 (999) 234-56-78',
                 role: 'Notary',
+                subscriptionPlan: 'Premium',
                 isActive: true,
                 createdAt: '2024-01-20T14:20:00',
                 updatedAt: '2024-02-01T09:15:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Сидоров Алексей Петрович',
+                firstName: 'Алексей',
+                lastName: 'Сидоров',
+                middleName: 'Петрович',
                 email: 'sidorov@example.com',
                 phoneNumber: '+7 (999) 345-67-89',
                 role: 'Admin',
+                subscriptionPlan: 'Enterprise',
                 isActive: true,
                 createdAt: '2024-02-01T11:45:00',
                 updatedAt: '2024-02-01T11:45:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Козлова Елена Викторовна',
+                firstName: 'Елена',
+                lastName: 'Козлова',
+                middleName: 'Викторовна',
                 email: 'kozlova@example.com',
                 phoneNumber: '+7 (999) 456-78-90',
                 role: 'Applicant',
+                subscriptionPlan: 'Basic',
                 isActive: false,
                 createdAt: '2024-02-05T16:00:00',
                 updatedAt: '2024-02-10T12:30:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Новиков Дмитрий Александрович',
+                firstName: 'Дмитрий',
+                lastName: 'Новиков',
+                middleName: 'Александрович',
                 email: 'novikov@example.com',
                 phoneNumber: '+7 (999) 567-89-01',
                 role: 'Notary',
+                subscriptionPlan: 'Premium',
                 isActive: true,
                 createdAt: '2024-02-08T09:15:00',
                 updatedAt: '2024-02-08T09:15:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Васильева Ольга Михайловна',
+                firstName: 'Ольга',
+                lastName: 'Васильева',
+                middleName: 'Михайловна',
                 email: 'vasilieva@example.com',
                 phoneNumber: '+7 (999) 678-90-12',
                 role: 'Applicant',
+                subscriptionPlan: 'Enterprise',
                 isActive: true,
                 createdAt: '2024-02-12T13:45:00',
                 updatedAt: '2024-02-12T13:45:00'
             },
             {
                 id: generateUUID(),
-                fullName: 'Морозов Сергей Владимирович',
+                firstName: 'Сергей',
+                lastName: 'Морозов',
+                middleName: 'Владимирович',
                 email: 'morozov@example.com',
                 phoneNumber: '+7 (999) 789-01-23',
                 role: 'Notary',
+                subscriptionPlan: 'Basic',
                 isActive: false,
                 createdAt: '2024-02-15T10:00:00',
                 updatedAt: '2024-02-20T15:20:00'
@@ -170,7 +205,7 @@ function renderUsers(users = null) {
 
     tbody.innerHTML = paginatedUsers.map(user => `
         <tr>
-            <td>${user.fullName}</td>
+            <td>${getFullName(user)}</td>
             <td>${user.email}</td>
             <td>${user.phoneNumber}</td>
             <td><span class="badge ${getRoleBadgeClass(user.role)}">${getRoleLabel(user.role)}</span></td>
@@ -250,7 +285,7 @@ function getFilteredUsers() {
 
     if (searchTerm) {
         users = users.filter(user =>
-            user.fullName.toLowerCase().includes(searchTerm) ||
+            getFullName(user).toLowerCase().includes(searchTerm) ||
             user.email.toLowerCase().includes(searchTerm)
         );
     }
@@ -305,8 +340,20 @@ function viewUser(id) {
             <div class="detail-value">${user.id}</div>
         </div>
         <div class="detail-row">
-            <div class="detail-label">Полное имя:</div>
-            <div class="detail-value">${user.fullName}</div>
+            <div class="detail-label">Фамилия:</div>
+            <div class="detail-value">${user.lastName}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">Имя:</div>
+            <div class="detail-value">${user.firstName}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">Отчество:</div>
+            <div class="detail-value">${user.middleName}</div>
+        </div>
+        <div class="detail-row">
+            <div class="detail-label">Подписка:</div>
+            <div class="detail-value">${user.subscriptionPlan}</div>
         </div>
         <div class="detail-row">
             <div class="detail-label">Email:</div>
@@ -368,7 +415,10 @@ function editUser(id) {
 
     // Заполнение формы
     document.getElementById('userId').value = user.id;
-    document.getElementById('fullName').value = user.fullName;
+    document.getElementById('lastName').value = user.lastName;
+    document.getElementById('firstName').value = user.firstName;
+    document.getElementById('middleName').value = user.middleName;
+    document.getElementById('subscriptionPlan').value = user.subscriptionPlan;
     document.getElementById('email').value = user.email;
     document.getElementById('phoneNumber').value = user.phoneNumber;
     document.getElementById('role').value = user.role;
@@ -397,10 +447,13 @@ function saveUser(event) {
 
     const users = getUsers();
     const formData = {
-        fullName: document.getElementById('fullName').value.trim(),
+        firstName: document.getElementById('firstName').value.trim(),
+        lastName: document.getElementById('lastName').value.trim(),
+        middleName: document.getElementById('middleName').value.trim(),
         email: document.getElementById('email').value.trim(),
         phoneNumber: document.getElementById('phoneNumber').value.trim(),
         role: document.getElementById('role').value,
+        subscriptionPlan: document.getElementById('subscriptionPlan').value,
         isActive: document.getElementById('isActive').checked
     };
 
@@ -439,7 +492,7 @@ function deleteUser(id) {
     if (!user) return;
 
     userToDelete = id;
-    document.getElementById('deleteUserName').textContent = user.fullName;
+    document.getElementById('deleteUserName').textContent = getFullName(user);
     openDeleteModal();
 }
 
@@ -473,10 +526,24 @@ function validateForm() {
     let isValid = true;
     clearFormErrors();
 
+    // Валидация фамилии
+    const lastName = document.getElementById('lastName');
+    if (!lastName.value.trim()) {
+        showError('lastName', 'Поле обязательно для заполнения');
+        isValid = false;
+    }
+
     // Валидация имени
-    const fullName = document.getElementById('fullName');
-    if (!fullName.value.trim()) {
-        showError('fullName', 'Поле обязательно для заполнения');
+    const firstName = document.getElementById('firstName');
+    if (!firstName.value.trim()) {
+        showError('firstName', 'Поле обязательно для заполнения');
+        isValid = false;
+    }
+
+    // Валидация отчества
+    const middleName = document.getElementById('middleName');
+    if (!middleName.value.trim()) {
+        showError('middleName', 'Поле обязательно для заполнения');
         isValid = false;
     }
 
