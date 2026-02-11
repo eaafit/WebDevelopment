@@ -1,135 +1,233 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Оплата услуги</title>
-    <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-
-<div class="container">
-    <div class="mb-4">
-        <!-- Хлебные крошки или кнопка назад (опционально) -->
-        <a href="#" class="link text-sm" style="display: inline-block; margin-bottom: 0.5rem;">← Вернуться к записи</a>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <div class="mb-4">
+        <a
+          href="#"
+          class="link text-sm"
+          style="display: inline-block; margin-bottom: 0.5rem"
+          >← Вернуться к записи</a
+        >
         <h1>Оплата услуги</h1>
-        <p class="text-sm">Безопасная оплата услуг нотариуса через наш сервис.</p>
-    </div>
+        <p class="text-sm">
+          Безопасная оплата услуг нотариуса через наш сервис.
+        </p>
+      </div>
 
-    <!-- Тот же Grid макет, что и в подписке -->
-    <form class="checkout-grid" onsubmit="event.preventDefault(); alert('Обработка платежа...');">
-        
-        <!-- ЛЕВАЯ КОЛОНКА -->
+      <form
+        class="checkout-grid"
+        onsubmit="
+          event.preventDefault();
+          alert('Обработка платежа...');
+        "
+      >
+        \
         <div class="checkout-content">
-            
-            <!-- Блок 1: Информация об услуге (Вместо тарифов) -->
-            <div class="card">
-                <div class="card-title">
-                    <span>1. Детали заказа</span>
-                </div>
-                
-                <!-- Карточка услуги -->
-                <div style="background-color: #f9fafb; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.25rem;">
-                    <div class="flex-between" style="align-items: flex-start;">
-                        <div>
-                            <h3 class="text-bold" style="font-size: 1.1rem; margin-bottom: 0.25rem;">Удостоверение доверенности</h3>
-                            <p class="text-sm" style="margin-bottom: 0.5rem;">Категория: Физические лица</p>
-                            
-                            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
-                                <div>
-                                    <div class="text-sm" style="font-size: 0.75rem;">Дата и время</div>
-                                    <div class="text-bold" style="font-size: 0.9rem;">12 февраля • 14:00</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="text-bold" style="font-size: 1.25rem; color: var(--text-main);">
-                            2 500 ₽
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Дополнительная информация (например, Email для чека) -->
-                <div class="mt-4">
-                    <label class="form-label">Email для отправки чека</label>
-                    <input type="email" class="form-input" placeholder="client@example.com" value="client@example.com">
-                </div>
+          <div class="card">
+            <div class="card-title">
+              <span>1. Детали заказа</span>
             </div>
 
-            <!-- Блок 2: Банковская карта (Полностью переиспользуем) -->
-            <div class="card mt-4">
-                <div class="card-title">2. Банковская карта</div>
-                
-                <div class="form-group">
-                    <label class="form-label">Номер карты</label>
-                    <div style="position: relative;">
-                        <input type="text" class="form-control form-input" placeholder="0000 0000 0000 0000">
-                        <div style="position: absolute; right: 10px; top: 10px; opacity: 0.5;">
-                            💳
-                        </div>
+            <div
+              style="
+                background-color: #f9fafb;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                padding: 1.25rem;
+              "
+            >
+              <div class="flex-between" style="align-items: flex-start">
+                <div>
+                  <h3
+                    class="text-bold"
+                    style="font-size: 1.1rem; margin-bottom: 0.25rem"
+                  >
+                    Удостоверение доверенности
+                  </h3>
+                  <p class="text-sm" style="margin-bottom: 0.5rem">
+                    Категория: Физические лица
+                  </p>
+
+                  <div style="display: flex; gap: 1rem; margin-top: 1rem">
+                    <div>
+                      <div class="text-sm" style="font-size: 0.75rem">
+                        Дата и время
+                      </div>
+                      <div class="text-bold" style="font-size: 0.9rem">
+                        12 февраля • 14:00
+                      </div>
                     </div>
+                  </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Срок действия</label>
-                        <input type="text" class="form-control form-input" placeholder="MM / YY">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">CVC / CVV</label>
-                        <input type="password" class="form-control form-input" placeholder="•••">
-                    </div>
+                <div
+                  class="text-bold"
+                  style="font-size: 1.25rem; color: var(--text-main)"
+                >
+                  2 500 ₽
                 </div>
-
-                <div class="form-group">
-                    <label class="form-label">Имя держателя</label>
-                    <input type="text" class="form-control form-input" placeholder="IVAN IVANOV">
-                </div>
+              </div>
             </div>
+
+            <div class="mt-4">
+              <label class="form-label">Email для отправки чека</label>
+              <input
+                type="email"
+                class="form-input"
+                placeholder="client@example.com"
+                value="client@example.com"
+              />
+            </div>
+          </div>
+
+          <div class="card mt-4">
+            <div class="card-title">2. Банковская карта</div>
+
+            <div class="form-group">
+              <label class="form-label">Номер карты</label>
+              <div style="position: relative">
+                <input
+                  type="text"
+                  class="form-control form-input"
+                  placeholder="0000 0000 0000 0000"
+                />
+                <div
+                  style="
+                    position: absolute;
+                    right: 10px;
+                    top: 10px;
+                    opacity: 0.5;
+                  "
+                >
+                  💳
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Срок действия</label>
+                <input
+                  type="text"
+                  class="form-control form-input"
+                  placeholder="MM / YY"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">CVC / CVV</label>
+                <input
+                  type="password"
+                  class="form-control form-input"
+                  placeholder="•••"
+                />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Имя держателя</label>
+              <input
+                type="text"
+                class="form-control form-input"
+                placeholder="IVAN IVANOV"
+              />
+            </div>
+          </div>
         </div>
 
-        <!-- ПРАВАЯ КОЛОНКА: Итог (Sidebar) -->
         <div class="checkout-sidebar">
-            <div class="card">
-                <div class="mb-4">
-                    <label class="form-label" style="font-weight: 600; color: var(--text-main); font-size: 0.95rem; margin-bottom: 0.6rem;">
-                        Промокод
-                    </label>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <input type="text" class="form-input" placeholder="Winter2026" style="padding: 0.5rem;">
-                        <button type="button" class="btn btn-outline btn-sm">OK</button>
-                    </div>
-                </div>
-                
-                <div style="border-bottom: 1px dashed var(--border-color); margin: 1rem 0;"></div>
-
-                <div class="summary-row summary-total" style="border: none; margin-top: 0; padding-top: 0;">
-                    <span>Итого:</span>
-                    <span style="color: var(--primary-color);">2 500 ₽</span>
-                </div>
-
-
-                <!-- Информация о безопасности -->
-                <div style="background: #eff6ff; border-radius: 6px; padding: 0.75rem; margin-top: 1.5rem; font-size: 0.8rem; color: #1e40af; display: flex; gap: 0.5rem;">
-                    <span>🛡️</span>
-                    <span>Деньги будут заморожены на счете и поступят нотариусу только после оказания услуги.</span>
-                </div>
-
-                <button type="submit" class="btn btn-primary mt-4">
-                    Оплатить 2 500 ₽
-                </button>
-                
-                <p class="text-sm text-center" style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-secondary);">
-                    🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы соглашаетесь с 
-                    <a href="/terms" class="link" target="_blank">условиями сервиса</a> 
-                    и 
-                    <a href="/privacy" class="link" target="_blank">политикой конфиденциальности</a>.
-                </p>
+          <div class="card">
+            <div class="mb-4">
+              <label
+                class="form-label"
+                style="
+                  font-weight: 600;
+                  color: var(--text-main);
+                  font-size: 0.95rem;
+                  margin-bottom: 0.6rem;
+                "
+              >
+                Промокод
+              </label>
+              <div style="display: flex; gap: 0.5rem">
+                <input
+                  type="text"
+                  class="form-input"
+                  placeholder="Winter2026"
+                  style="padding: 0.5rem"
+                />
+                <button type="button" class="btn btn-outline btn-sm">OK</button>
+              </div>
             </div>
+
+            <div
+              style="
+                border-bottom: 1px dashed var(--border-color);
+                margin: 1rem 0;
+              "
+            ></div>
+
+            <div
+              class="summary-row summary-total"
+              style="border: none; margin-top: 0; padding-top: 0"
+            >
+              <span>Итого:</span>
+              <span style="color: var(--primary-color)">2 500 ₽</span>
+            </div>
+
+            <div
+              style="
+                background: #eff6ff;
+                border-radius: 6px;
+                padding: 0.75rem;
+                margin-top: 1.5rem;
+                font-size: 0.8rem;
+                color: #1e40af;
+                display: flex;
+                gap: 0.5rem;
+              "
+            >
+              <span>🛡️</span>
+              <span
+                >Деньги будут заморожены на счете и поступят нотариусу только
+                после оказания услуги.</span
+              >
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4">
+              Оплатить 2 500 ₽
+            </button>
+
+            <p
+              class="text-sm text-center"
+              style="
+                margin-top: 1rem;
+                font-size: 0.75rem;
+                color: var(--text-secondary);
+              "
+            >
+              🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы
+              соглашаетесь с
+              <a href="/terms" class="link" target="_blank"
+                >условиями сервиса</a
+              >
+              и
+              <a href="/privacy" class="link" target="_blank"
+                >политикой конфиденциальности</a
+              >.
+            </p>
+          </div>
         </div>
-
-    </form>
-</div>
-
-</body>
+      </form>
+    </div>
+  </body>
 </html>
