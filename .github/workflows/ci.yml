@@ -1,3 +1,9 @@
+# Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
+# Uncomment this line to enable task distribution
+# - run: pnpm dlx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="build"
+# Prepend any command with "nx record --" to record its logs to Nx Cloud
+# - run: pnpm exec nx record -- echo Hello World
+
 name: CI
 
 on:
@@ -13,38 +19,45 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    env:
+      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           filter: tree:0
           fetch-depth: 0
 
-      
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 9.8.0
+          version: 10.29.3
           run_install: false
-      
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      # Uncomment this line to enable task distribution
-      # - run: pnpm dlx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="build"
 
-      
       # Cache node_modules
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'pnpm'
-       
-      - run: pnpm install --frozen-lockfile
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      # Prepend any command with "nx record --" to record its logs to Nx Cloud
-      # - run: pnpm exec nx record -- echo Hello World
-      - run: pnpm exec nx run-many -t lint test build
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
-      - run: pnpm exec nx fix-ci
+      - name: Format
+        run: pnpm exec nx format:check
+
+      - name: Lint
+        run: pnpm exec nx affected -t lint stylelint --parallel=3
+
+      - name: Test
+        run: pnpm exec nx affected -t test --parallel=3
+
+      - name: Build
+        run: pnpm exec nx affected -t build --parallel=3
+
+      # Nx Cloud recommends fixes for failures to help you get CI green faster
+      - name: Self-Healing CI
+        run: pnpm exec nx fix-ci
         if: always()

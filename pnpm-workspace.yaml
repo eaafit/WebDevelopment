@@ -1,8 +1,6 @@
 packages:
-  - apps/*
-  - libs/**/*
-
-autoInstallPeers: true
+  - 'apps/*'
+  - 'libs/**/*'
 
 onlyBuiltDependencies:
   - '@bufbuild/buf'
