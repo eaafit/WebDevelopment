@@ -1,3 +1,8 @@
 {
-  "recommendations": ["esbenp.prettier-vscode", "angular.ng-template", "Prisma.prisma"]
+  "recommendations": [
+    "nrwl.angular-console",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "firsttris.vscode-jest-runner"
+  ]
 }
