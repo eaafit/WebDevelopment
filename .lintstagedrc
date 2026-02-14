@@ -1,0 +1,7 @@
+{
+  "**/*.{html,ts,tsx,js,jsx}": ["eslint --fix", "prettier --write"],
+  "**/*.{css,scss}": ["stylelint --fix", "prettier --write"],
+  "**/*.{json,yml,yaml,md}": ["prettier --write"],
+  "**/*.proto": ["xargs -n 1 buf format --write", "xargs -n 1 buf lint"],
+  "**/*.prisma": ["prisma format --schema=./libs/api/prisma/schema.prisma"]
+}
