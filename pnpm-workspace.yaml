@@ -10,10 +10,10 @@ onlyBuiltDependencies:
   - '@parcel/watcher'
   - '@prisma/engines'
   - '@swc/core'
-  - esbuild
-  - less
-  - lmdb
-  - msgpackr-extract
-  - nx
-  - prisma
-  - unrs-resolver
+  - 'esbuild'
+  - 'less'
+  - 'lmdb'
+  - 'msgpackr-extract'
+  - 'nx'
+  - 'prisma'
+  - 'unrs-resolver'

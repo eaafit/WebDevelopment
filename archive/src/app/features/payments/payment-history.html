@@ -3,14 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <title>История платежей</title>
-    <link
-      rel="stylesheet"
-      href="/src/angular/styles/notary-dashboard/styles.css"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <link rel="stylesheet" href="/src/angular/styles/notary-dashboard/styles.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div class="container">
@@ -28,27 +22,15 @@
         <form id="filterForm" class="grid-filters">
           <div class="form-group no-mb">
             <label class="form-label">Поиск</label>
-            <input
-              type="text"
-              class="form-input"
-              placeholder="ID транзакции или описание..."
-            />
+            <input type="text" class="form-input" placeholder="ID транзакции или описание..." />
           </div>
 
           <div class="form-group no-mb">
             <label class="form-label">Период (С — По)</label>
             <div class="input-group-merge">
-              <input
-                type="date"
-                id="dateFrom"
-                class="form-input date-picker-limit"
-              />
+              <input type="date" id="dateFrom" class="form-input date-picker-limit" />
               <span class="text-secondary text-bold">—</span>
-              <input
-                type="date"
-                id="dateTo"
-                class="form-input date-picker-limit"
-              />
+              <input type="date" id="dateTo" class="form-input date-picker-limit" />
             </div>
           </div>
 
@@ -98,9 +80,7 @@
                 <td>Visa •• 4242</td>
                 <td><span class="badge badge-success">Оплачено</span></td>
                 <td class="text-right">
-                  <a href="#" target="_blank" class="btn btn-outline btn-sm"
-                    >🧾 Чек</a
-                  >
+                  <a href="#" target="_blank" class="btn btn-outline btn-sm">🧾 Чек</a>
                 </td>
               </tr>
             </tbody>
@@ -109,14 +89,14 @@
       </div>
     </div>
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const today = new Date().toISOString().split("T")[0];
-        const dateInputs = document.querySelectorAll(".date-picker-limit");
-        dateInputs.forEach((input) => input.setAttribute("max", today));
-        const fromInput = document.getElementById("dateFrom");
-        const toInput = document.getElementById("dateTo");
-        fromInput.addEventListener("change", function () {
-          toInput.setAttribute("min", this.value);
+      document.addEventListener('DOMContentLoaded', function () {
+        const today = new Date().toISOString().split('T')[0];
+        const dateInputs = document.querySelectorAll('.date-picker-limit');
+        dateInputs.forEach((input) => input.setAttribute('max', today));
+        const fromInput = document.getElementById('dateFrom');
+        const toInput = document.getElementById('dateTo');
+        fromInput.addEventListener('change', function () {
+          toInput.setAttribute('min', this.value);
         });
       });
     </script>
