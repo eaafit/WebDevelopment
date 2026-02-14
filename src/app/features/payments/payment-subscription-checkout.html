@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>Оплата подписки</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="/src/anuglar/styles/notary-dashboard/styles.css"
+    />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -19,16 +22,16 @@
       </div>
 
       <form
-        class="checkout-grid"
+        class="grid-checkout"
         onsubmit="
           event.preventDefault();
           alert('Переход к API оплаты...');
         "
       >
-        <div class="checkout-content">
+        <div class="flex-col gap-4">
           <div class="card">
             <div class="card-title">1. Выберите тариф</div>
-            <div class="tariff-list">
+            <div>
               <label class="tariff-card selected" onclick="selectPlan(this)">
                 <input
                   type="radio"
@@ -37,11 +40,15 @@
                   checked
                   style="display: none"
                 />
-                <div class="tariff-info">
+                <div>
                   <h3>Базовый (Basic)</h3>
-                  <p>До 10 заявок в месяц, стандартная поддержка</p>
+                  <p class="text-sm m-0">
+                    До 10 заявок в месяц, стандартная поддержка
+                  </p>
                 </div>
-                <div class="tariff-price">1 500 ₽</div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">
+                  1 500 ₽
+                </div>
               </label>
 
               <label class="tariff-card" onclick="selectPlan(this)">
@@ -51,11 +58,15 @@
                   value="premium"
                   style="display: none"
                 />
-                <div class="tariff-info">
+                <div>
                   <h3>Премиум (Premium)</h3>
-                  <p>Безлимитные заявки, приоритетная поддержка, API</p>
+                  <p class="text-sm m-0">
+                    Безлимитные заявки, приоритетная поддержка, API
+                  </p>
                 </div>
-                <div class="tariff-price">5 000 ₽</div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">
+                  5 000 ₽
+                </div>
               </label>
 
               <label class="tariff-card" onclick="selectPlan(this)">
@@ -65,71 +76,49 @@
                   value="enterprise"
                   style="display: none"
                 />
-                <div class="tariff-info">
+                <div>
                   <h3>Корпоративный (Enterprise)</h3>
-                  <p>Многопользовательский доступ, личный менеджер</p>
+                  <p class="text-sm m-0">
+                    Многопользовательский доступ, личный менеджер
+                  </p>
                 </div>
-                <div class="tariff-price">12 000 ₽</div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">
+                  12 000 ₽
+                </div>
               </label>
             </div>
           </div>
 
-          <div class="card mt-4">
+          <div class="card">
             <div class="card-title">2. Банковская карта</div>
-
             <div class="form-group">
               <label class="form-label">Номер карты</label>
-              <div style="position: relative">
-                <input
-                  type="text"
-                  class="form-control form-input"
-                  placeholder="0000 0000 0000 0000"
-                />
-                <div
-                  style="
-                    position: absolute;
-                    right: 10px;
-                    top: 10px;
-                    opacity: 0.5;
-                  "
-                ></div>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Срок действия</label>
-                <input
-                  type="text"
-                  class="form-control form-input"
-                  placeholder="MM / YY"
-                />
-              </div>
-              <div class="form-group">
-                <label class="form-label">CVC / CVV</label>
-                <input
-                  type="password"
-                  class="form-control form-input"
-                  placeholder="•••"
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Имя держателя</label>
               <input
                 type="text"
-                class="form-control form-input"
-                placeholder="IVAN IVANOV"
+                class="form-input"
+                placeholder="0000 0000 0000 0000"
               />
+            </div>
+            <div class="flex gap-4">
+              <div class="form-group w-full">
+                <label class="form-label">Срок действия</label>
+                <input type="text" class="form-input" placeholder="MM / YY" />
+              </div>
+              <div class="form-group w-full">
+                <label class="form-label">CVC / CVV</label>
+                <input type="password" class="form-input" placeholder="•••" />
+              </div>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label">Имя держателя</label>
+              <input type="text" class="form-input" placeholder="IVAN IVANOV" />
             </div>
           </div>
         </div>
 
-        <div class="checkout-sidebar">
+        <div>
           <div class="card">
             <div class="card-title">Сводка заказа</div>
-
             <div class="summary-row">
               <span class="text-secondary">Тариф</span>
               <span class="text-bold">Базовый</span>
@@ -145,34 +134,21 @@
 
             <div class="mt-4 mb-4">
               <label class="form-label">Промокод</label>
-              <div style="display: flex; gap: 0.5rem">
-                <input
-                  type="text"
-                  class="form-input"
-                  placeholder="PROMO"
-                  style="padding: 0.5rem"
-                />
+              <div class="flex gap-2">
+                <input type="text" class="form-input" placeholder="PROMO" />
                 <button type="button" class="btn btn-outline btn-sm">OK</button>
               </div>
             </div>
 
-            <div class="summary-row summary-total">
+            <div class="summary-row total">
               <span>Итого:</span>
-              <span style="color: var(--primary-color)">1 500 ₽</span>
+              <span class="text-primary">1 500 ₽</span>
             </div>
 
-            <button type="submit" class="btn btn-primary mt-4">
+            <button type="submit" class="btn btn-primary w-full mt-4">
               Оплатить 1 500 ₽
             </button>
-
-            <p
-              class="text-sm text-center"
-              style="
-                margin-top: 1rem;
-                font-size: 0.75rem;
-                color: var(--text-secondary);
-              "
-            >
+            <p class="text-sm text-center mt-4 text-xs">
               🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы
               соглашаетесь с
               <a href="/terms" class="link" target="_blank"

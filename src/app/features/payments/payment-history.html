@@ -3,7 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>История платежей</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="/src/anuglar/styles/notary-dashboard/styles.css"
+    />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
@@ -11,7 +14,7 @@
   </head>
   <body>
     <div class="container">
-      <div class="flex-between mb-4">
+      <div class="flex justify-between items-center mb-4">
         <div>
           <h1>История платежей</h1>
           <p class="text-sm">Список всех ваших транзакций и документы к ним.</p>
@@ -21,9 +24,9 @@
         </div>
       </div>
 
-      <div class="card mb-4" style="padding: 1.5rem">
-        <form id="filterForm" class="form-row" style="align-items: end">
-          <div class="form-group" style="margin-bottom: 0; flex: 1.5">
+      <div class="card p-6 mb-4">
+        <form id="filterForm" class="grid-filters">
+          <div class="form-group no-mb">
             <label class="form-label">Поиск</label>
             <input
               type="text"
@@ -32,15 +35,15 @@
             />
           </div>
 
-          <div class="form-group" style="margin-bottom: 0; flex: 2">
+          <div class="form-group no-mb">
             <label class="form-label">Период (С — По)</label>
-            <div class="date-range-wrapper">
+            <div class="input-group-merge">
               <input
                 type="date"
                 id="dateFrom"
                 class="form-input date-picker-limit"
               />
-              <span class="date-separator">—</span>
+              <span class="text-secondary text-bold">—</span>
               <input
                 type="date"
                 id="dateTo"
@@ -49,18 +52,9 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-bottom: 0; flex: 1">
+          <div class="form-group no-mb">
             <label class="form-label">Статус</label>
-            <select
-              class="form-input"
-              style="
-                appearance: none;
-                background-image: url(&quot;data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E&quot;);
-                background-repeat: no-repeat;
-                background-position: right 0.7rem top 50%;
-                background-size: 0.65rem auto;
-              "
-            >
+            <select class="form-input form-select">
               <option value="all">Все статусы</option>
               <option value="completed">Успешно</option>
               <option value="pending">В обработке</option>
@@ -69,17 +63,15 @@
             </select>
           </div>
 
-          <div style="flex: 0.8">
-            <button type="button" class="btn btn-outline" style="width: 100%">
-              Найти
-            </button>
+          <div>
+            <button type="button" class="btn btn-outline w-full">Найти</button>
           </div>
         </form>
       </div>
 
-      <div class="card" style="padding: 0; overflow: hidden">
-        <div style="overflow-x: auto">
-          <table class="history-table">
+      <div class="card p-0">
+        <div class="table-responsive">
+          <table class="table">
             <thead>
               <tr>
                 <th>Дата</th>
@@ -87,7 +79,7 @@
                 <th>Сумма</th>
                 <th>Способ</th>
                 <th>Статус</th>
-                <th style="text-align: right">Документы</th>
+                <th class="text-right">Документы</th>
               </tr>
             </thead>
             <tbody>
@@ -97,30 +89,18 @@
                   <div class="text-sm">14:30</div>
                 </td>
                 <td>
-                  <div class="payment-meta">
-                    <span
-                      class="text-bold"
-                      style="font-size: 0.95rem; color: var(--text-main)"
-                      >Подписка Premium (30 дней)</span
-                    >
-                    <span>ID: #88349-221</span>
+                  <div class="flex-col">
+                    <span class="text-bold">Подписка Premium (30 дней)</span>
+                    <span class="text-xs">ID: #88349-221</span>
                   </div>
                 </td>
                 <td class="text-bold">5 000 ₽</td>
                 <td>Visa •• 4242</td>
-                <td>
-                  <span class="status-badge status-success">Оплачено</span>
-                </td>
-                <td style="text-align: right">
-                  <a
-                    *ngIf="payment.AttachmentFileUrl"
-                    [href]="payment.AttachmentFileUrl"
-                    target="_blank"
-                    class="btn btn-outline btn-sm"
-                    [title]="payment.AttachmentFileName"
+                <td><span class="badge badge-success">Оплачено</span></td>
+                <td class="text-right">
+                  <a href="#" target="_blank" class="btn btn-outline btn-sm"
+                    >🧾 Чек</a
                   >
-                    🧾 Чек
-                  </a>
                 </td>
               </tr>
             </tbody>
@@ -128,20 +108,13 @@
         </div>
       </div>
     </div>
-
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const today = new Date().toISOString().split("T")[0];
-
         const dateInputs = document.querySelectorAll(".date-picker-limit");
-
-        dateInputs.forEach((input) => {
-          input.setAttribute("max", today);
-        });
-
+        dateInputs.forEach((input) => input.setAttribute("max", today));
         const fromInput = document.getElementById("dateFrom");
         const toInput = document.getElementById("dateTo");
-
         fromInput.addEventListener("change", function () {
           toInput.setAttribute("min", this.value);
         });
