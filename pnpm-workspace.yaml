@@ -1,6 +1,11 @@
+packages:
+  - apps/*
+  - libs/**/*
+
 autoInstallPeers: true
 
 onlyBuiltDependencies:
+  - '@bufbuild/buf'
   - '@nestjs/core'
   - '@parcel/watcher'
   - '@prisma/engines'

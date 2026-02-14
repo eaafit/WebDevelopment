@@ -28,6 +28,10 @@
       }
     },
     { "plugin": "@nx/eslint/plugin", "options": { "targetName": "lint" } },
+    {
+      "plugin": "nx-stylelint/plugin",
+      "options": { "targetName": "stylelint" }
+    },
     { "plugin": "@nx/jest/plugin", "options": { "targetName": "test" } }
   ],
   "targetDefaults": {
