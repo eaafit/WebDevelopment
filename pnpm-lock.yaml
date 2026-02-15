@@ -205,17 +205,17 @@ importers:
         specifier: ^5.1.4
         version: 5.1.4(webpack@5.105.2)
 
-  libs/shared/api-contracts:
-    dependencies:
-      tslib:
-        specifier: ^2.3.0
-        version: 2.8.1
-
-  libs/shared/prisma:
+  libs/api/prisma:
     dependencies:
       prisma:
         specifier: ^7.4.0
         version: 7.4.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
+  libs/shared/api-contracts:
+    dependencies:
       tslib:
         specifier: ^2.3.0
         version: 2.8.1

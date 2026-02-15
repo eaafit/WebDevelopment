@@ -1,7 +1,7 @@
 {
   "name": "prisma",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/shared/prisma/src",
+  "sourceRoot": "libs/api/prisma/src",
   "projectType": "library",
   "tags": [],
   "targets": {
@@ -9,10 +9,10 @@
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/libs/shared/prisma",
-        "main": "libs/shared/prisma/src/index.ts",
-        "tsConfig": "libs/shared/prisma/tsconfig.lib.json",
-        "assets": ["libs/shared/prisma/*.md"]
+        "outputPath": "dist/libs/api/prisma",
+        "main": "libs/api/prisma/src/index.ts",
+        "tsConfig": "libs/api/prisma/tsconfig.lib.json",
+        "assets": ["libs/api/prisma/*.md"]
       }
     }
   }
