@@ -205,6 +205,12 @@ importers:
         specifier: ^5.1.4
         version: 5.1.4(webpack@5.105.2)
 
+  libs/shared/api-contracts:
+    dependencies:
+      tslib:
+        specifier: ^2.3.0
+        version: 2.8.1
+
   libs/shared/prisma:
     dependencies:
       prisma:

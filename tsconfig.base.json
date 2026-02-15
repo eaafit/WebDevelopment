@@ -15,7 +15,8 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@notary-portal/prisma": ["libs/shared/prisma/src/index.ts"]
+      "@notary-portal/prisma": ["libs/shared/prisma/src/index.ts"],
+      "@notary-portal/api-contracts": ["libs/shared/api-contracts/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
