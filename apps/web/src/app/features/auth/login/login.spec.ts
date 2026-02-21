@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { LoginComponent } from './login.component';
+import { LoginComponent } from './login';
 import { AuthService } from '../../../core/auth/auth.service';
 import { Role } from '../../../core/auth/role.enum';
 

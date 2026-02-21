@@ -3,10 +3,10 @@
   <p>Выберите роль:</p>
   <div class="role-list">
     @for (r of roles; track r) {
-      <label class="role-option">
-        <input type="radio" name="role" [value]="r" [(ngModel)]="selectedRole" />
-        <span>{{ roleLabels[r] }}</span>
-      </label>
+    <label class="role-option">
+      <input type="radio" name="role" [value]="r" [(ngModel)]="selectedRole" />
+      <span>{{ roleLabels[r] }}</span>
+    </label>
     }
   </div>
   <button type="button" class="btn-login" (click)="onLogin()">Войти</button>
