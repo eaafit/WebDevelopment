@@ -1,0 +1,6 @@
+[build]
+  command = "pnpm nx build web"
+  publish = "apps/web"
+
+[build.environment]
+  NODE_VERSION = "20"
