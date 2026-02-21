@@ -1,6 +1,3 @@
-# Netlify build: do NOT add @netlify/angular-runtime in the UI — it runs before
-# the build and expects dist/ to already exist. Use this config only.
-
 [build]
   command = "pnpm nx build web"
   publish = "dist/apps/web/browser"
