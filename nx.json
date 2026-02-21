@@ -84,13 +84,18 @@
   },
   "generators": {
     "@nx/angular:application": {
+      "style": "scss",
       "e2eTestRunner": "none",
       "linter": "eslint",
-      "style": "scss",
       "unitTestRunner": "jest"
     },
     "@nx/angular:component": {
-      "style": "css"
+      "style": "scss"
+    },
+    "@nx/angular:library": {
+      "linter": "eslint",
+      "unitTestRunner": "jest",
+      "style": "scss"
     }
   }
 }
