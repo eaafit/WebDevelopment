@@ -13,7 +13,8 @@ export const appRoutes: Route[] = [
   {
     path: '',
     pathMatch: 'full',
-    loadComponent: () => import('./landing-page/landing-page').then((m) => m.LandingPage),
+    loadComponent: () =>
+      import('./features/common/landing-page/landing-page').then((m) => m.LandingPage),
   },
   {
     path: '**',
