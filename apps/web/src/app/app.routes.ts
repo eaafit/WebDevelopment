@@ -16,6 +16,16 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./landing-page/landing-page').then((m) => m.LandingPage),
   },
   {
+    path: 'admin',
+    loadComponent: () =>
+      import('./features/admin_panel/admin-menu/admin-menu').then((m) => m.AdminMenuComponent),
+  },
+  {
+    path: 'admin/users',
+    loadComponent: () =>
+      import('./features/admin_panel/admin-users/admin-users').then((m) => m.AdminUsersComponent),
+  },
+  {
     path: '**',
     redirectTo: 'auth',
   },

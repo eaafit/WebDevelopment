@@ -22,10 +22,7 @@
       "dependsOn": ["build"],
       "cache": true,
       "executor": "@nx/js:prune-lockfile",
-      "outputs": [
-        "{workspaceRoot}/dist/apps/api/package.json",
-        "{workspaceRoot}/dist/apps/api/pnpm-lock.yaml"
-      ],
+      "outputs": ["{projectRoot}/dist/package.json", "{projectRoot}/dist/pnpm-lock.yaml"],
       "options": {
         "buildTarget": "build"
       }
@@ -33,7 +30,7 @@
     "copy-workspace-modules": {
       "dependsOn": ["build"],
       "cache": true,
-      "outputs": ["{workspaceRoot}/dist/apps/api/workspace_modules"],
+      "outputs": ["{projectRoot}/dist/workspace_modules"],
       "executor": "@nx/js:copy-workspace-modules",
       "options": {
         "buildTarget": "build"
