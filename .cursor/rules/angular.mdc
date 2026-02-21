@@ -1,0 +1,266 @@
+﻿```yaml
+---
+description: Правила для разработки на Angular
+globs: *.ts, *.html, *.scss, *.component.ts, *.service.ts, *.module.ts
+---
+
+# Angular Style Guide Rules
+
+## Структура проекта
+
+### Компоненты
+- Компоненты должны быть в отдельных папках с названием компонента
+- Каждый компонент должен состоять из 4 файлов: `.ts`, `.html`, `.scss`, `.spec.ts`
+- Селекторы компонентов должны иметь префикс проекта: `app-`
+- Компоненты должны быть `standalone: true` (для Angular 14+)
+
+```typescript
+// ✅ Правильно
+@Component({
+  selector: 'app-user-profile',
+  standalone: true,
+  templateUrl: './user-profile.component.html',
+  styleUrls: ['./user-profile.component.scss']
+})
+
+// ❌ Неправильно
+@Component({
+  selector: 'user-profile',
+  templateUrl: './user-profile.component.html'
+})
+```
+
+### Сервисы
+- Сервисы должны быть помечены `@Injectable({ providedIn: 'root' })`
+- Названия сервисов должны заканчиваться на `Service`
+- Используйте интерфейсы для описания моделей данных
+
+```typescript
+// ✅ Правильно
+@Injectable({ providedIn: 'root' })
+export class UserService {
+  private apiUrl = environment.apiUrl;
+  
+  constructor(private http: HttpClient) {}
+}
+
+// ❌ Неправильно
+export class UserApi {
+  constructor(private http: HttpClient) {}
+}
+```
+
+## Именование
+
+### Файлы
+- Компоненты: `kebab-case.component.ts` (например, `user-list.component.ts`)
+- Сервисы: `kebab-case.service.ts` (например, `auth.service.ts`)
+- Модули: `kebab-case.module.ts` (например, `app.module.ts`)
+- Интерфейсы: `kebab-case.interface.ts` (например, `user.interface.ts`)
+- Enum: `kebab-case.enum.ts` (например, `role.enum.ts`)
+
+### Классы и идентификаторы
+- Классы компонентов: `PascalCase` (например, `UserListComponent`)
+- Интерфейсы: `PascalCase` с префиксом `I` (опционально)
+- Переменные и методы: `camelCase`
+- Константы: `UPPER_SNAKE_CASE`
+
+## Типизация
+
+### Использование TypeScript
+- Всегда указывайте возвращаемый тип методов
+- Избегайте `any`, используйте `unknown` если тип неизвестен
+- Используйте строгую типизацию для реактивных форм
+
+```typescript
+// ✅ Правильно
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+getUser(id: number): Observable<User> {
+  return this.http.get<User>(`${this.apiUrl}/users/${id}`);
+}
+
+// ❌ Неправильно
+getUser(id) {
+  return this.http.get(`${this.apiUrl}/users/${id}`);
+}
+```
+
+## Реактивные формы
+
+- Используйте FormBuilder для создания форм
+- Группируйте связанные поля в FormGroup
+- Создавайте отдельные интерфейсы для форм
+
+```typescript
+// ✅ Правильно
+interface LoginForm {
+  email: FormControl<string>;
+  password: FormControl<string>;
+  remember: FormControl<boolean>;
+}
+
+this.loginForm = this.fb.group({
+  email: ['', [Validators.required, Validators.email]],
+  password: ['', [Validators.required, Validators.minLength(6)]],
+  remember: [false]
+});
+
+// ❌ Неправильно
+this.loginForm = new FormGroup({
+  email: new FormControl(''),
+  password: new FormControl('')
+});
+```
+
+## Обработка подписок
+
+- Всегда отписывайтесь от подписок (используйте `takeUntil`, `async` pipe)
+- Используйте `async` pipe в шаблонах вместо ручной подписки
+- Для HTTP запросов используйте операторы RxJS
+
+```typescript
+// ✅ Правильно
+users$ = this.userService.getUsers();
+
+// В шаблоне
+<div *ngFor="let user of users$ | async">
+  {{ user.name }}
+</div>
+
+// ❌ Неправильно
+this.userService.getUsers().subscribe(users => {
+  this.users = users;
+});
+```
+
+## Производительность
+
+- Используйте `ChangeDetectionStrategy.OnPush` для компонентов
+- Мемоизируйте сложные вычисления с помощью чистых пайпов
+- Ленивая загрузка модулей/компонентов
+
+```typescript
+// ✅ Правильно
+@Component({
+  selector: 'app-heavy-component',
+  changeDetection: ChangeDetectionStrategy.OnPush
+})
+
+// ✅ Правильно (ленивая загрузка)
+const routes: Routes = [
+  {
+    path: 'admin',
+    loadChildren: () => import('./admin/admin.module').then(m => m.AdminModule)
+  }
+];
+```
+
+## Тестирование
+
+- Каждый компонент должен иметь unit-тесты
+- Используйте TestBed для настройки модуля тестирования
+- Тестируйте взаимодействие с шаблоном
+
+```typescript
+// ✅ Правильно
+describe('UserListComponent', () => {
+  let component: UserListComponent;
+  let fixture: ComponentFixture<UserListComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [UserListComponent]
+    }).compileComponents();
+  });
+
+  it('should display users', () => {
+    const users = [{ name: 'John' }];
+    component.users = users;
+    fixture.detectChanges();
+    
+    const items = fixture.nativeElement.querySelectorAll('.user-item');
+    expect(items.length).toBe(1);
+  });
+});
+```
+
+## Структура папок
+
+```
+src/
+├── app/
+│   ├── core/                    # Синглтон сервисы, guards, interceptors
+│   ├── shared/                   # Общие компоненты, директивы, пайпы
+│   ├── features/                  # Фичи/модули приложения
+│   │   ├── users/
+│   │   │   ├── pages/             # Компоненты-страницы
+│   │   │   ├── components/        # Компоненты фичи
+│   │   │   ├── services/          # Сервисы фичи
+│   │   │   └── models/            # Модели/интерфейсы фичи
+│   ├── layouts/                    # Компоненты лэйаутов
+│   └── app.component.ts
+├── assets/
+└── environments/
+```
+
+## Комментарии
+
+- Используйте JSDoc для публичных методов и сложной логики
+- Комментируйте "почему", а не "что"
+- Удаляйте закомментированный код
+
+```typescript
+/**
+ * Получает список пользователей с пагинацией
+ * @param page - номер страницы (начинается с 1)
+ * @param limit - количество записей на странице
+ * @returns Observable с массивом пользователей и метаданными пагинации
+ */
+getUsers(page: number, limit: number): Observable<PaginatedResult<User>> {
+  return this.http.get<PaginatedResult<User>>(`${this.apiUrl}/users`, {
+    params: { page, limit }
+  });
+}
+```
+
+## Импорты
+
+Сортируйте импорты в следующем порядке:
+1. Angular модули (@angular/*)
+2. Сторонние библиотеки (rxjs, ngRx и т.д.)
+3. Внутренние модули (@core, @shared)
+4. Локальные импорты
+
+```typescript
+// ✅ Правильно
+import { Component, OnInit } from '@angular/core';
+import { FormBuilder, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
+
+import { takeUntil, debounceTime } from 'rxjs/operators';
+
+import { AuthService } from '@core/services/auth.service';
+import { User } from '@shared/models/user.model';
+
+import { UserListComponent } from './user-list.component';
+```
+
+## Git коммиты
+
+Используйте conventional commits:
+- feat: новая функциональность
+- fix: исправление бага
+- docs: изменения в документации
+- style: форматирование кода
+- refactor: рефакторинг
+- test: добавление тестов
+- chore: обновление зависимостей и т.д.
+```
+
+Этот файл правил можно поместить в `.cursor/rules/angular.mdc` и он будет автоматически применяться при работе с Angular-проектом в Cursor IDE.

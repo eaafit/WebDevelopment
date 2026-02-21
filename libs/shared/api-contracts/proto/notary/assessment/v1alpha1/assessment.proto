@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package notary.assessment.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service AssessmentService {
+  rpc CreateAssessment (CreateAssessmentRequest) returns (CreateAssessmentResponse);
+  rpc GetAssessment (GetAssessmentRequest) returns (GetAssessmentResponse);
+  rpc UpdateAssessment (UpdateAssessmentRequest) returns (UpdateAssessmentResponse);
+
+  // Получение списка (для заявителя - свои, для нотариуса - доступные)
+  rpc ListAssessments (ListAssessmentsRequest) returns (ListAssessmentsResponse);
+
+  // Смена статусов (Specific operations)
+  rpc VerifyAssessment (VerifyAssessmentRequest) returns (VerifyAssessmentResponse); // Нотариус берет в работу
+  rpc CompleteAssessment (CompleteAssessmentRequest) returns (CompleteAssessmentResponse); // Оценка завершена
+  rpc CancelAssessment (CancelAssessmentRequest) returns (CancelAssessmentResponse);
+}
+
+enum AssessmentStatus {
+  ASSESSMENT_STATUS_UNSPECIFIED = 0;
+  ASSESSMENT_STATUS_NEW = 1;
+  ASSESSMENT_STATUS_VERIFIED = 2;
+  ASSESSMENT_STATUS_IN_PROGRESS = 3;
+  ASSESSMENT_STATUS_COMPLETED = 4;
+  ASSESSMENT_STATUS_CANCELLED = 5;
+}
+
+message Assessment {
+  string id = 1;
+  string user_id = 2;
+  AssessmentStatus status = 3;
+  string address = 4;
+  string description = 5;
+  string estimated_value = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message CreateAssessmentRequest {
+  string user_id = 1;
+  string address = 2;
+  string description = 3;
+}
+
+message GetAssessmentRequest {
+  string id = 1;
+}
+
+message UpdateAssessmentRequest {
+  string id = 1;
+  string address = 2;
+  string description = 3;
+}
+
+message ListAssessmentsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1;
+  AssessmentStatus status_filter = 2;
+  string user_id = 3; // Опционально, для фильтрации админом
+}
+
+message VerifyAssessmentRequest {
+  string id = 1;
+}
+
+message CompleteAssessmentRequest {
+  string id = 1;
+  string final_estimated_value = 2;
+}
+
+message CancelAssessmentRequest {
+  string id = 1;
+  string reason = 2;
+}
+
+message CreateAssessmentResponse {
+  Assessment assessment = 1;
+}
+
+message GetAssessmentResponse {
+  Assessment assessment = 1;
+}
+
+message UpdateAssessmentResponse {
+  Assessment assessment = 1;
+}
+
+message ListAssessmentsResponse {
+  repeated Assessment assessments = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message VerifyAssessmentResponse {
+  Assessment assessment = 1;
+}
+
+message CompleteAssessmentResponse {
+  Assessment assessment = 1;
+}
+
+message CancelAssessmentResponse {
+  Assessment assessment = 1;
+}

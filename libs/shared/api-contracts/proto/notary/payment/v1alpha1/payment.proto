@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package notary.payment.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "buf/validate/validate.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service PaymentService {
+  rpc CreatePayment (CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc ProcessWebhook (ProcessWebhookRequest) returns (ProcessWebhookResponse);
+  rpc GetPaymentHistory (GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
+  rpc GetSubscription (GetSubscriptionRequest) returns (GetSubscriptionResponse);
+}
+
+enum SubscriptionPlan {
+  SUBSCRIPTION_PLAN_UNSPECIFIED = 0;
+  SUBSCRIPTION_PLAN_BASIC = 1;
+  SUBSCRIPTION_PLAN_PREMIUM = 2;
+  SUBSCRIPTION_PLAN_ENTERPRISE = 3;
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_STATUS_PENDING = 1;
+  PAYMENT_STATUS_COMPLETED = 2;
+  PAYMENT_STATUS_FAILED = 3;
+  PAYMENT_STATUS_REFUNDED = 4;
+}
+
+enum PaymentType {
+  PAYMENT_TYPE_UNSPECIFIED = 0;
+  PAYMENT_TYPE_SUBSCRIPTION = 1;
+  PAYMENT_TYPE_ASSESSMENT = 2;
+  PAYMENT_TYPE_DOCUMENT_COPY = 3;
+}
+
+message Payment {
+  string id = 1;
+  string user_id = 2;
+  string amount = 3;
+  PaymentStatus status = 4;
+  google.protobuf.Timestamp payment_date = 5;
+  string transaction_id = 6;
+  string attachment_url = 7;
+}
+
+message Subscription {
+  string id = 1;
+  string user_id = 2;
+  SubscriptionPlan plan = 3;
+  bool is_active = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
+}
+
+message CreatePaymentRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+
+  string amount = 2 [(buf.validate.field).string = {
+    pattern: "^[0-9]+(\\.[0-9]{1,2})?$",
+    min_len: 1
+  }];
+
+  PaymentType type = 3 [(buf.validate.field).enum = {
+      defined_only: true,
+      not_in: [0]
+  }];
+
+  string target_id = 4 [(buf.validate.field).string.uuid = true];
+  string promo_code = 5 [(buf.validate.field).string.max_len = 20];
+}
+
+message CreatePaymentResponse {
+  string payment_url = 1 [(buf.validate.field).string.uri = true];
+  string payment_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message ProcessWebhookRequest {
+  string payload = 1 [(buf.validate.field).required = true];
+  string signature = 2 [(buf.validate.field).required = true];
+}
+
+message ProcessWebhookResponse {
+  bool success = 1;
+}
+
+message GetPaymentHistoryRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  notary.common.v1alpha1.PaginationParams pagination = 2 [(buf.validate.field).required = true];
+}
+
+message GetPaymentHistoryResponse {
+  repeated Payment payments = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message GetSubscriptionRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetSubscriptionResponse {
+  Subscription subscription = 1;
+}

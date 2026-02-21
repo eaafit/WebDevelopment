@@ -1,0 +1,86 @@
+# Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
+# Uncomment this line to enable task distribution
+# - run: pnpm dlx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="build"
+# Prepend any command with "nx record --" to record its logs to Nx Cloud
+# - run: pnpm exec nx record -- echo Hello World
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm & Node
+        uses: ./.github/actions/setup
+
+      - name: Format
+        run: pnpm exec nx affected -t format:check --parallel=3
+
+      - name: Lint
+        run: pnpm exec nx affected -t lint stylelint --parallel=3
+
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm & Node
+        uses: ./.github/actions/setup
+
+      - name: Lint
+        run: pnpm exec nx affected -t lint-proto --parallel=3
+
+      - name: Breaking Changes
+        run: pnpm exec nx affected -t breaking-proto --parallel=3
+
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm & Node
+        uses: ./.github/actions/setup
+
+      - name: Test
+        run: pnpm exec nx affected -t test --parallel=3
+
+      - name: Build
+        run: pnpm exec nx affected -t build --parallel=3
+
+  self-healing-ci:
+    needs: [code-quality, proto, test-and-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm & Node
+        uses: ./.github/actions/setup
+
+      - name: Self-Healing CI
+        run: pnpm exec nx fix-ci

@@ -1,0 +1,198 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  Applicant
+  Notary
+  Admin
+}
+
+enum AssessmentStatus {
+  New
+  Verified
+  InProgress
+  Completed
+  Cancelled
+}
+
+enum SubscriptionPlan {
+  Basic
+  Premium
+  Enterprise
+}
+
+enum PaymentType {
+  Subscription
+  Assessment
+  DocumentCopy
+}
+
+enum PaymentStatus {
+  Pending
+  Completed
+  Failed
+  Refunded
+}
+
+enum NotificationType {
+  Email
+  SMS
+  Push
+}
+
+enum NotificationStatus {
+  Pending
+  Sent
+  Failed
+}
+
+enum SaleType {
+  Permanent
+  Subscription
+  Product
+  Promo
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  role         Role     @default(Applicant)
+  phoneNumber  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessments       Assessment[]
+  subscriptions     Subscription[]
+  payments          Payment[]
+  uploadedDocuments Document[]         @relation("UploadedBy")
+  signedReports     AssessmentReport[] @relation("SignedBy")
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+}
+
+model Assessment {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  status         AssessmentStatus @default(New)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  address        String
+  description    String?
+  estimatedValue Decimal?         @db.Decimal(15, 2)
+
+  user      User               @relation(fields: [userId], references: [id])
+  documents Document[]
+  reports   AssessmentReport[]
+  payments  Payment[]
+}
+
+model Document {
+  id           String   @id @default(uuid()) @db.Uuid
+  assessmentId String   @db.Uuid
+  fileName     String
+  fileType     String
+  filePath     String
+  version      Int      @default(1)
+  uploadedAt   DateTime @default(now())
+  uploadedById String   @db.Uuid
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+  uploadedBy User       @relation("UploadedBy", fields: [uploadedById], references: [id])
+}
+
+model Subscription {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  plan      SubscriptionPlan
+  startDate DateTime         @db.Date
+  endDate   DateTime         @db.Date
+  isActive  Boolean          @default(true)
+
+  user     User      @relation(fields: [userId], references: [id])
+  payments Payment[]
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  userId             String        @db.Uuid
+  type               PaymentType
+  subscriptionId     String?       @db.Uuid
+  assessmentId       String?       @db.Uuid
+  amount             Decimal       @db.Decimal(15, 2)
+  paymentDate        DateTime      @default(now())
+  status             PaymentStatus @default(Pending)
+  paymentMethod      String?
+  transactionId      String?       @unique
+  attachmentFileName String?
+  attachmentFileUrl  String?
+
+  user         User          @relation(fields: [userId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  assessment   Assessment?   @relation(fields: [assessmentId], references: [id])
+}
+
+model AssessmentReport {
+  id            String   @id @default(uuid()) @db.Uuid
+  assessmentId  String   @db.Uuid
+  reportPath    String
+  generatedAt   DateTime @default(now())
+  signedById    String   @db.Uuid
+  signatureData Bytes?
+  version       Int      @default(1)
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+  signedBy   User       @relation("SignedBy", fields: [signedById], references: [id])
+}
+
+model Notification {
+  id      String             @id @default(uuid()) @db.Uuid
+  userId  String             @db.Uuid
+  type    NotificationType
+  message String
+  sentAt  DateTime           @default(now())
+  status  NotificationStatus @default(Pending)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  actionType String
+  entityName String
+  entityId   String   @db.Uuid
+  timestamp  DateTime @default(now())
+  details    Json?    @db.JsonB
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Promo {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique
+  description String?
+}
+
+model Sale {
+  id        String   @id @default(uuid()) @db.Uuid
+  sourceId  String?  @db.Uuid
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  percent   Decimal  @db.Decimal(5, 2)
+  type      SaleType
+}

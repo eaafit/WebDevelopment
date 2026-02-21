@@ -1,0 +1,33 @@
+{
+  "name": "api-contracts",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/api-contracts/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/shared/api-contracts",
+        "main": "libs/shared/api-contracts/src/index.ts",
+        "tsConfig": "libs/shared/api-contracts/tsconfig.lib.json",
+        "assets": ["libs/shared/api-contracts/*.md"]
+      }
+    },
+    "lint-proto": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "buf lint",
+        "cwd": "libs/shared/api-contracts"
+      }
+    },
+    "breaking-proto": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "buf breaking --against \"../../../.git#branch=origin/main,subdir={projectRoot}\"",
+        "cwd": "libs/shared/api-contracts"
+      }
+    }
+  }
+}

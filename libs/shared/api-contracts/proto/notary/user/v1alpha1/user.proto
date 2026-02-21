@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package notary.user.v1alpha1;;
+
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service UserService {
+  rpc GetProfile (GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile (UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc GetUserById (GetUserByIdRequest) returns (GetUserByIdResponse); // admin-only
+  rpc ListUsers (ListUsersRequest) returns (ListUsersResponse); // admin-only
+}
+
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_APPLICANT = 1;
+  USER_ROLE_NOTARY = 2;
+  USER_ROLE_ADMIN = 3;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  UserRole role = 4;
+  string phone_number = 5;
+  bool is_active = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message GetProfileRequest {
+  string user_id = 1;
+}
+
+message UpdateProfileRequest {
+  string user_id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+}
+
+message GetUserByIdRequest {
+  string id = 1;
+}
+
+message ListUsersRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1;
+  UserRole role_filter = 2;
+}
+
+message GetProfileResponse {
+  User user = 1;
+}
+
+message UpdateProfileResponse {
+  User user = 1;
+}
+
+message GetUserByIdResponse {
+  User user = 1;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}

@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "editorconfig.editorconfig",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "stylelint.vscode-stylelint",
+    "angular.ng-template",
+    "nrwl.angular-console",
+    "firsttris.vscode-jest-runner",
+    "bufbuild.vscode-buf",
+    "Prisma.prisma"
+  ]
+}

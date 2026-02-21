@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: notary-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+    ports:
+      - '${DB_PORT}:5432'
+    volumes:
+      - notary_data:/var/lib/postgresql
+    restart: always
+
+volumes:
+  notary_data:
