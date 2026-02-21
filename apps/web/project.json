@@ -20,7 +20,8 @@
             "input": "apps/web/public"
           }
         ],
-        "styles": ["apps/web/src/styles.scss"]
+        "styles": ["apps/web/src/styles.scss", "apps/web/src/styles/admin-dashboard/style.css"],
+        "scripts": ["apps/web/src/app/features/admin_panel/script.js"]
       },
       "configurations": {
         "production": {
