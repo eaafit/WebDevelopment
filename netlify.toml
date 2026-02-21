@@ -1,6 +1,8 @@
-[build]
-  command = "npx nx build web --prod"
+# Netlify build: do NOT add @netlify/angular-runtime in the UI — it runs before
+# the build and expects dist/ to already exist. Use this config only.
 
+[build]
+  command = "pnpm nx build web"
   publish = "dist/apps/web/browser"
 
 [[redirects]]
@@ -9,4 +11,7 @@
   status = 200
 
 [build.environment]
-  NODE_VERSION = "24"
+  NODE_VERSION = "20"
+  NX_NO_CLOUD = "true"
+  NX_DAEMON = "false"
+  CI = "true"
