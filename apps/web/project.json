@@ -10,7 +10,7 @@
       "executor": "@angular/build:application",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "apps/web",
+        "outputPath": "dist/apps/web",
         "browser": "apps/web/src/main.ts",
         "tsConfig": "apps/web/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
@@ -75,7 +75,7 @@
       "executor": "@nx/web:file-server",
       "options": {
         "buildTarget": "web:build",
-        "staticFilePath": "apps/web",
+        "staticFilePath": "dist/apps/web/browser",
         "spa": true
       }
     }
