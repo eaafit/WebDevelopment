@@ -1,19 +1,29 @@
 # WebDevelopment
 
+> [!IMPORTANT]
+> **Необходимо выполнить при первом запуске проекта:**
+>
+> - `npm install -g pnpm` – установить pnpm
+> - `pnpm install` - установить все зависимости (Выполнять в корне проекта)
+
 ## Команды
 
-### Необходимо сделать при первом запуске проекта:
+### Создание библиотек/компонентов
 
-- `npm install -g pnpm` – установить pnpm
-- `pnpm install` - установить все зависимости (выполнять в корне проекта)
+- `pnpm nx g @nx/angular:lib libs/web/<guest|applicant|notary|admin|shared> --standalone [--routing: необходим для всех библиотек кроме библиотек для общих UI-элементов]` - создать Front-end библиотеку (Необходимо в редких случаях)
+- `pnpm nx generate @nx/angular:component libs/web/<guest|applicant|notary|admin|shared>/<component_name>/<component_name> --standalone` - создать Front-end компонент
 
 ---
+
+### Запуск проекта
 
 - `docker-compose up` – запустить PostgreSQL
 - `pnpm nx serve api` – запустить Back-end
 - `pnpm nx serve web` – запустить Front-end
 
 ---
+
+### Prisma
 
 - `pnpm nx run prisma:status` - проверяет текущее состояние базы данных и выводит информацию о уже примененных и ожидающих выполнения миграциях.
 - `pnpm nx run prisma:migrate [-n migration_name]` - создает новые миграции на основе изменений в Prisma-схеме и автоматически применяет их к базе данных (используется только в среде разработки).
@@ -22,6 +32,5 @@
 - `pnpm nx run prisma:migrate` - обновляет Prisma Client на основе текущей схемы, генерируя актуальные TypeScript-типы для безопасного взаимодействия с базой данных из кода.
 - `pnpm nx run prisma:migrate` - автоматически заполняет базу данных начальными или тестовыми данными в соответствии с заранее настроенным seed-скриптом.
 
-### Примечание:
-
-Если у вас установлен PostgreSQL вне Docker, порт 5432 может быть занят и появится необходимость поменять его на любой другой свободный порт.
+> [!WARNING]
+> Если у вас установлен PostgreSQL вне Docker, порт 5432 может быть занят, и появится необходимость поменять его на любой другой свободный порт.
