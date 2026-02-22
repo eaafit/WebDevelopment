@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Личный кабинет нотариуса</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <i class="fas fa-scale-balanced"></i>
+            <h2>Нотариус</h2>
+        </div>
+        <button class="logout-btn">Выйти</button>
+    </div>
+
+    <div class="main">
+        <div class="menu">
+            <div class="menu-item active">Заказы</div>
+            <div class="menu-item">Документы</div>
+            <div class="menu-item">Оплата</div>
+            
+            <div class="tariff">
+                <p><strong>Тариф:</strong> Стандарт</p>
+                <p><strong>До:</strong> 08.02.2026</p>
+                <button class="pay-btn">Продлить</button>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="search">
+                <input type="text" placeholder="Найти заказ...">
+                <button class="search-btn">Найти</button>
+            </div>
+
+            <h3>Список заказов</h3>
+            <table>
+                <tr>
+                    <th>№</th>
+                    <th>Клиент</th>
+                    <th>Статус</th>
+                    <th>Действие</th>
+                </tr>
+                <tr>
+                    <td>#001</td>
+                    <td>Иванов П.</td>
+                    <td><span class="status new">Новый</span></td>
+                    <td><button class="take-btn">Взять</button></td>
+                </tr>
+                <tr>
+                    <td>#002</td>
+                    <td>Петров В.</td>
+                    <td><span class="status work">В работе</span></td>
+                    <td><button class="docs-btn">Документы</button></td>
+                </tr>
+            </table>
+
+            <div class="stats">
+                <div class="stat">Новых: <span>3</span></div>
+                <div class="stat">В работе: <span>2</span></div>
+                <div class="stat">Всего: <span>12</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="docModal">
+        <div class="modal-content">
+            <h3>Документы заказа #001</h3>
+            <p>Доверенность.pdf</p>
+            <p>Паспорт.jpg</p>
+            <button class="close-btn">Закрыть</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
