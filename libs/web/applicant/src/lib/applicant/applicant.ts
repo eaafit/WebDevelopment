@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ViewEncapsulation } from '@angular/core';
 import { RouterModule } from '@angular/router';
 
 @Component({
@@ -6,5 +6,6 @@ import { RouterModule } from '@angular/router';
   imports: [RouterModule],
   templateUrl: './applicant.html',
   styleUrl: './applicant.scss',
+  encapsulation: ViewEncapsulation.None,
 })
 export class Applicant {}
