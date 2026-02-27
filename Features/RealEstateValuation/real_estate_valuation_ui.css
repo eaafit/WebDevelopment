@@ -1,0 +1,403 @@
+:root {
+  /* Базовая палитра (повторяем styles.css) */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+
+  --bg-page: #f3f4f6;
+  --bg-card: #ffffff;
+  --bg-secondary: #f9fafb;
+
+  --text-main: #111827;
+  --text-secondary: #6b7280;
+  --text-light: #9ca3af;
+
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --radius: 12px;      /* карточки */
+  --radius-sm: 8px;    /* кнопки/инпуты */
+  --radius-round: 999px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 5%);
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 10%);
+
+  --focus-ring: 0 0 0 3px rgb(79 70 229 / 10%);
+
+ 
+  --color-bg: var(--bg-page);
+  --color-bg-soft: var(--bg-secondary);
+  --color-card: var(--bg-card);
+  --color-text: var(--text-main);
+  --color-text-muted: var(--text-secondary);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input-border: var(--border);
+  --color-accent: var(--primary);
+  --color-accent-dark: var(--primary-hover);
+  --color-accent-glow: rgb(79 70 229 / 10%);
+
+  /* Отступы */
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Тени */
+  --shadow-card: var(--shadow);
+  --shadow-soft: var(--shadow-sm);
+
+  /* Радиусы  */
+  --radius-card: var(--radius);
+  --radius-block: var(--radius);
+  --radius-control: var(--radius-sm);
+}
+
+/* --- 2. RESET & BASE --- */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+
+  /* Как в styles.css: Inter/system */
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  color: var(--color-text);
+
+  /* Как в styles.css: серый фон и паддинги */
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: var(--color-bg);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* --- 3. LAYOUT --- */
+.container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.app-header {
+  padding-top: var(--space-lg);
+}
+
+.app-header__inner {
+  display: flex;
+  justify-content: center;
+}
+
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-round);
+  background: rgba(255, 255, 255, 0.9);
+
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.page {
+  padding: 16px 0 56px;
+}
+
+/* --- 4. CARD --- */
+.card {
+  overflow: hidden;
+  padding: 2rem;
+
+  border: 1px solid rgb(0 0 0 / 2%);
+  border-radius: var(--radius-card);
+
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card__header {
+  text-align: center;
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1.5rem;
+}
+
+.card__eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.875rem; /* как h1 в styles.css */
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.card__subtitle {
+  margin: 0 auto;
+  max-width: 760px;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+/* --- 5. FORM --- */
+.form {
+  padding: 0;
+}
+
+.form__sections {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.fieldset {
+  margin: 0;
+  padding: 1.25rem;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-block);
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-soft);
+}
+
+.legend {
+  padding: 0 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* единый отступ между блоками внутри секции */
+.form-block + .form-block {
+  margin-top: var(--space-lg);
+}
+
+.grid {
+  display: grid;
+  gap: 14px;
+}
+
+.grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.req {
+  margin-left: 2px;
+  color: #b91c1c; /* аккуратный red, без “розового” */
+  font-weight: 700;
+}
+
+.control {
+  width: 100%;
+  padding: 0.75rem 1rem;
+
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-control);
+
+  background: #fff;
+  color: var(--color-text);
+
+  font-size: 0.95rem;
+  outline: none;
+
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.control::placeholder {
+  color: var(--text-light);
+}
+
+.control:hover {
+  border-color: var(--color-border-strong);
+}
+
+.control:focus {
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+/* Select: кастомная стрелка как в styles.css */
+select.control {
+  padding-right: 2.5rem;
+  appearance: none;
+  background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%236b7280%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 0.65rem auto;
+}
+
+.control--textarea {
+  min-height: 122px;
+  resize: vertical;
+}
+
+.help {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* --- 6. CHECKBOXES --- */
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.check + .check {
+  margin-top: var(--space-md);
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--color-accent-dark);
+}
+
+/* --- 7. FOOTER BUTTONS --- */
+.form__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.form__footer--center {
+  justify-content: center;
+}
+
+.btn {
+  cursor: pointer;
+
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 46px;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1;
+
+  background: #fff;
+  color: var(--color-text);
+
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: var(--focus-ring);
+}
+
+.btn--primary {
+  border-color: transparent;
+  background-color: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn--primary:hover {
+  transform: translateY(-1px);
+  background-color: var(--primary-hover);
+}
+
+.btn--outline {
+  border-color: var(--border);
+  background-color: #fff;
+}
+
+.btn--outline:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-secondary);
+}
+
+/* --- 8. RESPONSIVE --- */
+@media (max-width: 980px) {
+  .grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  body {
+    padding: 1.25rem;
+  }
+
+  .page {
+    padding-top: 12px;
+    padding-bottom: 34px;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  .card__header {
+    padding-bottom: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .card__title {
+    font-size: 1.6rem;
+  }
+
+  .grid--2,
+  .grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .btn {
+    width: 100%;
+  }
+}
+

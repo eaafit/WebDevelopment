@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ввод параметров объекта (для заявителя)</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./real_estate_valuation_ui.css" />
+</head>
+
+<body>
+  <header class="app-header">
+    <div class="container app-header__inner">
+      <span class="app-chip">Модуль оценки недвижимости (для заявителя)</span>
+    </div>
+  </header>
+
+  <main class="container page">
+    <section class="card">
+      <header class="card__header">
+        <p class="card__eyebrow">Заявка на оценку</p>
+        <h1 class="card__title">Ввод параметров объекта</h1>
+        <p class="card__subtitle">Заполните характеристики недвижимости для формирования заявки на оценку.</p>
+      </header>
+
+      <form class="form" id="valuationForm" action="#" method="post">
+        <div class="form__sections">
+          <fieldset class="fieldset">
+            <legend class="legend">Адрес</legend>
+
+            <div class="form-block grid grid--2">
+              <div class="field">
+                <label class="label" for="city">Город <span class="req">*</span></label>
+                <select class="control" id="city" name="city" required>
+                  <option value="" selected disabled>Выберите город</option>
+                  <option>Москва</option>
+                  <option>Санкт-Петербург</option>
+                  <option>Казань</option>
+                  <option>Екатеринбург</option>
+                  <option>Новосибирск</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="district">Район / округ</label>
+                <select class="control" id="district" name="district">
+                  <option value="" selected>Не выбрано</option>
+                  <option>Центральный</option>
+                  <option>Северный</option>
+                  <option>Южный</option>
+                  <option>Западный</option>
+                  <option>Восточный</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-block field">
+              <label class="label" for="address">Адрес<span class="req">*</span></label>
+              <input
+                class="control"
+                id="address"
+                name="address"
+                list="address-suggestions"
+                placeholder="Введите адрес"
+                required
+                minlength="8"
+                maxlength="180"
+              />
+              <datalist id="address-suggestions">
+                <option value="Москва, Тверская ул., д. 10"></option>
+                <option value="Москва, Ленинский пр-т, д. 45"></option>
+                <option value="Санкт-Петербург, Невский пр-т, д. 28"></option>
+                <option value="Казань, ул. Баумана, д. 5"></option>
+                <option value="Екатеринбург, ул. Малышева, д. 16"></option>
+              </datalist>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="legend">Основные параметры</legend>
+
+            <div class="form-block grid grid--3">
+              <div class="field">
+                <label class="label" for="area">Площадь, м² <span class="req">*</span></label>
+                <input
+                  class="control"
+                  id="area"
+                  name="area"
+                  type="number"
+                  required
+                  min="1"
+                  max="100000"
+                  step="0.1"
+                  inputmode="decimal"
+                  placeholder="Например: 54.6"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="objectType">Тип объекта <span class="req">*</span></label>
+                <select class="control" id="objectType" name="objectType" required>
+                  <option value="" selected disabled>Выберите тип</option>
+                  <option>Квартира</option>
+                  <option>Дом</option>
+                  <option>Комната</option>
+                  <option>Апартаменты</option>
+                  <option>Земельный участок</option>
+                  <option>Коммерческая недвижимость</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="rooms">Кол-во комнат</label>
+                <input
+                  class="control"
+                  id="rooms"
+                  name="rooms"
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="Например: 2"
+                />
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="legend">Характеристики</legend>
+
+            <div class="form-block grid grid--3">
+              <div class="field">
+                <label class="label" for="floorsTotal">Этажность (всего этажей) <span class="req">*</span></label>
+                <input
+                  class="control"
+                  id="floorsTotal"
+                  name="floorsTotal"
+                  type="number"
+                  required
+                  min="1"
+                  max="200"
+                  step="1"
+                  inputmode="numeric"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="floor">Этаж</label>
+                <input
+                  class="control"
+                  id="floor"
+                  name="floor"
+                  type="number"
+                  min="0"
+                  max="200"
+                  step="1"
+                  inputmode="numeric"
+                />
+                <div class="help">0 — если частный дом/участок.</div>
+              </div>
+
+              <div class="field">
+                <label class="label" for="condition">Состояние <span class="req">*</span></label>
+                <select class="control" id="condition" name="condition" required>
+                  <option value="" selected disabled>Выберите</option>
+                  <option>Новостройка</option>
+                  <option>Хорошее</option>
+                  <option>Требует ремонта</option>
+                  <option>Аварийное</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="yearBuilt">Год постройки</label>
+                <input
+                  class="control"
+                  id="yearBuilt"
+                  name="yearBuilt"
+                  type="number"
+                  min="1700"
+                  max="2100"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="Например: 2012"
+                />
+              </div>
+
+              <div class="field">
+                <label class="label" for="wallMaterial">Тип дома</label>
+                <select class="control" id="wallMaterial" name="wallMaterial">
+                  <option value="" selected>Не выбрано</option>
+                  <option>Кирпичный</option>
+                  <option>Панельный</option>
+                  <option>Блочный</option>
+                  <option>Монолитный</option>
+                  <option>Монолитно-кирпичный</option>
+                  <option>Деревянный</option>
+                  <option>Газобетонный</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label class="label" for="elevator">Лифт</label>
+                <select class="control" id="elevator" name="elevator">
+                  <option value="" selected>Не выбрано</option>
+                  <option>Нет</option>
+                  <option>Грузовой</option>
+                  <option>Пассажирский</option>
+                  <option>Пассажирский и грузовой</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-block field">
+              <label class="label" for="description">Описание (доп. параметры)</label>
+              <textarea
+                class="control control--textarea"
+                id="description"
+                name="description"
+                rows="4"
+                maxlength="1000"
+                placeholder="Например: вид из окна, парковка, санузел, наличие обременений (если известно)…"
+              ></textarea>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="legend">Подтверждения</legend>
+
+            <label class="check">
+              <input type="checkbox" name="confirmCorrect" required />
+              <span>Подтверждаю, что данные введены корректно и соответствуют объекту.</span>
+            </label>
+
+            <label class="check">
+              <input type="checkbox" name="confirmProcessing" required />
+              <span>Согласен(на) на обработку данных для проведения оценки.</span>
+            </label>
+          </fieldset>
+        </div>
+
+        <div class="form__footer form__footer--center">
+          <button class="btn btn--primary" type="submit">Сохранить параметры</button>
+
+          <!-- Переход на страницу с таблицами-->
+          <a class="btn btn--outline" href="./requests_table.html">Перейти к заявкам</a>
+        </div>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
