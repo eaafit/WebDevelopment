@@ -1,13 +1,9 @@
-import { Component, output } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component } from '@angular/core';
 
 @Component({
   selector: 'lib-landing-page',
-  standalone: true,
-  imports: [RouterLink],
+  imports: [],
   templateUrl: './landing-page.html',
   styleUrl: './landing-page.scss',
 })
-export class LandingPage {
-  navigate = output<'landing' | 'payment-history'>();
-}
+export class LandingPage {}

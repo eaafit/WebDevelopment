@@ -1,0 +1,38 @@
+<main class="landing">
+  <h1>Добро пожаловать</h1>
+
+  <div class="roles-container">
+    <!-- Роль: Гость -->
+    <section class="role-card">
+      <h2>Гость</h2>
+      <div class="btn-group">
+        <a routerLink="/auth" class="btn btn-outline">Логин</a>
+      </div>
+    </section>
+
+    <!-- Роль: Заявитель -->
+    <section class="role-card">
+      <h2>Заявитель</h2>
+      <div class="btn-group">
+        <a routerLink="/applicant/checkout" class="btn btn-outline">Оплатить услугу</a>
+      </div>
+    </section>
+
+    <!-- Роль: Нотариус -->
+    <section class="role-card">
+      <h2>Нотариус</h2>
+      <div class="btn-group">
+        <a routerLink="/notary/subscription/checkout" class="btn btn-outline">Оплатить подписку</a>
+        <a routerLink="/notary/transactions" class="btn btn-outline">История платежей</a>
+      </div>
+    </section>
+
+    <!-- Роль: Администратор -->
+    <section class="role-card admin-card">
+      <h2>Администратор</h2>
+      <div class="btn-group">
+        <a routerLink="#" class="btn btn-outline dashed">Новая функция</a>
+      </div>
+    </section>
+  </div>
+</main>
