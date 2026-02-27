@@ -39,7 +39,7 @@
   --shadow-card: var(--shadow);
   --shadow-soft: var(--shadow-sm);
 
-  /* Радиусы  */
+  /* Радиусы */
   --radius-card: var(--radius);
   --radius-block: var(--radius);
   --radius-control: var(--radius-sm);
@@ -151,7 +151,7 @@ textarea {
 
 .card__title {
   margin: 0 0 0.5rem;
-  font-size: 1.875rem; /* как h1 в styles.css */
+  font-size: 1.875rem;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -223,7 +223,7 @@ textarea {
 .req {
   margin-left: 2px;
   font-weight: 700;
-  color: #b91c1c; /* аккуратный red, без “розового” */
+  color: #b91c1c;
 }
 
 .control {
