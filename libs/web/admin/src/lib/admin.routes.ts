@@ -1,5 +1,6 @@
 import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
+import { TariffManagement } from './features/tariff-management/tariff-management';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
@@ -47,14 +48,7 @@ export const adminRoutes: Route[] = [
           'Просмотр списка подписок',
         ]),
       } as Route,
-      {
-        path: 'plans',
-        ...placeholder('Тарифные планы', [
-          'Просмотр тарифных планов',
-          'Скидки',
-          'Промокоды',
-        ]),
-      } as Route,
+      { path: 'tariff-management', component: TariffManagement },
       {
         path: 'files',
         ...placeholder('Модерация файлов', [

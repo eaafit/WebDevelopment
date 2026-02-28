@@ -8,7 +8,7 @@ const ADMIN_MENU = [
   { label: 'Заявки', route: 'orders', icon: '📄' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
-  { label: 'Тарифные планы', route: 'plans', icon: '📋' },
+  { label: 'Тарифные планы', route: 'tariff-management', icon: '📋' },
   { label: 'Модерация файлов', route: 'files', icon: '📁' },
   { label: 'Рассылка', route: 'newsletter', icon: '📧' },
   { label: 'Мониторинг и логи', route: 'monitoring', icon: '🖥' },
