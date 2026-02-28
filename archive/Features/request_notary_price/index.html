@@ -1,0 +1,228 @@
+﻿<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Запрос оценки недвижимости</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <div class="title">
+    <div>
+      <h1>Запрос оценки недвижимости</h1>
+      <p class="subtitle">Заполните параметры — система автоматически подставит данные и сформирует текст запроса.</p>
+    </div>
+    <div class="stepper" id="stepper"></div>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- LEFT: FORM -->
+  <section class="card">
+    <div class="card-h">
+      <h2 id="stepTitle">Шаг 1 — Данные нотариуса</h2>
+      <span class="badge" id="stepBadge">1/5</span>
+    </div>
+
+    <div class="card-b">
+
+      <!-- STEP 1 -->
+      <div class="stepPanel" data-step="1">
+        <div class="grid">
+          <div class="field">
+            <label class="req">Город практики</label>
+            <select id="notaryCity" required>
+              <option value="">— выберите город —</option>
+            </select>
+            <div class="help">Список зависит от вашей базы нотариусов.</div>
+          </div>
+
+          <div class="field">
+            <label class="req">ФИО нотариуса</label>
+            <select id="notaryFio" required disabled>
+              <option value="">— выберите нотариуса —</option>
+            </select>
+            <div class="help">После выбора автоматически подставятся номер и адрес конторы.</div>
+          </div>
+
+          <div class="field">
+            <label>Номер нотариальной конторы</label>
+            <input id="notaryOfficeNo" readonly placeholder="Автоматически" />
+          </div>
+
+          <div class="field">
+            <label>Адрес нотариальной конторы</label>
+            <input id="notaryOfficeAddr" readonly placeholder="Автоматически" />
+          </div>
+
+          <div class="field">
+            <label>Исходящий №</label>
+            <input id="outNo" class="mono" readonly />
+            <div class="help">Генерируется автоматически.</div>
+          </div>
+
+          <div class="field">
+            <label>Дата запроса</label>
+            <input id="outDate" type="date" />
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="stepPanel" data-step="2" style="display:none">
+        <div class="grid">
+          <div class="field">
+            <label class="req">Оценочная компания</label>
+            <select id="companyName" required>
+              <option value="">— выберите компанию —</option>
+            </select>
+            <div class="help">Можно добавить поиск по ИНН/названию.</div>
+          </div>
+
+          <div class="field">
+            <label>Адрес оценочной компании</label>
+            <input id="companyAddr" readonly placeholder="Автоматически" />
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="stepPanel" data-step="3" style="display:none">
+        <div class="grid">
+          <div class="field" style="grid-column:1/-1">
+            <label class="req">Полный почтовый адрес объекта</label>
+            <textarea id="objAddr" required placeholder="Например: г. Москва, ул. Примерная, д. 10, кв. 25"></textarea>
+          </div>
+
+          <div class="field">
+            <label class="req">Кадастровый номер</label>
+            <input id="cadNo" required placeholder="77:01:0004012:1234" />
+            <div class="help">Формат: 00:00:0000000:0000</div>
+          </div>
+
+          <div class="field">
+            <label class="req">Вид объекта</label>
+            <select id="objType" required>
+              <option value="">— выберите —</option>
+              <option>Квартира</option>
+              <option>Комната</option>
+              <option>Жилой дом</option>
+              <option>Земельный участок</option>
+              <option>Нежилое помещение</option>
+              <option>Иное</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 4 -->
+      <div class="stepPanel" data-step="4" style="display:none">
+        <div class="grid">
+          <div class="field">
+            <label class="req">Документ, подтверждающий право</label>
+            <select id="docType" required>
+              <option value="">— выберите —</option>
+              <option>Свидетельство о праве собственности</option>
+              <option>Выписка из ЕГРН</option>
+              <option>Договор купли-продажи</option>
+              <option>Иное</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="req">Файл документа (PDF)</label>
+            <div class="filebox">
+              <input id="docFile" type="file" accept="application/pdf" />
+              <span class="pill" id="fileState">Файл не выбран</span>
+            </div>
+            <div class="help">Файл нужен для вложения к запросу.</div>
+          </div>
+
+          <div class="field">
+            <label class="req">Номер документа</label>
+            <input id="docNo" required placeholder="№ 12345" />
+          </div>
+
+          <div class="field">
+            <label class="req">Дата выдачи</label>
+            <input id="docDate" type="date" required />
+          </div>
+
+          <div class="field" style="grid-column:1/-1">
+            <label class="req">Орган, выдавший документ</label>
+            <input id="docIssuer" required placeholder="Например: Управление Росреестра по г. Москве" />
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 5 -->
+      <div class="stepPanel" data-step="5" style="display:none">
+        <div class="grid">
+          <div class="field" style="grid-column:1/-1">
+            <label class="req">Для какого нотариального действия требуется оценка</label>
+            <input id="purpose" required placeholder="Например: для договора дарения" />
+          </div>
+
+          <div class="field">
+            <label class="req">Дата оценки</label>
+            <input id="valuationDate" type="date" required />
+          </div>
+
+          <div class="field">
+            <label class="req">Срок предоставления отчета (до какой даты)</label>
+            <input id="deadline" type="date" required />
+          </div>
+
+          <div class="field" style="grid-column:1/-1">
+            <label>Особенности / условия / характеристики</label>
+            <textarea id="special" placeholder="Например: ипотека, арест, доли, ремонт, площадь, этаж и т.д."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="actions">
+        <div class="row">
+          <button class="btn" id="btnPrev" type="button">← Назад</button>
+          <button class="btn primary" id="btnNext" type="button">Далее →</button>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="btnDraft" type="button">💾 Сохранить черновик</button>
+          <button class="btn good" id="btnCopy" type="button">📋 Копировать запрос</button>
+        </div>
+      </div>
+
+      <div class="error" id="errorBox"></div>
+      <div class="success" id="successBox"></div>
+
+    </div>
+  </section>
+
+  <!-- RIGHT: PREVIEW -->
+  <aside class="card">
+    <div class="card-h">
+      <h2>Предпросмотр запроса</h2>
+      <span class="badge">Авто-генерация</span>
+    </div>
+    <div class="card-b">
+      <div class="hint">Текст обновляется автоматически при заполнении.</div>
+      <div style="height:12px"></div>
+      <div class="preview" id="preview"></div>
+      <div style="height:12px"></div>
+      <div class="row">
+        <span class="pill">ID: <span class="mono" id="reqId"></span></span>
+        <span class="pill">Статус: <span id="status">Черновик</span></span>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
