@@ -58,7 +58,3 @@ yarn.lock
 # Tests and logs
 test-results/
 .pnpm-debug.log*
-
-# Environment
-.env*
-!*.example
