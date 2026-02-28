@@ -1,0 +1,47 @@
+/* auth.css - Дополнительные стили только для страницы авторизации */
+
+/* 1. Логика переключения экранов */
+.form-view {
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.form-view.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 2. Стилизация вкладок (Табов) внутри карточки */
+.auth-tabs {
+  /* var(--border) берется из styles.css */
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 1.25rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  
+  /* var(...) берутся из styles.css */
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.auth-tab:hover {
+  color: var(--primary);
+}
+
+.auth-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}

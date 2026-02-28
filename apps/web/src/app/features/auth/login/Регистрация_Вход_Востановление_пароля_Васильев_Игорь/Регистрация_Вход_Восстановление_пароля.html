@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход и Регистрация</title>
+    <link rel="stylesheet" href="../../../../../angular/styles/notary-dashboard/styles.css">
+    <link rel="stylesheet" href="Регистрация_Вход_Восстановление_пароля.css">
+</head>
+<body>
+
+    <!-- Обертка для центрирования -->
+    <div class="flex items-center justify-center w-full" style="min-height: calc(100vh - 4rem);">
+      
+      <!-- Карточка (берет стили из styles.css) -->
+      <div class="card p-0" style="width: 100%; max-width: 450px;">
+        
+        <!-- Табы (стили из auth.css) -->
+        <div class="auth-tabs flex" id="main-tabs">
+          <button class="auth-tab active" onclick="switchView('login')">Вход</button>
+          <button class="auth-tab" onclick="switchView('register')">Регистрация</button>
+        </div>
+
+        <!-- Контент -->
+        <div class="p-6">
+          
+          <!-- === ФОРМА ВХОДА === -->
+          <div id="login" class="form-view active">
+            <form onsubmit="handleLogin(event)">
+              <div class="form-group">
+                <label class="form-label" for="login-contact">Email или Телефон</label>
+                <input type="text" id="login-contact" class="form-input" placeholder="mail@example.com или +7 999..." required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="login-password">Пароль</label>
+                <input type="password" id="login-password" class="form-input" placeholder="••••••••" required>
+              </div>
+              
+              <button type="submit" class="btn btn-primary w-full mt-2">Войти</button>
+
+              <button type="button" class="btn btn-outline w-full mt-2" onclick="handleGuestAccess()">
+                 Продолжить как Гость
+              </button>
+              
+              <div class="flex justify-between mt-4 text-sm">
+                <span></span>
+                <a href="#" class="link" onclick="switchView('recovery')">Забыли пароль?</a>
+              </div>
+            </form>
+          </div>
+
+          <!-- === ФОРМА РЕГИСТРАЦИИ === -->
+          <div id="register" class="form-view">
+            <form onsubmit="handleRegister(event)">
+              <div class="form-group">
+                <label class="form-label" for="reg-role">Ваша роль</label>
+                <select id="reg-role" class="form-input form-select">
+                  <option value="applicant">Заявитель</option>
+                  <option value="notary">Нотариус</option>
+                  <option value="admin">Администратор (Запрос)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="reg-name">ФИО / Наименование</label>
+                <input type="text" id="reg-name" class="form-input" placeholder="Иванов Иван Иванович" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="reg-contact">Email или Телефон</label>
+                <input type="text" id="reg-contact" class="form-input" placeholder="Для связи и входа" required>
+              </div>
+              <div class="form-group mb-4">
+                <label class="form-label" for="reg-password">Придумайте пароль</label>
+                <input type="password" id="reg-password" class="form-input" required>
+              </div>
+              
+              <button type="submit" class="btn btn-primary w-full mt-2">Зарегистрироваться</button>
+
+              <button type="button" class="btn btn-outline w-full mt-2" onclick="handleGuestAccess()">
+                 Продолжить как Гость
+              </button>
+            </form>
+          </div>
+
+          <!-- === ФОРМА ВОССТАНОВЛЕНИЯ === -->
+          <div id="recovery" class="form-view">
+            <h2 class="text-center mb-2">Восстановление пароля</h2>
+            <p class="text-sm text-center mb-6">Укажите ваш email или телефон, и мы пришлем инструкции.</p>
+            <form onsubmit="handleRecovery(event)">
+              <div class="form-group">
+                <label class="form-label" for="rec-contact">Email или Телефон</label>
+                <input type="text" id="rec-contact" class="form-input" required>
+              </div>
+              <button type="submit" class="btn btn-primary w-full mt-4">Сбросить пароль</button>
+              
+              <div class="flex justify-center mt-6 text-sm">
+                <a href="#" class="link" onclick="switchView('login')">Вернуться ко входу</a>
+              </div>
+            </form>
+          </div>
+
+          <!-- === ФОРМА ПОДТВЕРЖДЕНИЯ === -->
+          <div id="confirm" class="form-view">
+            <h2 class="text-center mb-2">Подтверждение</h2>
+            <p class="text-sm text-center mb-6">Введите код, который мы отправили вам на указанный контакт.</p>
+            <form onsubmit="handleConfirm(event)">
+              <div class="form-group">
+                <label class="form-label text-center" for="conf-code">Код подтверждения</label>
+                <input type="text" id="conf-code" class="form-input text-center" style="letter-spacing: 0.5em; font-size: 1.25rem;" placeholder="123456" required autocomplete="off" maxlength="6">
+              </div>
+              <button type="submit" class="btn btn-primary w-full mt-4">Подтвердить</button>
+              
+              <div class="flex justify-center mt-6 text-sm">
+                <a href="#" class="link" onclick="switchView('login')">Отмена</a>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="Регистрация_Вход_Восстановление_пароля.js"></script>
+
+</body>
+</html>
