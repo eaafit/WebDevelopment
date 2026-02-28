@@ -1,0 +1,188 @@
+<div class="container">
+  <div class="mb-4">
+    <a routerLink="/" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
+    <h1>Запрос оценки недвижимости</h1>
+    <p class="text-sm">Заполните параметры — система сформирует текст нотариального запроса.</p>
+  </div>
+
+  <form class="grid" [formGroup]="form" (ngSubmit)="onSubmit()">
+    <!-- Левая колонка: форма -->
+    <div class="flex-col gap-4">
+      <!-- Данные нотариуса -->
+      <div class="card">
+        <div class="card-title">1. Данные нотариуса</div>
+
+        <div class="form-group">
+          <label class="form-label">Город практики</label>
+          <select class="form-input" formControlName="notaryCity" (change)="onNotaryCityChange()">
+            <option value="" disabled>Выберите город</option>
+            <option *ngFor="let c of cities" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ФИО нотариуса</label>
+          <select class="form-input" formControlName="notaryFio" (change)="onNotaryFioChange()">
+            <option value="" disabled>Выберите нотариуса</option>
+            <option *ngFor="let n of filteredNotaries" [value]="n.fio">{{ n.fio }}</option>
+          </select>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="form-group w-full">
+            <label class="form-label">№ нотариальной конторы</label>
+            <input class="form-input" type="text" formControlName="notaryOfficeNumber" readonly />
+          </div>
+          <div class="form-group w-full">
+            <label class="form-label">Исх. № и дата</label>
+            <input class="form-input" type="text" [value]="outgoingDisplay" readonly />
+          </div>
+        </div>
+
+        <div class="form-group no-mb">
+          <label class="form-label">Адрес нотариальной конторы</label>
+          <input class="form-input" type="text" formControlName="notaryOfficeAddress" readonly />
+        </div>
+      </div>
+
+      <!-- Данные оценочной компании -->
+      <div class="card">
+        <div class="card-title">2. Данные оценочной компании</div>
+
+        <div class="form-group">
+          <label class="form-label">Оценочная компания</label>
+          <select class="form-input" formControlName="companyName" (change)="onCompanyChange()">
+            <option value="" disabled>Выберите компанию</option>
+            <option *ngFor="let c of companies" [value]="c.name">{{ c.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group no-mb">
+          <label class="form-label">Адрес компании</label>
+          <input class="form-input" type="text" formControlName="companyAddress" readonly />
+        </div>
+      </div>
+
+      <!-- Данные об объекте -->
+      <div class="card">
+        <div class="card-title">3. Объект недвижимости</div>
+
+        <div class="form-group">
+          <label class="form-label">Полный почтовый адрес объекта</label>
+          <input
+            class="form-input"
+            type="text"
+            formControlName="propertyAddress"
+            placeholder="Город, улица, дом, кв." />
+        </div>
+
+        <div class="flex gap-4">
+          <div class="form-group w-full">
+            <label class="form-label">Кадастровый номер</label>
+            <input
+              class="form-input"
+              type="text"
+              formControlName="cadastralNumber"
+              placeholder="Напр.: 77:01:0004012:1234" />
+            <p class="help text-xs">
+              Кадастровый номер — уникальный идентификатор объекта в Росреестре (обычно формат XX:XX:XXXXXXX:XXXX).
+            </p>
+          </div>
+
+          <div class="form-group w-full">
+            <label class="form-label">Вид объекта</label>
+            <select class="form-input" formControlName="propertyType">
+              <option value="" disabled>Выберите тип</option>
+              <option *ngFor="let t of propertyTypes" [value]="t">{{ t }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group no-mb">
+          <label class="form-label">Особые условия / характеристики</label>
+          <textarea
+            class="form-input"
+            rows="3"
+            formControlName="specialConditions"
+            placeholder="Обременение, арест, доли, состояние ремонта, площадь, этаж и т.д."></textarea>
+        </div>
+      </div>
+
+      <!-- Документы -->
+      <div class="card">
+        <div class="card-title">4. Документы на объект</div>
+
+        <div class="form-group">
+          <label class="form-label">Документ, подтверждающий право собственности (PDF)</label>
+          <input class="form-input" type="file" accept="application/pdf" (change)="onPdfSelected($event)" />
+          <p class="help text-xs" *ngIf="selectedPdfName">Выбран файл: <b>{{ selectedPdfName }}</b></p>
+        </div>
+
+        <div class="form-group no-mb">
+          <label class="form-label">Реквизиты документа</label>
+          <textarea
+            class="form-input"
+            rows="3"
+            formControlName="docRequisites"
+            placeholder="Вид, номер, дата выдачи, кем выдан"></textarea>
+        </div>
+      </div>
+
+      <!-- Цель и детали -->
+      <div class="card">
+        <div class="card-title">5. Цель и детали оценки</div>
+
+        <div class="form-group">
+          <label class="form-label">Нотариальное действие</label>
+          <input
+            class="form-input"
+            type="text"
+            formControlName="notarialAction"
+            placeholder="Дарение / наследство / раздел имущества / брачный договор и т.д." />
+        </div>
+
+        <div class="flex gap-4">
+          <div class="form-group w-full">
+            <label class="form-label">Дата оценки (на какую дату определить стоимость)</label>
+            <input class="form-input" type="date" formControlName="valuationDate" />
+          </div>
+
+          <div class="form-group w-full">
+            <label class="form-label">Срок предоставления отчёта (до даты)</label>
+            <input class="form-input" type="date" formControlName="reportDueDate" />
+          </div>
+        </div>
+
+        <div class="form-group no-mb">
+          <label class="form-label">Дополнительные комментарии</label>
+          <textarea class="form-input" rows="3" formControlName="extraNotes"></textarea>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button type="button" class="btn btn-outline" (click)="regenerateOutgoing()">
+          Сгенерировать исх. № заново
+        </button>
+
+        <button type="submit" class="btn btn-primary">Сформировать запрос</button>
+      </div>
+    </div>
+
+    <!-- Правая колонка: превью запроса -->
+    <div>
+      <div class="card sticky">
+        <div class="card-title">Текст запроса (предпросмотр)</div>
+
+        <pre class="preview">{{ requestText }}</pre>
+
+        <div class="mt-4">
+          <button type="button" class="btn btn-outline w-full" (click)="copyToClipboard()">Скопировать текст</button>
+        </div>
+
+        <p class="text-xs text-secondary mt-3">
+          Примечание: PDF-файл хранится локально (в форме) и не отправляется, пока вы не подключите API.
+        </p>
+      </div>
+    </div>
+  </form>
+</div>

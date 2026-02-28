@@ -1,0 +1,146 @@
+/* Минимальные стили, чтобы компонент выглядел как checkout-страница */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 16px;
+}
+
+@media (width <= 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+.gap-2 {
+  gap: 8px;
+}
+.gap-4 {
+  gap: 16px;
+}
+.w-full {
+  width: 100%;
+}
+
+.card {
+  padding: 16px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.card-title {
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.no-mb {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 10px;
+
+  color: inherit;
+
+  background: rgb(0 0 0 / 20%);
+  outline: none;
+}
+
+.help {
+  margin: 6px 0 0;
+  opacity: 0.75;
+}
+
+.btn {
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.btn-primary {
+  color: #fff;
+  background: #2f7cf6;
+}
+
+.btn-outline {
+  border-color: rgb(255 255 255 / 18%);
+  color: inherit;
+  background: transparent;
+}
+
+.link {
+  text-decoration: underline;
+  opacity: 0.9;
+}
+
+.text-sm {
+  font-size: 14px;
+}
+.text-xs {
+  font-size: 12px;
+}
+.text-secondary {
+  opacity: 0.75;
+}
+
+.mb-2 {
+  margin-bottom: 8px;
+}
+.mb-4 {
+  margin-bottom: 16px;
+}
+.mt-3 {
+  margin-top: 12px;
+}
+.mt-4 {
+  margin-top: 16px;
+}
+
+.preview {
+  overflow: auto;
+
+  max-height: 520px;
+  padding: 12px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 10px;
+
+  word-break: normal;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+
+  background: rgb(0 0 0 / 25%);
+}
+
+.sticky {
+  position: sticky;
+  top: 16px;
+}
