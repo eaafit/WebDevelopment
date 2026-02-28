@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
@@ -14,19 +14,16 @@ type AuthStep = 'contact' | 'confirm';
 export class AuthServices {
   readonly step = signal<AuthStep>('contact');
 
-  readonly contactForm: FormGroup;
-  readonly codeForm: FormGroup;
+  private readonly fb = inject(FormBuilder);
 
-  constructor(private readonly fb: FormBuilder) {
-    this.contactForm = this.fb.group({
-      contact: ['', [Validators.required]],
-      agreeTerms: [false, [Validators.requiredTrue]],
-    });
+  readonly contactForm: FormGroup = this.fb.group({
+    contact: ['', [Validators.required]],
+    agreeTerms: [false, [Validators.requiredTrue]],
+  });
 
-    this.codeForm = this.fb.group({
-      code: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(6)]],
-    });
-  }
+  readonly codeForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(6)]],
+  });
 
   signInWithVk(): void {
     // TODO: integrate VK OAuth
