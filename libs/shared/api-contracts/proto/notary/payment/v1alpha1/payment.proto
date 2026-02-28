@@ -11,6 +11,7 @@ service PaymentService {
   rpc ProcessWebhook (ProcessWebhookRequest) returns (ProcessWebhookResponse);
   rpc GetPaymentHistory (GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
   rpc GetSubscription (GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  rpc CreateSubscription (CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
 }
 
 enum SubscriptionPlan {
@@ -100,5 +101,19 @@ message GetSubscriptionRequest {
 }
 
 message GetSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message CreateSubscriptionRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  SubscriptionPlan plan = 2 [(buf.validate.field).enum = {
+    defined_only: true,
+    not_in: [0]
+  }];
+  google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp end_date = 4 [(buf.validate.field).required = true];
+}
+
+message CreateSubscriptionResponse {
   Subscription subscription = 1;
 }

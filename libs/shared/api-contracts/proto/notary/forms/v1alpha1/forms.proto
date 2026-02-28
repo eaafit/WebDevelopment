@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package notary.forms.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "notary/assessment/v1alpha1/assessment.proto";
+import "notary/user/v1alpha1/user.proto";
+import "notary/document/v1alpha1/document.proto";
+
+// FormsService — единая точка входа для сохранения данных из форм веб-приложения.
+// Делегирует в соответствующие сервисы (Assessment, User, Document) или сохраняет напрямую в БД.
+service FormsService {
+  // Сохранение формы заявки на оценку (создание или обновление).
+  // Если id пустой — создание, иначе — обновление.
+  rpc SaveAssessmentForm(SaveAssessmentFormRequest) returns (SaveAssessmentFormResponse);
+
+  // Сохранение формы профиля пользователя.
+  rpc SaveUserProfileForm(SaveUserProfileFormRequest) returns (SaveUserProfileFormResponse);
+
+  // Сохранение формы документа (метаданные после загрузки файла).
+  rpc SaveDocumentForm(SaveDocumentFormRequest) returns (SaveDocumentFormResponse);
+}
+
+// --- Assessment Form ---
+
+message SaveAssessmentFormRequest {
+  string id = 1; // Пустой при создании, заполнен при обновлении
+  string user_id = 2;
+  string address = 3;
+  string description = 4;
+}
+
+message SaveAssessmentFormResponse {
+  notary.assessment.v1alpha1.Assessment assessment = 1;
+}
+
+// --- User Profile Form ---
+
+message SaveUserProfileFormRequest {
+  string user_id = 1;
+  string full_name = 2;
+  string phone_number = 3;
+}
+
+message SaveUserProfileFormResponse {
+  notary.user.v1alpha1.User user = 1;
+}
+
+// --- Document Form ---
+
+message SaveDocumentFormRequest {
+  string assessment_id = 1;
+  string file_name = 2;
+  string file_type = 3;
+  string file_path = 4;
+  string uploaded_by_id = 5;
+}
+
+message SaveDocumentFormResponse {
+  notary.document.v1alpha1.Document document = 1;
+}

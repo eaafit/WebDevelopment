@@ -1,3 +1,18 @@
-<div class="guest-wrapper">
-  <router-outlet></router-outlet>
+<div class="guest-layout">
+  <header class="guest-header">
+    <a routerLink="/" class="logo">Нотариальная оценка</a>
+    <nav class="guest-nav">
+      <a routerLink="/">Главная</a>
+      <a routerLink="/landing-page">О сервисе</a>
+      <a routerLink="/auth">Вход</a>
+      <a routerLink="/faq">Справочник</a>
+    </nav>
+  </header>
+  <main class="guest-content">
+    <router-outlet></router-outlet>
+  </main>
+  <footer class="guest-footer">
+    <span>© {{ currentYear }} Нотариальная оценка</span>
+    <a routerLink="/faq">Справочник</a>
+  </footer>
 </div>

@@ -3,6 +3,7 @@ import { Guest } from './guest/guest';
 import { TestPage } from './features/test-page/test-page';
 import { LandingPage } from './features/landing-page/landing-page';
 import { TransactionTable } from '@notary-portal/ui';
+import { PlaceholderPageRoute } from '@notary-portal/ui';
 
 export const guestRoutes: Route[] = [
   {
@@ -18,6 +19,19 @@ export const guestRoutes: Route[] = [
       {
         path: 'transactions',
         component: TransactionTable,
+      },
+      {
+        path: 'faq',
+        component: PlaceholderPageRoute,
+        data: {
+          title: 'Справочный раздел',
+          features: [
+            'База знаний',
+            'FAQ',
+            'Поиск по статьям',
+            'Фильтры по автору и логике поиска',
+          ],
+        },
       },
     ],
   },

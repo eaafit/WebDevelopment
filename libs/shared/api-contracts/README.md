@@ -1,5 +1,25 @@
 # api-contracts
 
+## Сервисы и контракты
+
+| Сервис | Файл | Описание |
+|--------|------|----------|
+| AssessmentService | assessment.proto | Заявки на оценку (CRUD, статусы) |
+| UserService | user.proto | Пользователи, профиль |
+| PaymentService | payment.proto | Платежи, подписки |
+| DocumentService | document.proto | Документы к заявкам |
+| FormsService | forms.proto | Сохранение данных форм (фасад) |
+
+## Генерация кода
+
+```bash
+# Установить ts-proto (если ещё не установлен)
+pnpm add -D ts-proto
+
+# Сгенерировать TypeScript из proto
+pnpm nx run api-contracts:generate-proto
+```
+
 ## Версионность пакетов
 
 - ### package notary.anything.**v1alpha1** (Draft)

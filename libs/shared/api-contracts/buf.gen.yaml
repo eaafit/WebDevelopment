@@ -1,0 +1,10 @@
+# Code generation config. Run: pnpm exec buf generate (from api-contracts dir)
+# Requires: pnpm add -D ts-proto (for protoc-gen-ts_proto)
+version: v2
+plugins:
+  - local: protoc-gen-ts_proto
+    out: src/generated
+    opt:
+      - nestJs=true
+      - esModuleInterop=true
+      - useOptionals=messages

@@ -1,0 +1,43 @@
+<div class="dashboard">
+  <aside class="sidebar">
+    <div class="logo">
+      <h2>
+        <span class="logo-icon">&#9878;</span>
+        {{ title }}
+      </h2>
+    </div>
+    <nav>
+      @for (item of menuItems; track item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          class="menu-item"
+        >
+          @if (item.icon) {
+            <span class="menu-icon">{{ item.icon }}</span>
+          }
+          <span>{{ item.label }}</span>
+        </a>
+      }
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <header class="header">
+      <h1>{{ pageTitle }}</h1>
+      <div class="user-info">
+        <span class="user-label">{{ userLabel }}</span>
+      </div>
+    </header>
+
+    <div class="content">
+      <router-outlet></router-outlet>
+    </div>
+
+    <footer class="footer">
+      <span>© {{ currentYear }} Нотариальная оценка</span>
+      <a routerLink="/faq">Справочник</a>
+    </footer>
+  </main>
+</div>

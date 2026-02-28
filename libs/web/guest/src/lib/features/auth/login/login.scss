@@ -27,3 +27,31 @@
   margin-top: 1rem;
   padding: 0.5rem 1.5rem;
 }
+
+.home-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #ddd;
+}
+
+.home-links-label {
+  width: 100%;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.home-link {
+  padding: 0.25rem 0.75rem;
+  text-decoration: none;
+  color: #0066cc;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

@@ -1,0 +1,11 @@
+<div class="placeholder-page">
+  <h2>{{ title }}</h2>
+  @if (features.length) {
+    <p class="subtitle">Заявленный функционал:</p>
+    <ul class="features-list">
+      @for (f of features; track f) {
+        <li>{{ f }}</li>
+      }
+    </ul>
+  }
+</div>

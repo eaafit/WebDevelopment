@@ -1,6 +1,16 @@
 .notary-wrapper {
   /* --- 1. DESIGN TOKENS (Переменные) --- */
 
+  // Dashboard & placeholder tokens
+  --dash-sidebar-bg-start: #1e1b4b;
+  --dash-sidebar-bg-end: #0f0d29;
+  --dash-sidebar-accent: #4f46e5;
+  --dash-sidebar-accent-bg: rgba(79, 70, 229, 0.15);
+  --dash-link-color: #4f46e5;
+  --ph-title-color: var(--text-main);
+  --ph-subtitle-color: var(--text-secondary);
+  --ph-text-color: var(--text-secondary);
+
   --primary: #4f46e5;
   --primary-hover: #4338ca;
   --bg-page: #f3f4f6;
@@ -32,6 +42,10 @@
 
   min-height: 100vh;
   padding: 2rem;
+
+  &:has(.dashboard) {
+    padding: 0;
+  }
 
   /* --- 2. RESET & BASE (Базовые стили) --- */
 

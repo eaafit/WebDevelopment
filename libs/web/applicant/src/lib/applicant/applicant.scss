@@ -1,3 +1,8 @@
 .applicant-wrapper {
-  /* Здесь scss шаблон для заявителя */
+  // Design tokens for dashboard-layout and placeholder-page
+  --dash-sidebar-bg-start: #14532d;
+  --dash-sidebar-bg-end: #052e16;
+  --dash-sidebar-accent: #22c55e;
+  --dash-sidebar-accent-bg: rgba(34, 197, 94, 0.15);
+  --dash-link-color: #16a34a;
 }
