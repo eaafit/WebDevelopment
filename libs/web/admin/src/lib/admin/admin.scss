@@ -1,3 +1,8 @@
 .admin-wrapper {
-  /* Здесь scss шаблон для админа */
+  // Design tokens for dashboard-layout and placeholder-page
+  --dash-sidebar-bg-start: #0f172a;
+  --dash-sidebar-bg-end: #020617;
+  --dash-sidebar-accent: #dc2626;
+  --dash-sidebar-accent-bg: rgba(220, 38, 38, 0.15);
+  --dash-link-color: #dc2626;
 }
