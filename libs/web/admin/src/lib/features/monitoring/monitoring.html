@@ -1,4 +1,321 @@
 <section class="monitoring-page">
-  <h2>Мониторинг и логи</h2>
-  <p>Базовый модуль администрирования аудита и событий системы.</p>
+  <header class="monitoring-page__hero">
+    <div class="monitoring-page__hero-copy">
+      <p class="monitoring-page__eyebrow">Администратор / аудит системы</p>
+      <h2>История действий и логирование</h2>
+      <p class="monitoring-page__lead">
+        Единый журнал действий по пользователям, заказам, настройкам и событиям безопасности.
+      </p>
+    </div>
+
+    <div class="monitoring-page__actions">
+      <button type="button" class="monitoring-btn monitoring-btn--ghost">Сбросить фильтры</button>
+      <button type="button" class="monitoring-btn monitoring-btn--secondary">Обновить</button>
+      <button type="button" class="monitoring-btn monitoring-btn--primary">Экспорт CSV</button>
+    </div>
+  </header>
+
+  <section class="monitoring-page__toolbar">
+    <div class="monitoring-page__toolbar-copy">
+      <p>Показаны события за последние 30 дней. Экспорт выгружает только текущую отфильтрованную выборку.</p>
+      <small class="monitoring-page__status">{{ statusMessage }}</small>
+    </div>
+    <span>Последнее обновление: {{ lastUpdated }}</span>
+  </section>
+
+  <section class="monitoring-stats" aria-label="Сводка по журналу">
+    <article class="monitoring-stat monitoring-stat--accent">
+      <div class="monitoring-stat__top">
+        <span class="monitoring-stat__label">В текущей выборке</span>
+        <span class="monitoring-stat__pill">Audit trail</span>
+      </div>
+      <strong class="monitoring-stat__value">{{ summary.total }}</strong>
+      <p class="monitoring-stat__body">Все события после применённых фильтров и быстрого сегмента.</p>
+      <div class="monitoring-stat__footer">
+        <span>30 дней</span>
+        <span>Экспорт учитывает выборку</span>
+      </div>
+    </article>
+
+    <article class="monitoring-stat">
+      <div class="monitoring-stat__top">
+        <span class="monitoring-stat__label">Критичные события</span>
+        <span class="monitoring-stat__pill monitoring-stat__pill--critical">High</span>
+      </div>
+      <strong class="monitoring-stat__value">{{ summary.critical }}</strong>
+      <p class="monitoring-stat__body">Изменения прав доступа, блокировки и чувствительные операции.</p>
+      <div class="monitoring-stat__footer">
+        <span>Приоритет 1</span>
+        <span>Нуждаются в проверке</span>
+      </div>
+    </article>
+
+    <article class="monitoring-stat">
+      <div class="monitoring-stat__top">
+        <span class="monitoring-stat__label">События безопасности</span>
+        <span class="monitoring-stat__pill monitoring-stat__pill--neutral">Security</span>
+      </div>
+      <strong class="monitoring-stat__value">{{ summary.security }}</strong>
+      <p class="monitoring-stat__body">Входы, блокировки, смена ролей и изменения политики доступа.</p>
+      <div class="monitoring-stat__footer">
+        <span>Auth + ACL</span>
+        <span>Отдельный контроль</span>
+      </div>
+    </article>
+
+    <article class="monitoring-stat">
+      <div class="monitoring-stat__top">
+        <span class="monitoring-stat__label">Экспортов журнала</span>
+        <span class="monitoring-stat__pill monitoring-stat__pill--neutral">CSV</span>
+      </div>
+      <strong class="monitoring-stat__value">{{ summary.exports }}</strong>
+      <p class="monitoring-stat__body">События формирования выгрузок и служебных выборок администраторов.</p>
+      <div class="monitoring-stat__footer">
+        <span>Экспорт по фильтрам</span>
+        <span>Отслеживание выгрузок</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="monitoring-layout">
+    <div class="monitoring-main">
+      <article class="monitoring-card">
+        <div class="monitoring-card__header">
+          <div>
+            <h3>Фильтры и поиск</h3>
+            <p>Сузьте выдачу по периоду, пользователю, объекту и уровню важности.</p>
+          </div>
+          <button type="button" class="monitoring-link">Сохранить представление</button>
+        </div>
+
+        <form class="monitoring-filters">
+          <label class="monitoring-field monitoring-field--search">
+            <span>Поиск</span>
+            <input type="text" placeholder="Пользователь, заказ, ID события, действие" />
+          </label>
+
+          <label class="monitoring-field monitoring-field--date">
+            <span>Дата от</span>
+            <input type="date" value="2026-02-01" />
+          </label>
+
+          <label class="monitoring-field monitoring-field--date">
+            <span>Дата до</span>
+            <input type="date" value="2026-02-28" />
+          </label>
+
+          <label class="monitoring-field monitoring-field--role">
+            <span>Роль</span>
+            <select>
+              <option>Все роли</option>
+            </select>
+          </label>
+
+          <label class="monitoring-field monitoring-field--type">
+            <span>Тип события</span>
+            <select>
+              <option>Все типы</option>
+            </select>
+          </label>
+
+          <label class="monitoring-field monitoring-field--object">
+            <span>Объект</span>
+            <select>
+              <option>Все объекты</option>
+            </select>
+          </label>
+
+          <label class="monitoring-field monitoring-field--severity">
+            <span>Уровень</span>
+            <select>
+              <option>Любой уровень</option>
+            </select>
+          </label>
+
+          <label class="monitoring-filter-toggle monitoring-filter-toggle--security">
+            <input type="checkbox" />
+            <span>Только события безопасности</span>
+          </label>
+
+          <div class="monitoring-filters__actions">
+            <button type="submit" class="monitoring-btn monitoring-btn--secondary">Применить</button>
+            <button type="button" class="monitoring-btn monitoring-btn--ghost">Очистить</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="monitoring-card">
+        <div class="monitoring-card__header">
+          <div>
+            <h3>Журнал событий</h3>
+            <p>Каждое событие оформлено как отдельная запись с контекстом, источником и статусом.</p>
+          </div>
+
+          <div class="monitoring-chipset" aria-label="Быстрые фильтры">
+            @for (chip of chipOptions; track chip) {
+            <button type="button" class="monitoring-chip" [class.monitoring-chip--active]="chip === chipOptions[0]">
+              {{ chip }}
+            </button>
+            }
+          </div>
+        </div>
+
+        <div class="monitoring-log-list">
+          @for (event of events; track event.id) {
+          <article class="monitoring-log" [class.monitoring-log--selected]="selectedEvent.id === event.id">
+            <div class="monitoring-log__top">
+              <div class="monitoring-log__headline">
+                <div class="monitoring-log__title-wrap">
+                  <strong>{{ event.actionTitle }}</strong>
+                  <p>{{ event.actionSubtitle }}</p>
+                </div>
+
+                <div class="monitoring-log__badges">
+                  <span
+                    class="monitoring-badge"
+                    [class.monitoring-badge--critical]="event.severity === 'critical'"
+                    [class.monitoring-badge--warning]="event.severity === 'warning'"
+                    [class.monitoring-badge--info]="event.severity === 'info'"
+                    [class.monitoring-badge--success]="event.severity === 'success'">
+                    {{ event.severityLabel }}
+                  </span>
+
+                  @if (event.security) {
+                  <span class="monitoring-badge monitoring-badge--neutral">Security</span>
+                  }
+                </div>
+              </div>
+
+              <div class="monitoring-log__timestamp">
+                <span>{{ event.dateLabel }}</span>
+                <strong>{{ event.timeLabel }}</strong>
+              </div>
+            </div>
+
+            <div class="monitoring-log__grid">
+              <div class="monitoring-log__cell">
+                <span class="monitoring-log__label">Пользователь</span>
+                <strong>{{ event.actor }}</strong>
+                <small>{{ event.actorEmail }}</small>
+              </div>
+
+              <div class="monitoring-log__cell">
+                <span class="monitoring-log__label">Объект</span>
+                <strong>{{ event.entityTitle }}</strong>
+                <small>{{ event.entitySubtitle }}</small>
+              </div>
+
+              <div class="monitoring-log__cell">
+                <span class="monitoring-log__label">Источник</span>
+                <strong>{{ event.source }}</strong>
+                <small>{{ event.location }}</small>
+              </div>
+
+              <div class="monitoring-log__cell">
+                <span class="monitoring-log__label">Контекст</span>
+                <div class="monitoring-log__meta-chips">
+                  <span>{{ event.role }}</span>
+                  <span>{{ event.object }}</span>
+                  <span>{{ event.ip }}</span>
+                </div>
+              </div>
+            </div>
+          </article>
+          }
+        </div>
+      </article>
+    </div>
+
+    <aside class="monitoring-side">
+      <article class="monitoring-card">
+        <div class="monitoring-card__header">
+          <div>
+            <h3>Детали события</h3>
+            <p>Выбранная запись раскрывает контекст действия, объект и изменения значений.</p>
+          </div>
+        </div>
+
+        <div class="monitoring-details">
+          <div class="monitoring-details__headline">
+            <strong>{{ selectedEvent.actionTitle }}</strong>
+            <span
+              class="monitoring-badge"
+              [class.monitoring-badge--critical]="selectedEvent.severity === 'critical'"
+              [class.monitoring-badge--warning]="selectedEvent.severity === 'warning'"
+              [class.monitoring-badge--info]="selectedEvent.severity === 'info'"
+              [class.monitoring-badge--success]="selectedEvent.severity === 'success'">
+              {{ selectedEvent.severityLabel }}
+            </span>
+          </div>
+
+          <dl class="monitoring-meta">
+            <div>
+              <dt>Кто</dt>
+              <dd>{{ selectedEvent.actor }}</dd>
+            </div>
+            <div>
+              <dt>Когда</dt>
+              <dd>{{ selectedEvent.dateLabel }}, {{ selectedEvent.timeLabel }}</dd>
+            </div>
+            <div>
+              <dt>Где</dt>
+              <dd>{{ selectedEvent.location }}</dd>
+            </div>
+            <div>
+              <dt>Объект</dt>
+              <dd>{{ selectedEvent.entityTitle }}</dd>
+            </div>
+            <div>
+              <dt>IP / канал</dt>
+              <dd>{{ selectedEvent.ip }} / {{ selectedEvent.source }}</dd>
+            </div>
+            <div>
+              <dt>Причина</dt>
+              <dd>{{ selectedEvent.reason }}</dd>
+            </div>
+          </dl>
+
+          <div class="monitoring-diff">
+            <div class="monitoring-diff__column">
+              <span class="monitoring-diff__label">Было</span>
+              <pre>{{ selectedEvent.before.join('\n') }}</pre>
+            </div>
+
+            <div class="monitoring-diff__column monitoring-diff__column--new">
+              <span class="monitoring-diff__label">Стало</span>
+              <pre>{{ selectedEvent.after.join('\n') }}</pre>
+            </div>
+          </div>
+
+          <div class="monitoring-note">
+            <strong>Комментарий:</strong>
+            {{ selectedEvent.actionSubtitle }}. Событие сохранено как демонстрационный сценарий для будущей интеграции с
+            настоящим audit trail.
+          </div>
+        </div>
+      </article>
+
+      <article class="monitoring-card">
+        <div class="monitoring-card__header">
+          <div>
+            <h3>События безопасности</h3>
+            <p>Список событий, которые стоит держать на отдельном контроле.</p>
+          </div>
+        </div>
+
+        <ul class="monitoring-alerts">
+          @for (event of securityHighlights; track event.id) {
+          <li
+            class="monitoring-alert"
+            [class.monitoring-alert--critical]="event.severity === 'critical'"
+            [class.monitoring-alert--warning]="event.severity === 'warning'"
+            [class.monitoring-alert--info]="event.severity === 'info'">
+            <strong>{{ event.actionTitle }}</strong>
+            <span>{{ event.entityTitle }}, {{ event.dateLabel }}, {{ event.timeLabel }}</span>
+          </li>
+          }
+        </ul>
+      </article>
+    </aside>
+  </section>
 </section>
