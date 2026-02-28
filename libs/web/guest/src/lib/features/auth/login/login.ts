@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Role, ROLE_LABELS } from '../role.enum';
 import { AuthService } from '../auth.service';
-import { AuthServices } from '@notary-portal/ui/auth-services';
+import { AuthServices } from '@notary-portal/ui';
 
 const ROLE_HOME: Partial<Record<Role, string>> = {
   [Role.Applicant]: '/applicant',
