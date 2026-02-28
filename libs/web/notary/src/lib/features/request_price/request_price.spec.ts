@@ -1,7 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 
 type Notary = {
   city: string;
@@ -24,21 +23,20 @@ function formatDate(d: Date): string {
 }
 
 function randomOutgoingNumber(): string {
-  // Пример генерации: "NR-2026-000123"
   const year = new Date().getFullYear();
   const rnd = Math.floor(Math.random() * 900000) + 100000;
   return `NR-${year}-${rnd}`;
 }
 
 @Component({
-  selector: 'lib-notary-request',
+  selector: 'web-request-price',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
-  templateUrl: './notary-request.html',
-  styleUrl: './notary-request.scss',
+  imports: [CommonModule, ReactiveFormsModule],
+  templateUrl: './request_price.html',
+  styleUrl: './request_price.scss',
 })
-export class NotaryRequest {
-  // Демоданные (можешь расширять)
+export class RequestPrice {
+  // Демо-списки (можешь расширить)
   readonly cities = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург'];
 
   readonly notaries: Notary[] = [
@@ -76,19 +74,18 @@ export class NotaryRequest {
     'Нежилое помещение',
   ];
 
-  // Outgoing (сигналы)
+  // Исходящий номер/дата
   private readonly outgoingNumber = signal<string>(randomOutgoingNumber());
   private readonly outgoingDate = signal<string>(formatDate(new Date()));
-
   readonly outgoingDisplay = computed(() => `${this.outgoingNumber()} от ${this.outgoingDate()}`);
 
   // PDF
   selectedPdfName: string | null = null;
 
-  // Filtered notaries
+  // Фильтр нотариусов по городу
   filteredNotaries: Notary[] = [];
 
-  // Form
+  // Reactive form
   readonly form = this.fb.group({
     notaryCity: ['', Validators.required],
     notaryFio: ['', Validators.required],
@@ -112,13 +109,14 @@ export class NotaryRequest {
     extraNotes: [''],
   });
 
-  // Preview text
+  // Текст запроса (превью)
   requestText = '';
 
   constructor(private readonly fb: FormBuilder) {
-    // init filters
     this.filteredNotaries = [];
     this.buildRequestText();
+
+    // Автообновление превью
     this.form.valueChanges.subscribe(() => this.buildRequestText());
   }
 
@@ -132,11 +130,12 @@ export class NotaryRequest {
     const city = this.form.get('notaryCity')?.value || '';
     this.filteredNotaries = this.notaries.filter((n) => n.city === city);
 
-    // если выбранный нотариус не из этого города — сбросим
+    // Сброс нотариуса при смене города
     this.form.patchValue(
       { notaryFio: '', notaryOfficeNumber: '', notaryOfficeAddress: '' },
       { emitEvent: false },
     );
+
     this.buildRequestText();
   }
 
@@ -151,6 +150,7 @@ export class NotaryRequest {
       },
       { emitEvent: false },
     );
+
     this.buildRequestText();
   }
 
@@ -165,18 +165,15 @@ export class NotaryRequest {
   onPdfSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file) {
-      this.selectedPdfName = null;
-      return;
-    }
-    this.selectedPdfName = file.name;
+    this.selectedPdfName = file ? file.name : null;
+    this.buildRequestText();
   }
 
   onSubmit(): void {
-    // Здесь можно вызывать API, пока просто обновим превью
     this.buildRequestText();
+    // можно убрать alert, но пусть пока будет понятно, что сработало
 
-    alert('Запрос сформирован. Скопируйте текст из правого блока.');
+    alert('Запрос сформирован. Скопируйте текст из блока предпросмотра.');
   }
 
   async copyToClipboard(): Promise<void> {
@@ -206,7 +203,7 @@ export class NotaryRequest {
 
     const docRequisites = v.docRequisites || '{Реквизиты документа}';
 
-    const notarialAction = v.notarialAction || '{Цель/нотариальное действие}';
+    const notarialAction = v.notarialAction || '{Нотариальное действие}';
     const valuationDate = v.valuationDate || '{Дата оценки}';
     const reportDueDate = v.reportDueDate || '{Дата окончания срока}';
 
@@ -227,10 +224,9 @@ ${companyAddress}
 
 Запрос
 
-На основании необходимости совершения нотариального действия (${notarialAction}) и в соответствии со статьей 47 "Основ законодательства Российской Федерации о нотариате", прошу Вас провести оценку рыночной стоимости объекта недвижимости и предоставить в мою адрес письменный отчет об оценке, соответствующий требованиям Федерального закона от 29.07.1998 № 135-ФЗ "Об оценочной деятельности в Российской Федерации" и Федеральных стандартов оценки (ФСО).
+На основании необходимости совершения нотариального действия (${notarialAction}) прошу Вас провести оценку рыночной стоимости объекта недвижимости и предоставить письменный отчет об оценке.
 
 Параметры объекта для оценки:
-
 Адрес объекта: ${propertyAddress}
 Кадастровый номер: ${cadastralNumber}
 Вид объекта: ${propertyType}
@@ -240,12 +236,10 @@ ${companyAddress}
 Особые условия/характеристики: ${special}
 Дополнительные комментарии: ${extra}
 
-Отчет об оценке должен быть представлен на бумажном носителе, подписан и заверен печатью оценщика, с приложением копии квалификационного аттестата оценщика.
-
 Срок предоставления отчета: до ${reportDueDate}.
 
 Приложение:
-- Копии правоустанавливающих и правоподтверждающих документов на объект (PDF: ${this.selectedPdfName ?? 'не выбран'}).
+- Документ (PDF): ${this.selectedPdfName ?? 'не выбран'}.
 - Копия технического паспорта/плана БТИ.
 - Выписка из ЕГРН.
 `;
