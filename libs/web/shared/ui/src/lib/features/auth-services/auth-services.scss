@@ -1,5 +1,3 @@
-@use '../../tokens';
-
 .auth-services {
   display: flex;
   align-items: center;
@@ -25,13 +23,13 @@
     margin: 0 0 0.5rem;
     font-size: 1.4rem;
     font-weight: 600;
-    color: var(--ph-title-color);
+    color: var(--ph-title-color, #1f2937);
   }
 
   &__subtitle {
     margin: 0;
     font-size: 0.95rem;
-    color: var(--ph-subtitle-color);
+    color: var(--ph-subtitle-color, #6b7280);
   }
 
   &__body {
@@ -63,7 +61,7 @@
 
   &__divider-label {
     font-size: 0.8rem;
-    color: var(--ph-subtitle-color);
+    color: var(--ph-subtitle-color, #6b7280);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     white-space: nowrap;
@@ -78,7 +76,7 @@
 
     font-size: 0.8rem;
     line-height: 1.4;
-    color: var(--ph-text-color);
+    color: var(--ph-text-color, #4b5563);
 
     opacity: 0.9;
   }
@@ -178,7 +176,7 @@
 
   &__label {
     font-size: 0.9rem;
-    color: var(--ph-text-color);
+    color: var(--ph-text-color, #4b5563);
   }
 
   &__control {
@@ -218,7 +216,7 @@
     align-items: flex-start;
 
     font-size: 0.8rem;
-    color: var(--ph-text-color);
+    color: var(--ph-text-color, #4b5563);
 
     input[type='checkbox'] {
       margin-top: 0.1rem;
@@ -238,7 +236,7 @@
   &__hint {
     margin: 0;
     font-size: 0.85rem;
-    color: var(--ph-text-color);
+    color: var(--ph-text-color, #4b5563);
   }
 
   &__actions {
