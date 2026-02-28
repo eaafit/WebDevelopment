@@ -1,20 +1,27 @@
 <main class="login">
-  <h1>Вход</h1>
-  <p>Выберите роль:</p>
-  <div class="role-list">
-    @for (r of roles; track r) {
-    <label class="role-option">
-      <input type="radio" name="role" [value]="r" [(ngModel)]="selectedRole" />
-      <span>{{ roleLabels[r] }}</span>
-    </label>
-    }
-  </div>
-  <button type="button" class="btn-login" (click)="onLogin()">Войти</button>
+  <section class="login__primary">
+    <lib-auth-services></lib-auth-services>
+  </section>
 
-  <nav class="home-links">
-    <span class="home-links-label">Перейти в кабинет:</span>
-    <a routerLink="/applicant" class="home-link">Заявитель</a>
-    <a routerLink="/notary" class="home-link">Нотариус</a>
-    <a routerLink="/admin" class="home-link">Администратор</a>
-  </nav>
+  <section class="login__secondary">
+    <h2 class="login__secondary-title">Быстрый вход для ролей (демо)</h2>
+    <p class="login__secondary-text">Выберите роль для входа в соответствующий кабинет.</p>
+
+    <div class="role-list">
+      @for (r of roles; track r) {
+      <label class="role-option">
+        <input type="radio" name="role" [value]="r" [(ngModel)]="selectedRole" />
+        <span>{{ roleLabels[r] }}</span>
+      </label>
+      }
+    </div>
+    <button type="button" class="btn-login" (click)="onLogin()">Войти как выбранная роль</button>
+
+    <nav class="home-links">
+      <span class="home-links-label">Или перейти в кабинеты напрямую:</span>
+      <a routerLink="/applicant" class="home-link">Заявитель</a>
+      <a routerLink="/notary" class="home-link">Нотариус</a>
+      <a routerLink="/admin" class="home-link">Администратор</a>
+    </nav>
+  </section>
 </main>

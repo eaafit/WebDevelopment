@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Role, ROLE_LABELS } from '../role.enum';
 import { AuthService } from '../auth.service';
+import { AuthServices } from '@notary-portal/ui/auth-services';
 
 const ROLE_HOME: Partial<Record<Role, string>> = {
   [Role.Applicant]: '/applicant',
@@ -14,7 +15,7 @@ const ROLE_HOME: Partial<Record<Role, string>> = {
 @Component({
   selector: 'lib-login',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AuthServices],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })

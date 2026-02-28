@@ -1,0 +1,101 @@
+<section class="auth-services">
+  <div class="auth-card">
+    <header class="auth-card__header">
+      <h1 class="auth-card__title">Вход и регистрация</h1>
+      <p class="auth-card__subtitle">
+        Выберите удобный способ входа через внешний сервис или оставьте контакт для регистрации.
+      </p>
+    </header>
+
+    <div class="auth-card__body">
+      <div class="auth-card__providers">
+        <button type="button" class="provider-btn provider-btn--vk" (click)="signInWithVk()">
+          <span class="provider-btn__icon">VK</span>
+          <span class="provider-btn__label">Войти через VK</span>
+        </button>
+
+        <button type="button" class="provider-btn provider-btn--google" (click)="signInWithGoogle()">
+          <span class="provider-btn__icon">G</span>
+          <span class="provider-btn__label">Войти через Google</span>
+        </button>
+
+        <button type="button" class="provider-btn provider-btn--apple" (click)="signInWithApple()">
+          <span class="provider-btn__icon"></span>
+          <span class="provider-btn__label">Войти через Apple</span>
+        </button>
+
+        <button type="button" class="provider-btn provider-btn--yandex" (click)="signInWithYandex()">
+          <span class="provider-btn__icon">Я</span>
+          <span class="provider-btn__label">Войти через Яндекс</span>
+        </button>
+      </div>
+
+      <div class="auth-card__divider">
+        <span class="auth-card__divider-line"></span>
+        <span class="auth-card__divider-label">или по контакту</span>
+        <span class="auth-card__divider-line"></span>
+      </div>
+
+      @if (step() === 'contact') {
+      <form class="auth-form" [formGroup]="contactForm" (ngSubmit)="submitContact()">
+        <label class="auth-form__field">
+          <span class="auth-form__label">Email или телефон</span>
+          <input
+            class="auth-form__control"
+            type="text"
+            formControlName="contact"
+            placeholder="example@mail.ru или +7 900 000-00-00"
+            autocomplete="email" />
+          @if (contactForm.get('contact')?.invalid && contactForm.get('contact')?.touched) {
+          <span class="auth-form__error">Укажите корректный контактный адрес.</span>
+          }
+        </label>
+
+        <label class="auth-form__checkbox">
+          <input type="checkbox" formControlName="agreeTerms" />
+          <span>Я соглашаюсь с обработкой персональных данных и условиями сервиса</span>
+        </label>
+
+        @if (contactForm.get('agreeTerms')?.invalid && contactForm.get('agreeTerms')?.touched) {
+        <span class="auth-form__error auth-form__error--inline"> Необходимо согласиться с условиями. </span>
+        }
+
+        <button type="submit" class="auth-form__submit">Продолжить</button>
+      </form>
+      } @else {
+      <form class="auth-form" [formGroup]="codeForm" (ngSubmit)="submitCode()">
+        <p class="auth-form__hint">
+          Мы отправили код подтверждения на указанный контакт. Введите код ниже, чтобы завершить регистрацию.
+        </p>
+
+        <label class="auth-form__field">
+          <span class="auth-form__label">Код подтверждения</span>
+          <input
+            class="auth-form__control auth-form__control--code"
+            type="text"
+            formControlName="code"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="••••" />
+          @if (codeForm.get('code')?.invalid && codeForm.get('code')?.touched) {
+          <span class="auth-form__error">Введите код из 4–6 символов.</span>
+          }
+        </label>
+
+        <div class="auth-form__actions">
+          <button type="button" class="auth-form__link-btn" (click)="backToContact()">Изменить контакт</button>
+          <button type="button" class="auth-form__link-btn" (click)="resendCode()">Отправить код ещё раз</button>
+        </div>
+
+        <button type="submit" class="auth-form__submit">Подтвердить</button>
+      </form>
+      }
+    </div>
+
+    <footer class="auth-card__footer">
+      <p class="auth-card__note">
+        Используя сервис, вы подтверждаете своё согласие с политикой конфиденциальности и условиями использования.
+      </p>
+    </footer>
+  </div>
+</section>
