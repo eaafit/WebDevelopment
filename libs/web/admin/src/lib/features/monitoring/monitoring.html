@@ -9,20 +9,23 @@
     </div>
 
     <div class="monitoring-page__actions">
-      <button type="button" class="monitoring-btn monitoring-btn--ghost">Сбросить фильтры</button>
-      <button type="button" class="monitoring-btn monitoring-btn--secondary">Обновить</button>
-      <button type="button" class="monitoring-btn monitoring-btn--primary">Экспорт CSV</button>
+      <button type="button" class="monitoring-btn monitoring-btn--ghost" (click)="resetFilters()">
+        Сбросить фильтры
+      </button>
+      <button type="button" class="monitoring-btn monitoring-btn--secondary" (click)="refresh()">Обновить</button>
+      <button type="button" class="monitoring-btn monitoring-btn--primary" (click)="exportCsv()">Экспорт CSV</button>
     </div>
   </header>
 
   <section class="monitoring-page__toolbar">
     <div class="monitoring-page__toolbar-copy">
       <p>Показаны события за последние 30 дней. Экспорт выгружает только текущую отфильтрованную выборку.</p>
-      <small class="monitoring-page__status">{{ statusMessage }}</small>
+      <small class="monitoring-page__status">{{ statusMessage() }}</small>
     </div>
-    <span>Последнее обновление: {{ lastUpdated }}</span>
+    <span>Последнее обновление: {{ lastUpdated() }}</span>
   </section>
 
+  @let summary = stats();
   <section class="monitoring-stats" aria-label="Сводка по журналу">
     <article class="monitoring-stat monitoring-stat--accent">
       <div class="monitoring-stat__top">
@@ -85,61 +88,93 @@
             <h3>Фильтры и поиск</h3>
             <p>Сузьте выдачу по периоду, пользователю, объекту и уровню важности.</p>
           </div>
-          <button type="button" class="monitoring-link">Сохранить представление</button>
+          <button type="button" class="monitoring-link" (click)="saveView()">Сохранить представление</button>
         </div>
 
-        <form class="monitoring-filters">
+        <form class="monitoring-filters" (submit)="$event.preventDefault(); applyFilters()">
           <label class="monitoring-field monitoring-field--search">
             <span>Поиск</span>
-            <input type="text" placeholder="Пользователь, заказ, ID события, действие" />
+            <input
+              type="text"
+              placeholder="Пользователь, заказ, ID события, действие"
+              [value]="filters().query"
+              (input)="updateFilter('query', $any($event.target).value)" />
           </label>
 
           <label class="monitoring-field monitoring-field--date">
             <span>Дата от</span>
-            <input type="date" value="2026-02-01" />
+            <input
+              type="date"
+              [value]="filters().dateFrom"
+              (change)="updateFilter('dateFrom', $any($event.target).value)" />
           </label>
 
           <label class="monitoring-field monitoring-field--date">
             <span>Дата до</span>
-            <input type="date" value="2026-02-28" />
+            <input
+              type="date"
+              [value]="filters().dateTo"
+              (change)="updateFilter('dateTo', $any($event.target).value)" />
           </label>
 
           <label class="monitoring-field monitoring-field--role">
             <span>Роль</span>
-            <select>
-              <option>Все роли</option>
+            <select [value]="filters().role" (change)="updateFilter('role', $any($event.target).value)">
+              <option value="all">Все роли</option>
+              <option value="Администратор">Администратор</option>
+              <option value="Нотариус">Нотариус</option>
+              <option value="Заявитель">Заявитель</option>
+              <option value="Система">Система</option>
             </select>
           </label>
 
           <label class="monitoring-field monitoring-field--type">
             <span>Тип события</span>
-            <select>
-              <option>Все типы</option>
+            <select [value]="filters().type" (change)="updateFilter('type', $any($event.target).value)">
+              <option value="all">Все типы</option>
+              <option value="Операции с заказами">Операции с заказами</option>
+              <option value="Изменение ролей">Изменение ролей</option>
+              <option value="Платежи">Платежи</option>
+              <option value="Экспорт">Экспорт</option>
+              <option value="Безопасность">Безопасность</option>
             </select>
           </label>
 
           <label class="monitoring-field monitoring-field--object">
             <span>Объект</span>
-            <select>
-              <option>Все объекты</option>
+            <select [value]="filters().object" (change)="updateFilter('object', $any($event.target).value)">
+              <option value="all">Все объекты</option>
+              <option value="Заказы">Заказы</option>
+              <option value="Пользователи">Пользователи</option>
+              <option value="Платежи">Платежи</option>
+              <option value="Система">Система</option>
             </select>
           </label>
 
           <label class="monitoring-field monitoring-field--severity">
             <span>Уровень</span>
-            <select>
-              <option>Любой уровень</option>
+            <select [value]="filters().severity" (change)="updateFilter('severity', $any($event.target).value)">
+              <option value="all">Любой уровень</option>
+              <option value="Инфо">Инфо</option>
+              <option value="Предупреждение">Предупреждение</option>
+              <option value="Критично">Критично</option>
+              <option value="Успешно">Успешно</option>
             </select>
           </label>
 
           <label class="monitoring-filter-toggle monitoring-filter-toggle--security">
-            <input type="checkbox" />
+            <input
+              type="checkbox"
+              [checked]="filters().securityOnly"
+              (change)="updateFilter('securityOnly', $any($event.target).checked)" />
             <span>Только события безопасности</span>
           </label>
 
           <div class="monitoring-filters__actions">
             <button type="submit" class="monitoring-btn monitoring-btn--secondary">Применить</button>
-            <button type="button" class="monitoring-btn monitoring-btn--ghost">Очистить</button>
+            <button type="button" class="monitoring-btn monitoring-btn--ghost" (click)="resetFilters()">
+              Очистить
+            </button>
           </div>
         </form>
       </article>
@@ -152,17 +187,29 @@
           </div>
 
           <div class="monitoring-chipset" aria-label="Быстрые фильтры">
-            @for (chip of chipOptions; track chip) {
-            <button type="button" class="monitoring-chip" [class.monitoring-chip--active]="chip === chipOptions[0]">
-              {{ chip }}
+            @for (chip of chipOptions; track chip.id) {
+            <button
+              type="button"
+              class="monitoring-chip"
+              [class.monitoring-chip--active]="activeChip() === chip.id"
+              (click)="setChip(chip.id)">
+              {{ chip.label }}
             </button>
             }
           </div>
         </div>
 
+        @if (filteredEvents().length) {
         <div class="monitoring-log-list">
-          @for (event of events; track event.id) {
-          <article class="monitoring-log" [class.monitoring-log--selected]="selectedEvent.id === event.id">
+          @for (event of filteredEvents(); track event.id) {
+          <article
+            class="monitoring-log"
+            [class.monitoring-log--selected]="selectedEvent()?.id === event.id"
+            tabindex="0"
+            role="button"
+            (click)="selectEvent(event.id)"
+            (keydown.enter)="selectEvent(event.id)"
+            (keydown.space)="$event.preventDefault(); selectEvent(event.id)">
             <div class="monitoring-log__top">
               <div class="monitoring-log__headline">
                 <div class="monitoring-log__title-wrap">
@@ -220,9 +267,30 @@
                 </div>
               </div>
             </div>
+
+            @if (selectedEvent()?.id === event.id) {
+            <div class="monitoring-log__expand">
+              <div class="monitoring-log__expand-copy">
+                <strong>Комментарий к событию</strong>
+                <p>{{ event.reason }}</p>
+              </div>
+              <button type="button" class="monitoring-link" (click)="selectEvent(event.id); $event.stopPropagation()">
+                Подсветить в боковой панели
+              </button>
+            </div>
+            }
           </article>
           }
         </div>
+        } @else {
+        <div class="monitoring-empty">
+          <strong>По текущим фильтрам событий не найдено.</strong>
+          <p>Попробуй очистить фильтры или переключить быстрый чип.</p>
+          <button type="button" class="monitoring-btn monitoring-btn--secondary" (click)="resetFilters()">
+            Сбросить и показать все
+          </button>
+        </div>
+        }
       </article>
     </div>
 
@@ -235,64 +303,66 @@
           </div>
         </div>
 
+        @if (selectedEvent(); as current) {
         <div class="monitoring-details">
           <div class="monitoring-details__headline">
-            <strong>{{ selectedEvent.actionTitle }}</strong>
+            <strong>{{ current.actionTitle }}</strong>
             <span
               class="monitoring-badge"
-              [class.monitoring-badge--critical]="selectedEvent.severity === 'critical'"
-              [class.monitoring-badge--warning]="selectedEvent.severity === 'warning'"
-              [class.monitoring-badge--info]="selectedEvent.severity === 'info'"
-              [class.monitoring-badge--success]="selectedEvent.severity === 'success'">
-              {{ selectedEvent.severityLabel }}
+              [class.monitoring-badge--critical]="current.severity === 'critical'"
+              [class.monitoring-badge--warning]="current.severity === 'warning'"
+              [class.monitoring-badge--info]="current.severity === 'info'"
+              [class.monitoring-badge--success]="current.severity === 'success'">
+              {{ current.severityLabel }}
             </span>
           </div>
 
           <dl class="monitoring-meta">
             <div>
               <dt>Кто</dt>
-              <dd>{{ selectedEvent.actor }}</dd>
+              <dd>{{ current.actor }}</dd>
             </div>
             <div>
               <dt>Когда</dt>
-              <dd>{{ selectedEvent.dateLabel }}, {{ selectedEvent.timeLabel }}</dd>
+              <dd>{{ current.dateLabel }}, {{ current.timeLabel }}</dd>
             </div>
             <div>
               <dt>Где</dt>
-              <dd>{{ selectedEvent.location }}</dd>
+              <dd>{{ current.location }}</dd>
             </div>
             <div>
               <dt>Объект</dt>
-              <dd>{{ selectedEvent.entityTitle }}</dd>
+              <dd>{{ current.entityTitle }}</dd>
             </div>
             <div>
               <dt>IP / канал</dt>
-              <dd>{{ selectedEvent.ip }} / {{ selectedEvent.source }}</dd>
+              <dd>{{ current.ip }} / {{ current.source }}</dd>
             </div>
             <div>
               <dt>Причина</dt>
-              <dd>{{ selectedEvent.reason }}</dd>
+              <dd>{{ current.reason }}</dd>
             </div>
           </dl>
 
           <div class="monitoring-diff">
             <div class="monitoring-diff__column">
               <span class="monitoring-diff__label">Было</span>
-              <pre>{{ selectedEvent.before.join('\n') }}</pre>
+              <pre>{{ current.before.join('\n') }}</pre>
             </div>
 
             <div class="monitoring-diff__column monitoring-diff__column--new">
               <span class="monitoring-diff__label">Стало</span>
-              <pre>{{ selectedEvent.after.join('\n') }}</pre>
+              <pre>{{ current.after.join('\n') }}</pre>
             </div>
           </div>
 
           <div class="monitoring-note">
             <strong>Комментарий:</strong>
-            {{ selectedEvent.actionSubtitle }}. Событие сохранено как демонстрационный сценарий для будущей интеграции с
+            {{ current.actionSubtitle }}. Событие сохранено как демонстрационный сценарий для будущей интеграции с
             настоящим audit trail.
           </div>
         </div>
+        }
       </article>
 
       <article class="monitoring-card">
@@ -304,7 +374,7 @@
         </div>
 
         <ul class="monitoring-alerts">
-          @for (event of securityHighlights; track event.id) {
+          @for (event of securityHighlights(); track event.id) {
           <li
             class="monitoring-alert"
             [class.monitoring-alert--critical]="event.severity === 'critical'"
