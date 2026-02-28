@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет Заявителя</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav>
+    <div class="logo">NOTARY.DIGITAL | ЗАЯВИТЕЛЬ</div>
+    <a href="notary.html" class="role-link">Панель Нотариуса →</a>
+</nav>
+
+<div class="container">
+    <section id="applicant-ui" class="app-section active">
+        <div class="card">
+            <h2>Новый запрос на копии документов</h2>
+            <form id="requestForm">
+                <div class="grid-form">
+                    <div class="full-width">
+                        <label for="docType">Тип документа</label>
+                        <select id="docType">
+                            <option value="500">Договор купли-продажи (500 ₽)</option>
+                            <option value="800">Завещание (800 ₽)</option>
+                            <option value="1200">Доверенность с архива (1200 ₽)</option>
+                            <option value="300">Прочие справки (300 ₽)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>ФИО Заявителя</label>
+                        <input type="text" id="userName" placeholder="Иванов Иван Иванович" required>
+                    </div>
+                    <div>
+                        <label>Номер документа</label>
+                        <input type="text" id="docNum" placeholder="№ 77 АБ 123456">
+                    </div>
+                    <div class="full-width">
+                        <label>Прикрепите основания</label>
+                        <div class="dropzone" id="dropzone">
+                            <span id="dropzoneText">Перетащите файлы или кликните здесь</span>
+                            <input type="file" id="fileInput" style="display:none" multiple>
+                            <div id="fileNameDisplay" class="file-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="price-box">
+                    <span>Итого к оплате:</span>
+                    <span class="price-value" id="totalPrice">500 ₽</span>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Оформить запрос</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Мои запросы</h2>
+            <div id="myRequestsList"></div>
+        </div>
+    </section>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
