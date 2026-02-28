@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Order Management</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="admin-container">
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-layer-group"></i>
+                <span>CORE Admin</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active"><i class="fas fa-chart-pie"></i> Дашборд</a>
+                <a href="#" class="nav-item"><i class="fas fa-clock"></i> Очередь оценок <span class="badge">14</span></a>
+                <a href="#" class="nav-item"><i class="fas fa-shield-halved"></i> Модерация</a>
+                <a href="#" class="nav-item"><i class="fas fa-file-invoice"></i> Отчёты</a>
+                <div class="nav-divider">Система</div>
+                <a href="#" class="nav-item"><i class="fas fa-gear"></i> Настройки</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-title">
+                    <h1>Управление заказами</h1>
+                </div>
+                <div class="user-profile">
+                    <div class="notifications"><i class="fas fa-bell"></i></div>
+                    <div class="divider"></div>
+                    <span class="user-name">Александр М.</span>
+                    <div class="avatar">AM</div>
+                </div>
+            </header>
+
+            <div class="dashboard-body">
+                <section class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="label">Конверсия в оценку</span>
+                        <div class="value">24.5% <span class="trend up">+1.2%</span></div>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Среднее время (мин)</span>
+                        <div class="value">12:40 <span class="trend down">-2м</span></div>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Всего оценок</span>
+                        <div class="value">4,102</div>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Выгрузки (24ч)</span>
+                        <div class="value">12 <button class="btn-mini">Экспорт</button></div>
+                    </div>
+                </section>
+
+                <section class="content-block">
+                    <div class="block-header">
+                        <h2>Очередь ручной модерации</h2>
+                        <div class="block-actions">
+                            <input type="text" placeholder="Поиск по ID..." class="input-search">
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID Заказа</th>
+                                    <th>Клиент</th>
+                                    <th>Оценка</th>
+                                    <th>Комментарий</th>
+                                    <th class="text-right">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>#ORD-9912</td>
+                                    <td>Артем Волков</td>
+                                    <td><span class="stars text-yellow">★★★★☆</span></td>
+                                    <td class="comment-cell">Привезли быстро, но пицца холодная...</td>
+                                    <td class="text-right">
+                                        <button class="btn btn-success">Одобрить</button>
+                                        <button class="btn btn-danger">Отклонить</button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>#ORD-9910</td>
+                                    <td>Елена С.</td>
+                                    <td><span class="stars text-yellow">★★★★★</span></td>
+                                    <td class="comment-cell">Лучший сервис в городе!</td>
+                                    <td class="text-right">
+                                        <button class="btn btn-success">Одобрить</button>
+                                        <button class="btn btn-danger">Отклонить</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bottom-grid">
+                    <div class="content-block chart-placeholder">
+                        <h3>Аналитика времени обработки</h3>
+                        <div class="placeholder-visual">
+                            График будет здесь
+                        </div>
+                    </div>
+                    <div class="content-block">
+                        <h3>Доступные выгрузки</h3>
+                        <ul class="report-list">
+                            <li>
+                                <i class="fas fa-file-csv"></i>
+                                <span>Лог модерации_февраль.csv</span>
+                                <button class="btn-icon"><i class="fas fa-download"></i></button>
+                            </li>
+                            <li>
+                                <i class="fas fa-file-pdf"></i>
+                                <span>Отчет_конверсия_неделя.pdf</span>
+                                <button class="btn-icon"><i class="fas fa-download"></i></button>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+</body>
+</html>
