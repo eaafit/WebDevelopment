@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель - Чаты поддержки</title>
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>💬 Чаты поддержки</h1>
+            <span class="admin-badge">Администратор</span>
+        </div>
+        <div class="header-actions">
+            <button class="refresh-btn" onclick="loadTickets()">🔄 Обновить</button>
+            <button class="create-btn" onclick="showCreateTicketModal()">➕ Новый чат</button>
+        </div>
+    </div>
+    
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-value" id="activeChats">0</div>
+            <div class="stat-label">Активные чаты</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="waitingChats">0</div>
+            <div class="stat-label">Ожидают ответа</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="closedChats">0</div>
+            <div class="stat-label">Завершенные</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalMessages">0</div>
+            <div class="stat-label">Сообщений сегодня</div>
+        </div>
+    </div>
+    
+    <div class="chats-container">
+        <div class="chats-sidebar">
+            <div class="search-box">
+                <input type="text" placeholder="🔍 Поиск по чатам..." id="searchInput" onkeyup="searchChats()">
+            </div>
+            <div class="chats-list" id="chatsList">
+                <!-- Список чатов -->
+            </div>
+        </div>
+        
+        <div class="chat-area" id="chatArea">
+            <div class="chat-placeholder">
+                <div class="placeholder-icon">💬</div>
+                <h3>Выберите чат</h3>
+                <p>Нажмите на чат слева, чтобы начать общение</p>
+                <button class="create-chat-btn" onclick="showCreateTicketModal()">+ Создать новый чат</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Модальное окно создания чата -->
+    <div class="modal" id="createChatModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Создать новый чат</h3>
+                <span class="close-modal" onclick="closeCreateChatModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Клиент:</label>
+                    <input type="text" id="clientName" placeholder="Имя клиента" value="Тестовый клиент">
+                </div>
+                <div class="form-group">
+                    <label>Email клиента:</label>
+                    <input type="email" id="clientEmail" placeholder="email@example.com" value="client@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Тема чата:</label>
+                    <select id="chatTopic">
+                        <option value="technical">🔧 Техническая проблема</option>
+                        <option value="billing">💰 Оплата</option>
+                        <option value="account">👤 Аккаунт</option>
+                        <option value="consultation">📋 Консультация</option>
+                        <option value="other">❓ Другое</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Приоритет:</label>
+                    <select id="chatPriority">
+                        <option value="low">🟢 Низкий</option>
+                        <option value="medium" selected>🟡 Средний</option>
+                        <option value="high">🔴 Высокий</option>
+                        <option value="urgent">⚡ Критичный</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Первое сообщение (от клиента):</label>
+                    <textarea id="firstMessage" rows="3" placeholder="Введите первое сообщение клиента...">Здравствуйте! У меня проблема с доступом к аккаунту.</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="cancel-btn" onclick="closeCreateChatModal()">Отмена</button>
+                <button class="create-chat-btn" onclick="createNewChat()">Создать чат</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/admin.js"></script>
+</body>
+</html>
