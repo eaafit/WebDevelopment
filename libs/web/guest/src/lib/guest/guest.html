@@ -1,18 +1,49 @@
-<div class="guest-layout">
-  <header class="guest-header">
-    <a routerLink="/" class="logo">Нотариальная оценка</a>
-    <nav class="guest-nav">
-      <a routerLink="/">Главная</a>
-      <a routerLink="/landing-page">О сервисе</a>
-      <a routerLink="/auth">Вход</a>
-      <a routerLink="/faq">Справочник</a>
-    </nav>
-  </header>
-  <main class="guest-content">
-    <router-outlet></router-outlet>
-  </main>
-  <footer class="guest-footer">
-    <span>© {{ currentYear }} Нотариальная оценка</span>
-    <a routerLink="/faq">Справочник</a>
-  </footer>
+<div class="notary-wrapper p-0">
+  <div class="guest-layout">
+    <!-- Шапка гостевой зоны -->
+    <header class="guest-header">
+      <div class="container flex justify-between items-center header-inner">
+        <!-- Логотип -->
+        <a routerLink="/" class="guest-logo">
+          <div class="logo-icon-wrap">
+            <span class="logo-icon">&#9878;</span>
+          </div>
+          <span class="logo-text">Нотариальная оценка</span>
+        </a>
+
+        <!-- Навигация -->
+        <nav class="guest-nav">
+          <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}" class="nav-link"
+            >Главная</a
+          >
+
+          <a routerLink="/landing-page" routerLinkActive="active" class="nav-link">О сервисе</a>
+
+          <a routerLink="/faq" routerLinkActive="active" class="nav-link">Справочник</a>
+
+          <!-- Вход выделен как главное действие -->
+          <a routerLink="/auth" class="btn btn-primary btn-sm login-btn">
+            Войти <span class="login-icon">&#10140;</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Основной контент страницы -->
+    <main class="guest-content container">
+      <router-outlet></router-outlet>
+    </main>
+
+    <!-- Подвал -->
+    <footer class="guest-footer">
+      <div class="container flex justify-between items-center footer-inner">
+        <span class="text-sm text-secondary">© {{ currentYear }} Нотариальная оценка. Все права защищены.</span>
+
+        <div class="footer-links flex gap-4">
+          <a routerLink="/faq" class="link text-sm">Справочник</a>
+          <a routerLink="/privacy" class="link text-sm">Политика конфиденциальности</a>
+        </div>
+      </div>
+    </footer>
+  </div>
 </div>
