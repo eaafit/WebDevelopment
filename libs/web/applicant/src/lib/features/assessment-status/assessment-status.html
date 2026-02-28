@@ -1,0 +1,45 @@
+<main class="container page">
+  <section class="card">
+    <header class="card__header">
+      <h1 class="card__title">Статус заявки</h1>
+      <p class="card__subtitle">Заявка сохранена. Ниже вы можете отслеживать этап обработки.</p>
+    </header>
+
+    <section class="status-card" id="application-status" aria-labelledby="application-status-title">
+      <h2 class="status-card__title" id="application-status-title">Текущий прогресс</h2>
+      <p class="status-card__description">Статус обновляется по мере обработки заявки нотариусом.</p>
+      <p class="status-card__current">
+        Текущий статус:
+        <span class="status-badge status-badge--current">Создана</span>
+      </p>
+
+      <ol class="status-steps" role="list">
+        <li class="status-step status-step--done">
+          <span class="status-step__dot" aria-hidden="true"></span>
+          <span class="status-step__label">Создана</span>
+        </li>
+        <li class="status-step">
+          <span class="status-step__dot" aria-hidden="true"></span>
+          <span class="status-step__label">В проверке</span>
+        </li>
+        <li class="status-step">
+          <span class="status-step__dot" aria-hidden="true"></span>
+          <span class="status-step__label">Активна</span>
+        </li>
+        <li class="status-step">
+          <span class="status-step__dot" aria-hidden="true"></span>
+          <span class="status-step__label">В работе</span>
+        </li>
+        <li class="status-step">
+          <span class="status-step__dot" aria-hidden="true"></span>
+          <span class="status-step__label">Завершена</span>
+        </li>
+      </ol>
+    </section>
+
+    <div class="form__footer form__footer--center">
+      <a class="btn btn--outline" routerLink="/applicant/assessment">Вернуться к параметрам</a>
+      <a class="btn btn--primary" routerLink="/applicant/assessment/history">Открыть историю заявок</a>
+    </div>
+  </section>
+</main>

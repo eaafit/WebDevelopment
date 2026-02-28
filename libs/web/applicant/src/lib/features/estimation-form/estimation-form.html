@@ -1,19 +1,24 @@
 <div class="app-estimation-form-page">
-  <header class="app-header">
-    <div class="container app-header__inner">
-      <span class="app-chip">Модуль оценки недвижимости (для заявителя)</span>
-    </div>
-  </header>
-
   <main class="container page">
     <section class="card">
       <header class="card__header">
-        <p class="card__eyebrow">Заявка на оценку</p>
-        <h1 class="card__title">Ввод параметров объекта</h1>
+        <h1 class="card__title">Заявка на оценку</h1>
         <p class="card__subtitle">Заполните характеристики недвижимости для формирования заявки на оценку.</p>
       </header>
 
-      <form class="form" id="valuationForm" action="#" method="post">
+      <form
+        #valuationForm
+        class="form"
+        id="valuationForm"
+        novalidate
+        [class.form--submitted]="showValidationErrors"
+        (submit)="onSubmit($event, valuationForm, confirmCorrect.checked, confirmProcessing.checked)">
+        @if (showValidationErrors) {
+        <p class="form-error-text">
+          {{ validationErrorMessage || 'Заполните обязательные поля, отмеченные символом *.' }}
+        </p>
+        }
+
         <div class="form__sections">
           <fieldset class="fieldset">
             <legend class="legend">Адрес</legend>
@@ -21,7 +26,13 @@
             <div class="form-block grid grid--2">
               <div class="field">
                 <label class="label" for="city">Город <span class="req">*</span></label>
-                <select class="control" id="city" name="city" required>
+                <select
+                  #cityField
+                  class="control"
+                  id="city"
+                  name="city"
+                  required
+                  [class.control--invalid]="showValidationErrors && !cityField.validity.valid">
                   <option value="" selected disabled>Выберите город</option>
                   <option>Москва</option>
                   <option>Санкт-Петербург</option>
@@ -29,6 +40,9 @@
                   <option>Екатеринбург</option>
                   <option>Новосибирск</option>
                 </select>
+                @if (showValidationErrors && cityField.validity.valueMissing) {
+                <p class="field-error">Выберите город.</p>
+                }
               </div>
 
               <div class="field">
@@ -47,6 +61,7 @@
             <div class="form-block field">
               <label class="label" for="address">Адрес (с подсказками) <span class="req">*</span></label>
               <input
+                #addressField
                 class="control"
                 id="address"
                 name="address"
@@ -54,7 +69,13 @@
                 placeholder="Введите адрес"
                 required
                 minlength="8"
-                maxlength="180" />
+                maxlength="180"
+                [class.control--invalid]="showValidationErrors && !addressField.validity.valid" />
+              @if (showValidationErrors && addressField.validity.valueMissing) {
+              <p class="field-error">Введите адрес объекта.</p>
+              } @if (showValidationErrors && !addressField.validity.valueMissing && addressField.validity.tooShort) {
+              <p class="field-error">Адрес слишком короткий (минимум 8 символов).</p>
+              }
               <datalist id="address-suggestions">
                 <option value="Москва, Тверская ул., д. 10"></option>
                 <option value="Москва, Ленинский пр-т, д. 45"></option>
@@ -72,6 +93,7 @@
               <div class="field">
                 <label class="label" for="area">Площадь, м² <span class="req">*</span></label>
                 <input
+                  #areaField
                   class="control"
                   id="area"
                   name="area"
@@ -81,12 +103,22 @@
                   max="100000"
                   step="0.1"
                   inputmode="decimal"
-                  placeholder="Например: 54.6" />
+                  placeholder="Например: 54.6"
+                  [class.control--invalid]="showValidationErrors && !areaField.validity.valid" />
+                @if (showValidationErrors && areaField.validity.valueMissing) {
+                <p class="field-error">Укажите площадь объекта.</p>
+                }
               </div>
 
               <div class="field">
                 <label class="label" for="objectType">Тип объекта <span class="req">*</span></label>
-                <select class="control" id="objectType" name="objectType" required>
+                <select
+                  #objectTypeField
+                  class="control"
+                  id="objectType"
+                  name="objectType"
+                  required
+                  [class.control--invalid]="showValidationErrors && !objectTypeField.validity.valid">
                   <option value="" selected disabled>Выберите тип</option>
                   <option>Квартира</option>
                   <option>Дом</option>
@@ -95,11 +127,15 @@
                   <option>Земельный участок</option>
                   <option>Коммерческая недвижимость</option>
                 </select>
+                @if (showValidationErrors && objectTypeField.validity.valueMissing) {
+                <p class="field-error">Выберите тип объекта.</p>
+                }
               </div>
 
               <div class="field">
                 <label class="label" for="rooms">Кол-во комнат</label>
                 <input
+                  #roomsField
                   class="control"
                   id="rooms"
                   name="rooms"
@@ -108,7 +144,12 @@
                   max="50"
                   step="1"
                   inputmode="numeric"
-                  placeholder="Например: 2" />
+                  placeholder="Например: 2"
+                  [class.control--invalid]="showValidationErrors && !roomsField.validity.valid" />
+                @if ( showValidationErrors && !roomsField.validity.valueMissing && (roomsField.validity.rangeUnderflow
+                || roomsField.validity.rangeOverflow) ) {
+                <p class="field-error">Количество комнат должно быть от 0 до 50.</p>
+                }
               </div>
             </div>
           </fieldset>
@@ -120,6 +161,7 @@
               <div class="field">
                 <label class="label" for="floorsTotal">Этажность (всего этажей) <span class="req">*</span></label>
                 <input
+                  #floorsTotalField
                   class="control"
                   id="floorsTotal"
                   name="floorsTotal"
@@ -128,7 +170,11 @@
                   min="1"
                   max="200"
                   step="1"
-                  inputmode="numeric" />
+                  inputmode="numeric"
+                  [class.control--invalid]="showValidationErrors && !floorsTotalField.validity.valid" />
+                @if (showValidationErrors && floorsTotalField.validity.valueMissing) {
+                <p class="field-error">Укажите общую этажность здания.</p>
+                }
               </div>
 
               <div class="field">
@@ -147,13 +193,22 @@
 
               <div class="field">
                 <label class="label" for="condition">Состояние <span class="req">*</span></label>
-                <select class="control" id="condition" name="condition" required>
+                <select
+                  #conditionField
+                  class="control"
+                  id="condition"
+                  name="condition"
+                  required
+                  [class.control--invalid]="showValidationErrors && !conditionField.validity.valid">
                   <option value="" selected disabled>Выберите</option>
                   <option>Новостройка</option>
                   <option>Хорошее</option>
                   <option>Требует ремонта</option>
                   <option>Аварийное</option>
                 </select>
+                @if (showValidationErrors && conditionField.validity.valueMissing) {
+                <p class="field-error">Выберите состояние объекта.</p>
+                }
               </div>
 
               <div class="field">
@@ -209,22 +264,109 @@
           </fieldset>
 
           <fieldset class="fieldset">
+            <legend class="legend">Документы и фото</legend>
+
+            <div class="form-block grid grid--2">
+              <div class="field">
+                <label class="label" for="documentFiles">Сканы и документы <span class="req">*</span></label>
+                <input
+                  #documentFilesField
+                  class="control control--file"
+                  id="documentFiles"
+                  name="documentFiles"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx"
+                  multiple
+                  required
+                  [class.control--invalid]="showValidationErrors && !documentFilesField.validity.valid"
+                  (change)="onFilesSelected($event, 'documents')" />
+                <div class="help">Поддерживаются PDF, DOC/DOCX и сканы/изображения (JPG, PNG, HEIC).</div>
+                @if (showValidationErrors && documentFilesField.validity.valueMissing) {
+                <p class="field-error">Загрузите хотя бы один документ или скан.</p>
+                } @if (documentFiles.length) {
+                <ul class="upload-list">
+                  @for (file of documentFiles; track file.name + file.size + file.lastModified) {
+                  <li class="upload-list__item">
+                    <span class="upload-list__name">{{ file.name }}</span>
+                    <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                  </li>
+                  }
+                </ul>
+                }
+              </div>
+
+              <div class="field">
+                <label class="label" for="photoFiles">Фото объекта</label>
+                <input
+                  class="control control--file"
+                  id="photoFiles"
+                  name="photoFiles"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  (change)="onFilesSelected($event, 'photos')" />
+                <div class="help">Добавьте фото фасада, комнат и состояния объекта.</div>
+
+                @if (photoFiles.length) {
+                <ul class="upload-list">
+                  @for (file of photoFiles; track file.name + file.size + file.lastModified) {
+                  <li class="upload-list__item">
+                    <span class="upload-list__name">{{ file.name }}</span>
+                    <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                  </li>
+                  }
+                </ul>
+                }
+              </div>
+            </div>
+
+            <div class="form-block field">
+              <label class="label" for="additionalFiles">Дополнительные файлы</label>
+              <input
+                class="control control--file"
+                id="additionalFiles"
+                name="additionalFiles"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                multiple
+                (change)="onFilesSelected($event, 'additional')" />
+              <div class="help">При необходимости добавьте доп. справки, планы или иные материалы.</div>
+
+              @if (additionalFiles.length) {
+              <ul class="upload-list">
+                @for (file of additionalFiles; track file.name + file.size + file.lastModified) {
+                <li class="upload-list__item">
+                  <span class="upload-list__name">{{ file.name }}</span>
+                  <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                </li>
+                }
+              </ul>
+              }
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
             <legend class="legend">Подтверждения</legend>
 
             <label class="check">
-              <input type="checkbox" name="confirmCorrect" required />
+              <input #confirmCorrect type="checkbox" name="confirmCorrect" required />
               <span>Подтверждаю, что данные введены корректно и соответствуют объекту.</span>
             </label>
 
             <label class="check">
-              <input type="checkbox" name="confirmProcessing" required />
+              <input #confirmProcessing type="checkbox" name="confirmProcessing" required />
               <span>Согласен(на) на обработку данных для проведения оценки.</span>
             </label>
           </fieldset>
         </div>
 
         <div class="form__footer form__footer--center">
-          <button class="btn btn--primary" type="submit">Сохранить параметры</button>
+          <button
+            class="btn btn--primary"
+            type="submit"
+            [disabled]="!confirmCorrect.checked || !confirmProcessing.checked">
+            Сохранить параметры
+          </button>
           <a class="btn btn--outline" href="./requests_table.html">Перейти к заявкам</a>
         </div>
       </form>

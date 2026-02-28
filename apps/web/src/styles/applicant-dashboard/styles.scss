@@ -89,33 +89,6 @@ textarea {
   margin: 0 auto;
 }
 
-.app-header {
-  padding-top: var(--space-lg);
-}
-
-.app-header__inner {
-  display: flex;
-  justify-content: center;
-}
-
-.app-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-round);
-
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-
-  background: rgb(255 255 255 / 90%);
-}
-
 .page {
   padding: 16px 0 56px;
 }
@@ -139,16 +112,6 @@ textarea {
   text-align: center;
 }
 
-.card__eyebrow {
-  margin: 0 0 0.5rem;
-
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .card__title {
   margin: 0 0 0.5rem;
   font-size: 1.875rem;
@@ -166,6 +129,13 @@ textarea {
 /* --- 5. FORM --- */
 .form {
   padding: 0;
+}
+
+.form-error-text {
+  margin: 0 0 var(--space-md);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #b91c1c;
 }
 
 .form__sections {
@@ -256,6 +226,11 @@ textarea {
   box-shadow: var(--focus-ring);
 }
 
+.control--invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgb(220 38 38 / 12%);
+}
+
 /* Select: кастомная стрелка как в styles.css */
 select.control {
   padding-right: 2.5rem;
@@ -272,9 +247,68 @@ select.control {
   min-height: 122px;
 }
 
+.control--file {
+  padding: 0.5rem;
+}
+
+.control--file::file-selector-button {
+  cursor: pointer;
+
+  margin-right: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+
+  font-weight: 500;
+  color: var(--color-text);
+
+  background-color: var(--bg-secondary);
+}
+
+.upload-list {
+  display: grid;
+  gap: 0.5rem;
+
+  margin: 0.25rem 0 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.upload-list__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0.6rem 0.75rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+
+  background: #fff;
+}
+
+.upload-list__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-list__meta {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
 .help {
   font-size: 0.75rem;
   color: var(--color-text-muted);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b91c1c;
 }
 
 /* --- 6. CHECKBOXES --- */
@@ -310,6 +344,106 @@ select.control {
 
 .form__footer--center {
   justify-content: center;
+}
+
+.status-card {
+  margin-top: var(--space-xl);
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-block);
+
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-soft);
+}
+
+.status-card__title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.status-card__description {
+  margin: 0.5rem 0 0;
+  color: var(--color-text-muted);
+}
+
+.status-card__current {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+
+  margin: 1rem 0 0;
+
+  font-weight: 500;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-round);
+
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-badge--current {
+  color: #fff;
+  background: var(--primary);
+}
+
+.status-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  margin: 1rem 0 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.status-step {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 40px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+
+  color: var(--color-text-muted);
+  text-align: center;
+
+  background: #fff;
+}
+
+.status-step__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-light);
+}
+
+.status-step__label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-step--done {
+  border-color: rgb(79 70 229 / 25%);
+  color: var(--color-text);
+  background: rgb(79 70 229 / 8%);
+}
+
+.status-step--done .status-step__dot {
+  background: var(--primary);
 }
 
 .btn {
@@ -396,6 +530,10 @@ select.control {
 
   .grid--2,
   .grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .status-steps {
     grid-template-columns: 1fr;
   }
 
