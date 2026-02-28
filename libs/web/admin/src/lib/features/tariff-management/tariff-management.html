@@ -1,0 +1,160 @@
+<div class="tariff-management">
+  <!-- Header -->
+  <div class="tariff-management__header">
+    <h1 class="tariff-management__title">Управление тарифными планами</h1>
+
+    <div class="tariff-management__tabs">
+      <button class="tariff-management__tab tariff-management__tab--active">Тарифные планы</button>
+
+      <button class="tariff-management__tab">Скидки</button>
+
+      <button class="tariff-management__tab">Промокоды</button>
+    </div>
+  </div>
+
+  <!-- ===================== ТАРИФЫ ===================== -->
+  <div class="tariff-management__section">
+    <div class="tariff-management__section-header">
+      <h2>Список тарифных планов</h2>
+      <button class="tariff-management__button tariff-management__button--primary">+ Создать тариф</button>
+    </div>
+
+    <div class="tariff-management__table-container">
+      <table class="tariff-management__table">
+        <thead>
+          <tr>
+            <th>Название</th>
+            <th>Стоимость</th>
+            <th>Период</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Базовый</td>
+            <td>1 000 ₽</td>
+            <td>1 месяц</td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+
+          <tr>
+            <td>Стандарт</td>
+            <td>2 700 ₽</td>
+            <td>3 месяца</td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+
+          <tr>
+            <td>Премиум</td>
+            <td>5 000 ₽</td>
+            <td>6 месяцев</td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===================== СКИДКИ ===================== -->
+  <div class="tariff-management__section">
+    <div class="tariff-management__section-header">
+      <h2>Список скидок</h2>
+      <button class="tariff-management__button tariff-management__button--primary">+ Создать скидку</button>
+    </div>
+
+    <div class="tariff-management__table-container">
+      <table class="tariff-management__table">
+        <thead>
+          <tr>
+            <th>Название</th>
+            <th>Размер скидки</th>
+            <th>Тип</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Новый клиент</td>
+            <td>10%</td>
+            <td>Процентная</td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+
+          <tr>
+            <td>Сезонная скидка</td>
+            <td>500 ₽</td>
+            <td>Фиксированная</td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===================== ПРОМОКОДЫ ===================== -->
+  <div class="tariff-management__section">
+    <div class="tariff-management__section-header">
+      <h2>Список промокодов</h2>
+      <button class="tariff-management__button tariff-management__button--primary">+ Создать промокод</button>
+    </div>
+
+    <div class="tariff-management__table-container">
+      <table class="tariff-management__table">
+        <thead>
+          <tr>
+            <th>Код</th>
+            <th>Скидка</th>
+            <th>Срок действия</th>
+            <th>Статус</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>WELCOME2024</strong></td>
+            <td>10%</td>
+            <td>31.12.2024</td>
+            <td><span class="tariff-management__status tariff-management__status--active">Активен</span></td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+
+          <tr>
+            <td><strong>SUMMER</strong></td>
+            <td>500 ₽</td>
+            <td>31.08.2024</td>
+            <td><span class="tariff-management__status tariff-management__status--active">Активен</span></td>
+            <td class="tariff-management__actions">
+              <button class="tariff-management__action-btn">👁</button>
+              <button class="tariff-management__action-btn">✏</button>
+              <button class="tariff-management__action-btn tariff-management__action-btn--delete">🗑</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,18 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Admin } from './admin';
-import {provideRouter} from "@angular/router";
+import { TariffManagement } from './tariff-management';
 
-describe('Admin', () => {
-  let component: Admin;
-  let fixture: ComponentFixture<Admin>;
+describe('TariffManagement', () => {
+  let component: TariffManagement;
+  let fixture: ComponentFixture<TariffManagement>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Admin],
-      providers: [provideRouter([])],
+      imports: [TariffManagement],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Admin);
+    fixture = TestBed.createComponent(TariffManagement);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });
