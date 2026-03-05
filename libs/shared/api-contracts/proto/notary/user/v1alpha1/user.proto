@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package notary.user.v1alpha1;;
+package notary.user.v1alpha1;
 
 import "google/protobuf/timestamp.proto";
 import "notary/common/v1alpha1/common.proto";

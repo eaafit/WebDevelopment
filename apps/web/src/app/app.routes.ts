@@ -1,36 +1,21 @@
 import { Route } from '@angular/router';
+import { guestRoutes } from '@notary-portal/guest';
 
 export const appRoutes: Route[] = [
   {
-    path: 'applicant/estimation-form',
-    loadComponent: () =>
-      import('./features/applicant/estimation-form/estimation-form').then((m) => m.EstimationForm),
+    path: '',
+    children: guestRoutes,
   },
   {
     path: 'applicant',
-    pathMatch: 'full',
-    redirectTo: 'applicant/estimation-form',
+    loadChildren: () => import('@notary-portal/applicant').then((m) => m.applicantRoutes),
   },
   {
-    path: 'auth',
-    loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginComponent),
+    path: 'notary',
+    loadChildren: () => import('@notary-portal/notary').then((m) => m.notaryRoutes),
   },
   {
-    path: 'payment-history',
-    loadComponent: () =>
-      import('./features/payments/payment-history/payment-history').then((m) => m.PaymentHistory),
-  },
-  {
-    path: 'landing',
-    loadComponent: () => import('./landing-page/landing-page').then((m) => m.LandingPage),
-  },
-  {
-    path: '',
-    pathMatch: 'full',
-    redirectTo: 'applicant/estimation-form',
-  },
-  {
-    path: '**',
-    redirectTo: 'auth',
+    path: 'admin',
+    loadChildren: () => import('@notary-portal/admin').then((m) => m.adminRoutes),
   },
 ];

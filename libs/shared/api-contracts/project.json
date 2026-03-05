@@ -28,6 +28,14 @@
         "command": "buf breaking --against \"../../../.git#branch=origin/main,subdir={projectRoot}\"",
         "cwd": "libs/shared/api-contracts"
       }
+    },
+    "generate-proto": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "buf generate",
+        "cwd": "libs/shared/api-contracts"
+      },
+      "outputs": ["{projectRoot}/src/generated"]
     }
   }
 }

@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -14,67 +13,83 @@ datasource db {
 }
 
 enum Role {
-  Applicant
-  Notary
-  Admin
+  Applicant @map("applicant")
+  Notary    @map("notary")
+  Admin     @map("admin")
+
+  @@map("role")
 }
 
 enum AssessmentStatus {
-  New
-  Verified
-  InProgress
-  Completed
-  Cancelled
+  New        @map("new")
+  Verified   @map("verified")
+  InProgress @map("in_progress")
+  Completed  @map("completed")
+  Cancelled  @map("cancelled")
+
+  @@map("assessment_status")
 }
 
 enum SubscriptionPlan {
-  Basic
-  Premium
-  Enterprise
+  Basic      @map("basic")
+  Premium    @map("premium")
+  Enterprise @map("enterprise")
+
+  @@map("subscription_plan")
 }
 
 enum PaymentType {
-  Subscription
-  Assessment
-  DocumentCopy
+  Subscription @map("subscription")
+  Assessment   @map("assessment")
+  DocumentCopy @map("document_copy")
+
+  @@map("payment_type")
 }
 
 enum PaymentStatus {
-  Pending
-  Completed
-  Failed
-  Refunded
+  Pending   @map("pending")
+  Completed @map("completed")
+  Failed    @map("failed")
+  Refunded  @map("refunded")
+
+  @@map("payment_status")
 }
 
 enum NotificationType {
-  Email
-  SMS
-  Push
+  Email @map("email")
+  SMS   @map("sms")
+  Push  @map("push")
+
+  @@map("notification_type")
 }
 
 enum NotificationStatus {
-  Pending
-  Sent
-  Failed
+  Pending @map("pending")
+  Sent    @map("sent")
+  Failed  @map("failed")
+
+  @@map("notification_status")
 }
 
 enum SaleType {
-  Permanent
-  Subscription
-  Product
-  Promo
+  Permanent    @map("permanent")
+  Subscription @map("subscription")
+  Product      @map("product")
+  Promo        @map("promo")
+
+  @@map("sale_type")
 }
 
 model User {
   id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String
-  fullName     String
+  email        String   @unique @db.VarChar
+  passwordHash String   @map("password_hash") @db.VarChar
+  fullName     String   @map("full_name") @db.VarChar
   role         Role     @default(Applicant)
-  phoneNumber  String?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  phoneNumber  String?  @map("phone_number") @db.VarChar
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp()
 
   assessments       Assessment[]
   subscriptions     Subscription[]
@@ -83,116 +98,136 @@ model User {
   signedReports     AssessmentReport[] @relation("SignedBy")
   notifications     Notification[]
   auditLogs         AuditLog[]
+
+  @@map("users")
 }
 
 model Assessment {
   id             String           @id @default(uuid()) @db.Uuid
-  userId         String           @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
   status         AssessmentStatus @default(New)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  address        String
-  description    String?
-  estimatedValue Decimal?         @db.Decimal(15, 2)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamp()
+  address        String           @db.VarChar
+  description    String?          @db.Text
+  estimatedValue Decimal?         @map("estimated_value") @db.Decimal(15, 2)
 
   user      User               @relation(fields: [userId], references: [id])
   documents Document[]
   reports   AssessmentReport[]
   payments  Payment[]
+
+  @@map("assessments")
 }
 
 model Document {
   id           String   @id @default(uuid()) @db.Uuid
-  assessmentId String   @db.Uuid
-  fileName     String
-  fileType     String
-  filePath     String
+  assessmentId String   @map("assessment_id") @db.Uuid
+  fileName     String   @map("file_name") @db.VarChar
+  fileType     String   @map("file_type") @db.VarChar
+  filePath     String   @map("file_path") @db.VarChar
   version      Int      @default(1)
-  uploadedAt   DateTime @default(now())
-  uploadedById String   @db.Uuid
+  uploadedAt   DateTime @default(now()) @map("uploaded_at") @db.Timestamp()
+  uploadedById String   @map("uploaded_by") @db.Uuid
 
   assessment Assessment @relation(fields: [assessmentId], references: [id])
   uploadedBy User       @relation("UploadedBy", fields: [uploadedById], references: [id])
+
+  @@map("documents")
 }
 
 model Subscription {
   id        String           @id @default(uuid()) @db.Uuid
-  userId    String           @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
   plan      SubscriptionPlan
-  startDate DateTime         @db.Date
-  endDate   DateTime         @db.Date
-  isActive  Boolean          @default(true)
+  startDate DateTime         @map("start_date") @db.Date
+  endDate   DateTime         @map("end_date") @db.Date
+  isActive  Boolean          @default(true) @map("is_active")
 
   user     User      @relation(fields: [userId], references: [id])
   payments Payment[]
+
+  @@map("subscriptions")
 }
 
 model Payment {
   id                 String        @id @default(uuid()) @db.Uuid
-  userId             String        @db.Uuid
+  userId             String        @map("user_id") @db.Uuid
   type               PaymentType
-  subscriptionId     String?       @db.Uuid
-  assessmentId       String?       @db.Uuid
+  subscriptionId     String?       @map("subscription_id") @db.Uuid
+  assessmentId       String?       @map("assessment_id") @db.Uuid
   amount             Decimal       @db.Decimal(15, 2)
-  paymentDate        DateTime      @default(now())
+  paymentDate        DateTime      @default(now()) @map("payment_date") @db.Timestamp()
   status             PaymentStatus @default(Pending)
-  paymentMethod      String?
-  transactionId      String?       @unique
-  attachmentFileName String?
-  attachmentFileUrl  String?
+  paymentMethod      String?       @map("payment_method") @db.VarChar
+  transactionId      String?       @unique @map("transaction_id") @db.VarChar
+  attachmentFileName String?       @map("attachment_file_name") @db.VarChar
+  attachmentFileUrl  String?       @map("attachment_file_url") @db.VarChar
 
   user         User          @relation(fields: [userId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
   assessment   Assessment?   @relation(fields: [assessmentId], references: [id])
+
+  @@map("payments")
 }
 
 model AssessmentReport {
   id            String   @id @default(uuid()) @db.Uuid
-  assessmentId  String   @db.Uuid
-  reportPath    String
-  generatedAt   DateTime @default(now())
-  signedById    String   @db.Uuid
-  signatureData Bytes?
+  assessmentId  String   @map("assessment_id") @db.Uuid
+  reportPath    String   @map("report_path") @db.VarChar
+  generatedAt   DateTime @default(now()) @map("generated_at") @db.Timestamp()
+  signedById    String   @map("signed_by") @db.Uuid
+  signatureData Bytes?   @map("signature_data")
   version       Int      @default(1)
 
   assessment Assessment @relation(fields: [assessmentId], references: [id])
   signedBy   User       @relation("SignedBy", fields: [signedById], references: [id])
+
+  @@map("assessment_reports")
 }
 
 model Notification {
   id      String             @id @default(uuid()) @db.Uuid
-  userId  String             @db.Uuid
+  userId  String             @map("user_id") @db.Uuid
   type    NotificationType
-  message String
-  sentAt  DateTime           @default(now())
+  message String             @db.Text
+  sentAt  DateTime           @default(now()) @map("sent_at") @db.Timestamp()
   status  NotificationStatus @default(Pending)
 
   user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
 }
 
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @db.Uuid
-  actionType String
-  entityName String
-  entityId   String   @db.Uuid
-  timestamp  DateTime @default(now())
+  userId     String   @map("user_id") @db.Uuid
+  actionType String   @map("action_type") @db.VarChar
+  entityName String   @map("entity_name") @db.VarChar
+  entityId   String   @map("entity_id") @db.Uuid
+  timestamp  DateTime @default(now()) @db.Timestamp()
   details    Json?    @db.JsonB
 
   user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
 }
 
 model Promo {
   id          String  @id @default(uuid()) @db.Uuid
-  code        String  @unique
-  description String?
+  code        String  @unique @db.VarChar
+  description String? @db.Text
+
+  @@map("promos")
 }
 
 model Sale {
   id        String   @id @default(uuid()) @db.Uuid
-  sourceId  String?  @db.Uuid
-  startDate DateTime @db.Date
-  endDate   DateTime @db.Date
+  sourceId  String?  @map("source_id") @db.Uuid
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
   percent   Decimal  @db.Decimal(5, 2)
   type      SaleType
+
+  @@map("sales")
 }

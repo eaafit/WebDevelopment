@@ -37,14 +37,12 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'assessment',
-        loadComponent: () =>
-          import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
-      } as Route,
-      {
-        path: 'assessment/status',
-        loadComponent: () =>
-          import('./features/assessment-status/assessment-status').then((m) => m.AssessmentStatus),
-      } as Route,
+        ...placeholder('Модуль оценки', [
+          'Загрузка фото и документов',
+          'Ввод параметров объекта',
+          'Запрос оценки с параметрами',
+        ]),
+      },
       {
         path: 'assessment/results',
         ...placeholder('Результаты оценки', [
