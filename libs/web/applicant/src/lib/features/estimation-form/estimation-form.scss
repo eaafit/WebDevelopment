@@ -550,6 +550,11 @@ select.control {
   text-align: center;
 }
 
+.document-modal__body {
+  overflow-y: auto;
+  max-height: calc(100vh - 13rem);
+}
+
 .check {
   display: flex;
   gap: 10px;
@@ -563,6 +568,17 @@ select.control {
 
 .check + .check {
   margin-top: 16px;
+}
+
+.check__link {
+  padding: 0;
+  border: 0;
+
+  font: inherit;
+  color: var(--primary);
+  text-decoration: underline;
+
+  background: none;
 }
 
 .check__input {

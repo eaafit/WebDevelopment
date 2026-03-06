@@ -29,6 +29,7 @@ export class EstimationForm implements OnDestroy {
   photoFiles: ReadonlyArray<File> = [];
   additionalFiles: ReadonlyArray<File> = [];
   imagePreviewState: ImagePreviewState | null = null;
+  isConsentModalOpen = false;
 
   onSubmit(event: Event, form: HTMLFormElement): void {
     event.preventDefault();
@@ -196,6 +197,7 @@ export class EstimationForm implements OnDestroy {
       return;
     }
 
+    this.closeConsentModal();
     this.imagePreviewState = {
       fileKey: this.buildFileKey(file),
       fileName: file.name,
@@ -207,9 +209,19 @@ export class EstimationForm implements OnDestroy {
     this.imagePreviewState = null;
   }
 
+  openConsentModal(): void {
+    this.closeImagePreview();
+    this.isConsentModalOpen = true;
+  }
+
+  closeConsentModal(): void {
+    this.isConsentModalOpen = false;
+  }
+
   @HostListener('document:keydown.escape')
   onEscapeKeydown(): void {
     this.closeImagePreview();
+    this.closeConsentModal();
   }
 
   ngOnDestroy(): void {
@@ -372,6 +384,11 @@ export class EstimationForm implements OnDestroy {
       if (boundLabel) {
         return this.normalizeLabelText(boundLabel.textContent);
       }
+    }
+
+    const ariaLabel = control.getAttribute('aria-label');
+    if (ariaLabel) {
+      return this.normalizeLabelText(ariaLabel);
     }
 
     return this.normalizeLabelText(control.closest('label')?.textContent);

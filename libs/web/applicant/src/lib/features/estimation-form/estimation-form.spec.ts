@@ -75,6 +75,20 @@ describe('EstimationForm', () => {
 
     expect(component.documentFiles).toEqual([passportFile, planFile]);
   });
+
+  it('should open consent modal from the processing agreement link', () => {
+    const consentLink = fixture.nativeElement.querySelector(
+      '#confirmProcessingLink',
+    ) as HTMLButtonElement;
+
+    consentLink.click();
+    fixture.detectChanges();
+
+    expect(component.isConsentModalOpen).toBe(true);
+    expect(fixture.nativeElement.querySelector('#consentDocumentTitle')?.textContent).toContain(
+      'СОГЛАСИЕ НА ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ',
+    );
+  });
 });
 
 function fillRequiredFields(
