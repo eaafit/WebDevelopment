@@ -12,13 +12,7 @@
         id="valuationForm"
         novalidate
         [class.form--submitted]="showValidationErrors"
-        (submit)="onSubmit($event, valuationForm, confirmCorrect.checked, confirmProcessing.checked)">
-        @if (showValidationErrors) {
-        <p class="form-error-text">
-          {{ validationErrorMessage || 'Заполните обязательные поля, отмеченные символом *.' }}
-        </p>
-        }
-
+        (submit)="onSubmit($event, valuationForm)">
         <div class="form__sections">
           <fieldset class="fieldset">
             <legend class="legend">Адрес</legend>
@@ -107,6 +101,9 @@
                   [class.control--invalid]="showValidationErrors && !areaField.validity.valid" />
                 @if (showValidationErrors && areaField.validity.valueMissing) {
                 <p class="field-error">Укажите площадь объекта.</p>
+                } @if ( showValidationErrors && !areaField.validity.valueMissing && (areaField.validity.rangeUnderflow
+                || areaField.validity.rangeOverflow) ) {
+                <p class="field-error">Площадь должна быть в диапазоне от 1 до 100000 м².</p>
                 }
               </div>
 
@@ -174,12 +171,16 @@
                   [class.control--invalid]="showValidationErrors && !floorsTotalField.validity.valid" />
                 @if (showValidationErrors && floorsTotalField.validity.valueMissing) {
                 <p class="field-error">Укажите общую этажность здания.</p>
+                } @if ( showValidationErrors && !floorsTotalField.validity.valueMissing &&
+                (floorsTotalField.validity.rangeUnderflow || floorsTotalField.validity.rangeOverflow) ) {
+                <p class="field-error">Этажность должна быть в диапазоне от 1 до 200.</p>
                 }
               </div>
 
               <div class="field">
                 <label class="label" for="floor">Этаж</label>
                 <input
+                  #floorField
                   class="control"
                   id="floor"
                   name="floor"
@@ -187,7 +188,12 @@
                   min="0"
                   max="200"
                   step="1"
-                  inputmode="numeric" />
+                  inputmode="numeric"
+                  [class.control--invalid]="showValidationErrors && !floorField.validity.valid" />
+                @if ( showValidationErrors && !floorField.validity.valueMissing && (floorField.validity.rangeUnderflow
+                || floorField.validity.rangeOverflow) ) {
+                <p class="field-error">Этаж должен быть в диапазоне от 0 до 200.</p>
+                }
                 <div class="help">0 — если частный дом/участок.</div>
               </div>
 
@@ -214,6 +220,7 @@
               <div class="field">
                 <label class="label" for="yearBuilt">Год постройки</label>
                 <input
+                  #yearBuiltField
                   class="control"
                   id="yearBuilt"
                   name="yearBuilt"
@@ -222,7 +229,12 @@
                   max="2100"
                   step="1"
                   inputmode="numeric"
-                  placeholder="Например: 2012" />
+                  placeholder="Например: 2012"
+                  [class.control--invalid]="showValidationErrors && !yearBuiltField.validity.valid" />
+                @if ( showValidationErrors && !yearBuiltField.validity.valueMissing &&
+                (yearBuiltField.validity.rangeUnderflow || yearBuiltField.validity.rangeOverflow) ) {
+                <p class="field-error">Год постройки должен быть в диапазоне от 1700 до 2100.</p>
+                }
               </div>
 
               <div class="field">
@@ -277,18 +289,60 @@
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx"
                   multiple
-                  required
-                  [class.control--invalid]="showValidationErrors && !documentFilesField.validity.valid"
+                  [class.control--invalid]="showValidationErrors && isRequiredUploadMissing('documents')"
                   (change)="onFilesSelected($event, 'documents')" />
-                <div class="help">Поддерживаются PDF, DOC/DOCX и сканы/изображения (JPG, PNG, HEIC).</div>
-                @if (showValidationErrors && documentFilesField.validity.valueMissing) {
+                <div class="help">
+                  Поддерживаются PDF, DOC/DOCX и сканы/изображения (JPG, PNG, HEIC). Файлы можно добавлять в несколько
+                  подходов.
+                </div>
+                @if (showValidationErrors && isRequiredUploadMissing('documents')) {
                 <p class="field-error">Загрузите хотя бы один документ или скан.</p>
                 } @if (documentFiles.length) {
-                <ul class="upload-list">
+                <div class="upload-summary">
+                  <span class="upload-summary__badge">{{ documentFiles.length }}</span>
+                  <span class="upload-summary__text"> Добавлено {{ formatFileCount(documentFiles.length) }} </span>
+                </div>
+                <ul class="upload-card-list">
                   @for (file of documentFiles; track file.name + file.size + file.lastModified) {
-                  <li class="upload-list__item">
-                    <span class="upload-list__name">{{ file.name }}</span>
-                    <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                  <li class="upload-card">
+                    @if (isImageFile(file)) {
+                    <button
+                      class="upload-card__preview"
+                      type="button"
+                      [attr.aria-label]="'Открыть превью файла ' + file.name"
+                      (click)="openImagePreview(file)">
+                      <img class="upload-card__preview-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
+                    </button>
+                    } @else {
+                    <div class="upload-card__icon" aria-hidden="true">{{ getFileCategoryLabel(file) }}</div>
+                    }
+
+                    <div class="upload-card__content">
+                      <span class="upload-card__name" [title]="file.name">{{ file.name }}</span>
+                      <span class="upload-card__meta">
+                        {{ getFileCategoryLabel(file) }} · {{ formatFileSize(file.size) }}
+                      </span>
+                    </div>
+
+                    <div class="upload-card__actions">
+                      @if (canPreviewFile(file)) {
+                      <button class="btn btn--ghost btn--small" type="button" (click)="previewFile(file)">
+                        Просмотреть
+                      </button>
+                      } @else if (canOpenFile(file)) {
+                      <button class="btn btn--ghost btn--small" type="button" (click)="openFile(file)">Открыть</button>
+                      }
+                      <button class="btn btn--outline btn--small" type="button" (click)="downloadFile(file)">
+                        Скачать
+                      </button>
+                      <button
+                        class="upload-list__remove"
+                        type="button"
+                        [attr.aria-label]="'Удалить файл ' + file.name"
+                        (click)="removeFile(documentFilesField, 'documents', $index)">
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    </div>
                   </li>
                   }
                 </ul>
@@ -296,23 +350,50 @@
               </div>
 
               <div class="field">
-                <label class="label" for="photoFiles">Фото объекта</label>
+                <label class="label" for="photoFiles">Фото объекта <span class="req">*</span></label>
                 <input
+                  #photoFilesField
                   class="control control--file"
                   id="photoFiles"
                   name="photoFiles"
                   type="file"
                   accept="image/*"
                   multiple
+                  [class.control--invalid]="showValidationErrors && isRequiredUploadMissing('photos')"
                   (change)="onFilesSelected($event, 'photos')" />
-                <div class="help">Добавьте фото фасада, комнат и состояния объекта.</div>
-
-                @if (photoFiles.length) {
-                <ul class="upload-list">
+                <div class="help">
+                  Добавьте фото фасада, комнат и состояния объекта. Новые файлы добавляются к уже выбранным.
+                </div>
+                @if (showValidationErrors && isRequiredUploadMissing('photos')) {
+                <p class="field-error">Загрузите хотя бы одно фото объекта.</p>
+                } @if (photoFiles.length) {
+                <div class="upload-summary">
+                  <span class="upload-summary__badge">{{ photoFiles.length }}</span>
+                  <span class="upload-summary__text"> Добавлено {{ formatFileCount(photoFiles.length) }} </span>
+                </div>
+                <ul class="photo-grid" role="list">
                   @for (file of photoFiles; track file.name + file.size + file.lastModified) {
-                  <li class="upload-list__item">
-                    <span class="upload-list__name">{{ file.name }}</span>
-                    <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                  <li class="photo-card">
+                    <button
+                      class="photo-card__remove"
+                      type="button"
+                      [attr.aria-label]="'Удалить файл ' + file.name"
+                      (click)="removeFile(photoFilesField, 'photos', $index)">
+                      <span aria-hidden="true">×</span>
+                    </button>
+
+                    <button
+                      class="photo-card__preview"
+                      type="button"
+                      [attr.aria-label]="'Открыть фото ' + file.name"
+                      (click)="openImagePreview(file)">
+                      <img class="photo-card__image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
+                    </button>
+
+                    <div class="photo-card__caption">
+                      <span class="photo-card__name" [title]="file.name">{{ file.name }}</span>
+                      <span class="photo-card__meta">{{ formatFileSize(file.size) }}</span>
+                    </div>
                   </li>
                   }
                 </ul>
@@ -323,6 +404,7 @@
             <div class="form-block field">
               <label class="label" for="additionalFiles">Дополнительные файлы</label>
               <input
+                #additionalFilesField
                 class="control control--file"
                 id="additionalFiles"
                 name="additionalFiles"
@@ -330,14 +412,56 @@
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
                 multiple
                 (change)="onFilesSelected($event, 'additional')" />
-              <div class="help">При необходимости добавьте доп. справки, планы или иные материалы.</div>
+              <div class="help">
+                При необходимости добавьте доп. справки, планы или иные материалы. Можно выбирать файлы несколько раз.
+              </div>
 
               @if (additionalFiles.length) {
-              <ul class="upload-list">
+              <div class="upload-summary">
+                <span class="upload-summary__badge">{{ additionalFiles.length }}</span>
+                <span class="upload-summary__text"> Добавлено {{ formatFileCount(additionalFiles.length) }} </span>
+              </div>
+              <ul class="upload-card-list">
                 @for (file of additionalFiles; track file.name + file.size + file.lastModified) {
-                <li class="upload-list__item">
-                  <span class="upload-list__name">{{ file.name }}</span>
-                  <span class="upload-list__meta">{{ formatFileSize(file.size) }}</span>
+                <li class="upload-card">
+                  @if (isImageFile(file)) {
+                  <button
+                    class="upload-card__preview"
+                    type="button"
+                    [attr.aria-label]="'Открыть превью файла ' + file.name"
+                    (click)="openImagePreview(file)">
+                    <img class="upload-card__preview-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
+                  </button>
+                  } @else {
+                  <div class="upload-card__icon" aria-hidden="true">{{ getFileCategoryLabel(file) }}</div>
+                  }
+
+                  <div class="upload-card__content">
+                    <span class="upload-card__name" [title]="file.name">{{ file.name }}</span>
+                    <span class="upload-card__meta">
+                      {{ getFileCategoryLabel(file) }} · {{ formatFileSize(file.size) }}
+                    </span>
+                  </div>
+
+                  <div class="upload-card__actions">
+                    @if (canPreviewFile(file)) {
+                    <button class="btn btn--ghost btn--small" type="button" (click)="previewFile(file)">
+                      Просмотреть
+                    </button>
+                    } @else if (canOpenFile(file)) {
+                    <button class="btn btn--ghost btn--small" type="button" (click)="openFile(file)">Открыть</button>
+                    }
+                    <button class="btn btn--outline btn--small" type="button" (click)="downloadFile(file)">
+                      Скачать
+                    </button>
+                    <button
+                      class="upload-list__remove"
+                      type="button"
+                      [attr.aria-label]="'Удалить файл ' + file.name"
+                      (click)="removeFile(additionalFilesField, 'additional', $index)">
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  </div>
                 </li>
                 }
               </ul>
@@ -349,26 +473,66 @@
             <legend class="legend">Подтверждения</legend>
 
             <label class="check">
-              <input #confirmCorrect type="checkbox" name="confirmCorrect" required />
-              <span>Подтверждаю, что данные введены корректно и соответствуют объекту.</span>
+              <input
+                #confirmCorrectField
+                class="check__input"
+                [class.check__input--invalid]="showValidationErrors && confirmCorrectField.validity.valueMissing"
+                id="confirmCorrect"
+                type="checkbox"
+                name="confirmCorrect"
+                required />
+              <span>
+                Подтверждаю, что данные введены корректно и соответствуют объекту.
+                <span class="req">*</span>
+              </span>
             </label>
 
             <label class="check">
-              <input #confirmProcessing type="checkbox" name="confirmProcessing" required />
-              <span>Согласен(на) на обработку данных для проведения оценки.</span>
+              <input
+                #confirmProcessingField
+                class="check__input"
+                [class.check__input--invalid]="showValidationErrors && confirmProcessingField.validity.valueMissing"
+                id="confirmProcessing"
+                type="checkbox"
+                name="confirmProcessing"
+                required />
+              <span>
+                Согласен(на) на обработку данных для проведения оценки.
+                <span class="req">*</span>
+              </span>
             </label>
           </fieldset>
         </div>
 
         <div class="form__footer form__footer--center">
-          <button
-            class="btn btn--primary"
-            type="submit"
-            [disabled]="!confirmCorrect.checked || !confirmProcessing.checked">
-            Сохранить параметры
-          </button>
+          <button class="btn btn--primary" type="submit">Сохранить параметры</button>
           <a class="btn btn--outline" href="./requests_table.html">Перейти к заявкам</a>
         </div>
+
+        @if (imagePreviewState; as preview) {
+        <div
+          class="lightbox"
+          role="dialog"
+          aria-modal="true"
+          tabindex="0"
+          [attr.aria-label]="'Просмотр изображения ' + preview.fileName"
+          (click)="closeImagePreview()"
+          (keydown.enter)="closeImagePreview()"
+          (keydown.space)="closeImagePreview()">
+          <div
+            class="lightbox__dialog"
+            tabindex="0"
+            (click)="$event.stopPropagation()"
+            (keydown.enter)="$event.stopPropagation()"
+            (keydown.space)="$event.stopPropagation()">
+            <button class="lightbox__close" type="button" aria-label="Закрыть просмотр" (click)="closeImagePreview()">
+              ×
+            </button>
+            <img class="lightbox__image" [src]="preview.objectUrl" [alt]="preview.fileName" />
+            <p class="lightbox__caption">{{ preview.fileName }}</p>
+          </div>
+        </div>
+        }
       </form>
     </section>
   </main>
