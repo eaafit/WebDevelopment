@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package notary.common.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+
+message Money {
+  string amount = 1;
+  string currency = 2;
+}
+
+message DateRange {
+  google.protobuf.Timestamp start_date = 1;
+  google.protobuf.Timestamp end_date = 2;
+}
+
+message PaginationParams {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message PaginationMeta {
+  int32 total_items = 1;
+  int32 total_pages = 2;
+  int32 current_page = 3;
+  int32 per_page = 4;
+}

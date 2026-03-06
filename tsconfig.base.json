@@ -1,0 +1,29 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["ESNext", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@notary-portal/prisma": ["libs/api/prisma/src/index.ts"],
+      "@notary-portal/api-contracts": ["libs/shared/api-contracts/src/index.ts"],
+      "@notary-portal/guest": ["libs/web/guest/src/index.ts"],
+      "@notary-portal/applicant": ["libs/web/applicant/src/index.ts"],
+      "@notary-portal/notary": ["libs/web/notary/src/index.ts"],
+      "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
+      "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
+      "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}
