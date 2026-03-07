@@ -1,43 +1,46 @@
-<div class="dashboard">
-  <aside class="sidebar">
-    <div class="logo">
-      <h2>
-        <span class="logo-icon">&#9878;</span>
-        {{ title }}
-      </h2>
-    </div>
-    <nav>
-      @for (item of menuItems; track item.route) {
+<div class="notary-wrapper">
+  <div class="dashboard">
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon-wrap">
+          <span class="logo-icon">&#9878;</span>
+        </div>
+        <h2 class="logo-text">{{ title }}</h2>
+      </div>
+
+      <nav class="sidebar-nav">
+        @for (item of menuItems; track item.route) {
         <a
           [routerLink]="item.route"
           routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: false }"
-          class="menu-item"
-        >
+          [routerLinkActiveOptions]="{ exact: item.exact || false }"
+          class="menu-item">
           @if (item.icon) {
-            <span class="menu-icon">{{ item.icon }}</span>
+          <span class="menu-icon">{{ item.icon }}</span>
           }
-          <span>{{ item.label }}</span>
+          <span class="menu-label">{{ item.label }}</span>
         </a>
-      }
-    </nav>
-  </aside>
+        }
+      </nav>
+    </aside>
 
-  <main class="main-content">
-    <header class="header">
-      <h1>{{ pageTitle }}</h1>
-      <div class="user-info">
-        <span class="user-label">{{ userLabel }}</span>
+    <main class="main-content">
+      <header class="header">
+        <h1 class="header-title">{{ pageTitle }}</h1>
+        <div class="user-info">
+          <span class="user-avatar">{{ userLabel.charAt(0) }}</span>
+          <span class="user-label text-bold">{{ userLabel }}</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <router-outlet></router-outlet>
       </div>
-    </header>
 
-    <div class="content">
-      <router-outlet></router-outlet>
-    </div>
-
-    <footer class="footer">
-      <span>© {{ currentYear }} Нотариальная оценка</span>
-      <a routerLink="/faq">Справочник</a>
-    </footer>
-  </main>
+      <footer class="footer">
+        <span class="text-sm">© {{ currentYear }} Нотариальная оценка</span>
+        <a routerLink="/faq" class="link text-sm">Справочник</a>
+      </footer>
+    </main>
+  </div>
 </div>

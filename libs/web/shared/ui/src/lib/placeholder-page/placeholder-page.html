@@ -1,11 +1,17 @@
-<div class="placeholder-page">
+<div class="card placeholder-page">
+  <div class="placeholder-icon">&#9881;</div>
   <h2>{{ title }}</h2>
+
   @if (features.length) {
-    <p class="subtitle">Заявленный функционал:</p>
-    <ul class="features-list">
-      @for (f of features; track f) {
-        <li>{{ f }}</li>
-      }
-    </ul>
+  <p class="text-secondary mb-6">В этом разделе планируется следующий функционал:</p>
+
+  <ul class="features-list">
+    @for (f of features; track f) {
+    <li>
+      <span class="feature-check">&#10003;</span>
+      <span>{{ f }}</span>
+    </li>
+    }
+  </ul>
   }
 </div>

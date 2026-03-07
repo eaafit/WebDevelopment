@@ -22,3 +22,9 @@ export class DashboardLayout {
 
   currentYear = new Date().getFullYear();
 }
+export interface DashboardMenuItem {
+  route: string;
+  label: string;
+  icon?: string;
+  exact?: boolean;
+}
