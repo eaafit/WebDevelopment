@@ -18,9 +18,14 @@
           {
             "glob": "**/*",
             "input": "apps/web/public"
+          },
+          {
+            "glob": "**/*",
+            "input": "node_modules/leaflet/dist/images",
+            "output": "/leaflet-images"
           }
         ],
-        "styles": ["apps/web/src/styles.scss"]
+        "styles": ["apps/web/src/styles.scss", "node_modules/leaflet/dist/leaflet.css"]
       },
       "configurations": {
         "production": {
