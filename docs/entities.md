@@ -70,7 +70,25 @@
 - `SignatureData` (bytea) — цифровая подпись
 - `Version` (integer) — версия отчёта
 
-## 7. Уведомление (Notification)
+## 7. Результат оценки недвижимости (RealEstateAppraisalResult)
+
+- `Id` (UUID, PK) — уникальный идентификатор результата оценки
+- `AssessmentId` (UUID, FK) — заявка на оценку
+- `MarketValue` (numeric) — итоговая рыночная стоимость, руб.
+- `ValueMin` (numeric, nullable) — нижняя граница диапазона (если есть)
+- `ValueMax` (numeric, nullable) — верхняя граница диапазона (если есть)
+- `ConfidenceLevel` (varchar, nullable) — уровень уверенности (например, «высокий», «средний») или процент
+- `ValuationMethod` (varchar) — применённый метод/подход (сравнительный, затратный и т.д.)
+- `ValuationDate` (date) — дата определения стоимости
+- `CalculationDetails` (text или jsonb) — детализация расчёта (текст или структурированные данные)
+- `Comparables` (jsonb, nullable) — данные по объектам-аналогам (адрес, цена, поправки)
+- `RestrictionsAndAssumptions` (text, nullable) — ограничения и допущения
+- `Comment` (text, nullable) — комментарий нотариуса/оценщика
+- `CreatedAt` (timestamp) — дата создания записи
+- `CreatedBy` (UUID, FK) — нотариус/пользователь, выполнивший оценку
+- `AssessmentReportId` (UUID, FK, nullable) — ссылка на сгенерированный отчёт (AssessmentReport), если уже сформирован
+
+## 8. Уведомление (Notification)
 
 - `Id` (UUID, PK) — идентификатор уведомления
 - `UserId` (UUID, FK) — получатель
@@ -79,7 +97,7 @@
 - `SentAt` (timestamp) — время отправки
 - `Status` (enum: Pending, Sent, Failed) — статус доставки
 
-## 8. Лог действий (AuditLog)
+## 9. Лог действий (AuditLog)
 
 - `Id` (UUID, PK) — идентификатор лога
 - `UserId` (UUID, FK) — пользователь, инициировавший действие
@@ -89,13 +107,13 @@
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
-## 9. Промокод (Promo)
+## 10. Промокод (Promo)
 
 - `Id` (UUID, PK) — идентификатор промокода
 - `Code` (varchar) - код
 - `Description` (text) - описание промокода
 
-## 9. Скидка (Sale)
+## 11. Скидка (Sale)
 
 - `Id` (UUID, PK) — идентификатор скидки
 - `SourceId` (UUID, FK) - ID промокода или товара, если есть
@@ -113,4 +131,5 @@
 - Статусы и планы вынесены в enum для контроля допустимых значений.
 - Метки времени (`CreatedAt`, `UpdatedAt`) используются для аудита и версионирования.
 - Поле `SignatureData` в отчётах хранит бинарные данные ЭЦП.
+- Связь по данным оценки: **Assessment** (заявка) → **RealEstateAppraisalResult** (результат расчёта: стоимость, метод, аналоги) → **AssessmentReport** (сгенерированный PDF, подпись). У одной заявки может быть один или несколько результатов оценки; по результату формируется отчёт. Связь результата с отчётом задаётся полем `AssessmentReportId` в `RealEstateAppraisalResult`.
 - `AuditLogs` обеспечивают прозрачность и контроль безопасности.
