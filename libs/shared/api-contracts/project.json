@@ -3,10 +3,11 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/shared/api-contracts/src",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:shared"],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
+      "dependsOn": ["generate-proto"],
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/libs/shared/api-contracts",
@@ -18,21 +19,21 @@
     "lint-proto": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "buf lint",
+        "command": "pnpm exec buf lint",
         "cwd": "libs/shared/api-contracts"
       }
     },
     "breaking-proto": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "buf breaking --against \"../../../.git#branch=origin/main,subdir={projectRoot}\"",
+        "command": "pnpm exec buf breaking --against \"../../../.git#branch=origin/main,subdir={projectRoot}\"",
         "cwd": "libs/shared/api-contracts"
       }
     },
     "generate-proto": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "buf generate",
+        "command": "pnpm exec buf generate",
         "cwd": "libs/shared/api-contracts"
       },
       "outputs": ["{projectRoot}/src/generated"]

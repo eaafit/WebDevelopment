@@ -1,1 +1,302 @@
-/* You can add styles to this file, and also import other style files */
+:host {
+  display: block;
+}
+
+.grid-filters {
+  grid-template-columns: minmax(240px, 1.45fr) minmax(280px, 1.8fr) minmax(180px, 1fr) auto;
+}
+
+.transaction-filter-actions {
+  display: flex;
+  gap: 0.75rem;
+
+  .btn {
+    flex: 1 1 0;
+    min-height: 3rem;
+  }
+}
+
+.transaction-table-summary {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  padding: 1.1rem 1rem;
+  border-bottom: 1px solid var(--border);
+
+  background: linear-gradient(180deg, rgb(249 250 251 / 95%), white);
+}
+
+.transaction-table-summary__title {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.transaction-table-summary__meta {
+  white-space: nowrap;
+}
+
+.transaction-table-summary__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.transaction-filter-chip {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  font-size: 0.8rem;
+  font-weight: 500;
+
+  background: var(--bg-secondary);
+}
+
+.transaction-description {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.1rem;
+}
+
+.transaction-description__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.transaction-type-chip {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--primary);
+
+  background: rgb(79 70 229 / 10%);
+}
+
+.transaction-row td {
+  vertical-align: middle;
+}
+
+.transaction-date {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 7.25rem;
+}
+
+.transaction-date__value,
+.transaction-date__time {
+  white-space: nowrap;
+}
+
+.payment-method-chip {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 220px;
+}
+
+.payment-method-chip__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.85rem;
+
+  font-size: 1.1rem;
+
+  background: linear-gradient(180deg, rgb(79 70 229 / 12%), rgb(79 70 229 / 6%)), white;
+  box-shadow: inset 0 0 0 1px rgb(79 70 229 / 8%);
+}
+
+.payment-method-chip__icon--asset img {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.payment-method-chip__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.payment-method-chip__title {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.payment-method-chip__caption {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.document-link {
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+
+  width: 100%;
+  max-width: 270px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgb(79 70 229 / 12%);
+  border-radius: var(--radius-sm);
+
+  color: inherit;
+  text-align: left;
+
+  background: rgb(79 70 229 / 6%);
+
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.document-link:hover {
+  border-color: rgb(79 70 229 / 24%);
+  background: rgb(79 70 229 / 9%);
+}
+
+.document-link--muted {
+  cursor: default;
+  border-color: var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.document-link--muted:hover {
+  border-color: var(--border);
+  background: var(--bg-secondary);
+}
+
+.document-link__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgb(79 70 229 / 10%);
+  border-radius: 0.75rem;
+
+  font-size: 1.05rem;
+
+  background: rgb(255 255 255 / 75%);
+}
+
+.document-link__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.document-link__title {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.document-link--muted .document-link__icon {
+  border-color: rgb(17 24 39 / 6%);
+  background: rgb(255 255 255 / 82%);
+}
+
+.transaction-documents-column {
+  width: 17rem;
+  min-width: 17rem;
+  max-width: 17rem;
+}
+
+.transaction-documents-cell {
+  min-width: 17rem;
+  text-align: left;
+}
+
+.transaction-pagination {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 1rem;
+}
+
+.transaction-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.transaction-pagination__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 4.5rem;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+
+  background: var(--bg-secondary);
+}
+
+@media (width <= 900px) {
+  .grid-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-filter-actions {
+    flex-direction: column;
+  }
+
+  .transaction-table-summary,
+  .transaction-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .transaction-table-summary__chips,
+  .transaction-pagination__controls {
+    justify-content: flex-start;
+  }
+
+  .payment-method-chip {
+    min-width: 0;
+  }
+
+  .transaction-table-summary__meta {
+    white-space: normal;
+  }
+
+  .document-link {
+    max-width: 100%;
+  }
+
+  .document-link__caption {
+    max-width: 100%;
+  }
+}

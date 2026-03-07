@@ -21,24 +21,20 @@ export default [
               onlyDependOnLibsWithTags: ['*'],
             },
             {
-              sourceTag: 'scope:guest',
-              onlyDependOnLibsWithTags: ['scope:shared'],
+              sourceTag: 'scope:backend',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:backend-shared'],
             },
             {
-              sourceTag: 'scope:applicant',
-              onlyDependOnLibsWithTags: ['scope:shared'],
+              sourceTag: 'scope:backend-shared',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:backend-shared'],
             },
             {
-              sourceTag: 'scope:notary',
-              onlyDependOnLibsWithTags: ['scope:shared'],
+              sourceTag: 'scope:frontend',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:frontend-shared'],
             },
             {
-              sourceTag: 'scope:admin',
-              onlyDependOnLibsWithTags: ['scope:shared'],
-            },
-            {
-              sourceTag: 'scope:shared',
-              onlyDependOnLibsWithTags: ['scope:shared'],
+              sourceTag: 'scope:frontend-shared',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:frontend-shared'],
             },
           ],
         },
