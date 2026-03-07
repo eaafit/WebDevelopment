@@ -38,7 +38,7 @@ export const notaryRoutes: Route[] = [
           import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
       },
       {
-        path: 'assessment',
+        path: 'request_price',
         ...placeholder('Модуль оценки', [
           'Запрос оценки с параметрами',
           'Ввод параметров объекта',
