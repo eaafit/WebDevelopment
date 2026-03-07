@@ -1,247 +1,218 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterTestingModule } from '@angular/router/testing';
+import { RequestPrice } from './request_price';
 
-type Notary = {
-  city: string;
-  fio: string;
-  officeNumber: string;
-  officeAddress: string;
-};
+describe('RequestPrice', () => {
+  let component: RequestPrice;
+  let fixture: ComponentFixture<RequestPrice>;
 
-type Company = {
-  name: string;
-  address: string;
-};
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [RequestPrice, CommonModule, ReactiveFormsModule, RouterTestingModule],
+    }).compileComponents();
 
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`;
-}
-
-function formatDate(d: Date): string {
-  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
-}
-
-function randomOutgoingNumber(): string {
-  const year = new Date().getFullYear();
-  const rnd = Math.floor(Math.random() * 900000) + 100000;
-  return `NR-${year}-${rnd}`;
-}
-
-@Component({
-  selector: 'web-request-price',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
-  templateUrl: './request_price.html',
-  styleUrl: './request_price.scss',
-})
-export class RequestPrice {
-  // Демо-списки (можешь расширить)
-  readonly cities = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург'];
-
-  readonly notaries: Notary[] = [
-    {
-      city: 'Москва',
-      fio: 'Иванов Иван Иванович',
-      officeNumber: '12',
-      officeAddress: 'г. Москва, ул. Тверская, д. 10',
-    },
-    {
-      city: 'Москва',
-      fio: 'Петров Пётр Петрович',
-      officeNumber: '48',
-      officeAddress: 'г. Москва, ул. Арбат, д. 7',
-    },
-    {
-      city: 'Санкт-Петербург',
-      fio: 'Сидорова Анна Сергеевна',
-      officeNumber: '5',
-      officeAddress: 'г. Санкт-Петербург, Невский пр., д. 25',
-    },
-  ];
-
-  readonly companies: Company[] = [
-    { name: 'ООО "ОценкаПрофи"', address: 'г. Москва, ул. Мясницкая, д. 15' },
-    { name: 'АО "Эксперт-Оценка"', address: 'г. Санкт-Петербург, ул. Рубинштейна, д. 9' },
-    { name: 'ООО "Рынок и Стоимость"', address: 'г. Казань, ул. Баумана, д. 3' },
-  ];
-
-  readonly propertyTypes = [
-    'Квартира',
-    'Комната',
-    'Жилой дом',
-    'Земельный участок',
-    'Нежилое помещение',
-  ];
-
-  // Исходящий номер/дата
-  private readonly outgoingNumber = signal<string>(randomOutgoingNumber());
-  private readonly outgoingDate = signal<string>(formatDate(new Date()));
-  readonly outgoingDisplay = computed(() => `${this.outgoingNumber()} от ${this.outgoingDate()}`);
-
-  // PDF
-  selectedPdfName: string | null = null;
-
-  // Фильтр нотариусов по городу
-  filteredNotaries: Notary[] = [];
-
-  // Reactive form
-  readonly form = this.fb.group({
-    notaryCity: ['', Validators.required],
-    notaryFio: ['', Validators.required],
-    notaryOfficeNumber: [{ value: '', disabled: false }],
-    notaryOfficeAddress: [{ value: '', disabled: false }],
-
-    companyName: ['', Validators.required],
-    companyAddress: [{ value: '', disabled: false }],
-
-    propertyAddress: ['', Validators.required],
-    cadastralNumber: ['', Validators.required],
-    propertyType: ['', Validators.required],
-
-    docRequisites: ['', Validators.required],
-
-    notarialAction: ['', Validators.required],
-    valuationDate: ['', Validators.required],
-    reportDueDate: ['', Validators.required],
-
-    specialConditions: [''],
-    extraNotes: [''],
+    fixture = TestBed.createComponent(RequestPrice);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
   });
 
-  // Текст запроса (превью)
-  requestText = '';
+  // ── Инициализация ──────────────────────────────────────────────────────────
 
-  constructor(private readonly fb: FormBuilder) {
-    this.filteredNotaries = [];
-    this.buildRequestText();
+  it('should create component', () => {
+    expect(component).toBeTruthy();
+  });
 
-    // Автообновление превью
-    this.form.valueChanges.subscribe(() => this.buildRequestText());
-  }
+  it('should initialize form with empty values', () => {
+    expect(component.form).toBeTruthy();
+    expect(component.form.get('notaryCity')?.value).toBe('');
+    expect(component.form.get('notaryFio')?.value).toBe('');
+    expect(component.form.get('propertyAddress')?.value).toBe('');
+  });
 
-  regenerateOutgoing(): void {
-    this.outgoingNumber.set(randomOutgoingNumber());
-    this.outgoingDate.set(formatDate(new Date()));
-    this.buildRequestText();
-  }
+  it('should generate outgoing number on init', () => {
+    expect(component.outgoingDisplay()).toMatch(/NR-\d{4}-\d{6} от \d{2}\.\d{2}\.\d{4}/);
+  });
 
-  onNotaryCityChange(): void {
-    const city = this.form.get('notaryCity')?.value || '';
-    this.filteredNotaries = this.notaries.filter((n) => n.city === city);
+  it('should start with empty filteredNotaries', () => {
+    expect(component.filteredNotaries).toEqual([]);
+  });
 
-    // Сброс нотариуса при смене города
-    this.form.patchValue(
-      { notaryFio: '', notaryOfficeNumber: '', notaryOfficeAddress: '' },
-      { emitEvent: false },
-    );
+  it('should start with null selectedPdfName', () => {
+    expect(component.selectedPdfName).toBeNull();
+  });
 
-    this.buildRequestText();
-  }
+  // ── Справочники ────────────────────────────────────────────────────────────
 
-  onNotaryFioChange(): void {
-    const fio = this.form.get('notaryFio')?.value || '';
-    const found = this.notaries.find((n) => n.fio === fio);
+  it('should have cities list', () => {
+    expect(component.cities.length).toBeGreaterThan(0);
+  });
 
-    this.form.patchValue(
-      {
-        notaryOfficeNumber: found?.officeNumber ?? '',
-        notaryOfficeAddress: found?.officeAddress ?? '',
-      },
-      { emitEvent: false },
-    );
+  it('should have notaries list', () => {
+    expect(component.notaries.length).toBeGreaterThan(0);
+  });
 
-    this.buildRequestText();
-  }
+  it('should have companies list', () => {
+    expect(component.companies.length).toBeGreaterThan(0);
+  });
 
-  onCompanyChange(): void {
-    const name = this.form.get('companyName')?.value || '';
-    const found = this.companies.find((c) => c.name === name);
+  it('should have propertyTypes list', () => {
+    expect(component.propertyTypes).toContain('Квартира');
+    expect(component.propertyTypes).toContain('Жилой дом');
+    expect(component.propertyTypes).toContain('Земельный участок');
+  });
 
-    this.form.patchValue({ companyAddress: found?.address ?? '' }, { emitEvent: false });
-    this.buildRequestText();
-  }
+  // ── Фильтрация нотариусов ──────────────────────────────────────────────────
 
-  onPdfSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    this.selectedPdfName = file ? file.name : null;
-    this.buildRequestText();
-  }
+  it('should filter notaries by city on onNotaryCityChange()', () => {
+    component.form.patchValue({ notaryCity: 'Москва' });
+    component.onNotaryCityChange();
+    expect(component.filteredNotaries.length).toBeGreaterThan(0);
+    component.filteredNotaries.forEach((n) => expect(n.city).toBe('Москва'));
+  });
 
-  onSubmit(): void {
-    this.buildRequestText();
-    // можно убрать alert, но пусть пока будет понятно, что сработало
+  it('should reset notary fields when city changes', () => {
+    component.form.patchValue({ notaryFio: 'Иванов Иван Иванович', notaryOfficeNumber: '12' });
+    component.form.patchValue({ notaryCity: 'Санкт-Петербург' });
+    component.onNotaryCityChange();
+    expect(component.form.get('notaryFio')?.value).toBe('');
+    expect(component.form.get('notaryOfficeNumber')?.value).toBe('');
+  });
 
-    alert('Запрос сформирован. Скопируйте текст из блока предпросмотра.');
-  }
+  it('should return empty filteredNotaries for unknown city', () => {
+    component.form.patchValue({ notaryCity: 'Неизвестный город' });
+    component.onNotaryCityChange();
+    expect(component.filteredNotaries).toEqual([]);
+  });
 
-  async copyToClipboard(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.requestText);
+  // ── Автоподстановка данных нотариуса ──────────────────────────────────────
 
-      alert('Текст запроса скопирован!');
-    } catch {
-      alert('Не удалось скопировать. Выделите текст вручную.');
-    }
-  }
+  it('should autofill office number and address on onNotaryFioChange()', () => {
+    const notary = component.notaries[0];
+    component.form.patchValue({ notaryFio: notary.fio });
+    component.onNotaryFioChange();
+    expect(component.form.get('notaryOfficeNumber')?.value).toBe(notary.officeNumber);
+    expect(component.form.get('notaryOfficeAddress')?.value).toBe(notary.officeAddress);
+  });
 
-  private buildRequestText(): void {
-    const v = this.form.getRawValue();
+  it('should clear office fields if notary not found', () => {
+    component.form.patchValue({ notaryFio: 'Несуществующий Нотариус' });
+    component.onNotaryFioChange();
+    expect(component.form.get('notaryOfficeNumber')?.value).toBe('');
+    expect(component.form.get('notaryOfficeAddress')?.value).toBe('');
+  });
 
-    const notaryCity = v.notaryCity || '{Город}';
-    const notaryFio = v.notaryFio || '{ФИО нотариуса}';
-    const officeNumber = v.notaryOfficeNumber || '{Номер конторы}';
-    const officeAddress = v.notaryOfficeAddress || '{Адрес нотариуса}';
+  // ── Автоподстановка данных компании ───────────────────────────────────────
 
-    const companyName = v.companyName || '{Название компании}';
-    const companyAddress = v.companyAddress || '{Адрес компании}';
+  it('should autofill company address on onCompanyChange()', () => {
+    const company = component.companies[0];
+    component.form.patchValue({ companyName: company.name });
+    component.onCompanyChange();
+    expect(component.form.get('companyAddress')?.value).toBe(company.address);
+  });
 
-    const propertyAddress = v.propertyAddress || '{Адрес объекта недвижимости}';
-    const cadastralNumber = v.cadastralNumber || '{Кадастровый номер}';
-    const propertyType = v.propertyType || '{Вид объекта}';
+  it('should clear company address if company not found', () => {
+    component.form.patchValue({ companyName: 'Несуществующая компания' });
+    component.onCompanyChange();
+    expect(component.form.get('companyAddress')?.value).toBe('');
+  });
 
-    const docRequisites = v.docRequisites || '{Реквизиты документа}';
+  // ── PDF ────────────────────────────────────────────────────────────────────
 
-    const notarialAction = v.notarialAction || '{Нотариальное действие}';
-    const valuationDate = v.valuationDate || '{Дата оценки}';
-    const reportDueDate = v.reportDueDate || '{Дата окончания срока}';
+  it('should set selectedPdfName on file selection', () => {
+    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
 
-    const special = v.specialConditions?.trim() ? v.specialConditions : '—';
-    const extra = v.extraNotes?.trim() ? v.extraNotes : '—';
+    const input = document.createElement('input');
+    input.type = 'file';
+    Object.defineProperty(input, 'files', { value: dataTransfer.files });
 
-    const outgoingNumber = this.outgoingNumber();
-    const outgoingDate = this.outgoingDate();
+    const event = { target: input } as unknown as Event;
+    component.onPdfSelected(event);
 
-    this.requestText = `Нотариальный запрос о проведении оценки рыночной стоимости объекта недвижимости
-От: Нотариус города ${notaryCity} ${notaryFio}, нотариальная контора № ${officeNumber}, расположенная по адресу: ${officeAddress}
-Исх. №: ${outgoingNumber}
-Дата: ${outgoingDate}
+    expect(component.selectedPdfName).toBe('test.pdf');
+  });
 
-Кому: Руководителю
-Оценочной компании "${companyName}"
-${companyAddress}
+  it('should set selectedPdfName to null when no file selected', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    const event = { target: input } as unknown as Event;
+    component.onPdfSelected(event);
+    expect(component.selectedPdfName).toBeNull();
+  });
 
-Запрос
+  // ── Исходящий номер ───────────────────────────────────────────────────────
 
-На основании необходимости совершения нотариального действия (${notarialAction}) прошу Вас провести оценку рыночной стоимости объекта недвижимости и предоставить письменный отчет об оценке.
+  it('should regenerate outgoing number on regenerateOutgoing()', () => {
+    const before = component.outgoingDisplay();
+    // небольшая задержка не нужна — просто вызываем
+    component.regenerateOutgoing();
+    // формат должен совпасть
+    expect(component.outgoingDisplay()).toMatch(/NR-\d{4}-\d{6} от \d{2}\.\d{2}\.\d{4}/);
+  });
 
-Параметры объекта для оценки:
-Адрес объекта: ${propertyAddress}
-Кадастровый номер: ${cadastralNumber}
-Вид объекта: ${propertyType}
-Правоустанавливающие документы: ${docRequisites}
-Цель проведения оценки: ${notarialAction}
-Дата, на которую требуется определить стоимость: ${valuationDate}
-Особые условия/характеристики: ${special}
-Дополнительные комментарии: ${extra}
+  // ── Текст запроса ─────────────────────────────────────────────────────────
 
-Срок предоставления отчета: до ${reportDueDate}.
+  it('should build requestText containing notary city and fio', () => {
+    component.form.patchValue({ notaryCity: 'Москва', notaryFio: 'Иванов Иван Иванович' });
+    // valueChanges запустит buildRequestText автоматически
+    expect(component.requestText).toContain('Москва');
+    expect(component.requestText).toContain('Иванов Иван Иванович');
+  });
 
-Приложение:
-- Документ (PDF): ${this.selectedPdfName ?? 'не выбран'}.
-- Копия технического паспорта/плана БТИ.
-- Выписка из ЕГРН.
-`;
-  }
-}
+  it('should build requestText containing property address', () => {
+    component.form.patchValue({ propertyAddress: 'г. Москва, ул. Садовая, д. 5, кв. 10' });
+    expect(component.requestText).toContain('г. Москва, ул. Садовая, д. 5, кв. 10');
+  });
+
+  it('should build requestText containing cadastral number', () => {
+    component.form.patchValue({ cadastralNumber: '77:01:0004012:1234' });
+    expect(component.requestText).toContain('77:01:0004012:1234');
+  });
+
+  it('should build requestText containing report due date', () => {
+    component.form.patchValue({ reportDueDate: '2025-12-31' });
+    expect(component.requestText).toContain('2025-12-31');
+  });
+
+  it('should include placeholder when notaryFio is empty', () => {
+    component.form.patchValue({ notaryFio: '' });
+    expect(component.requestText).toContain('{Фамилия И.О.}');
+  });
+
+  it('should include pdf name in requestText when file is selected', () => {
+    component.selectedPdfName = 'договор.pdf';
+    component.form.patchValue({ notarialAction: 'дарение' }); // тригер valueChanges
+    expect(component.requestText).toContain('договор.pdf');
+  });
+
+  // ── Валидация формы ───────────────────────────────────────────────────────
+
+  it('should be invalid when required fields are empty', () => {
+    expect(component.form.invalid).toBeTrue();
+  });
+
+  it('should be valid when all required fields are filled', () => {
+    component.form.patchValue({
+      notaryCity: 'Москва',
+      notaryFio: 'Иванов Иван Иванович',
+      companyName: 'ООО "ОценкаПрофи"',
+      propertyAddress: 'г. Москва, ул. Садовая, д. 5',
+      cadastralNumber: '77:01:0004012:1234',
+      propertyType: 'Квартира',
+      docRequisites: 'Выписка из ЕГРН № 123 от 01.01.2024',
+      notarialAction: 'дарение',
+      valuationDate: '2025-06-01',
+      reportDueDate: '2025-07-01',
+    });
+    expect(component.form.valid).toBeTrue();
+  });
+
+  it('should mark all as touched on submit when form is invalid', () => {
+    spyOn(component.form, 'markAllAsTouched');
+    component.onSubmit();
+    expect(component.form.markAllAsTouched).toHaveBeenCalled();
+  });
+});

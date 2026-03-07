@@ -1,114 +1,145 @@
 <div class="container">
   <div class="mb-4">
-    <a routerLink="/" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
+    <a routerLink="/" class="link text-sm mb-2" style="display: inline-block">← Вернуться</a>
     <h1>Запрос оценки недвижимости</h1>
     <p class="text-sm">Заполните параметры — система сформирует текст нотариального запроса.</p>
   </div>
 
   <form class="grid" [formGroup]="form" (ngSubmit)="onSubmit()">
-    <!-- Левая колонка: форма -->
+    <!-- ══ Левая колонка: форма ══════════════════════════════════════════════ -->
     <div class="flex-col gap-4">
-      <!-- Данные нотариуса -->
+      <!-- 1. Данные нотариуса -->
       <div class="card">
         <div class="card-title">1. Данные нотариуса</div>
 
         <div class="form-group">
-          <label class="form-label">Город практики</label>
+          <label class="form-label">Город практики <span class="required">*</span></label>
           <select class="form-input" formControlName="notaryCity" (change)="onNotaryCityChange()">
             <option value="" disabled>Выберите город</option>
             <option *ngFor="let c of cities" [value]="c">{{ c }}</option>
           </select>
+          <p class="error-hint" *ngIf="form.get('notaryCity')?.invalid && form.get('notaryCity')?.touched">
+            Выберите город практики
+          </p>
         </div>
 
         <div class="form-group">
-          <label class="form-label">ФИО нотариуса</label>
+          <label class="form-label">Фамилия, Имя и Отчество нотариуса <span class="required">*</span></label>
           <select class="form-input" formControlName="notaryFio" (change)="onNotaryFioChange()">
             <option value="" disabled>Выберите нотариуса</option>
             <option *ngFor="let n of filteredNotaries" [value]="n.fio">{{ n.fio }}</option>
           </select>
+          <p class="error-hint" *ngIf="form.get('notaryFio')?.invalid && form.get('notaryFio')?.touched">
+            Выберите нотариуса
+          </p>
         </div>
 
         <div class="flex gap-4">
           <div class="form-group w-full">
             <label class="form-label">№ нотариальной конторы</label>
-            <input class="form-input" type="text" formControlName="notaryOfficeNumber" readonly />
+            <input
+              class="form-input readonly"
+              type="text"
+              formControlName="notaryOfficeNumber"
+              readonly
+              placeholder="Подставится автоматически" />
           </div>
           <div class="form-group w-full">
-            <label class="form-label">Исх. № и дата</label>
-            <input class="form-input" type="text" [value]="outgoingDisplay" readonly />
+            <label class="form-label">Исх. № и дата запроса</label>
+            <input class="form-input readonly" type="text" [value]="outgoingDisplay()" readonly />
           </div>
         </div>
 
         <div class="form-group no-mb">
           <label class="form-label">Адрес нотариальной конторы</label>
-          <input class="form-input" type="text" formControlName="notaryOfficeAddress" readonly />
+          <input
+            class="form-input readonly"
+            type="text"
+            formControlName="notaryOfficeAddress"
+            readonly
+            placeholder="Подставится автоматически" />
         </div>
       </div>
 
-      <!-- Данные оценочной компании -->
+      <!-- 2. Данные оценочной компании -->
       <div class="card">
         <div class="card-title">2. Данные оценочной компании</div>
 
         <div class="form-group">
-          <label class="form-label">Оценочная компания</label>
+          <label class="form-label">Полное наименование оценочной компании <span class="required">*</span></label>
           <select class="form-input" formControlName="companyName" (change)="onCompanyChange()">
             <option value="" disabled>Выберите компанию</option>
             <option *ngFor="let c of companies" [value]="c.name">{{ c.name }}</option>
           </select>
+          <p class="error-hint" *ngIf="form.get('companyName')?.invalid && form.get('companyName')?.touched">
+            Выберите оценочную компанию
+          </p>
         </div>
 
         <div class="form-group no-mb">
-          <label class="form-label">Адрес компании</label>
-          <input class="form-input" type="text" formControlName="companyAddress" readonly />
+          <label class="form-label">Адрес оценочной компании</label>
+          <input
+            class="form-input readonly"
+            type="text"
+            formControlName="companyAddress"
+            readonly
+            placeholder="Подставится автоматически" />
         </div>
       </div>
 
-      <!-- Данные об объекте -->
+      <!-- 3. Данные об объекте недвижимости -->
       <div class="card">
-        <div class="card-title">3. Объект недвижимости</div>
+        <div class="card-title">3. Данные об объекте недвижимости</div>
 
         <div class="form-group">
-          <label class="form-label">Полный почтовый адрес объекта</label>
+          <label class="form-label">Полный почтовый адрес объекта <span class="required">*</span></label>
           <input
             class="form-input"
             type="text"
             formControlName="propertyAddress"
             placeholder="Город, улица, дом, кв." />
+          <p class="error-hint" *ngIf="form.get('propertyAddress')?.invalid && form.get('propertyAddress')?.touched">
+            Укажите адрес объекта
+          </p>
         </div>
 
         <div class="flex gap-4">
           <div class="form-group w-full">
-            <label class="form-label">Кадастровый номер</label>
+            <label class="form-label">Кадастровый номер объекта <span class="required">*</span></label>
             <input
               class="form-input"
               type="text"
               formControlName="cadastralNumber"
               placeholder="Напр.: 77:01:0004012:1234" />
-            <p class="help text-xs">
-              Кадастровый номер — уникальный идентификатор объекта в Росреестре (обычно формат XX:XX:XXXXXXX:XXXX).
+            <p class="help text-xs">Уникальный идентификатор объекта в Росреестре (формат XX:XX:XXXXXXX:XXXX).</p>
+            <p class="error-hint" *ngIf="form.get('cadastralNumber')?.invalid && form.get('cadastralNumber')?.touched">
+              Укажите кадастровый номер
             </p>
           </div>
 
           <div class="form-group w-full">
-            <label class="form-label">Вид объекта</label>
+            <label class="form-label">Вид объекта <span class="required">*</span></label>
             <select class="form-input" formControlName="propertyType">
               <option value="" disabled>Выберите тип</option>
               <option *ngFor="let t of propertyTypes" [value]="t">{{ t }}</option>
             </select>
+            <p class="error-hint" *ngIf="form.get('propertyType')?.invalid && form.get('propertyType')?.touched">
+              Выберите вид объекта
+            </p>
           </div>
         </div>
 
         <div class="form-group no-mb">
-          <label class="form-label">Особые условия / характеристики</label>
+          <label class="form-label">Особенности объекта</label>
           <textarea
             class="form-input"
             rows="3"
             formControlName="specialConditions"
-            placeholder="Обременение, арест, доли, состояние ремонта, площадь, этаж и т.д."></textarea>
+            placeholder="Обременение ипотекой, арест, несколько собственников/долей, нестандартная планировка, состояние ремонта, площадь, этаж и т.д."></textarea>
         </div>
       </div>
 
-      <!-- Документы -->
+      <!-- 4. Документы на объект -->
       <div class="card">
         <div class="card-title">4. Документы на объект</div>
 
@@ -116,62 +147,80 @@
           <label class="form-label">Документ, подтверждающий право собственности (PDF)</label>
           <input class="form-input" type="file" accept="application/pdf" (change)="onPdfSelected($event)" />
           <p class="help text-xs" *ngIf="selectedPdfName">Выбран файл: <b>{{ selectedPdfName }}</b></p>
+          <p class="help text-xs" *ngIf="!selectedPdfName">Свидетельство о праве собственности или выписка из ЕГРН</p>
         </div>
 
         <div class="form-group no-mb">
-          <label class="form-label">Реквизиты документа</label>
+          <label class="form-label">Реквизиты документа <span class="required">*</span></label>
           <textarea
             class="form-input"
             rows="3"
             formControlName="docRequisites"
-            placeholder="Вид, номер, дата выдачи, кем выдан"></textarea>
+            placeholder="Вид, номер, дата выдачи, наименование органа, выдавшего документ"></textarea>
+          <p class="error-hint" *ngIf="form.get('docRequisites')?.invalid && form.get('docRequisites')?.touched">
+            Укажите реквизиты документа
+          </p>
         </div>
       </div>
 
-      <!-- Цель и детали -->
+      <!-- 5. Цель и детали оценки -->
       <div class="card">
         <div class="card-title">5. Цель и детали оценки</div>
 
         <div class="form-group">
-          <label class="form-label">Нотариальное действие</label>
+          <label class="form-label">Нотариальное действие <span class="required">*</span></label>
           <input
             class="form-input"
             type="text"
             formControlName="notarialAction"
             placeholder="Дарение / наследство / раздел имущества / брачный договор и т.д." />
+          <p class="error-hint" *ngIf="form.get('notarialAction')?.invalid && form.get('notarialAction')?.touched">
+            Укажите цель нотариального действия
+          </p>
         </div>
 
         <div class="flex gap-4">
           <div class="form-group w-full">
-            <label class="form-label">Дата оценки (на какую дату определить стоимость)</label>
+            <label class="form-label">Дата оценки <span class="required">*</span></label>
             <input class="form-input" type="date" formControlName="valuationDate" />
+            <p class="help text-xs">На какую дату определить рыночную стоимость</p>
+            <p class="error-hint" *ngIf="form.get('valuationDate')?.invalid && form.get('valuationDate')?.touched">
+              Укажите дату оценки
+            </p>
           </div>
 
           <div class="form-group w-full">
-            <label class="form-label">Срок предоставления отчёта (до даты)</label>
+            <label class="form-label">Срок предоставления отчёта <span class="required">*</span></label>
             <input class="form-input" type="date" formControlName="reportDueDate" />
+            <p class="help text-xs">До какой даты необходимо получить отчёт</p>
+            <p class="error-hint" *ngIf="form.get('reportDueDate')?.invalid && form.get('reportDueDate')?.touched">
+              Укажите срок предоставления отчёта
+            </p>
           </div>
         </div>
 
         <div class="form-group no-mb">
           <label class="form-label">Дополнительные комментарии</label>
-          <textarea class="form-input" rows="3" formControlName="extraNotes"></textarea>
+          <textarea
+            class="form-input"
+            rows="3"
+            formControlName="extraNotes"
+            placeholder="Любые дополнительные пожелания или уточнения"></textarea>
         </div>
       </div>
 
       <div class="flex gap-2">
         <button type="button" class="btn btn-outline" (click)="regenerateOutgoing()">
-          Сгенерировать исх. № заново
+          ↻ Сгенерировать исх. № заново
         </button>
-
         <button type="submit" class="btn btn-primary">Сформировать запрос</button>
       </div>
     </div>
 
-    <!-- Правая колонка: превью запроса -->
+    <!-- ══ Правая колонка: превью запроса ════════════════════════════════════ -->
     <div>
       <div class="card sticky">
-        <div class="card-title">Текст запроса (предпросмотр)</div>
+        <div class="card-title">Предпросмотр нотариального запроса</div>
 
         <pre class="preview">{{ requestText }}</pre>
 
@@ -180,7 +229,7 @@
         </div>
 
         <p class="text-xs text-secondary mt-3">
-          Примечание: PDF-файл хранится локально (в форме) и не отправляется, пока вы не подключите API.
+          Примечание: PDF-файл хранится локально и не отправляется автоматически.
         </p>
       </div>
     </div>

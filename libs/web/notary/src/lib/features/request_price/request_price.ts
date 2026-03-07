@@ -1,11 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 
 interface Notary {
-  fio: string;
   city: string;
+  fio: string;
   officeNumber: string;
   officeAddress: string;
 }
@@ -15,167 +15,239 @@ interface Company {
   address: string;
 }
 
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
+function formatDate(d: Date): string {
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+function randomOutgoingNumber(): string {
+  const year = new Date().getFullYear();
+  const rnd = Math.floor(Math.random() * 900000) + 100000;
+  return `NR-${year}-${rnd}`;
+}
+
 @Component({
   selector: 'lib-request-price',
+  standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './request_price.html',
   styleUrl: './request_price.scss',
 })
-export class RequestPrice implements OnInit {
-  form!: FormGroup;
-  requestText = '';
-  selectedPdfName = '';
-  outgoingDisplay = '';
+export class RequestPrice {
+  private readonly fb = inject(FormBuilder);
 
-  cities: string[] = ['Москва', 'Санкт-Петербург', 'Казань', 'Новосибирск'];
+  // ── Справочники ────────────────────────────────────────────────────────────
 
-  notaries: Notary[] = [
+  readonly cities: string[] = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург'];
+
+  readonly notaries: Notary[] = [
     {
+      city: 'Москва',
       fio: 'Иванов Иван Иванович',
-      city: 'Москва',
-      officeNumber: '1',
-      officeAddress: 'г. Москва, ул. Ленина, 1',
+      officeNumber: '12',
+      officeAddress: 'г. Москва, ул. Тверская, д. 10',
     },
     {
-      fio: 'Петрова Анна Сергеевна',
       city: 'Москва',
-      officeNumber: '2',
-      officeAddress: 'г. Москва, ул. Мира, 5',
+      fio: 'Петров Пётр Петрович',
+      officeNumber: '48',
+      officeAddress: 'г. Москва, ул. Арбат, д. 7',
     },
     {
-      fio: 'Сидоров Алексей Петрович',
       city: 'Санкт-Петербург',
+      fio: 'Сидорова Анна Сергеевна',
+      officeNumber: '5',
+      officeAddress: 'г. Санкт-Петербург, Невский пр., д. 25',
+    },
+    {
+      city: 'Казань',
+      fio: 'Нуриев Рустам Ильдарович',
+      officeNumber: '9',
+      officeAddress: 'г. Казань, ул. Баумана, д. 18',
+    },
+    {
+      city: 'Екатеринбург',
+      fio: 'Белова Татьяна Викторовна',
       officeNumber: '3',
-      officeAddress: 'г. СПб, Невский пр., 10',
+      officeAddress: 'г. Екатеринбург, ул. Ленина, д. 52',
     },
   ];
 
-  filteredNotaries: Notary[] = [];
-
-  companies: Company[] = [
-    { name: 'ООО «Оценка Плюс»', address: 'г. Москва, ул. Тверская, 20' },
-    { name: 'АО «РосОценка»', address: 'г. Москва, ул. Арбат, 15' },
-    { name: 'ИП Кузнецов А.В.', address: 'г. СПб, ул. Садовая, 3' },
+  readonly companies: Company[] = [
+    { name: 'ООО "ОценкаПрофи"', address: 'г. Москва, ул. Мясницкая, д. 15' },
+    { name: 'АО "Эксперт-Оценка"', address: 'г. Санкт-Петербург, ул. Рубинштейна, д. 9' },
+    { name: 'ООО "Рынок и Стоимость"', address: 'г. Казань, ул. Баумана, д. 3' },
+    { name: 'ИП Кузнецов А.В.', address: 'г. Екатеринбург, ул. Малышева, д. 101' },
   ];
 
-  propertyTypes: string[] = [
+  readonly propertyTypes: string[] = [
     'Квартира',
+    'Комната',
     'Жилой дом',
     'Земельный участок',
-    'Коммерческая недвижимость',
-    'Гараж',
-    'Иное',
+    'Нежилое помещение',
   ];
 
-  constructor(private fb: FormBuilder) {}
+  // ── Исходящий номер / дата ─────────────────────────────────────────────────
 
-  ngOnInit(): void {
-    this.form = this.fb.group({
-      notaryCity: [''],
-      notaryFio: [''],
-      notaryOfficeNumber: [''],
-      notaryOfficeAddress: [''],
-      companyName: [''],
-      companyAddress: [''],
-      propertyAddress: [''],
-      cadastralNumber: [''],
-      propertyType: [''],
-      specialConditions: [''],
-      docRequisites: [''],
-      notarialAction: [''],
-      valuationDate: [''],
-      reportDueDate: [''],
-      extraNotes: [''],
-    });
+  private readonly _outgoingNumber = signal<string>(randomOutgoingNumber());
+  private readonly _outgoingDate = signal<string>(formatDate(new Date()));
+  readonly outgoingDisplay = computed(() => `${this._outgoingNumber()} от ${this._outgoingDate()}`);
 
-    this.generateOutgoing();
+  // ── Состояние ─────────────────────────────────────────────────────────────
 
+  selectedPdfName: string | null = null;
+  filteredNotaries: Notary[] = [];
+  requestText = '';
+
+  // ── Форма (через inject — fb уже доступен на уровне поля) ─────────────────
+
+  readonly form = this.fb.group({
+    notaryCity: ['', Validators.required],
+    notaryFio: ['', Validators.required],
+    notaryOfficeNumber: [''],
+    notaryOfficeAddress: [''],
+    companyName: ['', Validators.required],
+    companyAddress: [''],
+    propertyAddress: ['', Validators.required],
+    cadastralNumber: ['', Validators.required],
+    propertyType: ['', Validators.required],
+    specialConditions: [''],
+    docRequisites: ['', Validators.required],
+    notarialAction: ['', Validators.required],
+    valuationDate: ['', Validators.required],
+    reportDueDate: ['', Validators.required],
+    extraNotes: [''],
+  });
+
+  constructor() {
+    this.buildRequestText();
     this.form.valueChanges.subscribe(() => this.buildRequestText());
   }
 
+  // ── Обработчики событий ────────────────────────────────────────────────────
+
+  regenerateOutgoing(): void {
+    this._outgoingNumber.set(randomOutgoingNumber());
+    this._outgoingDate.set(formatDate(new Date()));
+    this.buildRequestText();
+  }
+
   onNotaryCityChange(): void {
-    const city = this.form.get('notaryCity')?.value;
+    const city = this.form.get('notaryCity')?.value ?? '';
     this.filteredNotaries = this.notaries.filter((n) => n.city === city);
-    this.form.patchValue({ notaryFio: '', notaryOfficeNumber: '', notaryOfficeAddress: '' });
+    this.form.patchValue(
+      { notaryFio: '', notaryOfficeNumber: '', notaryOfficeAddress: '' },
+      { emitEvent: false },
+    );
+    this.buildRequestText();
   }
 
   onNotaryFioChange(): void {
-    const fio = this.form.get('notaryFio')?.value;
-    const notary = this.notaries.find((n) => n.fio === fio);
-    if (notary) {
-      this.form.patchValue({
-        notaryOfficeNumber: notary.officeNumber,
-        notaryOfficeAddress: notary.officeAddress,
-      });
-    }
+    const fio = this.form.get('notaryFio')?.value ?? '';
+    const found = this.notaries.find((n) => n.fio === fio);
+    this.form.patchValue(
+      {
+        notaryOfficeNumber: found?.officeNumber ?? '',
+        notaryOfficeAddress: found?.officeAddress ?? '',
+      },
+      { emitEvent: false },
+    );
+    this.buildRequestText();
   }
 
   onCompanyChange(): void {
-    const name = this.form.get('companyName')?.value;
-    const company = this.companies.find((c) => c.name === name);
-    this.form.patchValue({ companyAddress: company?.address ?? '' });
+    const name = this.form.get('companyName')?.value ?? '';
+    const found = this.companies.find((c) => c.name === name);
+    this.form.patchValue({ companyAddress: found?.address ?? '' }, { emitEvent: false });
+    this.buildRequestText();
   }
 
   onPdfSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.selectedPdfName = input.files?.[0]?.name ?? '';
-  }
-
-  generateOutgoing(): void {
-    const num = Math.floor(Math.random() * 900) + 100;
-    const today = new Date().toLocaleDateString('ru-RU');
-    this.outgoingDisplay = `Исх. №${num} от ${today}`;
-  }
-
-  regenerateOutgoing(): void {
-    this.generateOutgoing();
+    this.selectedPdfName = input.files?.[0]?.name ?? null;
+    this.buildRequestText();
   }
 
   onSubmit(): void {
     this.buildRequestText();
-  }
-
-  buildRequestText(): void {
-    const v = this.form.value;
-    if (!v.notaryFio && !v.propertyAddress) {
-      this.requestText = 'Заполните форму для предпросмотра запроса...';
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
       return;
     }
-
-    this.requestText = `
-${this.outgoingDisplay}
-
-Руководителю оценочной компании
-${v.companyName || '_______________'}
-${v.companyAddress || ''}
-
-От нотариуса: ${v.notaryFio || '_______________'}
-Нотариальная контора №${v.notaryOfficeNumber || '___'}
-Адрес: ${v.notaryOfficeAddress || '_______________'}
-
-ЗАПРОС НА ПРОВЕДЕНИЕ ОЦЕНКИ НЕДВИЖИМОСТИ
-
-Прошу провести оценку следующего объекта недвижимости:
-
-Адрес объекта: ${v.propertyAddress || '_______________'}
-Кадастровый номер: ${v.cadastralNumber || '_______________'}
-Вид объекта: ${v.propertyType || '_______________'}
-${v.specialConditions ? 'Особые условия: ' + v.specialConditions : ''}
-
-Реквизиты правоустанавливающего документа:
-${v.docRequisites || '_______________'}
-
-Цель оценки (нотариальное действие): ${v.notarialAction || '_______________'}
-Дата определения стоимости: ${v.valuationDate || '_______________'}
-Срок предоставления отчёта: ${v.reportDueDate || '_______________'}
-${v.extraNotes ? '\nДополнительно: ' + v.extraNotes : ''}
-
-С уважением,
-${v.notaryFio || '_______________'}
-    `.trim();
+    alert('Запрос сформирован. Скопируйте текст из блока предпросмотра.');
   }
 
-  copyToClipboard(): void {
-    navigator.clipboard.writeText(this.requestText);
+  async copyToClipboard(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.requestText);
+      alert('Текст запроса скопирован!');
+    } catch {
+      alert('Не удалось скопировать. Выделите текст вручную.');
+    }
+  }
+
+  // ── Построение текста запроса ──────────────────────────────────────────────
+
+  private buildRequestText(): void {
+    const v = this.form.getRawValue();
+
+    const notaryCity = v.notaryCity || '{Город}';
+    const notaryFio = v.notaryFio || '{Фамилия И.О.}';
+    const officeNumber = v.notaryOfficeNumber || '{Номер}';
+    const officeAddress = v.notaryOfficeAddress || '{Адрес нотариуса}';
+    const companyName = v.companyName || '{Название компании}';
+    const companyAddress = v.companyAddress || '{Адрес компании}';
+    const propertyAddress = v.propertyAddress || '{Адрес объекта недвижимости}';
+    const cadastralNumber = v.cadastralNumber || '{Кадастровый номер}';
+    const propertyType =
+      v.propertyType ||
+      '{Вид объекта (например: квартира, жилой дом, земельный участок, нежилое помещение)}';
+    const docRequisites =
+      v.docRequisites ||
+      '{Реквизиты документа, подтверждающего право собственности (вид, номер, дата, кем выдан)}';
+    const notarialAction =
+      v.notarialAction ||
+      '{Цель оценки (например: для заключения договора дарения, для вступления в наследство)}';
+    const valuationDate = v.valuationDate || '{Дата оценки}';
+    const reportDueDate = v.reportDueDate || '{Дата окончания срока}';
+    const special = v.specialConditions?.trim() || '—';
+    const extra = v.extraNotes?.trim() || '—';
+
+    this.requestText = `Нотариальный запрос о проведении оценки рыночной стоимости объекта недвижимости
+От: Нотариус города ${notaryCity} ${notaryFio}, нотариальная контора № ${officeNumber}, расположенная по адресу: ${officeAddress}
+Исх. №: ${this._outgoingNumber()}
+Дата: ${this._outgoingDate()}
+
+Кому: Руководителю
+Оценочной компании "${companyName}"
+${companyAddress}
+
+Запрос
+
+На основании необходимости совершения нотариального действия (${notarialAction}) и в соответствии со статьей 47 "Основ законодательства Российской Федерации о нотариате", прошу Вас провести оценку рыночной стоимости объекта недвижимости и предоставить в мою адрес письменный отчет об оценке, соответствующий требованиям Федерального закона от 29.07.1998 № 135-ФЗ "Об оценочной деятельности в Российской Федерации" и Федеральных стандартов оценки (ФСО).
+
+Параметры объекта для оценки:
+
+Адрес объекта: ${propertyAddress}
+Кадастровый номер: ${cadastralNumber}
+Вид объекта: ${propertyType}
+Правоустанавливающие документы: ${docRequisites}
+Цель проведения оценки: ${notarialAction}
+Дата, на которую требуется определить стоимость: ${valuationDate}
+Особые условия/характеристики: ${special}
+Дополнительные комментарии: ${extra}
+
+Отчет об оценке должен быть представлен на бумажном носителе, подписан и заверен печатью оценщика, с приложением копии квалификационного аттестата оценщика.
+
+Срок предоставления отчета: до ${reportDueDate}.
+
+Приложение:
+- Документ (PDF): ${this.selectedPdfName ?? 'не выбран'}.
+- Копия технического паспорта/плана БТИ.
+- Выписка из ЕГРН.`;
   }
 }
