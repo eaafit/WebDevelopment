@@ -1,0 +1,12 @@
+{
+  "name": "@notary-portal/prisma",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "prisma": "^7.4.0"
+  }
+}
