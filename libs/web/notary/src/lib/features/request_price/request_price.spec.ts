@@ -122,12 +122,11 @@ describe('RequestPrice', () => {
 
   it('should set selectedPdfName on file selection', () => {
     const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(file);
-
     const input = document.createElement('input');
     input.type = 'file';
-    Object.defineProperty(input, 'files', { value: dataTransfer.files });
+    Object.defineProperty(input, 'files', {
+      value: { 0: file, length: 1, item: () => file },
+    });
 
     const event = { target: input } as unknown as Event;
     component.onPdfSelected(event);
@@ -191,7 +190,7 @@ describe('RequestPrice', () => {
   // ── Валидация формы ───────────────────────────────────────────────────────
 
   it('should be invalid when required fields are empty', () => {
-    expect(component.form.invalid).toBeTrue();
+    expect(component.form.invalid).toBe(true);
   });
 
   it('should be valid when all required fields are filled', () => {
@@ -207,12 +206,12 @@ describe('RequestPrice', () => {
       valuationDate: '2025-06-01',
       reportDueDate: '2025-07-01',
     });
-    expect(component.form.valid).toBeTrue();
+    expect(component.form.valid).toBe(true);
   });
 
   it('should mark all as touched on submit when form is invalid', () => {
-    spyOn(component.form, 'markAllAsTouched');
+    const spy = jest.spyOn(component.form, 'markAllAsTouched');
     component.onSubmit();
-    expect(component.form.markAllAsTouched).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
   });
 });
