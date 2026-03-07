@@ -9,8 +9,7 @@ import { PlaceholderPage } from './placeholder-page';
   template: `
     <lib-placeholder-page
       [title]="route.snapshot.data['title'] ?? 'Страница'"
-      [features]="route.snapshot.data['features'] ?? []"
-    />
+      [features]="route.snapshot.data['features'] ?? []" />
   `,
 })
 export class PlaceholderPageRoute {

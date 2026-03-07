@@ -25,12 +25,7 @@ export const guestRoutes: Route[] = [
         component: PlaceholderPageRoute,
         data: {
           title: 'Справочный раздел',
-          features: [
-            'База знаний',
-            'FAQ',
-            'Поиск по статьям',
-            'Фильтры по автору и логике поиска',
-          ],
+          features: ['База знаний', 'FAQ', 'Поиск по статьям', 'Фильтры по автору и логике поиска'],
         },
       },
     ],
