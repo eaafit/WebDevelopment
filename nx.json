@@ -55,6 +55,7 @@
     },
     "test": {
       "cache": true,
+      "dependsOn": ["^generate-proto"],
       "inputs": ["default", "^default", "{workspaceRoot}/jest.config.ts"]
     },
     "lint": {

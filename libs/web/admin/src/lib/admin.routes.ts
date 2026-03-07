@@ -62,14 +62,8 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'monitoring',
-        ...placeholder('Мониторинг и логи', [
-          'Аудит действий (кто/что/когда)',
-          'Фильтры',
-          'Экспорт',
-          'Логи по пользователю/заказу',
-          'События безопасности',
-        ]),
-      } as Route,
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
       {
         path: 'notifications',
         ...placeholder('Уведомления', ['Управление уведомлениями']),
@@ -77,6 +71,14 @@ export const adminRoutes: Route[] = [
       {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),
+      } as Route,
+      {
+        path: 'geography',
+        ...placeholder('География объектов оценки', [
+          'Карта объектов (Leaflet)',
+          'Фильтры',
+          'Переход к заявке',
+        ]),
       } as Route,
       {
         path: 'settings',

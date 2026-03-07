@@ -13,12 +13,15 @@
 ## Генерация кода
 
 ```bash
-# Установить ts-proto (если ещё не установлен)
-pnpm add -D ts-proto
-
-# Сгенерировать TypeScript из proto
+# Сгенерировать protobuf-es descriptors/messages из proto
 pnpm nx run api-contracts:generate-proto
 ```
+
+Генерация использует `protoc-gen-es` и produces:
+
+- protobuf message types/schemas
+- enum descriptors
+- service descriptors, совместимые с Connect RPC client/server runtime
 
 ## Версионность пакетов
 

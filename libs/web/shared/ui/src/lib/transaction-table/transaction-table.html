@@ -1,34 +1,54 @@
 <div class="container">
   <div class="flex justify-between items-center mb-4">
     <div>
-      <a routerLink="/" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
-      <h1>История платежей</h1>
+      <a routerLink="/notary" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
+      <h1>История транзакций</h1>
       <p class="text-sm">Список всех ваших транзакций и документы к ним.</p>
     </div>
     <div>
-      <button class="btn btn-primary">Пополнить баланс</button>
+      <a routerLink="/notary/subscription/checkout" class="btn btn-primary">Пополнить баланс</a>
     </div>
   </div>
 
   <div class="card p-6 mb-4">
-    <form id="filterForm" class="grid-filters">
+    <form id="filterForm" class="grid-filters" (ngSubmit)="submitFilters()">
       <div class="form-group no-mb">
         <label for="searchInput" class="form-label">Поиск</label>
-        <input id="searchInput" type="text" class="form-input" placeholder="ID транзакции или описание..." />
+        <input
+          id="searchInput"
+          type="text"
+          class="form-input"
+          name="searchQuery"
+          [(ngModel)]="draftFilters.searchQuery"
+          placeholder="ID, адрес или способ оплаты" />
       </div>
 
       <div class="form-group no-mb">
         <label for="dateFromInput" class="form-label">Период (С — По)</label>
         <div class="input-group-merge">
-          <input id="dateFromInput" type="date" id="dateFrom" class="form-input date-picker-limit" />
+          <input
+            id="dateFromInput"
+            type="date"
+            class="form-input date-picker-limit"
+            name="dateFrom"
+            [(ngModel)]="draftFilters.dateFrom"
+            [max]="today" />
           <span class="text-secondary text-bold">—</span>
-          <input type="date" id="dateTo" class="form-input date-picker-limit" aria-label="Дата по" />
+          <input
+            type="date"
+            id="dateToInput"
+            class="form-input date-picker-limit"
+            aria-label="Дата по"
+            name="dateTo"
+            [(ngModel)]="draftFilters.dateTo"
+            [min]="draftFilters.dateFrom || ''"
+            [max]="today" />
         </div>
       </div>
 
       <div class="form-group no-mb">
         <label for="statusSelect" class="form-label">Статус</label>
-        <select id="statusSelect" class="form-input form-select">
+        <select id="statusSelect" class="form-input form-select" name="status" [(ngModel)]="draftFilters.status">
           <option value="all">Все статусы</option>
           <option value="completed">Успешно</option>
           <option value="pending">В обработке</option>
@@ -37,13 +57,42 @@
         </select>
       </div>
 
-      <div>
-        <button type="button" class="btn btn-outline w-full">Найти</button>
+      <div class="transaction-filter-actions">
+        <button type="submit" class="btn btn-outline w-full" [disabled]="loading">Найти</button>
+        <button
+          type="button"
+          class="btn btn-outline w-full"
+          [disabled]="loading || !hasActiveFilters(filters)"
+          (click)="resetFilters()">
+          Сбросить
+        </button>
       </div>
     </form>
   </div>
 
   <div class="card p-0">
+    @if (error) {
+    <div class="p-6 text-danger">{{ error }}</div>
+    } @if (meta) {
+    <div class="transaction-table-summary">
+      <div>
+        <div class="transaction-table-summary__title">Всего найдено {{ meta.totalItems }} операций</div>
+        <p class="transaction-table-summary__meta text-sm m-0">
+          @if (transactions.length > 0) { Показаны {{ getVisibleRangeStart(meta) }}-{{ getVisibleRangeEnd(meta,
+          transactions.length) }} из {{ meta.totalItems }}. } @else { По выбранным условиям транзакции не найдены. }
+        </p>
+      </div>
+
+      @if (hasActiveFilters(filters)) {
+      <div class="transaction-table-summary__chips">
+        @for (chip of getActiveFilterChips(filters); track chip) {
+        <span class="transaction-filter-chip">{{ chip }}</span>
+        }
+      </div>
+      }
+    </div>
+    }
+
     <div class="table-responsive">
       <table class="table">
         <thead>
@@ -53,30 +102,98 @@
             <th>Сумма</th>
             <th>Способ</th>
             <th>Статус</th>
-            <th class="text-right">Документы</th>
+            <th class="transaction-documents-column">Документы</th>
           </tr>
         </thead>
         <tbody>
+          @if (!loading && transactions.length === 0) {
           <tr>
+            <td colspan="6" class="text-center p-6">Транзакции по выбранным фильтрам не найдены.</td>
+          </tr>
+          } @else { @for (transaction of transactions; track trackByTransaction($index, transaction)) {
+          <tr class="transaction-row">
             <td>
-              <div class="text-bold">07 Фев 2026</div>
-              <div class="text-sm">14:30</div>
-            </td>
-            <td>
-              <div class="flex-col">
-                <span class="text-bold">Подписка Premium (30 дней)</span>
-                <span class="text-xs">ID: #88349-221</span>
+              <div class="transaction-date">
+                <div class="transaction-date__value text-bold">
+                  {{ formatTransactionDate(transaction.paymentDate) }}
+                </div>
+                <div class="transaction-date__time text-sm">{{ formatTransactionTime(transaction.paymentDate) }}</div>
               </div>
             </td>
-            <td class="text-bold">5 000 ₽</td>
-            <td>Visa •• 4242</td>
-            <td><span class="badge badge-success">Оплачено</span></td>
-            <td class="text-right">
-              <a href="#" target="_blank" class="btn btn-outline btn-sm">🧾 Чек</a>
+            <td>
+              <div class="transaction-description">
+                <span class="text-bold">{{ transaction.description }}</span>
+                <div class="transaction-description__meta">
+                  <span class="transaction-type-chip">{{ getTypeLabel(transaction.type) }}</span>
+                  <span class="text-xs">ID: {{ transaction.transactionId || transaction.id }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="text-bold">{{ formatAmount(transaction.amount, transaction.currency) }}</td>
+            <td>
+              @let paymentMethod = getPaymentMethodPresentation(transaction.paymentMethod);
+              <div class="payment-method-chip">
+                <span
+                  class="payment-method-chip__icon"
+                  [class.payment-method-chip__icon--asset]="paymentMethod.iconType === 'asset'">
+                  @if (paymentMethod.iconType === 'asset') {
+                  <img [src]="paymentMethod.icon" [alt]="paymentMethod.label" />
+                  } @else { {{ paymentMethod.icon }} }
+                </span>
+                <div class="payment-method-chip__content">
+                  <span class="payment-method-chip__title">{{ paymentMethod.label }}</span>
+                  <span class="payment-method-chip__caption">{{ paymentMethod.caption }}</span>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span [class]="getStatusClass(transaction.status)"> {{ getStatusLabel(transaction.status) }} </span>
+            </td>
+            <td class="transaction-documents-cell transaction-documents-column">
+              @if (canShowDocument(transaction)) { @let document = getDocumentPresentation(transaction);
+              <a [href]="transaction.attachmentFileUrl" target="_blank" rel="noreferrer" class="document-link">
+                <span class="document-link__icon">{{ document.icon }}</span>
+                <span class="document-link__content">
+                  <span class="document-link__title">{{ document.label }}</span>
+                </span>
+              </a>
+              } @else { @let unavailableDocument = getUnavailableDocumentPresentation(transaction);
+              <span class="document-link document-link--muted">
+                <span class="document-link__icon">{{ unavailableDocument.icon }}</span>
+                <span class="document-link__content">
+                  <span class="document-link__title">{{ unavailableDocument.label }}</span>
+                </span>
+              </span>
+              }
             </td>
           </tr>
+          } }
         </tbody>
       </table>
     </div>
   </div>
+
+  @if (meta) {
+  <div class="transaction-pagination">
+    <p class="text-sm m-0">{{ meta.perPage }} операций на страницу.</p>
+    <div class="transaction-pagination__controls">
+      <button
+        type="button"
+        class="btn btn-outline btn-sm"
+        [disabled]="loading || meta.currentPage <= 1"
+        (click)="goToPreviousPage()">
+        Назад
+      </button>
+      <span class="transaction-pagination__status">{{ meta.currentPage }} / {{ meta.totalPages }}</span>
+
+      <button
+        type="button"
+        class="btn btn-outline btn-sm"
+        [disabled]="loading || meta.currentPage >= meta.totalPages"
+        (click)="goToNextPage()">
+        Вперёд
+      </button>
+    </div>
+  </div>
+  }
 </div>

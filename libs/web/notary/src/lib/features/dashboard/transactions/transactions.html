@@ -1,1 +1,9 @@
-<lib-transaction-table></lib-transaction-table>
+<lib-transaction-table
+  [transactions]="transactions()"
+  [filters]="filters()"
+  [meta]="meta()"
+  [loading]="loading()"
+  [error]="error()"
+  (filtersApply)="onFiltersApply($event)"
+  (pageChange)="onPageChange($event)">
+</lib-transaction-table>

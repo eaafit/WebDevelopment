@@ -4,7 +4,7 @@
   "sourceRoot": "libs/web/guest/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": ["scope:guest"],
+  "tags": ["scope:frontend"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",

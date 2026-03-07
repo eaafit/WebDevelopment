@@ -22,6 +22,10 @@
 - `Status` (enum: New, Verified, InProgress, Completed, Cancelled) — статус заявки
 - `CreatedAt` (timestamp) — дата создания
 - `UpdatedAt` (timestamp) — дата последнего обновления
+- `Address` (varchar) — адрес объекта недвижимости
+- `Latitude` (numeric, nullable) — широта (для отображения на карте)
+- `Longitude` (numeric, nullable) — долгота (для отображения на карте)
+- `Description` (text) — описание объекта наследства
 - `EstimatedValue` (numeric) — оценочная стоимость, если уже рассчитана
 
 ## 3. Объект недвижимости (RealEstateObject)
@@ -89,6 +93,28 @@
 - `SignatureData` (bytea) — цифровая подпись
 - `Version` (integer) — версия отчёта
 
+# <<<<<<< HEAD
+
+## 7. Результат оценки недвижимости (RealEstateAppraisalResult)
+
+- `Id` (UUID, PK) — уникальный идентификатор результата оценки
+- `AssessmentId` (UUID, FK) — заявка на оценку
+- `MarketValue` (numeric) — итоговая рыночная стоимость, руб.
+- `ValueMin` (numeric, nullable) — нижняя граница диапазона (если есть)
+- `ValueMax` (numeric, nullable) — верхняя граница диапазона (если есть)
+- `ConfidenceLevel` (varchar, nullable) — уровень уверенности (например, «высокий», «средний») или процент
+- `ValuationMethod` (varchar) — применённый метод/подход (сравнительный, затратный и т.д.)
+- `ValuationDate` (date) — дата определения стоимости
+- `CalculationDetails` (text или jsonb) — детализация расчёта (текст или структурированные данные)
+- `Comparables` (jsonb, nullable) — данные по объектам-аналогам (адрес, цена, поправки)
+- `RestrictionsAndAssumptions` (text, nullable) — ограничения и допущения
+- `Comment` (text, nullable) — комментарий нотариуса/оценщика
+- `CreatedAt` (timestamp) — дата создания записи
+- `CreatedBy` (UUID, FK) — нотариус/пользователь, выполнивший оценку
+- `AssessmentReportId` (UUID, FK, nullable) — ссылка на сгенерированный отчёт (AssessmentReport), если уже сформирован
+
+> > > > > > > main
+
 ## 8. Уведомление (Notification)
 
 - `Id` (UUID, PK) — идентификатор уведомления
@@ -132,5 +158,7 @@
 - Статусы и планы вынесены в enum для контроля допустимых значений.
 - Метки времени (`CreatedAt`, `UpdatedAt`) используются для аудита и версионирования.
 - Поле `SignatureData` в отчётах хранит бинарные данные ЭЦП.
+- Связь по данным оценки: **Assessment** (заявка) → **RealEstateAppraisalResult** (результат расчёта: стоимость, метод, аналоги) → **AssessmentReport** (сгенерированный PDF, подпись). У одной заявки может быть один или несколько результатов оценки; по результату формируется отчёт. Связь результата с отчётом задаётся полем `AssessmentReportId` в `RealEstateAppraisalResult`.
+- Поля `Latitude` и `Longitude` в Assessment используются для отображения объекта на карте в разделе «География объектов» админ-панели; при отсутствии значений координаты могут получаться путём геокодирования по полю `Address`.
 - `AuditLogs` обеспечивают прозрачность и контроль безопасности.
 - `RealEstateObject` хранит характеристики объекта недвижимости, а связанные сканы, фото и дополнительные файлы описываются через `Document` с разделением по категориям.

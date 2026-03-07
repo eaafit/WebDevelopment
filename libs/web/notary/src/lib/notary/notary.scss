@@ -18,6 +18,8 @@
   --pending-text: #92400e;
   --failed-bg: #fee2e2;
   --failed-text: #b91c1c;
+  --refunded-bg: #e0e7ff;
+  --refunded-text: #3730a3;
   --info-bg: #eff6ff;
   --info-text: #1e40af;
 
@@ -232,6 +234,14 @@
     color: var(--primary);
   }
 
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+
+  .text-danger {
+    color: var(--failed-text);
+  }
+
   .link {
     cursor: pointer;
     font-weight: 500;
@@ -437,6 +447,7 @@
 
     font-size: 0.75rem;
     font-weight: 600;
+    white-space: nowrap;
 
     &-success {
       color: var(--success-text);
@@ -451,6 +462,11 @@
     &-failed {
       color: var(--failed-text);
       background-color: var(--failed-bg);
+    }
+
+    &-refunded {
+      color: var(--refunded-text);
+      background-color: var(--refunded-bg);
     }
   }
 

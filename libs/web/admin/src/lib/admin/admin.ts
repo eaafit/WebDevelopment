@@ -14,6 +14,7 @@ const ADMIN_MENU = [
   { label: 'Мониторинг и логи', route: 'monitoring', icon: '🖥' },
   { label: 'Уведомления', route: 'notifications', icon: '🔔' },
   { label: 'Статистика', route: 'statistics', icon: '📊' },
+  { label: 'География объектов', route: 'geography', icon: '🗺' },
   { label: 'Настройки', route: 'settings', icon: '⚙' },
 ];
 
