@@ -4,13 +4,12 @@ import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
 import {
   DocumentSchema,
-  DocumentType as RpcDocumentType,
   GetDocumentResponseSchema,
-  ListDocumentsResponseSchema,
+  ListDocumentsByAssessmentResponseSchema,
   PaginationMetaSchema,
   type Document as RpcDocument,
   type GetDocumentResponse,
-  type ListDocumentsResponse,
+  type ListDocumentsByAssessmentResponse,
 } from '@notary-portal/api-contracts';
 import { DocumentType as PrismaDocumentType, type Prisma } from '@internal/prisma-client';
 import type { DocumentQuery } from './document.query';
@@ -19,7 +18,7 @@ import type { DocumentQuery } from './document.query';
 export class DocumentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listDocuments(query: DocumentQuery): Promise<ListDocumentsResponse> {
+  async listDocumentsByAssessment(query: DocumentQuery): Promise<ListDocumentsByAssessmentResponse> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const where = this.buildWhere(query);
@@ -30,7 +29,7 @@ export class DocumentRepository {
       this.prisma.document.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit }),
     ]);
 
-    return create(ListDocumentsResponseSchema, {
+    return create(ListDocumentsByAssessmentResponseSchema, {
       documents: documents.map((d) => this.toMessage(d)),
       meta: create(PaginationMetaSchema, {
         totalItems,
@@ -75,16 +74,11 @@ export class DocumentRepository {
     return this.toMessage(document);
   }
 
-  async deleteDocument(id: string): Promise<boolean> {
-    await this.prisma.document.delete({ where: { id } });
-    return true;
-  }
-
   private buildWhere(query: DocumentQuery): Prisma.DocumentWhereInput {
     const where: Prisma.DocumentWhereInput = {};
     if (query.assessmentId) where.assessmentId = query.assessmentId;
     if (query.uploadedById) where.uploadedById = query.uploadedById;
-    if (query.documentType) where.documentType = this.toPrismaType(query.documentType);
+    if (query.documentType) where.documentType = query.documentType;
     return where;
   }
 
@@ -98,7 +92,6 @@ export class DocumentRepository {
     assessmentId: string;
     fileName: string;
     fileType: string;
-    documentType: PrismaDocumentType;
     filePath: string;
     version: number;
     uploadedAt: Date;
@@ -109,35 +102,10 @@ export class DocumentRepository {
       assessmentId: d.assessmentId,
       fileName: d.fileName,
       fileType: d.fileType,
-      documentType: this.fromPrismaType(d.documentType),
       filePath: d.filePath,
       version: d.version,
       uploadedAt: timestampFromDate(d.uploadedAt),
       uploadedById: d.uploadedById,
     });
-  }
-
-  private toPrismaType(t: RpcDocumentType): PrismaDocumentType {
-    const map: Partial<Record<RpcDocumentType, PrismaDocumentType>> = {
-      [RpcDocumentType.DOCUMENT_TYPE_PASSPORT]: PrismaDocumentType.Passport,
-      [RpcDocumentType.DOCUMENT_TYPE_PROPERTY_DEED]: PrismaDocumentType.PropertyDeed,
-      [RpcDocumentType.DOCUMENT_TYPE_TECHNICAL_PLAN]: PrismaDocumentType.TechnicalPlan,
-      [RpcDocumentType.DOCUMENT_TYPE_CADASTRAL_PASSPORT]: PrismaDocumentType.CadastralPassport,
-      [RpcDocumentType.DOCUMENT_TYPE_PHOTO]: PrismaDocumentType.Photo,
-      [RpcDocumentType.DOCUMENT_TYPE_OTHER]: PrismaDocumentType.Other,
-    };
-    return map[t] ?? PrismaDocumentType.Other;
-  }
-
-  private fromPrismaType(t: PrismaDocumentType): RpcDocumentType {
-    const map: Record<PrismaDocumentType, RpcDocumentType> = {
-      [PrismaDocumentType.Passport]: RpcDocumentType.DOCUMENT_TYPE_PASSPORT,
-      [PrismaDocumentType.PropertyDeed]: RpcDocumentType.DOCUMENT_TYPE_PROPERTY_DEED,
-      [PrismaDocumentType.TechnicalPlan]: RpcDocumentType.DOCUMENT_TYPE_TECHNICAL_PLAN,
-      [PrismaDocumentType.CadastralPassport]: RpcDocumentType.DOCUMENT_TYPE_CADASTRAL_PASSPORT,
-      [PrismaDocumentType.Photo]: RpcDocumentType.DOCUMENT_TYPE_PHOTO,
-      [PrismaDocumentType.Other]: RpcDocumentType.DOCUMENT_TYPE_OTHER,
-    };
-    return map[t];
   }
 }

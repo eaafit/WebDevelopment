@@ -15,6 +15,17 @@ import {
 import { AssessmentStatus as PrismaAssessmentStatus, type Prisma } from '@internal/prisma-client';
 import type { AssessmentQuery } from './assessment.query';
 
+type PrismaAssessmentRow = {
+  id: string;
+  userId: string;
+  status: PrismaAssessmentStatus;
+  address: string;
+  description?: string | null;
+  estimatedValue?: { toString(): string } | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class AssessmentRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -83,10 +94,13 @@ export class AssessmentRepository {
     return this.toMessage(assessment);
   }
 
-  async verifyAssessment(id: string, notaryId: string): Promise<RpcAssessment> {
+  async verifyAssessment(id: string, notaryId?: string | null): Promise<RpcAssessment> {
     const assessment = await this.prisma.assessment.update({
       where: { id },
-      data: { status: PrismaAssessmentStatus.Verified, notaryId },
+      data: {
+        status: PrismaAssessmentStatus.Verified,
+        ...(notaryId != null && notaryId !== '' && { notaryId }),
+      },
     });
     return this.toMessage(assessment);
   }
@@ -133,27 +147,14 @@ export class AssessmentRepository {
     }
   }
 
-  private toMessage(a: {
-    id: string;
-    userId: string;
-    notaryId?: string | null;
-    status: PrismaAssessmentStatus;
-    address: string;
-    description?: string | null;
-    estimatedValue?: import('@prisma/client/runtime/library').Decimal | null;
-    cancelReason?: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  }): RpcAssessment {
+  private toMessage(a: PrismaAssessmentRow): RpcAssessment {
     return create(AssessmentSchema, {
       id: a.id,
       userId: a.userId,
-      notaryId: a.notaryId ?? '',
       status: this.fromPrismaStatus(a.status),
       address: a.address,
       description: a.description ?? '',
       estimatedValue: a.estimatedValue?.toString() ?? '',
-      cancelReason: a.cancelReason ?? '',
       createdAt: timestampFromDate(a.createdAt),
       updatedAt: timestampFromDate(a.updatedAt),
     });
@@ -161,11 +162,11 @@ export class AssessmentRepository {
 
   private toPrismaStatus(status: RpcAssessmentStatus): PrismaAssessmentStatus {
     const map: Record<number, PrismaAssessmentStatus> = {
-      [RpcAssessmentStatus.ASSESSMENT_STATUS_NEW]: PrismaAssessmentStatus.New,
-      [RpcAssessmentStatus.ASSESSMENT_STATUS_VERIFIED]: PrismaAssessmentStatus.Verified,
-      [RpcAssessmentStatus.ASSESSMENT_STATUS_IN_PROGRESS]: PrismaAssessmentStatus.InProgress,
-      [RpcAssessmentStatus.ASSESSMENT_STATUS_COMPLETED]: PrismaAssessmentStatus.Completed,
-      [RpcAssessmentStatus.ASSESSMENT_STATUS_CANCELLED]: PrismaAssessmentStatus.Cancelled,
+      [RpcAssessmentStatus.NEW]: PrismaAssessmentStatus.New,
+      [RpcAssessmentStatus.VERIFIED]: PrismaAssessmentStatus.Verified,
+      [RpcAssessmentStatus.IN_PROGRESS]: PrismaAssessmentStatus.InProgress,
+      [RpcAssessmentStatus.COMPLETED]: PrismaAssessmentStatus.Completed,
+      [RpcAssessmentStatus.CANCELLED]: PrismaAssessmentStatus.Cancelled,
     };
     const result = map[status];
     if (!result) throw new Error(`Unsupported assessment status: ${status}`);
@@ -173,13 +174,13 @@ export class AssessmentRepository {
   }
 
   private fromPrismaStatus(status: PrismaAssessmentStatus): RpcAssessmentStatus {
-    const map: Record<PrismaAssessmentStatus, RpcAssessmentStatus> = {
-      [PrismaAssessmentStatus.New]: RpcAssessmentStatus.ASSESSMENT_STATUS_NEW,
-      [PrismaAssessmentStatus.Verified]: RpcAssessmentStatus.ASSESSMENT_STATUS_VERIFIED,
-      [PrismaAssessmentStatus.InProgress]: RpcAssessmentStatus.ASSESSMENT_STATUS_IN_PROGRESS,
-      [PrismaAssessmentStatus.Completed]: RpcAssessmentStatus.ASSESSMENT_STATUS_COMPLETED,
-      [PrismaAssessmentStatus.Cancelled]: RpcAssessmentStatus.ASSESSMENT_STATUS_CANCELLED,
+    const map: Record<string, RpcAssessmentStatus> = {
+      [PrismaAssessmentStatus.New]: RpcAssessmentStatus.NEW,
+      [PrismaAssessmentStatus.Verified]: RpcAssessmentStatus.VERIFIED,
+      [PrismaAssessmentStatus.InProgress]: RpcAssessmentStatus.IN_PROGRESS,
+      [PrismaAssessmentStatus.Completed]: RpcAssessmentStatus.COMPLETED,
+      [PrismaAssessmentStatus.Cancelled]: RpcAssessmentStatus.CANCELLED,
     };
-    return map[status];
+    return map[status] ?? RpcAssessmentStatus.UNSPECIFIED;
   }
 }

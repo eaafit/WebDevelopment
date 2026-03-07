@@ -1,11 +1,11 @@
-import type { DocumentType as RpcDocumentType } from '@notary-portal/api-contracts';
+import type { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
 
 export interface DocumentQuery {
   page: number;
   limit: number;
   assessmentId?: string;
   uploadedById?: string;
-  documentType?: RpcDocumentType;
+  documentType?: PrismaDocumentType;
   sortField?: 'uploadedAt' | 'version';
   sortDesc?: boolean;
 }

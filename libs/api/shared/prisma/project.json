@@ -45,9 +45,8 @@
     },
     "seed": {
       "executor": "nx:run-commands",
-      "dependsOn": ["generate"],
       "options": {
-        "command": "prisma db seed",
+        "command": "prisma generate && prisma db seed",
         "cwd": "libs/api/shared/prisma"
       }
     }

@@ -13,6 +13,8 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum Role {
   Applicant @map("applicant")
   Notary    @map("notary")
@@ -81,6 +83,28 @@ enum SaleType {
   @@map("sale_type")
 }
 
+// [FIX] Добавлен enum для статуса отчёта (использует ReportService)
+enum ReportStatus {
+  Draft  @map("draft")
+  Signed @map("signed")
+
+  @@map("report_status")
+}
+
+// [FIX] Добавлен enum для типа документа (был в proto, отсутствовал в схеме)
+enum DocumentType {
+  Passport          @map("passport")
+  PropertyDeed      @map("property_deed")
+  TechnicalPlan     @map("technical_plan")
+  CadastralPassport @map("cadastral_passport")
+  Photo             @map("photo")
+  Other             @map("other")
+
+  @@map("document_type")
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique @db.VarChar
@@ -92,12 +116,15 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp()
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp()
 
-  assessments       Assessment[]
+  // [FIX] Именованные relations для двух FK из Assessment
+  assessments       Assessment[]       @relation("ApplicantAssessments")
+  notaryAssessments Assessment[]       @relation("NotaryAssessments")
   subscriptions     Subscription[]
   payments          Payment[]
   uploadedDocuments Document[]         @relation("UploadedBy")
   signedReports     AssessmentReport[] @relation("SignedBy")
   notifications     Notification[]
+  refreshTokens     RefreshToken[]
   auditLogs         AuditLog[]
 
   @@map("users")
@@ -106,14 +133,17 @@ model User {
 model Assessment {
   id             String           @id @default(uuid()) @db.Uuid
   userId         String           @map("user_id") @db.Uuid
+  notaryId       String?          @map("notary_id") @db.Uuid          // [FIX] назначенный нотариус
   status         AssessmentStatus @default(New)
+  cancelReason   String?          @map("cancel_reason") @db.Text      // [FIX] причина отмены
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamp()
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamp()
   address        String           @db.VarChar
   description    String?          @db.Text
   estimatedValue Decimal?         @map("estimated_value") @db.Decimal(15, 2)
 
-  user      User               @relation(fields: [userId], references: [id])
+  user      User               @relation("ApplicantAssessments", fields: [userId], references: [id])
+  notary    User?              @relation("NotaryAssessments", fields: [notaryId], references: [id])
   documents Document[]
   reports   AssessmentReport[]
   payments  Payment[]
@@ -122,14 +152,15 @@ model Assessment {
 }
 
 model Document {
-  id           String   @id @default(uuid()) @db.Uuid
-  assessmentId String   @map("assessment_id") @db.Uuid
-  fileName     String   @map("file_name") @db.VarChar
-  fileType     String   @map("file_type") @db.VarChar
-  filePath     String   @map("file_path") @db.VarChar
-  version      Int      @default(1)
-  uploadedAt   DateTime @default(now()) @map("uploaded_at") @db.Timestamp()
-  uploadedById String   @map("uploaded_by") @db.Uuid
+  id           String       @id @default(uuid()) @db.Uuid
+  assessmentId String       @map("assessment_id") @db.Uuid
+  fileName     String       @map("file_name") @db.VarChar
+  fileType     String       @map("file_type") @db.VarChar
+  documentType DocumentType @default(Other) @map("document_type") // [FIX] добавлен enum-тип
+  filePath     String       @map("file_path") @db.VarChar
+  version      Int          @default(1)
+  uploadedAt   DateTime     @default(now()) @map("uploaded_at") @db.Timestamp()
+  uploadedById String       @map("uploaded_by") @db.Uuid
 
   assessment Assessment @relation(fields: [assessmentId], references: [id])
   uploadedBy User       @relation("UploadedBy", fields: [uploadedById], references: [id])
@@ -141,12 +172,15 @@ model Subscription {
   id        String           @id @default(uuid()) @db.Uuid
   userId    String           @map("user_id") @db.Uuid
   plan      SubscriptionPlan
+  basePrice Decimal?         @map("base_price") @db.Decimal(15, 2)  // [FIX] цена тарифа на момент покупки
+  currency  String           @default("RUB") @map("currency") @db.VarChar(3)
   startDate DateTime         @map("start_date") @db.Date
   endDate   DateTime         @map("end_date") @db.Date
   isActive  Boolean          @default(true) @map("is_active")
 
   user     User      @relation(fields: [userId], references: [id])
   payments Payment[]
+  sales    Sale[]
 
   @@map("subscriptions")
 }
@@ -157,7 +191,9 @@ model Payment {
   type               PaymentType
   subscriptionId     String?       @map("subscription_id") @db.Uuid
   assessmentId       String?       @map("assessment_id") @db.Uuid
+  promoId            String?       @map("promo_id") @db.Uuid          // [FIX] применённый промокод
   amount             Decimal       @db.Decimal(15, 2)
+  discountAmount     Decimal?      @map("discount_amount") @db.Decimal(15, 2) // [FIX] сумма скидки
   paymentDate        DateTime      @default(now()) @map("payment_date") @db.Timestamp()
   status             PaymentStatus @default(Pending)
   paymentMethod      String?       @map("payment_method") @db.VarChar
@@ -168,18 +204,20 @@ model Payment {
   user         User          @relation(fields: [userId], references: [id])
   subscription Subscription? @relation(fields: [subscriptionId], references: [id])
   assessment   Assessment?   @relation(fields: [assessmentId], references: [id])
+  promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("payments")
 }
 
 model AssessmentReport {
-  id            String   @id @default(uuid()) @db.Uuid
-  assessmentId  String   @map("assessment_id") @db.Uuid
-  reportPath    String   @map("report_path") @db.VarChar
-  generatedAt   DateTime @default(now()) @map("generated_at") @db.Timestamp()
-  signedById    String   @map("signed_by") @db.Uuid
-  signatureData Bytes?   @map("signature_data")
-  version       Int      @default(1)
+  id            String       @id @default(uuid()) @db.Uuid
+  assessmentId  String       @map("assessment_id") @db.Uuid
+  reportPath    String       @map("report_path") @db.VarChar
+  generatedAt   DateTime     @default(now()) @map("generated_at") @db.Timestamp()
+  signedById    String       @map("signed_by") @db.Uuid
+  signatureData Bytes?       @map("signature_data")
+  version       Int          @default(1)
+  status        ReportStatus @default(Draft) @map("status")           // [FIX] статус отчёта
 
   assessment Assessment @relation(fields: [assessmentId], references: [id])
   signedBy   User       @relation("SignedBy", fields: [signedById], references: [id])
@@ -193,11 +231,25 @@ model Notification {
   type    NotificationType
   message String             @db.Text
   sentAt  DateTime           @default(now()) @map("sent_at") @db.Timestamp()
+  readAt  DateTime?          @map("read_at") @db.Timestamp()          // [FIX] время прочтения
   status  NotificationStatus @default(Pending)
 
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar
+  expiresAt DateTime @map("expires_at") @db.Timestamp()
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp()
+  revokedAt DateTime? @map("revoked_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
 }
 
 model AuditLog {
@@ -215,20 +267,32 @@ model AuditLog {
 }
 
 model Promo {
-  id          String  @id @default(uuid()) @db.Uuid
-  code        String  @unique @db.VarChar
-  description String? @db.Text
+  id              String    @id @default(uuid()) @db.Uuid
+  code            String    @unique @db.VarChar
+  description     String?   @db.Text
+  discountPercent Decimal   @map("discount_percent") @db.Decimal(5, 2) // [FIX] размер скидки
+  usageLimit      Int?      @map("usage_limit")                         // [FIX] лимит использований
+  usedCount       Int       @default(0) @map("used_count")              // [FIX] счётчик применений
+  expiresAt       DateTime? @map("expires_at") @db.Timestamp()          // [FIX] срок действия
+
+  payments Payment[]
+  sales    Sale[]
 
   @@map("promos")
 }
 
 model Sale {
-  id        String   @id @default(uuid()) @db.Uuid
-  sourceId  String?  @map("source_id") @db.Uuid
-  startDate DateTime @map("start_date") @db.Date
-  endDate   DateTime @map("end_date") @db.Date
-  percent   Decimal  @db.Decimal(5, 2)
-  type      SaleType
+  id             String    @id @default(uuid()) @db.Uuid
+  type           SaleType
+  startDate      DateTime  @map("start_date") @db.Date
+  endDate        DateTime  @map("end_date") @db.Date
+  percent        Decimal   @db.Decimal(5, 2)
+  isActive       Boolean   @default(true) @map("is_active")             // [FIX] флаг активности
+  subscriptionId String?   @map("subscription_id") @db.Uuid             // [FIX] типизированный FK вместо sourceId
+  promoId        String?   @map("promo_id") @db.Uuid                    // [FIX] типизированный FK вместо sourceId
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("sales")
 }

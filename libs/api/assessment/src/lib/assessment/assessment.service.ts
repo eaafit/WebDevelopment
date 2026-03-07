@@ -1,7 +1,12 @@
+import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import {
   AssessmentStatus,
+  CancelAssessmentResponseSchema,
+  CompleteAssessmentResponseSchema,
+  CreateAssessmentResponseSchema,
+  GetAssessmentResponseSchema,
   type CancelAssessmentRequest,
   type CancelAssessmentResponse,
   type CompleteAssessmentRequest,
@@ -16,6 +21,8 @@ import {
   type UpdateAssessmentResponse,
   type VerifyAssessmentRequest,
   type VerifyAssessmentResponse,
+  VerifyAssessmentResponseSchema,
+  UpdateAssessmentResponseSchema,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { AssessmentRepository } from './assessment.repository';
@@ -51,7 +58,7 @@ export class AssessmentService {
       description: request.description?.trim() || undefined,
     });
 
-    return { assessment };
+    return create(CreateAssessmentResponseSchema, { assessment });
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
@@ -62,19 +69,15 @@ export class AssessmentService {
       description: request.description?.trim(),
     });
 
-    return { assessment };
+    return create(UpdateAssessmentResponseSchema, { assessment });
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
     validateUuid(request.id, 'id');
-    validateUuid(request.notaryId, 'notary_id');
 
-    const assessment = await this.assessmentRepository.verifyAssessment(
-      request.id,
-      request.notaryId,
-    );
+    const assessment = await this.assessmentRepository.verifyAssessment(request.id);
 
-    return { assessment };
+    return create(VerifyAssessmentResponseSchema, { assessment });
   }
 
   async completeAssessment(
@@ -94,7 +97,7 @@ export class AssessmentService {
       request.finalEstimatedValue,
     );
 
-    return { assessment };
+    return create(CompleteAssessmentResponseSchema, { assessment });
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
@@ -105,41 +108,20 @@ export class AssessmentService {
       request.reason?.trim() || undefined,
     );
 
-    return { assessment };
+    return create(CancelAssessmentResponseSchema, { assessment });
   }
 
   private normalizeListRequest(request: ListAssessmentsRequest): AssessmentQuery {
     const pagination = request.pagination;
-    const filters = request.filters;
-    const sort = request.sort;
-
-    const dateFrom = filters?.createdAtRange?.startDate
-      ? timestampDate(filters.createdAtRange.startDate)
-      : undefined;
-    const dateTo = filters?.createdAtRange?.endDate
-      ? timestampDate(filters.createdAtRange.endDate)
-      : undefined;
-
-    if (dateFrom && dateTo && dateFrom > dateTo) {
-      throw new ConnectError(
-        'filters.created_at_range: start_date must be earlier than end_date',
-        Code.InvalidArgument,
-      );
-    }
 
     return {
       page: normalizePositiveInt(pagination?.page, DEFAULT_PAGE),
       limit: normalizePositiveInt(pagination?.limit, DEFAULT_LIMIT),
-      userId: filters?.userId || undefined,
-      notaryId: filters?.notaryId || undefined,
+      userId: request.userId || undefined,
       status:
-        filters?.status === AssessmentStatus.ASSESSMENT_STATUS_UNSPECIFIED
+        request.statusFilter === AssessmentStatus.UNSPECIFIED
           ? undefined
-          : filters?.status,
-      createdAtFrom: dateFrom,
-      createdAtTo: dateTo,
-      sortField: normalizeSortField(sort?.field),
-      sortDesc: sort?.descending ?? false,
+          : request.statusFilter,
     };
   }
 }
@@ -165,19 +147,4 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
     );
   }
   return value;
-}
-
-function normalizeSortField(
-  field?: number,
-): 'createdAt' | 'estimatedValue' | 'updatedAt' | undefined {
-  switch (field) {
-    case 1:
-      return 'createdAt';
-    case 2:
-      return 'estimatedValue';
-    case 3:
-      return 'updatedAt';
-    default:
-      return undefined;
-  }
 }

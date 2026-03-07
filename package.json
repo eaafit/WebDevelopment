@@ -4,7 +4,8 @@
   "license": "MIT",
   "scripts": {
     "lint-staged": "lint-staged",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:seed": "cd libs/api/shared/prisma && prisma db seed"
   },
   "private": true,
   "devDependencies": {
@@ -33,6 +34,7 @@
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.11",
     "@swc/helpers": "~0.5.18",
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/leaflet": "^1.9.21",
     "@types/node": "20.19.9",
@@ -78,6 +80,7 @@
     "@nestjs/common": "^11.1.14",
     "@nestjs/core": "^11.1.14",
     "@nestjs/platform-express": "^11.1.14",
+    "bcryptjs": "^2.4.3",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.1",
     "leaflet": "^1.9.4",
