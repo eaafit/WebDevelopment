@@ -94,6 +94,14 @@ export const adminRoutes: Route[] = [
         ]),
       } as Route,
       {
+        path: 'geography',
+        ...placeholder('География объектов оценки', [
+          'Карта объектов (Leaflet)',
+          'Фильтры',
+          'Переход к заявке',
+        ]),
+      } as Route,
+      {
         path: 'settings',
         ...placeholder('Настройки', [
           'Конфигурация системы',
