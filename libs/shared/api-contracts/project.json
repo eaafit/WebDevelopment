@@ -33,7 +33,7 @@
     "generate-proto": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm exec buf generate",
+        "command": "node ../../../scripts/buf-generate.cjs",
         "cwd": "libs/shared/api-contracts"
       },
       "outputs": ["{projectRoot}/src/generated"]

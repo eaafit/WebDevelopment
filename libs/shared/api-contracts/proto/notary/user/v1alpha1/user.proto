@@ -6,10 +6,10 @@ import "google/protobuf/timestamp.proto";
 import "notary/common/v1alpha1/common.proto";
 
 service UserService {
-  rpc GetProfile (GetProfileRequest) returns (GetProfileResponse);
-  rpc UpdateProfile (UpdateProfileRequest) returns (UpdateProfileResponse);
-  rpc GetUserById (GetUserByIdRequest) returns (GetUserByIdResponse); // admin-only
-  rpc ListUsers (ListUsersRequest) returns (ListUsersResponse); // admin-only
+  rpc GetProfile(GetProfileRequest) returns (GetProfileResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
+  rpc GetUserById(GetUserByIdRequest) returns (GetUserByIdResponse); // admin-only
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse); // admin-only
 }
 
 enum UserRole {

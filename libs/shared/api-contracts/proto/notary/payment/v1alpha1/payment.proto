@@ -2,16 +2,16 @@ syntax = "proto3";
 
 package notary.payment.v1alpha1;
 
-import "google/protobuf/timestamp.proto";
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 import "notary/common/v1alpha1/common.proto";
 
 service PaymentService {
-  rpc CreatePayment (CreatePaymentRequest) returns (CreatePaymentResponse);
-  rpc ProcessWebhook (ProcessWebhookRequest) returns (ProcessWebhookResponse);
-  rpc GetPaymentHistory (GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
-  rpc GetSubscription (GetSubscriptionRequest) returns (GetSubscriptionResponse);
-  rpc CreateSubscription (CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
+  rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
+  rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
 }
 
 enum SubscriptionPlan {
@@ -65,13 +65,13 @@ message CreatePaymentRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
 
   string amount = 2 [(buf.validate.field).string = {
-    pattern: "^[0-9]+(\\.[0-9]{1,2})?$",
+    pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
     min_len: 1
   }];
 
   PaymentType type = 3 [(buf.validate.field).enum = {
-      defined_only: true,
-      not_in: [0]
+    defined_only: true
+    not_in: [0]
   }];
 
   string target_id = 4 [(buf.validate.field).string.uuid = true];
@@ -121,7 +121,7 @@ message GetSubscriptionResponse {
 message CreateSubscriptionRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
   SubscriptionPlan plan = 2 [(buf.validate.field).enum = {
-    defined_only: true,
+    defined_only: true
     not_in: [0]
   }];
   google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
