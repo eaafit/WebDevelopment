@@ -1,9 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { TransactionHistoryQuery } from '@notary-portal/api-contracts';
-import { of } from 'rxjs';
+import type { TransactionHistoryPage } from '@notary-portal/ui';
+import { of, Subject } from 'rxjs';
 import { Transactions } from './transactions';
-import { TransactionsApiService } from './transactions-api.service';
+import { TransactionsApiService, type TransactionsHistoryQuery } from './transactions-api.service';
 
 describe('Transactions', () => {
   let component: Transactions;
@@ -11,16 +11,16 @@ describe('Transactions', () => {
   let getTransactionHistory: jest.Mock;
 
   beforeEach(async () => {
-    getTransactionHistory = jest.fn().mockImplementation((query: TransactionHistoryQuery) =>
-      of({
+    getTransactionHistory = jest.fn().mockImplementation((query: TransactionsHistoryQuery) =>
+      of<TransactionHistoryPage>({
         transactions: [
           {
-            id: `payment-page-${query.page ?? 1}`,
+            id: `payment-page-${query.page}`,
             userId: 'user-1',
             type: 'subscription',
             status: 'completed',
             paymentDate: '2026-03-06T08:45:00.000Z',
-            transactionId: `TXN-${query.page ?? 1}`,
+            transactionId: `TXN-${query.page}`,
             amount: '4990.00',
             currency: 'RUB',
             description: 'Подписка Premium (30 дней)',
@@ -34,8 +34,8 @@ describe('Transactions', () => {
         meta: {
           totalItems: 12,
           totalPages: 2,
-          currentPage: query.page ?? 1,
-          perPage: query.limit ?? 10,
+          currentPage: query.page,
+          perPage: query.limit,
         },
       }),
     );
@@ -67,7 +67,7 @@ describe('Transactions', () => {
       page: 1,
       limit: 10,
       searchQuery: undefined,
-      statuses: undefined,
+      status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -83,7 +83,7 @@ describe('Transactions', () => {
       page: 2,
       limit: 10,
       searchQuery: undefined,
-      statuses: undefined,
+      status: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -113,7 +113,47 @@ describe('Transactions', () => {
       page: 1,
       limit: 10,
       searchQuery: 'sbp',
-      statuses: ['pending'],
+      status: 'pending',
+      dateFrom: '2026-03-01',
+      dateTo: '2026-03-06',
+    });
+  });
+
+  it('should keep the current filters visible until the next response is ready', async () => {
+    const pendingResponse = new Subject<TransactionHistoryPage>();
+    getTransactionHistory.mockReturnValueOnce(pendingResponse);
+
+    component.onFiltersApply({
+      searchQuery: 'sbp',
+      status: 'pending',
+      dateFrom: '2026-03-01',
+      dateTo: '2026-03-06',
+    });
+    fixture.detectChanges();
+
+    expect(component.loading()).toBe(true);
+    expect(component.filters()).toEqual({
+      searchQuery: '',
+      status: 'all',
+      dateFrom: '',
+      dateTo: '',
+    });
+
+    pendingResponse.next({
+      transactions: [],
+      meta: {
+        totalItems: 0,
+        totalPages: 0,
+        currentPage: 1,
+        perPage: 10,
+      },
+    });
+    pendingResponse.complete();
+    await fixture.whenStable();
+
+    expect(component.filters()).toEqual({
+      searchQuery: 'sbp',
+      status: 'pending',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });

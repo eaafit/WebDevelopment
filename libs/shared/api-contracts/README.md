@@ -2,23 +2,26 @@
 
 ## Сервисы и контракты
 
-| Сервис | Файл | Описание |
-|--------|------|----------|
+| Сервис            | Файл             | Описание                         |
+| ----------------- | ---------------- | -------------------------------- |
 | AssessmentService | assessment.proto | Заявки на оценку (CRUD, статусы) |
-| UserService | user.proto | Пользователи, профиль |
-| PaymentService | payment.proto | Платежи, подписки |
-| DocumentService | document.proto | Документы к заявкам |
-| FormsService | forms.proto | Сохранение данных форм (фасад) |
+| UserService       | user.proto       | Пользователи, профиль            |
+| PaymentService    | payment.proto    | Платежи, подписки                |
+| DocumentService   | document.proto   | Документы к заявкам              |
+| FormsService      | forms.proto      | Сохранение данных форм (фасад)   |
 
 ## Генерация кода
 
 ```bash
-# Установить ts-proto (если ещё не установлен)
-pnpm add -D ts-proto
-
-# Сгенерировать TypeScript из proto
+# Сгенерировать protobuf-es descriptors/messages из proto
 pnpm nx run api-contracts:generate-proto
 ```
+
+Генерация использует `protoc-gen-es` и produces:
+
+- protobuf message types/schemas
+- enum descriptors
+- service descriptors, совместимые с Connect RPC client/server runtime
 
 ## Версионность пакетов
 

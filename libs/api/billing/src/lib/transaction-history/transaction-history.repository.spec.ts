@@ -1,3 +1,7 @@
+import {
+  PaymentStatus as RpcPaymentStatus,
+  PaymentType as RpcPaymentType,
+} from '@notary-portal/api-contracts';
 import { PaymentStatus, PaymentType, SubscriptionPlan } from '@internal/prisma-client';
 import { TransactionHistoryRepository } from './transaction-history.repository';
 
@@ -56,13 +60,21 @@ describe('TransactionHistoryRepository', () => {
         orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }],
       }),
     );
-    expect(response.meta).toEqual({
-      totalItems: 21,
-      totalPages: 3,
-      currentPage: 2,
-      perPage: 10,
-    });
-    expect(response.transactions).toHaveLength(1);
+    expect(response.meta).toEqual(
+      expect.objectContaining({
+        totalItems: 21,
+        totalPages: 3,
+        currentPage: 2,
+        perPage: 10,
+      }),
+    );
+    expect(response.payments).toHaveLength(1);
+    expect(response.payments[0]).toEqual(
+      expect.objectContaining({
+        status: RpcPaymentStatus.COMPLETED,
+        type: RpcPaymentType.SUBSCRIPTION,
+      }),
+    );
   });
 
   it('should translate user-facing search aliases into prisma filters', async () => {

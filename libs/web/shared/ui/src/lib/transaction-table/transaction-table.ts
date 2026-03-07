@@ -1,19 +1,13 @@
-import {
-  type PaginationMeta,
-  type TransactionHistoryItem,
-  type TransactionHistoryStatus,
-  type TransactionHistoryType,
-} from '@notary-portal/api-contracts';
-import { Component, EventEmitter, Input, Output, OnChanges } from '@angular/core';
+import { Component, EventEmitter, Input, Output, OnChanges, SimpleChanges } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-
-export interface TransactionTableFilters {
-  searchQuery: string;
-  status: TransactionHistoryStatus | 'all';
-  dateFrom: string;
-  dateTo: string;
-}
+import type {
+  TransactionItem,
+  TransactionPageMeta,
+  TransactionStatus,
+  TransactionTableFilters,
+  TransactionType,
+} from './transaction-table.models';
 
 interface PaymentMethodPresentation {
   label: string;
@@ -103,9 +97,9 @@ const PAYMENT_METHOD_PRESENTATIONS: Record<string, PaymentMethodPresentation> = 
   styleUrl: './transaction-table.scss',
 })
 export class TransactionTable implements OnChanges {
-  @Input() transactions: TransactionHistoryItem[] = [];
+  @Input() transactions: TransactionItem[] = [];
   @Input() filters: TransactionTableFilters = DEFAULT_FILTERS;
-  @Input() meta: PaginationMeta | null = null;
+  @Input() meta: TransactionPageMeta | null = null;
   @Input() loading = false;
   @Input() error: string | null = null;
 
@@ -125,8 +119,10 @@ export class TransactionTable implements OnChanges {
 
   draftFilters: TransactionTableFilters = { ...DEFAULT_FILTERS };
 
-  ngOnChanges(): void {
-    this.draftFilters = { ...this.filters };
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['filters']) {
+      this.draftFilters = { ...this.filters };
+    }
   }
 
   submitFilters(): void {
@@ -158,7 +154,7 @@ export class TransactionTable implements OnChanges {
     this.pageChange.emit(this.meta.currentPage + 1);
   }
 
-  trackByTransaction(index: number, transaction: TransactionHistoryItem): string {
+  trackByTransaction(index: number, transaction: TransactionItem): string {
     return transaction.id || `${index}`;
   }
 
@@ -224,7 +220,7 @@ export class TransactionTable implements OnChanges {
     return this.timeFormatter.format(parsedDate);
   }
 
-  getStatusLabel(status: TransactionHistoryStatus): string {
+  getStatusLabel(status: TransactionStatus): string {
     switch (status) {
       case 'completed':
         return 'Оплачено';
@@ -237,7 +233,7 @@ export class TransactionTable implements OnChanges {
     }
   }
 
-  getStatusClass(status: TransactionHistoryStatus): string {
+  getStatusClass(status: TransactionStatus): string {
     switch (status) {
       case 'completed':
         return 'badge badge-success';
@@ -250,7 +246,7 @@ export class TransactionTable implements OnChanges {
     }
   }
 
-  getTypeLabel(type: TransactionHistoryType): string {
+  getTypeLabel(type: TransactionType): string {
     switch (type) {
       case 'subscription':
         return 'Подписка';
@@ -286,7 +282,7 @@ export class TransactionTable implements OnChanges {
     };
   }
 
-  getDocumentPresentation(transaction: TransactionHistoryItem): TransactionDocumentPresentation {
+  getDocumentPresentation(transaction: TransactionItem): TransactionDocumentPresentation {
     if (transaction.status === 'refunded') {
       return {
         label: 'Документ возврата',
@@ -307,7 +303,7 @@ export class TransactionTable implements OnChanges {
     };
   }
 
-  canShowDocument(transaction: TransactionHistoryItem): boolean {
+  canShowDocument(transaction: TransactionItem): boolean {
     return Boolean(
       transaction.attachmentFileUrl &&
         (transaction.status === 'completed' || transaction.status === 'refunded'),
@@ -315,7 +311,7 @@ export class TransactionTable implements OnChanges {
   }
 
   getUnavailableDocumentPresentation(
-    transaction: TransactionHistoryItem,
+    transaction: TransactionItem,
   ): TransactionDocumentUnavailablePresentation {
     switch (transaction.status) {
       case 'pending':
@@ -341,7 +337,7 @@ export class TransactionTable implements OnChanges {
     }
   }
 
-  getVisibleRangeStart(meta: PaginationMeta): number {
+  getVisibleRangeStart(meta: TransactionPageMeta): number {
     if (meta.totalItems === 0) {
       return 0;
     }
@@ -349,7 +345,7 @@ export class TransactionTable implements OnChanges {
     return (meta.currentPage - 1) * meta.perPage + 1;
   }
 
-  getVisibleRangeEnd(meta: PaginationMeta, itemsCount: number): number {
+  getVisibleRangeEnd(meta: TransactionPageMeta, itemsCount: number): number {
     if (meta.totalItems === 0 || itemsCount === 0) {
       return 0;
     }

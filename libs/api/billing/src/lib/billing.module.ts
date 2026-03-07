@@ -3,5 +3,6 @@ import { TransactionHistoryModule } from './transaction-history/transaction-hist
 
 @Module({
   imports: [TransactionHistoryModule],
+  exports: [TransactionHistoryModule],
 })
 export class BillingModule {}

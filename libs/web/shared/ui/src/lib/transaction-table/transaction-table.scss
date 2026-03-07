@@ -218,8 +218,14 @@
   background: rgb(255 255 255 / 82%);
 }
 
+.transaction-documents-column {
+  width: 17rem;
+  min-width: 17rem;
+  max-width: 17rem;
+}
+
 .transaction-documents-cell {
-  min-width: 250px;
+  min-width: 17rem;
   text-align: left;
 }
 

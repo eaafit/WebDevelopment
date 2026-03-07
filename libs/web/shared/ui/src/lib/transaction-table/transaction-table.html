@@ -102,15 +102,11 @@
             <th>Сумма</th>
             <th>Способ</th>
             <th>Статус</th>
-            <th>Документы</th>
+            <th class="transaction-documents-column">Документы</th>
           </tr>
         </thead>
         <tbody>
-          @if (loading) {
-          <tr>
-            <td colspan="6" class="text-center p-6">Загрузка истории транзакций...</td>
-          </tr>
-          } @else if (transactions.length === 0) {
+          @if (!loading && transactions.length === 0) {
           <tr>
             <td colspan="6" class="text-center p-6">Транзакции по выбранным фильтрам не найдены.</td>
           </tr>
@@ -153,7 +149,7 @@
             <td>
               <span [class]="getStatusClass(transaction.status)"> {{ getStatusLabel(transaction.status) }} </span>
             </td>
-            <td class="transaction-documents-cell">
+            <td class="transaction-documents-cell transaction-documents-column">
               @if (canShowDocument(transaction)) { @let document = getDocumentPresentation(transaction);
               <a [href]="transaction.attachmentFileUrl" target="_blank" rel="noreferrer" class="document-link">
                 <span class="document-link__icon">{{ document.icon }}</span>

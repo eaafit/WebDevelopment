@@ -1,13 +1,23 @@
-import {
-  type TransactionHistoryItem,
-  type TransactionHistoryQuery,
-  type TransactionHistoryResponse,
-  type TransactionHistoryStatus,
-  type TransactionHistoryType,
-} from '@notary-portal/api-contracts';
+import { create } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
-import { PaymentStatus, PaymentType, SubscriptionPlan, type Prisma } from '@internal/prisma-client';
+import {
+  GetPaymentHistoryResponseSchema,
+  PaginationMetaSchema,
+  PaymentSchema,
+  PaymentStatus as RpcPaymentStatus,
+  PaymentType as RpcPaymentType,
+  type GetPaymentHistoryResponse,
+  type Payment,
+} from '@notary-portal/api-contracts';
+import {
+  PaymentStatus as PrismaPaymentStatus,
+  PaymentType as PrismaPaymentType,
+  SubscriptionPlan,
+  type Prisma,
+} from '@internal/prisma-client';
+import type { TransactionHistoryQuery } from './transaction-history.query';
 
 type TransactionRecord = Prisma.PaymentGetPayload<{
   include: {
@@ -25,7 +35,7 @@ type TransactionRecord = Prisma.PaymentGetPayload<{
 export class TransactionHistoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getTransactionHistory(query: TransactionHistoryQuery): Promise<TransactionHistoryResponse> {
+  async getTransactionHistory(query: TransactionHistoryQuery): Promise<GetPaymentHistoryResponse> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const where = this.buildWhere(query);
@@ -49,15 +59,15 @@ export class TransactionHistoryRepository {
       }),
     ]);
 
-    return {
-      transactions: transactions.map((transaction) => this.toHistoryItem(transaction)),
-      meta: {
+    return create(GetPaymentHistoryResponseSchema, {
+      payments: transactions.map((transaction) => this.toPaymentMessage(transaction)),
+      meta: create(PaginationMetaSchema, {
         totalItems,
         totalPages: Math.max(1, Math.ceil(totalItems / limit)),
         currentPage: page,
         perPage: limit,
-      },
-    };
+      }),
+    });
   }
 
   private buildWhere(query: TransactionHistoryQuery): Prisma.PaymentWhereInput {
@@ -83,11 +93,11 @@ export class TransactionHistoryRepository {
       const paymentDateFilter: Prisma.DateTimeFilter = {};
 
       if (query.dateFrom) {
-        paymentDateFilter.gte = new Date(`${query.dateFrom}T00:00:00.000Z`);
+        paymentDateFilter.gte = query.dateFrom;
       }
 
       if (query.dateTo) {
-        paymentDateFilter.lte = new Date(`${query.dateTo}T23:59:59.999Z`);
+        paymentDateFilter.lte = query.dateTo;
       }
 
       where.paymentDate = paymentDateFilter;
@@ -100,28 +110,30 @@ export class TransactionHistoryRepository {
     return where;
   }
 
-  private toHistoryItem(transaction: TransactionRecord): TransactionHistoryItem {
-    return {
+  private toPaymentMessage(transaction: TransactionRecord): Payment {
+    return create(PaymentSchema, {
       id: transaction.id,
       userId: transaction.userId,
       type: this.fromPrismaType(transaction.type),
       status: this.fromPrismaStatus(transaction.status),
-      paymentDate: transaction.paymentDate.toISOString(),
-      transactionId: transaction.transactionId,
-      amount: transaction.amount.toString(),
-      currency: 'RUB',
+      paymentDate: timestampFromDate(transaction.paymentDate),
+      transactionId: transaction.transactionId ?? '',
+      amount: {
+        amount: transaction.amount.toString(),
+        currency: 'RUB',
+      },
       description: this.buildDescription(transaction),
-      paymentMethod: transaction.paymentMethod,
-      attachmentFileName: transaction.attachmentFileName,
-      attachmentFileUrl: transaction.attachmentFileUrl,
-      subscriptionId: transaction.subscriptionId,
-      assessmentId: transaction.assessmentId,
-    };
+      paymentMethod: transaction.paymentMethod ?? '',
+      attachmentFileName: transaction.attachmentFileName ?? '',
+      attachmentFileUrl: transaction.attachmentFileUrl ?? '',
+      subscriptionId: transaction.subscriptionId ?? '',
+      assessmentId: transaction.assessmentId ?? '',
+    });
   }
 
   private buildDescription(transaction: TransactionRecord): string {
     switch (transaction.type) {
-      case PaymentType.Subscription: {
+      case PrismaPaymentType.Subscription: {
         if (!transaction.subscription) {
           return 'Оплата подписки';
         }
@@ -135,14 +147,16 @@ export class TransactionHistoryRepository {
         return durationDays ? `Подписка ${plan} (${durationDays} дней)` : `Подписка ${plan}`;
       }
 
-      case PaymentType.Assessment:
+      case PrismaPaymentType.Assessment:
         return transaction.assessment?.address
           ? `Оценка недвижимости: ${transaction.assessment.address}`
           : 'Оплата оценки имущества';
 
-      case PaymentType.DocumentCopy:
+      case PrismaPaymentType.DocumentCopy:
         return 'Оплата копии нотариального документа';
     }
+
+    throw new Error(`Unsupported payment type: ${transaction.type}`);
   }
 
   private buildSearchFilters(searchQuery: string): Prisma.PaymentWhereInput[] {
@@ -194,15 +208,15 @@ export class TransactionHistoryRepository {
     const filters: Prisma.PaymentWhereInput[] = [];
 
     if (searchQuery.includes('подпис')) {
-      filters.push({ type: PaymentType.Subscription });
+      filters.push({ type: PrismaPaymentType.Subscription });
     }
 
     if (searchQuery.includes('оцен')) {
-      filters.push({ type: PaymentType.Assessment });
+      filters.push({ type: PrismaPaymentType.Assessment });
     }
 
     if (searchQuery.includes('коп') || searchQuery.includes('документ')) {
-      filters.push({ type: PaymentType.DocumentCopy });
+      filters.push({ type: PrismaPaymentType.DocumentCopy });
     }
 
     return filters;
@@ -264,54 +278,68 @@ export class TransactionHistoryRepository {
       case SubscriptionPlan.Enterprise:
         return 'Enterprise';
     }
+
+    throw new Error(`Unsupported subscription plan: ${plan}`);
   }
 
-  private toPrismaStatus(status: TransactionHistoryStatus): PaymentStatus {
+  private toPrismaStatus(status: RpcPaymentStatus): PrismaPaymentStatus {
     switch (status) {
-      case 'pending':
-        return PaymentStatus.Pending;
-      case 'completed':
-        return PaymentStatus.Completed;
-      case 'failed':
-        return PaymentStatus.Failed;
-      case 'refunded':
-        return PaymentStatus.Refunded;
+      case RpcPaymentStatus.PENDING:
+        return PrismaPaymentStatus.Pending;
+      case RpcPaymentStatus.COMPLETED:
+        return PrismaPaymentStatus.Completed;
+      case RpcPaymentStatus.FAILED:
+        return PrismaPaymentStatus.Failed;
+      case RpcPaymentStatus.REFUNDED:
+        return PrismaPaymentStatus.Refunded;
+      case RpcPaymentStatus.UNSPECIFIED:
+        throw new Error('Unsupported payment status filter: UNSPECIFIED');
     }
+
+    throw new Error(`Unsupported payment status filter: ${status}`);
   }
 
-  private fromPrismaStatus(status: PaymentStatus): TransactionHistoryStatus {
+  private fromPrismaStatus(status: PrismaPaymentStatus): RpcPaymentStatus {
     switch (status) {
-      case PaymentStatus.Pending:
-        return 'pending';
-      case PaymentStatus.Completed:
-        return 'completed';
-      case PaymentStatus.Failed:
-        return 'failed';
-      case PaymentStatus.Refunded:
-        return 'refunded';
+      case PrismaPaymentStatus.Pending:
+        return RpcPaymentStatus.PENDING;
+      case PrismaPaymentStatus.Completed:
+        return RpcPaymentStatus.COMPLETED;
+      case PrismaPaymentStatus.Failed:
+        return RpcPaymentStatus.FAILED;
+      case PrismaPaymentStatus.Refunded:
+        return RpcPaymentStatus.REFUNDED;
     }
+
+    throw new Error(`Unsupported payment status: ${status}`);
   }
 
-  private toPrismaType(type: TransactionHistoryType): PaymentType {
+  private toPrismaType(type: RpcPaymentType): PrismaPaymentType {
     switch (type) {
-      case 'subscription':
-        return PaymentType.Subscription;
-      case 'assessment':
-        return PaymentType.Assessment;
-      case 'document_copy':
-        return PaymentType.DocumentCopy;
+      case RpcPaymentType.SUBSCRIPTION:
+        return PrismaPaymentType.Subscription;
+      case RpcPaymentType.ASSESSMENT:
+        return PrismaPaymentType.Assessment;
+      case RpcPaymentType.DOCUMENT_COPY:
+        return PrismaPaymentType.DocumentCopy;
+      case RpcPaymentType.UNSPECIFIED:
+        throw new Error('Unsupported payment type filter: UNSPECIFIED');
     }
+
+    throw new Error(`Unsupported payment type filter: ${type}`);
   }
 
-  private fromPrismaType(type: PaymentType): TransactionHistoryType {
+  private fromPrismaType(type: PrismaPaymentType): RpcPaymentType {
     switch (type) {
-      case PaymentType.Subscription:
-        return 'subscription';
-      case PaymentType.Assessment:
-        return 'assessment';
-      case PaymentType.DocumentCopy:
-        return 'document_copy';
+      case PrismaPaymentType.Subscription:
+        return RpcPaymentType.SUBSCRIPTION;
+      case PrismaPaymentType.Assessment:
+        return RpcPaymentType.ASSESSMENT;
+      case PrismaPaymentType.DocumentCopy:
+        return RpcPaymentType.DOCUMENT_COPY;
     }
+
+    throw new Error(`Unsupported payment type: ${type}`);
   }
 
   private isUuid(value: string): boolean {

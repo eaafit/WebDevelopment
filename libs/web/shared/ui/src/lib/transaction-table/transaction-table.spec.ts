@@ -1,13 +1,13 @@
-import type { TransactionHistoryItem } from '@notary-portal/api-contracts';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { TransactionTable } from './transaction-table';
+import type { TransactionItem } from './transaction-table.models';
 
 describe('TransactionTable', () => {
   let component: TransactionTable;
   let fixture: ComponentFixture<TransactionTable>;
 
-  const refundedTransaction: TransactionHistoryItem = {
+  const refundedTransaction: TransactionItem = {
     id: 'payment-1',
     userId: 'user-1',
     type: 'assessment',
@@ -24,7 +24,7 @@ describe('TransactionTable', () => {
     assessmentId: 'assessment-1',
   };
 
-  const pendingTransaction: TransactionHistoryItem = {
+  const pendingTransaction: TransactionItem = {
     ...refundedTransaction,
     id: 'payment-2',
     status: 'pending',
@@ -77,5 +77,15 @@ describe('TransactionTable', () => {
       label: 'Документ появится после оплаты',
       icon: '⏳',
     });
+  });
+
+  it('should keep rendering the current rows while the next page is loading', async () => {
+    fixture.componentRef.setInput('transactions', [refundedTransaction]);
+    fixture.componentRef.setInput('loading', true);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Возврат по оценке квартиры');
+    expect(fixture.nativeElement.textContent).not.toContain('Загрузка истории транзакций...');
   });
 });

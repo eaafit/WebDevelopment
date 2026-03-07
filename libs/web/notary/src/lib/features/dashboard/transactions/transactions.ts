@@ -1,14 +1,14 @@
-import {
-  type PaginationMeta,
-  type TransactionHistoryItem,
-  type TransactionHistoryQuery,
-  type TransactionHistoryStatus,
-} from '@notary-portal/api-contracts';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { TransactionTable, type TransactionTableFilters } from '@notary-portal/ui';
+import {
+  TransactionTable,
+  type TransactionItem,
+  type TransactionPageMeta,
+  type TransactionStatus,
+  type TransactionTableFilters,
+} from '@notary-portal/ui';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
-import { TransactionsApiService } from './transactions-api.service';
+import { TransactionsApiService, type TransactionsHistoryQuery } from './transactions-api.service';
 
 const DEFAULT_FILTERS: TransactionTableFilters = {
   searchQuery: '',
@@ -25,9 +25,9 @@ const PAGE_SIZE = 10;
   styleUrl: './transactions.scss',
 })
 export class Transactions {
-  readonly transactions = signal<TransactionHistoryItem[]>([]);
-  readonly filters = computed(() => this.queryState().filters);
-  readonly meta = signal<PaginationMeta | null>(null);
+  readonly transactions = signal<TransactionItem[]>([]);
+  readonly filters = signal<TransactionTableFilters>({ ...DEFAULT_FILTERS });
+  readonly meta = signal<TransactionPageMeta | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -47,7 +47,7 @@ export class Transactions {
         }),
         switchMap(({ page, filters }) =>
           this.api.getTransactionHistory(this.buildQuery(page, filters)).pipe(
-            map((response) => ({ ok: true as const, response })),
+            map((response) => ({ ok: true as const, response, filters })),
             catchError(() =>
               of({
                 ok: false as const,
@@ -65,11 +65,10 @@ export class Transactions {
         if (result.ok) {
           this.transactions.set(result.response.transactions);
           this.meta.set(result.response.meta);
+          this.filters.set(result.filters);
           return;
         }
 
-        this.transactions.set([]);
-        this.meta.set(null);
         this.error.set(result.error);
       });
   }
@@ -96,15 +95,15 @@ export class Transactions {
     }));
   }
 
-  private buildQuery(page: number, filters: TransactionTableFilters): TransactionHistoryQuery {
-    const statuses: TransactionHistoryStatus[] | undefined =
-      filters.status === 'all' ? undefined : [filters.status];
+  private buildQuery(page: number, filters: TransactionTableFilters): TransactionsHistoryQuery {
+    const status: TransactionStatus | undefined =
+      filters.status === 'all' ? undefined : filters.status;
 
     return {
       page,
       limit: PAGE_SIZE,
       searchQuery: filters.searchQuery.trim() || undefined,
-      statuses,
+      status,
       dateFrom: filters.dateFrom || undefined,
       dateTo: filters.dateTo || undefined,
     };
