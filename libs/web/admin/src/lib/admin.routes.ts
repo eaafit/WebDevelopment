@@ -58,8 +58,8 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'newsletter',
-        ...placeholder('Рассылка', ['Список рассылки', 'Формирование рассылки email']),
-      } as Route,
+        loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
+      },
       {
         path: 'monitoring',
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),

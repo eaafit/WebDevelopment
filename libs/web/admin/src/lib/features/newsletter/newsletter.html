@@ -1,0 +1,325 @@
+<section class="newsletter-page">
+  <header class="newsletter-page__hero">
+    <div class="newsletter-page__hero-copy">
+      <p class="newsletter-page__eyebrow">Администратор / рассылка</p>
+      <h2>Управление email-рассылкой</h2>
+      <p class="newsletter-page__lead">
+        Список подписчиков, формирование кампаний и история отправок. Текущая версия использует демонстрационные данные
+        без реальной отправки писем.
+      </p>
+    </div>
+
+    <div class="newsletter-page__hero-aside">
+      <div class="newsletter-pill">
+        <span class="newsletter-pill__label">Доступ</span>
+        <span class="newsletter-pill__value">Только Администратор</span>
+      </div>
+      <p class="newsletter-page__note">
+        Массовая отправка писем будет доступна после подключения backend-API и почтового сервиса.
+      </p>
+    </div>
+  </header>
+
+  <section class="newsletter-page__toolbar">
+    <div class="newsletter-page__toolbar-copy">
+      <p>Управляйте подписчиками и создавайте кампании в одном интерфейсе.</p>
+      <small class="newsletter-page__status">{{ statusMessage() }}</small>
+    </div>
+  </section>
+
+  <nav class="newsletter-tabs" aria-label="Разделы управления рассылкой">
+    <button
+      type="button"
+      class="newsletter-tab"
+      [class.newsletter-tab--active]="activeTab() === 'list'"
+      (click)="setTab('list')">
+      <span>Список подписчиков</span>
+    </button>
+
+    <button
+      type="button"
+      class="newsletter-tab"
+      [class.newsletter-tab--active]="activeTab() === 'new'"
+      (click)="setTab('new')">
+      <span>Новая рассылка</span>
+    </button>
+
+    <button
+      type="button"
+      class="newsletter-tab"
+      [class.newsletter-tab--active]="activeTab() === 'history'"
+      (click)="setTab('history')">
+      <span>История рассылок</span>
+    </button>
+  </nav>
+
+  @if (activeTab() === 'list') {
+  <section class="newsletter-layout" aria-label="Список подписчиков">
+    <article class="newsletter-card">
+      <div class="newsletter-card__header">
+        <div>
+          <h3>Список подписчиков</h3>
+          <p>
+            Таблица со списком email-адресов, ФИО и статусом подписки. Фильтры и поиск работают по демонстрационным
+            данным.
+          </p>
+        </div>
+      </div>
+
+      <div class="newsletter-filters">
+        <label class="newsletter-field newsletter-field--search">
+          <span>Поиск</span>
+          <input
+            type="text"
+            placeholder="Email или ФИО"
+            [value]="filters().query"
+            (input)="updateFilter('query', $any($event.target).value)" />
+        </label>
+
+        <label class="newsletter-field">
+          <span>Статус подписки</span>
+          <select [value]="filters().status" (change)="updateFilter('status', $any($event.target).value)">
+            <option value="all">Все</option>
+            <option value="active">Активна</option>
+            <option value="unsubscribed">Отписан</option>
+          </select>
+        </label>
+
+        <label class="newsletter-field">
+          <span>Роль</span>
+          <select [value]="filters().role" (change)="updateFilter('role', $any($event.target).value)">
+            <option value="all">Все роли</option>
+            <option value="Нотариус">Нотариус</option>
+            <option value="Заявитель">Заявитель</option>
+            <option value="Администратор">Администратор</option>
+          </select>
+        </label>
+
+        <div class="newsletter-filters__actions">
+          <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="selectAllCurrentPage()">
+            Выбрать всех активных на странице
+          </button>
+          <button type="button" class="newsletter-btn newsletter-btn--ghost" (click)="resetFilters()">
+            Очистить фильтры
+          </button>
+        </div>
+      </div>
+
+      <div class="newsletter-table-wrapper">
+        <table class="newsletter-table">
+          <thead>
+            <tr>
+              <th class="newsletter-table__cell newsletter-table__cell--checkbox"></th>
+              <th>Email</th>
+              <th>ФИО</th>
+              <th>Роль</th>
+              <th>Дата подписки</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (filteredSubscribers().length) { @for (s of filteredSubscribers(); track s.id) {
+            <tr>
+              <td class="newsletter-table__cell newsletter-table__cell--checkbox">
+                <input type="checkbox" [checked]="isSelected(s.id)" (change)="toggleSubscriber(s.id)" />
+              </td>
+              <td>
+                <span class="newsletter-table__email">{{ s.email }}</span>
+              </td>
+              <td>{{ s.fullName }}</td>
+              <td>{{ s.role }}</td>
+              <td>{{ s.subscribedAt }}</td>
+              <td>
+                <span
+                  class="newsletter-status-pill"
+                  [class.newsletter-status-pill--inactive]="s.status === 'unsubscribed'">
+                  {{ s.status === 'active' ? 'Активна' : 'Отписан' }}
+                </span>
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td colspan="6" class="newsletter-empty">
+                <strong>Подписчики не найдены по текущим фильтрам.</strong>
+                <p>Измените параметры поиска или сбросьте фильтры.</p>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="newsletter-card__footer">
+        <div class="newsletter-selection">
+          <div class="newsletter-selection__summary">
+            <span class="newsletter-selection__count">
+              Выбрано подписчиков: <strong>{{ selectedCount() }}</strong>
+            </span>
+            <button type="button" class="newsletter-link" [disabled]="!selectedCount()" (click)="clearSelection()">
+              Очистить выбор
+            </button>
+          </div>
+          <button
+            type="button"
+            class="newsletter-btn newsletter-btn--primary"
+            [disabled]="!selectedCount()"
+            (click)="setTab('new')">
+            Использовать выбранных в новой рассылке
+          </button>
+        </div>
+      </footer>
+    </article>
+  </section>
+  } @else if (activeTab() === 'new') {
+  <section class="newsletter-layout" aria-label="Новая рассылка">
+    <article class="newsletter-card">
+      <div class="newsletter-card__header">
+        <div>
+          <h3>Формирование рассылки</h3>
+          <p>
+            Выберите аудиторию, задайте тему и текст письма. Кнопки «Предпросмотр» и «Отправить» пока работают как
+            интерактивные стабы.
+          </p>
+        </div>
+      </div>
+
+      <form class="newsletter-form" (submit)="$event.preventDefault(); sendCampaign()" novalidate>
+        <fieldset class="newsletter-form__group">
+          <legend>Аудитория</legend>
+
+          <label class="newsletter-radio">
+            <input
+              type="radio"
+              name="audience"
+              [checked]="audienceMode() === 'all'"
+              (change)="setAudienceMode('all')" />
+            <div class="newsletter-radio__body">
+              <strong>Все подписчики</strong>
+              <span>Будут выбраны все активные email-адреса в списке рассылки.</span>
+            </div>
+          </label>
+
+          <label class="newsletter-radio">
+            <input
+              type="radio"
+              name="audience"
+              [checked]="audienceMode() === 'byRole'"
+              (change)="setAudienceMode('byRole')" />
+            <div class="newsletter-radio__body">
+              <strong>По роли</strong>
+              <span>Отправить только определённой группе пользователей.</span>
+
+              <select
+                class="newsletter-radio__select"
+                [value]="audienceRole()"
+                (change)="setAudienceRole($any($event.target).value)">
+                <option value="Нотариус">Нотариус</option>
+                <option value="Заявитель">Заявитель</option>
+                <option value="Администратор">Администратор</option>
+              </select>
+            </div>
+          </label>
+
+          <label class="newsletter-radio">
+            <input
+              type="radio"
+              name="audience"
+              [checked]="audienceMode() === 'selected'"
+              (change)="setAudienceMode('selected')" />
+            <div class="newsletter-radio__body">
+              <strong>Выбранные вручную</strong>
+              <span>Использовать текущий выбор из списка подписчиков ({{ selectedCount() }} адресов).</span>
+            </div>
+          </label>
+        </fieldset>
+
+        <label class="newsletter-field newsletter-field--full">
+          <span>Тема письма</span>
+          <input
+            type="text"
+            placeholder="Например: Обновление тарифных планов"
+            [value]="subject()"
+            (input)="updateSubject($any($event.target).value)" />
+        </label>
+
+        <label class="newsletter-field newsletter-field--full">
+          <span>Текст письма</span>
+          <textarea
+            rows="8"
+            placeholder="Опишите суть рассылки, важные изменения и добавьте полезные ссылки."
+            [value]="body()"
+            (input)="updateBody($any($event.target).value)"></textarea>
+          <small class="newsletter-field__hint">
+            Используется простой HTML/текстовый редактор. Поддержка полноценного WYSIWYG-редактора будет добавлена
+            позже.
+          </small>
+        </label>
+
+        <label class="newsletter-toggle">
+          <input type="checkbox" [checked]="addCta()" (change)="toggleCta($any($event.target).checked)" />
+          <span>Добавить кнопку «Перейти в личный кабинет» в футер письма</span>
+        </label>
+
+        <div class="newsletter-form__actions">
+          <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="openPreview()">
+            Предпросмотр письма
+          </button>
+          <button type="submit" class="newsletter-btn newsletter-btn--primary">Отправить рассылку</button>
+        </div>
+      </form>
+    </article>
+  </section>
+  } @else if (activeTab() === 'history') {
+  <section class="newsletter-layout" aria-label="История рассылок">
+    <article class="newsletter-card">
+      <div class="newsletter-card__header">
+        <div>
+          <h3>История рассылок</h3>
+          <p>
+            Список ранее отправленных или запланированных кампаний. Здесь будут отображаться данные из backend после
+            интеграции.
+          </p>
+        </div>
+      </div>
+
+      <div class="newsletter-table-wrapper">
+        <table class="newsletter-table newsletter-table--history">
+          <thead>
+            <tr>
+              <th>Дата и время</th>
+              <th>Тема</th>
+              <th>Аудитория</th>
+              <th>Кол-во получателей</th>
+              <th>Статус</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (campaigns().length) { @for (c of campaigns(); track c.id) {
+            <tr>
+              <td>{{ c.createdAt }}</td>
+              <td class="newsletter-table__subject">{{ c.subject }}</td>
+              <td>{{ c.audienceLabel }}</td>
+              <td>{{ c.recipientsCount }}</td>
+              <td>
+                <span
+                  class="newsletter-status-pill"
+                  [class.newsletter-status-pill--scheduled]="c.status === 'scheduled'">
+                  {{ c.status === 'sent' ? 'Отправлена' : c.status === 'scheduled' ? 'Запланирована' : 'Черновик' }}
+                </span>
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td colspan="5" class="newsletter-empty">
+                <strong>История пока пуста.</strong>
+                <p>После отправки первой рассылки здесь появится список кампаний.</p>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+  }
+</section>
