@@ -1,7 +1,7 @@
 import { Code, ConnectError, type Interceptor } from '@connectrpc/connect';
 import { Injectable } from '@nestjs/common';
+import { requestContextStorage } from '@internal/auth-shared';
 import { TokenService } from './token.service';
-import { requestContextStorage } from './request-context';
 
 // ─── Публичные методы (без авторизации) ─────────────────────────────────────
 // Указываем в формате "ServiceName/MethodName" — именно так формируется URL в ConnectRPC.
@@ -33,10 +33,7 @@ export class AuthInterceptor {
       const token = extractBearer(authHeader);
 
       if (!token) {
-        throw new ConnectError(
-          'missing or malformed Authorization header',
-          Code.Unauthenticated,
-        );
+        throw new ConnectError('missing or malformed Authorization header', Code.Unauthenticated);
       }
 
       // Верифицируем токен
