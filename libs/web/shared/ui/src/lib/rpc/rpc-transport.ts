@@ -18,9 +18,7 @@ export function buildRpcBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3000';
   const { hostname, port, origin } = window.location;
   const isLocal = ['localhost', '127.0.0.1'].includes(hostname);
-  return isLocal && port !== '3000'
-    ? `http://${hostname}:3000`
-    : origin;
+  return isLocal && port !== '3000' ? `http://${hostname}:3000` : origin;
 }
 
 // ─── Фабрика провайдера ──────────────────────────────────────────────────────
@@ -37,6 +35,8 @@ export interface RpcTransportOptions {
   /** Если refresh провалился — редирект на этот путь */
   loginPath?: string;
 }
+
+export type RpcTransportOptionsFactory = () => RpcTransportOptions;
 
 export function createAuthInterceptor(opts: RpcTransportOptions, router: Router): Interceptor {
   return (next) => async (req) => {
@@ -64,14 +64,18 @@ export function createAuthInterceptor(opts: RpcTransportOptions, router: Router)
   };
 }
 
-export function provideRpcTransport(opts: RpcTransportOptions): EnvironmentProviders {
+export function provideRpcTransport(
+  optsOrFactory: RpcTransportOptions | RpcTransportOptionsFactory,
+): EnvironmentProviders {
   return makeEnvironmentProviders([
     {
       provide: RPC_TRANSPORT,
       useFactory: () => {
         const router = inject(Router);
+        const opts = typeof optsOrFactory === 'function' ? optsOrFactory() : optsOrFactory;
+
         return createConnectTransport({
-          baseUrl:      buildRpcBaseUrl(),
+          baseUrl: buildRpcBaseUrl(),
           interceptors: [createAuthInterceptor(opts, router)],
         });
       },

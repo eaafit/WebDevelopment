@@ -1,4 +1,9 @@
-import { ApplicationConfig, inject, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  ApplicationConfig,
+  Injector,
+  inject,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { appRoutes } from './app.routes';
 import { provideRpcTransport, TokenStore } from '@notary-portal/ui';
@@ -8,10 +13,15 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
-    provideRpcTransport({
-      getToken:  () => inject(TokenStore).getAccessToken(),
-      refresh:   () => inject(AuthService).refresh(),
-      loginPath: '/auth',
+    provideRpcTransport(() => {
+      const injector = inject(Injector);
+      const tokenStore = injector.get(TokenStore);
+
+      return {
+        getToken: () => tokenStore.getAccessToken(),
+        refresh: () => injector.get(AuthService).refresh(),
+        loginPath: '/auth',
+      };
     }),
   ],
 };

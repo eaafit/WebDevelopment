@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import * as crypto from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import * as bcrypt from 'bcryptjs';
 import {
   AssessmentStatus,
   DocumentType,
@@ -26,6 +27,8 @@ const prisma = new PrismaClient({
 });
 
 const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 100);
+const SEED_USER_PASSWORD = process.env['SEED_USER_PASSWORD'] ?? 'SeedPass123!';
+const BCRYPT_SALT_ROUNDS = 12;
 
 function seedId(entity: string, i: number): string {
   const h = crypto.createHash('sha256').update(`seed-${entity}-${i}`).digest('hex');
@@ -37,7 +40,8 @@ function pad(i: number, len: number): string {
 }
 
 async function main(): Promise<void> {
-  const userIds = await upsertUsers(SEED_COUNT);
+  const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
+  const userIds = await upsertUsers(SEED_COUNT, seedPasswordHash);
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
@@ -89,11 +93,13 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `Seed auth password: ${SEED_USER_PASSWORD}`,
+      ...buildSeedCredentialHints(SEED_COUNT),
     ].join(' '),
   );
 }
 
-async function upsertUsers(count: number): Promise<string[]> {
+async function upsertUsers(count: number, passwordHash: string): Promise<string[]> {
   const userIds: string[] = [];
   const roles: Role[] = [Role.Applicant, Role.Notary, Role.Admin];
   const roleCounts = [50, 30, 20];
@@ -108,12 +114,13 @@ async function upsertUsers(count: number): Promise<string[]> {
     const id = seedId('user', i);
     userIds.push(id);
     const email = `seed-user-${pad(i, 3)}@seed.local`;
-    const base = role === Role.Applicant ? 'Заявитель' : role === Role.Notary ? 'Нотариус' : 'Администратор';
+    const base =
+      role === Role.Applicant ? 'Заявитель' : role === Role.Notary ? 'Нотариус' : 'Администратор';
     await prisma.user.upsert({
       where: { id },
       update: {
         email,
-        passwordHash: `test-password-hash-${i}`,
+        passwordHash,
         fullName: `${base} ${i + 1}`,
         role,
         phoneNumber: `+7999${pad(i, 7)}`,
@@ -122,7 +129,7 @@ async function upsertUsers(count: number): Promise<string[]> {
       create: {
         id,
         email,
-        passwordHash: `test-password-hash-${i}`,
+        passwordHash,
         fullName: `${base} ${i + 1}`,
         role,
         phoneNumber: `+7999${pad(i, 7)}`,
@@ -131,6 +138,26 @@ async function upsertUsers(count: number): Promise<string[]> {
     });
   }
   return userIds;
+}
+
+function buildSeedCredentialHints(count: number): string[] {
+  const hints: string[] = [];
+
+  if (count > 0) {
+    hints.push(`Applicant login: ${seedUserEmail(0)}`);
+  }
+  if (count > 50) {
+    hints.push(`Notary login: ${seedUserEmail(50)}`);
+  }
+  if (count > 80) {
+    hints.push(`Admin login: ${seedUserEmail(80)}`);
+  }
+
+  return hints;
+}
+
+function seedUserEmail(index: number): string {
+  return `seed-user-${pad(index, 3)}@seed.local`;
 }
 
 async function upsertPromos(count: number): Promise<string[]> {
@@ -147,7 +174,7 @@ async function upsertPromos(count: number): Promise<string[]> {
       update: {
         code,
         description: `Скидка для seed промо ${i + 1}.`,
-        discountPercent: String((10 + (i % 20)) + '.00'),
+        discountPercent: String(10 + (i % 20) + '.00'),
         usageLimit: 100,
         usedCount: i % 10,
         expiresAt,
@@ -156,7 +183,7 @@ async function upsertPromos(count: number): Promise<string[]> {
         id,
         code,
         description: `Скидка для seed промо ${i + 1}.`,
-        discountPercent: String((10 + (i % 20)) + '.00'),
+        discountPercent: String(10 + (i % 20) + '.00'),
         usageLimit: 100,
         usedCount: i % 10,
         expiresAt,
@@ -183,7 +210,7 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
         type,
         startDate,
         endDate,
-        percent: String((5 + (i % 25)) + '.00'),
+        percent: String(5 + (i % 25) + '.00'),
         isActive: i % 5 !== 0,
         promoId: type === SaleType.Promo && i < promoIds.length ? promoIds[i] : null,
         subscriptionId: null,
@@ -193,7 +220,7 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
         type,
         startDate,
         endDate,
-        percent: String((5 + (i % 25)) + '.00'),
+        percent: String(5 + (i % 25) + '.00'),
         isActive: i % 5 !== 0,
         promoId: type === SaleType.Promo && i < promoIds.length ? promoIds[i] : null,
         subscriptionId: null,
@@ -204,16 +231,27 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
 
 async function upsertAssessments(count: number, userIds: string[]): Promise<string[]> {
   const assessmentIds: string[] = [];
-  const statuses = [AssessmentStatus.New, AssessmentStatus.InProgress, AssessmentStatus.Completed, AssessmentStatus.Verified, AssessmentStatus.Cancelled];
+  const statuses = [
+    AssessmentStatus.New,
+    AssessmentStatus.InProgress,
+    AssessmentStatus.Completed,
+    AssessmentStatus.Verified,
+    AssessmentStatus.Cancelled,
+  ];
   const applicantCount = Math.min(50, userIds.length);
   const notaryStart = 50;
   const notaryCount = Math.min(30, Math.max(0, userIds.length - 50));
-  const addresses = ['г. Екатеринбург, ул. Малышева, 18', 'Свердловская обл., п. Балтым, ул. Сосновая, 7', 'г. Екатеринбург, ул. Бориса Ельцина, 3'];
+  const addresses = [
+    'г. Екатеринбург, ул. Малышева, 18',
+    'Свердловская обл., п. Балтым, ул. Сосновая, 7',
+    'г. Екатеринбург, ул. Бориса Ельцина, 3',
+  ];
   for (let i = 0; i < count; i++) {
     const id = seedId('assessment', i);
     assessmentIds.push(id);
     const userId = userIds[i % applicantCount];
-    const notaryId = notaryCount > 0 && i % 3 === 0 ? userIds[notaryStart + (i % notaryCount)] : null;
+    const notaryId =
+      notaryCount > 0 && i % 3 === 0 ? userIds[notaryStart + (i % notaryCount)] : null;
     const status = statuses[i % 5];
     const estimatedValue = String(5000000 + (i % 15) * 500000) + '.00';
     const address = `${addresses[i % 3]}, ${i % 100}`;
@@ -223,7 +261,8 @@ async function upsertAssessments(count: number, userIds: string[]): Promise<stri
         userId,
         notaryId,
         status,
-        cancelReason: status === AssessmentStatus.Cancelled ? `Причина отмены заявки seed ${i + 1}.` : null,
+        cancelReason:
+          status === AssessmentStatus.Cancelled ? `Причина отмены заявки seed ${i + 1}.` : null,
         address,
         description: `Оценка объекта seed ${i + 1}.`,
         estimatedValue,
@@ -233,7 +272,8 @@ async function upsertAssessments(count: number, userIds: string[]): Promise<stri
         userId,
         notaryId,
         status,
-        cancelReason: status === AssessmentStatus.Cancelled ? `Причина отмены заявки seed ${i + 1}.` : null,
+        cancelReason:
+          status === AssessmentStatus.Cancelled ? `Причина отмены заявки seed ${i + 1}.` : null,
         address,
         description: `Оценка объекта seed ${i + 1}.`,
         estimatedValue,
@@ -243,9 +283,27 @@ async function upsertAssessments(count: number, userIds: string[]): Promise<stri
   return assessmentIds;
 }
 
-async function upsertDocuments(count: number, assessmentIds: string[], userIds: string[]): Promise<void> {
-  const docTypes = [DocumentType.Passport, DocumentType.PropertyDeed, DocumentType.TechnicalPlan, DocumentType.CadastralPassport, DocumentType.Photo, DocumentType.Other];
-  const fileNames = ['passport.pdf', 'extract-egrn.pdf', 'ownership.pdf', 'technical-plan.pdf', 'photo.jpg', 'other.pdf'];
+async function upsertDocuments(
+  count: number,
+  assessmentIds: string[],
+  userIds: string[],
+): Promise<void> {
+  const docTypes = [
+    DocumentType.Passport,
+    DocumentType.PropertyDeed,
+    DocumentType.TechnicalPlan,
+    DocumentType.CadastralPassport,
+    DocumentType.Photo,
+    DocumentType.Other,
+  ];
+  const fileNames = [
+    'passport.pdf',
+    'extract-egrn.pdf',
+    'ownership.pdf',
+    'technical-plan.pdf',
+    'photo.jpg',
+    'other.pdf',
+  ];
   for (let i = 0; i < count; i++) {
     const id = seedId('document', i);
     const assessmentId = assessmentIds[i % assessmentIds.length];
@@ -322,18 +380,25 @@ async function upsertPayments(
   userIds: string[],
   subscriptionIds: string[],
   assessmentIds: string[],
-  promoIds: string[]
+  promoIds: string[],
 ): Promise<void> {
   const types = [PaymentType.Subscription, PaymentType.Assessment, PaymentType.DocumentCopy];
-  const statuses = [PaymentStatus.Pending, PaymentStatus.Completed, PaymentStatus.Failed, PaymentStatus.Refunded];
+  const statuses = [
+    PaymentStatus.Pending,
+    PaymentStatus.Completed,
+    PaymentStatus.Failed,
+    PaymentStatus.Refunded,
+  ];
   const methods = ['bank_card', 'sbp', 'invoice'];
   const baseDate = new Date('2026-02-01T10:00:00.000Z');
   for (let i = 0; i < count; i++) {
     const id = seedId('payment', i);
     const type = types[i % 3];
     const userId = userIds[i % userIds.length];
-    const subscriptionId = type === PaymentType.Subscription ? subscriptionIds[i % subscriptionIds.length] : null;
-    const assessmentId = type !== PaymentType.Subscription ? assessmentIds[i % assessmentIds.length] : null;
+    const subscriptionId =
+      type === PaymentType.Subscription ? subscriptionIds[i % subscriptionIds.length] : null;
+    const assessmentId =
+      type !== PaymentType.Subscription ? assessmentIds[i % assessmentIds.length] : null;
     const amount = String(1000 + (i % 50) * 200) + '.00';
     const discountAmount = i % 10 === 0 ? String(Math.floor(Number(amount) * 0.1)) + '.00' : null;
     const promoId = i % 10 === 0 && i < promoIds.length ? promoIds[i % promoIds.length] : null;
@@ -377,14 +442,19 @@ async function upsertPayments(
   }
 }
 
-async function upsertReports(count: number, assessmentIds: string[], userIds: string[]): Promise<void> {
+async function upsertReports(
+  count: number,
+  assessmentIds: string[],
+  userIds: string[],
+): Promise<void> {
   const notaryAdminStart = Math.min(50, userIds.length);
   const signedByIdCandidates = userIds.slice(notaryAdminStart);
   const signerCount = signedByIdCandidates.length || 1;
   for (let i = 0; i < count; i++) {
     const id = seedId('report', i);
     const assessmentId = assessmentIds[i % assessmentIds.length];
-    const signedById = signedByIdCandidates.length > 0 ? signedByIdCandidates[i % signerCount] : userIds[0];
+    const signedById =
+      signedByIdCandidates.length > 0 ? signedByIdCandidates[i % signerCount] : userIds[0];
     const status = i % 2 === 0 ? ReportStatus.Draft : ReportStatus.Signed;
     await prisma.assessmentReport.upsert({
       where: { id },
@@ -454,7 +524,7 @@ async function upsertAuditLogs(
   count: number,
   userIds: string[],
   assessmentIds: string[],
-  promoIds: string[]
+  promoIds: string[],
 ): Promise<void> {
   const actions: Array<{ actionType: string; entityName: string }> = [
     { actionType: 'assessment.created', entityName: 'Assessment' },
@@ -476,8 +546,21 @@ async function upsertAuditLogs(
     const details = { source: 'seed', index: i };
     await prisma.auditLog.upsert({
       where: { id },
-      update: { userId, actionType: action.actionType, entityName: action.entityName, entityId, details },
-      create: { id, userId, actionType: action.actionType, entityName: action.entityName, entityId, details },
+      update: {
+        userId,
+        actionType: action.actionType,
+        entityName: action.entityName,
+        entityId,
+        details,
+      },
+      create: {
+        id,
+        userId,
+        actionType: action.actionType,
+        entityName: action.entityName,
+        entityId,
+        details,
+      },
     });
   }
 }
