@@ -1,0 +1,61 @@
+<section class="geography-page">
+  <header class="geography-page__hero">
+    <div class="geography-page__hero-copy">
+      <p class="geography-page__eyebrow">Администратор / география</p>
+      <h2>География объектов оценки</h2>
+      <p class="geography-page__lead">
+        Объекты оценки (заявки) на карте. Клик по маркеру — информация и переход к заявке.
+      </p>
+    </div>
+    <div class="geography-page__actions">
+      <button type="button" class="geography-btn geography-btn--ghost" (click)="resetFilters()">
+        Сбросить фильтры
+      </button>
+    </div>
+  </header>
+
+  <section class="geography-page__filters">
+    <div class="geography-filters">
+      <label class="geography-filters__label" for="geo-filter-status">Статус</label>
+      <select
+        id="geo-filter-status"
+        class="geography-filters__select"
+        [value]="filters().status"
+        (change)="setStatus($any($event.target).value)">
+        @for (opt of statusOptions; track opt.id) {
+        <option [value]="opt.id">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="geography-filters">
+      <label class="geography-filters__label" for="geo-filter-date-from">Дата от</label>
+      <input
+        id="geo-filter-date-from"
+        type="date"
+        class="geography-filters__input"
+        [value]="filters().dateFrom"
+        (input)="setDateFrom($any($event.target).value)" />
+    </div>
+    <div class="geography-filters">
+      <label class="geography-filters__label" for="geo-filter-date-to">Дата до</label>
+      <input
+        id="geo-filter-date-to"
+        type="date"
+        class="geography-filters__input"
+        [value]="filters().dateTo"
+        (input)="setDateTo($any($event.target).value)" />
+    </div>
+  </section>
+
+  <div class="geography-page__map-wrap">
+    <div
+      class="geography-map"
+      leaflet
+      [leafletOptions]="mapOptions"
+      [leafletCenter]="center"
+      [leafletZoom]="zoom"
+      (leafletMapReady)="onMapReady($event)">
+      <div [leafletLayers]="layers()"></div>
+    </div>
+  </div>
+</section>

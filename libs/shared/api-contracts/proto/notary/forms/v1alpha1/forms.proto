@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package notary.forms.v1alpha1;
 
-import "google/protobuf/timestamp.proto";
 import "notary/assessment/v1alpha1/assessment.proto";
 import "notary/user/v1alpha1/user.proto";
 import "notary/document/v1alpha1/document.proto";

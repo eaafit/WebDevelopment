@@ -24,10 +24,7 @@ export const notaryRoutes: Route[] = [
       } as Route,
       {
         path: 'subscription',
-        ...placeholder('Подписка', [
-          'Оплата подписки',
-          'Выбор тарифа',
-        ]),
+        ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
       } as Route,
       {
         path: 'subscription/checkout',
@@ -56,25 +53,15 @@ export const notaryRoutes: Route[] = [
       } as Route,
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'In-app уведомления',
-          'Настройки каналов (email/push)',
-        ]),
+        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
       } as Route,
       {
         path: 'support',
-        ...placeholder('Чат поддержки', [
-          'Чат/тикеты',
-          'Вложения',
-        ]),
+        ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),
       } as Route,
       {
         path: 'faq',
-        ...placeholder('Справочник', [
-          'База знаний',
-          'FAQ',
-          'Поиск по статьям',
-        ]),
+        ...placeholder('Справочник', ['База знаний', 'FAQ', 'Поиск по статьям']),
       } as Route,
     ],
   },

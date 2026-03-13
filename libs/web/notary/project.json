@@ -4,7 +4,7 @@
   "sourceRoot": "libs/web/notary/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": ["scope:notary"],
+  "tags": ["scope:frontend"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",

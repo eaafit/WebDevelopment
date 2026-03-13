@@ -8,13 +8,13 @@
 
 Формы в приложении «Нотариальная оценка»:
 
-| Форма | Сущность БД | Действие | Существующий контракт |
-|-------|-------------|----------|------------------------|
-| Заявка на оценку | Assessment | Create, Update | assessment.proto ✓ |
-| Профиль пользователя | User | Update | user.proto ✓ |
-| Документ к заявке | Document | Create | — |
-| Подписка нотариуса | Subscription | Create | payment.proto (частично) |
-| Платёж | Payment | Create | payment.proto ✓ |
+| Форма                | Сущность БД  | Действие       | Существующий контракт    |
+| -------------------- | ------------ | -------------- | ------------------------ |
+| Заявка на оценку     | Assessment   | Create, Update | assessment.proto ✓       |
+| Профиль пользователя | User         | Update         | user.proto ✓             |
+| Документ к заявке    | Document     | Create         | —                        |
+| Подписка нотариуса   | Subscription | Create         | payment.proto (частично) |
+| Платёж               | Payment      | Create         | payment.proto ✓          |
 
 ## Шаги плана
 
@@ -73,14 +73,14 @@
 
 ## Маппинг форм → proto → Prisma
 
-| Форма | Proto RPC | Prisma Model |
-|-------|-----------|--------------|
-| Заявка (создать) | CreateAssessment / SaveAssessmentForm | Assessment |
-| Заявка (редактировать) | UpdateAssessment / SaveAssessmentForm | Assessment |
-| Профиль | UpdateProfile / SaveUserProfileForm | User |
-| Документ | CreateDocument / SaveDocumentForm | Document |
-| Подписка | CreateSubscription | Subscription |
-| Платёж | CreatePayment | Payment |
+| Форма                  | Proto RPC                             | Prisma Model |
+| ---------------------- | ------------------------------------- | ------------ |
+| Заявка (создать)       | CreateAssessment / SaveAssessmentForm | Assessment   |
+| Заявка (редактировать) | UpdateAssessment / SaveAssessmentForm | Assessment   |
+| Профиль                | UpdateProfile / SaveUserProfileForm   | User         |
+| Документ               | CreateDocument / SaveDocumentForm     | Document     |
+| Подписка               | CreateSubscription                    | Subscription |
+| Платёж                 | CreatePayment                         | Payment      |
 
 ## Версионность
 

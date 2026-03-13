@@ -3,6 +3,7 @@
 ## Подготовка к запуску
 
 1. Установите `pnpm` (если ещё не установлен):
+
    ```bash
    npm install -g pnpm
    ```
@@ -19,10 +20,10 @@
 1. Установите Docker Desktop
 
 Проверьте доступность docker командой:
-   ```bash
-   docker info
-   ```
 
+```bash
+docker info
+```
 
 2. Поднимите инфраструктуру (PostgreSQL):
    ```bash
@@ -30,9 +31,10 @@
    ```
 
 3В отдельном терминале запустите Front-end:
-   ```bash
-   pnpm nx serve web
-   ```
+
+```bash
+pnpm nx serve web
+```
 
 ## Примечание
 

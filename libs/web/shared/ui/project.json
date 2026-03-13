@@ -4,7 +4,7 @@
   "sourceRoot": "libs/web/shared/ui/src",
   "prefix": "lib",
   "projectType": "library",
-  "tags": ["scope:shared"],
+  "tags": ["scope:frontend-shared"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",
