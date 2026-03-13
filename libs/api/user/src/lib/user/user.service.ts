@@ -15,7 +15,7 @@ import {
   type UpdateProfileRequest,
   type UpdateProfileResponse,
 } from '@notary-portal/api-contracts';
-import { requireAuth, requireRole, requireSelfOrRole, Role } from '@internal/auth';
+import { requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
 import { UserRepository } from './user.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -42,18 +42,10 @@ export class UserService {
 
   async updateProfile(request: UpdateProfileRequest): Promise<UpdateProfileResponse> {
     validateUuid(request.userId, 'user_id');
-
-    // Проверяем что пользователь меняет только свои данные
-    const caller = requireAuth();
-    if (caller.sub !== request.userId && normalizeRole(caller.role) !== Role.Admin) {
-      throw new ConnectError(
-        'access denied: you can only update your own profile',
-        Code.PermissionDenied,
-      );
-    }
+    requireSelfOrRole(request.userId, Role.Admin);
 
     const user = await this.userRepository.updateProfile(request.userId, {
-      fullName:    request.fullName?.trim()    || undefined,
+      fullName: request.fullName?.trim() || undefined,
       phoneNumber: request.phoneNumber?.trim() || undefined,
     });
 
@@ -79,11 +71,12 @@ export class UserService {
   listUsers(request: ListUsersRequest): Promise<ListUsersResponse> {
     requireRole(Role.Admin);
 
-    const page  = normalizePositiveInt(request.pagination?.page,  1);
+    const page = normalizePositiveInt(request.pagination?.page, 1);
     const limit = normalizePositiveInt(request.pagination?.limit, 20);
-    const roleFilter = request.roleFilter !== RpcUserRole.UNSPECIFIED
-      ? this.userRepository.toPrismaRole(request.roleFilter)
-      : undefined;
+    const roleFilter =
+      request.roleFilter !== RpcUserRole.UNSPECIFIED
+        ? this.userRepository.toPrismaRole(request.roleFilter)
+        : undefined;
 
     return this.userRepository.listUsers({ page, limit, roleFilter });
   }
@@ -103,13 +96,4 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
     throw new ConnectError('pagination values must be positive integers', Code.InvalidArgument);
   }
   return value;
-}
-
-function normalizeRole(role: string): Role {
-  const map: Record<string, Role> = {
-    '1': Role.Applicant, APPLICANT: Role.Applicant,
-    '2': Role.Notary,    NOTARY: Role.Notary,
-    '3': Role.Admin,     ADMIN: Role.Admin,
-  };
-  return map[role] ?? Role.Applicant;
 }

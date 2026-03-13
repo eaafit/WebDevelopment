@@ -22,6 +22,9 @@
 ### Запуск проекта
 
 - `docker-compose up` - запустить PostgreSQL
+- `pnpm nx run prisma:generate` - сгенерировать Prisma Client
+- `pnpm nx run prisma:deploy` - применить миграции к базе данных
+- `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
 - `pnpm nx serve api` - запустить Back-end
 - `pnpm nx serve web` - запустить Front-end
 
