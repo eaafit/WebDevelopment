@@ -32,4 +32,26 @@ describe('Login', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('should fill the form and mark credentials as copied', async () => {
+    jest.useFakeTimers();
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText,
+      },
+    });
+
+    const account = component.testAccounts[1];
+    await component.onUseTestAccount(account);
+
+    expect(component.email).toBe(account.email);
+    expect(component.password).toBe(account.password);
+    expect(writeText).toHaveBeenCalledWith(`${account.email} / ${account.password}`);
+    expect(component.copiedAccount()).toBe(account.email);
+
+    jest.runAllTimers();
+    expect(component.copiedAccount()).toBeNull();
+    jest.useRealTimers();
+  });
 });
