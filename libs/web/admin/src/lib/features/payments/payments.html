@@ -1,0 +1,194 @@
+<link
+  rel="stylesheet"
+  href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+<div class="payments-container">
+  <!-- Заголовок -->
+  <div class="payments-header">
+    <h2>Платежи</h2>
+    <button class="btn btn-primary" (click)="openCreateModal()">+ Создать платёж</button>
+    <button class="btn btn-secondary" (click)="goToTransactions()">Перейти к транзакциям</button>
+  </div>
+
+  <!-- Фильтры -->
+  <div class="filters-bar">
+    <input
+      type="text"
+      placeholder="Поиск по плательщику или ID"
+      class="search-input"
+      [(ngModel)]="searchTerm"
+      (ngModelChange)="onFiltersChanged()" />
+    <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
+      <option value="">Все статусы</option>
+      <option value="completed">Завершён</option>
+      <option value="pending">В обработке</option>
+      <option value="failed">Ошибка</option>
+    </select>
+    <button class="btn btn-secondary">Применить</button>
+  </div>
+
+  <!-- Таблица платежей -->
+  <div class="table-responsive">
+    <table class="payments-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Дата</th>
+          <th>Плательщик</th>
+          <th>Сумма</th>
+          <th>Статус</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (payment of paginatedPayments; track payment.id) {
+        <tr>
+          <td>{{ payment.id }}</td>
+          <td>{{ payment.date | date:'dd.MM.yyyy' }}</td>
+          <td>{{ payment.payer }}</td>
+          <td>{{ payment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
+          <td><span class="status-badge" [ngClass]="'status-' + payment.status">{{ payment.statusText }}</span></td>
+          <td class="actions">
+            <button class="icon-btn view" (click)="openViewModal(payment)" title="Просмотр">
+              <i class="las la-eye"></i>
+            </button>
+            <button class="icon-btn edit" (click)="openEditModal(payment)" title="Редактировать">
+              <i class="las la-pencil-alt"></i>
+            </button>
+            <button class="icon-btn delete" (click)="openDeleteModal(payment)" title="Удалить">
+              <i class="las la-trash"></i>
+            </button>
+            <button class="icon-btn transactions" (click)="goToTransactions(payment)" title="Транзакции">
+              <i class="las la-list"></i>
+            </button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Пагинация -->
+  <div class="pagination">
+    @if (totalPages > 1) {
+    <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">«</button>
+    @for (page of pages; track page) {
+    <button class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">{{ page }}</button>
+    }
+    <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">»</button>
+    }
+  </div>
+</div>
+
+<!-- Модальное окно создания/редактирования -->
+<div
+  class="modal"
+  [ngClass]="{ 'show': isCreateEditModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Редактировать платёж' : 'Создать платёж' }}</h3>
+      <button class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form #paymentForm="ngForm">
+        <div class="form-group">
+          <label for="recipient">Получатель</label>
+          <input type="text" id="recipient" [(ngModel)]="currentPayment.payer" name="recipient" required />
+        </div>
+        <div class="form-group">
+          <label for="amount">Сумма (RUB)</label>
+          <input
+            type="number"
+            id="amount"
+            [(ngModel)]="currentPayment.amount"
+            name="amount"
+            required
+            min="0"
+            step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="fee">Комиссия (RUB)</label>
+          <input type="number" id="fee" name="fee" min="0" step="0.01" [(ngModel)]="fee" />
+        </div>
+        <div class="form-group">
+          <label for="date">Дата</label>
+          <input type="date" id="date" [(ngModel)]="currentPayment.date" name="date" [max]="today" required />
+        </div>
+        <div class="form-group">
+          <label for="status">Статус</label>
+          <select id="status" [(ngModel)]="currentPayment.status" name="status">
+            <option value="completed">Успешно</option>
+            <option value="pending">В обработке</option>
+            <option value="failed">Ошибка</option>
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm.form.valid">
+        {{ isEditMode ? 'Сохранить изменения' : 'Сохранить' }}
+      </button>
+    </div>
+  </div>
+</div>
+<!-- Модальное окно просмотра -->
+<div
+  class="modal"
+  [ngClass]="{ 'show': isViewModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content view-modal">
+    <div class="modal-header">
+      <h3>Детали платежа #{{ currentPayment.id }}</h3>
+      <button class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body view-details">
+      <p><strong>ID:</strong> {{ currentPayment.id }}</p>
+      <p><strong>Плательщик:</strong> {{ currentPayment.payer }}</p>
+      <p><strong>Сумма:</strong> {{ currentPayment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</p>
+      <p><strong>Дата:</strong> {{ currentPayment.date | date:'dd.MM.yyyy' }}</p>
+      <p>
+        <strong>Статус:</strong>
+        <span class="status-badge" [ngClass]="'status-' + currentPayment.status">{{ currentPayment.statusText }}</span>
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" (click)="closeModals()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div
+  class="modal"
+  [ngClass]="{ 'show': isDeleteModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content delete-modal">
+    <div class="modal-header">
+      <h3>Подтверждение удаления</h3>
+      <button class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>
+        Вы уверены, что хотите удалить платёж <strong>{{ currentPayment.payer }}</strong> на сумму
+        <strong>{{ currentPayment.amount | currency:'RUB':'symbol-narrow' }}</strong>?
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button class="btn btn-danger" (click)="deletePayment()">Удалить</button>
+    </div>
+  </div>
+</div>

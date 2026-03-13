@@ -1,6 +1,8 @@
 import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { Payments } from './features/payments/payments';
+import { Transactions } from './features/transactions/transactions';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -35,25 +37,19 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Список платежей/транзакций',
-          'Формы создания/редактирования',
-          'Модальное окно удаления',
-        ]),
-      } as Route,
+        component: Payments,
+      },
+      {
+        path: 'transactions',
+        component: Transactions,
+      },
       {
         path: 'subscriptions',
-        ...placeholder('Подписки', [
-          'Просмотр списка подписок',
-        ]),
+        ...placeholder('Подписки', ['Просмотр списка подписок']),
       } as Route,
       {
         path: 'plans',
-        ...placeholder('Тарифные планы', [
-          'Просмотр тарифных планов',
-          'Скидки',
-          'Промокоды',
-        ]),
+        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
       } as Route,
       {
         path: 'files',
@@ -64,10 +60,7 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'newsletter',
-        ...placeholder('Рассылка', [
-          'Список рассылки',
-          'Формирование рассылки email',
-        ]),
+        ...placeholder('Рассылка', ['Список рассылки', 'Формирование рассылки email']),
       } as Route,
       {
         path: 'monitoring',
@@ -81,23 +74,15 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'Управление уведомлениями',
-        ]),
+        ...placeholder('Уведомления', ['Управление уведомлениями']),
       } as Route,
       {
         path: 'statistics',
-        ...placeholder('Статистика', [
-          'Метрики (конверсия/время)',
-          'Отчёты',
-          'Выгрузки',
-        ]),
+        ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),
       } as Route,
       {
         path: 'settings',
-        ...placeholder('Настройки', [
-          'Конфигурация системы',
-        ]),
+        ...placeholder('Настройки', ['Конфигурация системы']),
       } as Route,
     ],
   },
