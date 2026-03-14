@@ -7,20 +7,20 @@ import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME } from '@notary-portal/ui';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly tokenStore = inject(TokenStore);
-  private readonly router     = inject(Router);
-  private readonly transport  = inject(RPC_TRANSPORT);
+  private readonly router = inject(Router);
+  private readonly transport = inject(RPC_TRANSPORT);
 
-  private readonly client = createClient(RpcAuthService, this.transport);
+  private readonly client = createClient<any>(RpcAuthService as any, this.transport) as any;
 
   private readonly _loading = signal(false);
-  private readonly _error   = signal<string | null>(null);
+  private readonly _error = signal<string | null>(null);
 
   // Р”РµР»РµРіРёСЂСѓРµРј СЃРѕСЃС‚РѕСЏРЅРёРµ РІ TokenStore
-  readonly user       = this.tokenStore.user;
+  readonly user = this.tokenStore.user;
   readonly isLoggedIn = this.tokenStore.isLoggedIn;
-  readonly role       = this.tokenStore.role;
-  readonly loading    = this._loading.asReadonly();
-  readonly error      = this._error.asReadonly();
+  readonly role = this.tokenStore.role;
+  readonly loading = this._loading.asReadonly();
+  readonly error = this._error.asReadonly();
 
   // в”Ђв”Ђв”Ђ Login в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
@@ -83,7 +83,11 @@ export class AuthService {
   async logout(): Promise<void> {
     const rt = this.tokenStore.getRefreshToken();
     if (rt) {
-      try { await this.client['logout']({ refreshToken: rt }); } catch { /* idempotent */ }
+      try {
+        await this.client['logout']({ refreshToken: rt });
+      } catch {
+        /* idempotent */
+      }
     }
     this.tokenStore.clear();
     await this.router.navigateByUrl('/');
@@ -103,4 +107,3 @@ function extractMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°';
 }
-

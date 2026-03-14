@@ -23,7 +23,7 @@ export interface TransactionsHistoryQuery {
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
-  private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
+  private readonly client = createClient<any>(PaymentService as any, inject(RPC_TRANSPORT)) as any;
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
     return from(this.client['getPaymentHistory'](buildRequest(query))).pipe(
@@ -36,10 +36,10 @@ export class TransactionsApiService {
       transactions: response.payments.map((p: Payment) => this.toTransactionItem(p)),
       meta: response.meta
         ? {
-            totalItems:  response.meta.totalItems,
-            totalPages:  response.meta.totalPages,
+            totalItems: response.meta.totalItems,
+            totalPages: response.meta.totalPages,
             currentPage: response.meta.currentPage,
-            perPage:     response.meta.perPage,
+            perPage: response.meta.perPage,
           }
         : null,
     };
@@ -47,20 +47,22 @@ export class TransactionsApiService {
 
   private toTransactionItem(payment: Payment): TransactionItem {
     return {
-      id:                 payment.id,
-      userId:             payment.userId,
-      type:               fromPaymentType(payment.type),
-      status:             fromPaymentStatus(payment.status),
-      paymentDate:        payment.paymentDate ? timestampDate(payment.paymentDate).toISOString() : '',
-      transactionId:      nullIfEmpty(payment.transactionId),
-      amount:             payment.amount?.amount ?? '0',
-      currency:           payment.amount?.currency ?? 'RUB',
-      description:        payment.description,
-      paymentMethod:      nullIfEmpty(payment.paymentMethod),
+      id: payment.id,
+      userId: payment.userId,
+      type: fromPaymentType(payment.type),
+      status: fromPaymentStatus(payment.status),
+      paymentDate: payment.paymentDate
+        ? timestampDate(payment.paymentDate as any).toISOString()
+        : '',
+      transactionId: nullIfEmpty(payment.transactionId),
+      amount: payment.amount?.amount ?? '0',
+      currency: payment.amount?.currency ?? 'RUB',
+      description: payment.description,
+      paymentMethod: nullIfEmpty(payment.paymentMethod),
       attachmentFileName: nullIfEmpty(payment.attachmentFileName),
-      attachmentFileUrl:  nullIfEmpty(payment.attachmentFileUrl),
-      subscriptionId:     nullIfEmpty(payment.subscriptionId),
-      assessmentId:       nullIfEmpty(payment.assessmentId),
+      attachmentFileUrl: nullIfEmpty(payment.attachmentFileUrl),
+      subscriptionId: nullIfEmpty(payment.subscriptionId),
+      assessmentId: nullIfEmpty(payment.assessmentId),
     };
   }
 }
@@ -72,15 +74,15 @@ function buildRequest(query: TransactionsHistoryQuery) {
     query.dateFrom || query.dateTo
       ? {
           startDate: query.dateFrom ? toUtcBoundary(query.dateFrom, 'start') : undefined,
-          endDate:   query.dateTo   ? toUtcBoundary(query.dateTo,   'end')   : undefined,
+          endDate: query.dateTo ? toUtcBoundary(query.dateTo, 'end') : undefined,
         }
       : undefined;
 
   return {
     pagination: { page: query.page, limit: query.limit },
     filters: {
-      searchQuery:    query.searchQuery ?? '',
-      statuses:       query.status ? [toPaymentStatus(query.status)] : [],
+      searchQuery: query.searchQuery ?? '',
+      statuses: query.status ? [toPaymentStatus(query.status)] : [],
       paymentDateRange,
     },
   };
@@ -88,30 +90,39 @@ function buildRequest(query: TransactionsHistoryQuery) {
 
 function toPaymentStatus(s: TransactionStatus): PaymentStatus {
   const map: Record<TransactionStatus, PaymentStatus> = {
-    pending:   PaymentStatus.PENDING,
+    pending: PaymentStatus.PENDING,
     completed: PaymentStatus.COMPLETED,
-    failed:    PaymentStatus.FAILED,
-    refunded:  PaymentStatus.REFUNDED,
+    failed: PaymentStatus.FAILED,
+    refunded: PaymentStatus.REFUNDED,
   };
   return map[s];
 }
 
 function fromPaymentStatus(s: PaymentStatus): TransactionStatus {
   switch (s) {
-    case PaymentStatus.PENDING:   return 'pending';
-    case PaymentStatus.COMPLETED: return 'completed';
-    case PaymentStatus.FAILED:    return 'failed';
-    case PaymentStatus.REFUNDED:  return 'refunded';
-    default: throw new Error(`Unsupported payment status: ${s}`);
+    case PaymentStatus.PENDING:
+      return 'pending';
+    case PaymentStatus.COMPLETED:
+      return 'completed';
+    case PaymentStatus.FAILED:
+      return 'failed';
+    case PaymentStatus.REFUNDED:
+      return 'refunded';
+    default:
+      throw new Error(`Unsupported payment status: ${s}`);
   }
 }
 
 function fromPaymentType(t: PaymentType): TransactionItem['type'] {
   switch (t) {
-    case PaymentType.SUBSCRIPTION:  return 'subscription';
-    case PaymentType.ASSESSMENT:    return 'assessment';
-    case PaymentType.DOCUMENT_COPY: return 'document_copy';
-    default: throw new Error(`Unsupported payment type: ${t}`);
+    case PaymentType.SUBSCRIPTION:
+      return 'subscription';
+    case PaymentType.ASSESSMENT:
+      return 'assessment';
+    case PaymentType.DOCUMENT_COPY:
+      return 'document_copy';
+    default:
+      throw new Error(`Unsupported payment type: ${t}`);
   }
 }
 
@@ -124,4 +135,3 @@ function toUtcBoundary(value: string, edge: 'start' | 'end') {
   const suffix = edge === 'start' ? 'T00:00:00.000Z' : 'T23:59:59.999Z';
   return timestampFromDate(new Date(`${value}${suffix}`));
 }
-
