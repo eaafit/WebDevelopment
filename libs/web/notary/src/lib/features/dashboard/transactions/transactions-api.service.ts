@@ -30,7 +30,7 @@ export class TransactionsApiService {
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
     return from(this.client['getPaymentHistory'](buildRequest(query))).pipe(
-      map((response) => this.toTransactionHistoryPage(response)),
+      map((response: GetPaymentHistoryResponse) => this.toTransactionHistoryPage(response)),
     );
   }
 
