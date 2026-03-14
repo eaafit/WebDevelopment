@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "api",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/api/src",
@@ -6,17 +6,19 @@
   "tags": [],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/dist/apps/api"],
-      "options": {
-        "command": "webpack-cli build",
-        "args": ["--node-env=production"],
-        "cwd": "apps/api"
-      },
-      "configurations": {
-        "development": {
-          "args": ["--node-env=development"]
+      "executor": "@nx/js:tsc",
+      "dependsOn": [
+        {
+          "target": "generate",
+          "projects": "prisma"
         }
+      ],
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/api",
+        "main": "apps/api/src/main.ts",
+        "tsConfig": "apps/api/tsconfig.app.json",
+        "assets": ["apps/api/src/assets"]
       }
     },
     "prune-lockfile": {
@@ -55,10 +57,10 @@
       },
       "configurations": {
         "development": {
-          "buildTarget": "api:build:development"
+          "buildTarget": "api:build"
         },
         "production": {
-          "buildTarget": "api:build:production"
+          "buildTarget": "api:build"
         }
       }
     },
