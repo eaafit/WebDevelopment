@@ -1,6 +1,21 @@
-﻿const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
-const { join } = require('path');
+﻿const Module = require('module');
+const path = require('path');
 const os = require('os');
+
+const loaderRequests = new Set(['ts-loader', 'swc-loader', 'source-map-loader']);
+const originalResolveFilename = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  if (
+    loaderRequests.has(request) &&
+    parent?.filename?.includes(`${path.sep}@nx${path.sep}webpack`)
+  ) {
+    return request;
+  }
+  return originalResolveFilename.call(this, request, parent, isMain, options);
+};
+
+const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
+const { join } = require('path');
 
 const defaultOutputPath = join(__dirname, '../../dist/apps/api');
 const outputPath = defaultOutputPath.includes('!')
