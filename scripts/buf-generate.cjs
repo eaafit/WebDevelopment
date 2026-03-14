@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const path = require('node:path');
 const fs = require('node:fs');
@@ -8,8 +8,20 @@ const { execFileSync } = require('node:child_process');
 // Run from cwd = libs/shared/api-contracts; workspace root is ../../..
 const cwd = process.cwd();
 const root = path.resolve(cwd, '..', '..', '..');
-const bufPath = path.join(root, 'node_modules', '.bin', 'buf');
-const pluginPath = path.join(root, 'node_modules', '.bin', 'protoc-gen-es');
+const isWin = process.platform === 'win32';
+
+const bufScript = path.join(root, 'node_modules', '@bufbuild', 'buf', 'bin', 'buf');
+const bufCmd = isWin ? process.execPath : bufScript;
+const bufArgs = isWin
+  ? [bufScript, 'generate', '--template']
+  : ['generate', '--template'];
+
+const pluginPath = path.join(
+  root,
+  'node_modules',
+  '.bin',
+  isWin ? 'protoc-gen-es.cmd' : 'protoc-gen-es',
+);
 
 // Use a temp file so we never modify repo files (avoids triggering Nx file watcher)
 const tempConfig = path.join(os.tmpdir(), `buf.gen.${process.pid}.yaml`);
@@ -25,7 +37,7 @@ plugins:
 
 try {
   fs.writeFileSync(tempConfig, bufGenContent, 'utf8');
-  execFileSync(bufPath, ['generate', '--template', tempConfig], {
+  execFileSync(bufCmd, [...bufArgs, tempConfig], {
     cwd,
     stdio: 'inherit',
     env: process.env,

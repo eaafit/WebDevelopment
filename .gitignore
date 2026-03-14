@@ -59,7 +59,4 @@ yarn.lock
 test-results/
 .pnpm-debug.log*
 
-!libs/shared/api-contracts/src/generated/**
-!libs/shared/api-contracts/src/generated/
-!libs/shared/api-contracts/src/generated/notary/
-!libs/shared/api-contracts/src/generated/notary/**
+

@@ -1,6 +1,5 @@
-﻿import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
-
 import {
   PaymentService,
   PaymentStatus,
@@ -13,8 +12,6 @@ import type { TransactionHistoryPage, TransactionItem, TransactionStatus } from 
 import { Injectable, inject } from '@angular/core';
 import { from, map, type Observable } from 'rxjs';
 
-const createRpcClient = createClient as unknown as (service: any, transport: any) => any;
-
 export interface TransactionsHistoryQuery {
   page: number;
   limit: number;
@@ -26,17 +23,17 @@ export interface TransactionsHistoryQuery {
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
-  private readonly client = createRpcClient(PaymentService, inject(RPC_TRANSPORT));
+  private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
-    return from(
-      this.client['getPaymentHistory'](buildRequest(query)) as Promise<GetPaymentHistoryResponse>,
-    ).pipe(map((response: GetPaymentHistoryResponse) => this.toTransactionHistoryPage(response)));
+    return from(this.client.getPaymentHistory(buildRequest(query))).pipe(
+      map((response) => this.toTransactionHistoryPage(response)),
+    );
   }
 
   private toTransactionHistoryPage(response: GetPaymentHistoryResponse): TransactionHistoryPage {
     return {
-      transactions: response.payments.map((p: Payment) => this.toTransactionItem(p)),
+      transactions: response.payments.map((p) => this.toTransactionItem(p)),
       meta: response.meta
         ? {
             totalItems: response.meta.totalItems,
@@ -54,9 +51,7 @@ export class TransactionsApiService {
       userId: payment.userId,
       type: fromPaymentType(payment.type),
       status: fromPaymentStatus(payment.status),
-      paymentDate: payment.paymentDate
-        ? timestampDate(payment.paymentDate as any).toISOString()
-        : '',
+      paymentDate: payment.paymentDate ? timestampDate(payment.paymentDate).toISOString() : '',
       transactionId: nullIfEmpty(payment.transactionId),
       amount: payment.amount?.amount ?? '0',
       currency: payment.amount?.currency ?? 'RUB',
@@ -70,7 +65,7 @@ export class TransactionsApiService {
   }
 }
 
-// в”Ђв”Ђв”Ђ РҐРµР»РїРµСЂС‹ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+// ─── Хелперы ─────────────────────────────────────────────────────────────────
 
 function buildRequest(query: TransactionsHistoryQuery) {
   const paymentDateRange =
