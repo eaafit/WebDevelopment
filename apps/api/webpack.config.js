@@ -6,6 +6,7 @@ const defaultOutputPath = join(__dirname, '../../dist/apps/api');
 const outputPath = defaultOutputPath.includes('!')
   ? join(os.tmpdir(), 'notary-portal-dist', 'api')
   : defaultOutputPath;
+const enableSourceMap = !defaultOutputPath.includes('!');
 
 module.exports = {
   output: {
@@ -26,7 +27,7 @@ module.exports = {
       optimization: false,
       outputHashing: 'none',
       generatePackageJson: true,
-      sourceMap: true,
+      sourceMap: enableSourceMap,
     }),
   ],
 };
