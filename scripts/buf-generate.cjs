@@ -9,19 +9,10 @@ const { execFileSync } = require('node:child_process');
 const cwd = process.cwd();
 const root = path.resolve(cwd, '..', '..', '..');
 const isWin = process.platform === 'win32';
-
+const pluginPath = path.join(root, 'node_modules', '.bin', isWin ? 'protoc-gen-es.cmd' : 'protoc-gen-es');
 const bufScript = path.join(root, 'node_modules', '@bufbuild', 'buf', 'bin', 'buf');
-const bufCmd = isWin ? process.execPath : bufScript;
-const bufArgs = isWin
-  ? [bufScript, 'generate', '--template']
-  : ['generate', '--template'];
-
-const pluginPath = path.join(
-  root,
-  'node_modules',
-  '.bin',
-  isWin ? 'protoc-gen-es.cmd' : 'protoc-gen-es',
-);
+const bufCommand = isWin ? process.execPath : bufScript;
+const bufArgs = isWin ? [bufScript, 'generate', '--template'] : ['generate', '--template'];
 
 // Use a temp file so we never modify repo files (avoids triggering Nx file watcher)
 const tempConfig = path.join(os.tmpdir(), `buf.gen.${process.pid}.yaml`);
@@ -37,7 +28,7 @@ plugins:
 
 try {
   fs.writeFileSync(tempConfig, bufGenContent, 'utf8');
-  execFileSync(bufCmd, [...bufArgs, tempConfig], {
+  execFileSync(bufCommand, [...bufArgs, tempConfig], {
     cwd,
     stdio: 'inherit',
     env: process.env,
