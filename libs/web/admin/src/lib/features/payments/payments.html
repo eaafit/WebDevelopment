@@ -1,85 +1,139 @@
-<link
+﻿<link
   rel="stylesheet"
   href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
 <div class="payments-container">
-  <!-- Заголовок -->
   <div class="payments-header">
-    <h2>Платежи</h2>
-    <button class="btn btn-primary" (click)="openCreateModal()">+ Создать платёж</button>
-    <button class="btn btn-secondary" (click)="goToTransactions()">Перейти к транзакциям</button>
+    <div>
+      <h2>Платежи</h2>
+      <p class="subtitle">Администратор: контроль оплат, заявок и подписок.</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" (click)="toggleColumnsPanel()">Колонки</button>
+      <button class="btn btn-secondary" (click)="exportCsv()">Экспорт CSV</button>
+      <button class="btn btn-primary" (click)="openCreateModal()">+ Создать платёж</button>
+      <button class="btn btn-secondary" (click)="goToTransactions()">Транзакции нотариуса</button>
+    </div>
   </div>
 
-  <!-- Фильтры -->
   <div class="filters-bar">
     <input
       type="text"
-      placeholder="Поиск по плательщику или ID"
+      placeholder="Поиск по плательщику, ID или TransactionId"
       class="search-input"
       [(ngModel)]="searchTerm"
       (ngModelChange)="onFiltersChanged()" />
+
     <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
       <option value="">Все статусы</option>
       <option value="completed">Завершён</option>
       <option value="pending">В обработке</option>
       <option value="failed">Ошибка</option>
     </select>
-    <button class="btn btn-secondary">Применить</button>
+
+    <select class="filter-select" [(ngModel)]="typeFilter" (ngModelChange)="onFiltersChanged()">
+      <option value="">Все типы</option>
+      <option value="subscription">Подписка</option>
+      <option value="assessment">Заявка</option>
+      <option value="documentCopy">Копия документа</option>
+    </select>
+
+    <div class="date-range">
+      <label>
+        <span>С</span>
+        <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="onFiltersChanged()" />
+      </label>
+      <label>
+        <span>По</span>
+        <input type="date" [(ngModel)]="dateTo" (ngModelChange)="onFiltersChanged()" />
+      </label>
+    </div>
+
+    <button class="btn btn-secondary" (click)="onFiltersChanged()">Применить</button>
   </div>
 
-  <!-- Таблица платежей -->
+  <div class="columns-panel" *ngIf="showColumnsPanel">
+    <div class="columns-panel__header">
+      <h3>Видимость колонок</h3>
+      <button class="icon-btn" (click)="toggleColumnsPanel()"><i class="las la-times"></i></button>
+    </div>
+    <div class="columns-panel__body">
+      @for (column of columns; track column.key) {
+      <label class="checkbox">
+        <input type="checkbox" [checked]="column.visible" (change)="toggleColumn(column)" />
+        <span>{{ column.label }}</span>
+      </label>
+      }
+    </div>
+  </div>
+
   <div class="table-responsive">
     <table class="payments-table">
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Дата</th>
-          <th>Плательщик</th>
-          <th>Сумма</th>
-          <th>Статус</th>
-          <th>Действия</th>
+          @for (column of visibleColumns; track column.key) {
+          <th
+            [style.width.px]="column.width"
+            [class.align-right]="column.align === 'right'"
+            [class.align-center]="column.align === 'center'">
+            <button
+              class="sort-btn"
+              [class.sortable]="column.sortable"
+              (click)="sortBy(column)"
+              [disabled]="!column.sortable">
+              <span>{{ column.label }}</span>
+              <i class="las" [class]="getSortIcon(column)"></i>
+            </button>
+            <span class="resize-handle" (mousedown)="startResize($event, column.key)"></span>
+          </th>
+          }
         </tr>
       </thead>
       <tbody>
         @for (payment of paginatedPayments; track payment.id) {
         <tr>
-          <td>{{ payment.id }}</td>
-          <td>{{ payment.date | date:'dd.MM.yyyy' }}</td>
-          <td>{{ payment.payer }}</td>
-          <td>{{ payment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
-          <td><span class="status-badge" [ngClass]="'status-' + payment.status">{{ payment.statusText }}</span></td>
-          <td class="actions">
-            <button class="icon-btn view" (click)="openViewModal(payment)" title="Просмотр">
-              <i class="las la-eye"></i>
-            </button>
-            <button class="icon-btn edit" (click)="openEditModal(payment)" title="Редактировать">
-              <i class="las la-pencil-alt"></i>
-            </button>
-            <button class="icon-btn delete" (click)="openDeleteModal(payment)" title="Удалить">
-              <i class="las la-trash"></i>
-            </button>
-            <button class="icon-btn transactions" (click)="goToTransactions(payment)" title="Транзакции">
-              <i class="las la-list"></i>
-            </button>
+          @for (column of visibleColumns; track column.key) {
+          <td [class.align-right]="column.align === 'right'" [class.align-center]="column.align === 'center'">
+            @if (column.key === 'actions') {
+            <div class="actions">
+              <button class="icon-btn view" (click)="openViewModal(payment)" title="Просмотр">
+                <i class="las la-eye"></i>
+              </button>
+              <button class="icon-btn edit" (click)="openEditModal(payment)" title="Редактировать">
+                <i class="las la-pencil-alt"></i>
+              </button>
+              <button class="icon-btn delete" (click)="openDeleteModal(payment)" title="Удалить">
+                <i class="las la-trash"></i>
+              </button>
+              <button class="icon-btn link" (click)="goToAssessment(payment)" title="Перейти к заявке">
+                <i class="las la-file-alt"></i>
+              </button>
+            </div>
+            } @else if (column.key === 'status') {
+            <span class="status-badge" [ngClass]="'status-' + payment.status">{{ payment.statusText }}</span>
+            } @else if (column.key === 'attachmentFileUrl') {
+            <a class="link" [href]="payment.attachmentFileUrl" target="_blank" rel="noopener">Ссылка</a>
+            } @else { {{ getColumnValue(payment, column) }} }
           </td>
+          }
         </tr>
         }
       </tbody>
     </table>
   </div>
 
-  <!-- Пагинация -->
   <div class="pagination">
     @if (totalPages > 1) {
-    <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">«</button>
+    <button class="page-btn" (click)="setPage(1)" [disabled]="currentPage === 1">&laquo;</button>
+    <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">&lsaquo;</button>
     @for (page of pages; track page) {
     <button class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">{{ page }}</button>
     }
-    <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">»</button>
+    <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">&rsaquo;</button>
+    <button class="page-btn" (click)="setPage(totalPages)" [disabled]="currentPage === totalPages">&raquo;</button>
     }
   </div>
 </div>
 
-<!-- Модальное окно создания/редактирования -->
 <div
   class="modal"
   [ngClass]="{ 'show': isCreateEditModalOpen }"
@@ -95,36 +149,95 @@
     </div>
     <div class="modal-body">
       <form #paymentForm="ngForm">
-        <div class="form-group">
-          <label for="recipient">Получатель</label>
-          <input type="text" id="recipient" [(ngModel)]="currentPayment.payer" name="recipient" required />
-        </div>
-        <div class="form-group">
-          <label for="amount">Сумма (RUB)</label>
-          <input
-            type="number"
-            id="amount"
-            [(ngModel)]="currentPayment.amount"
-            name="amount"
-            required
-            min="0"
-            step="0.01" />
-        </div>
-        <div class="form-group">
-          <label for="fee">Комиссия (RUB)</label>
-          <input type="number" id="fee" name="fee" min="0" step="0.01" [(ngModel)]="fee" />
-        </div>
-        <div class="form-group">
-          <label for="date">Дата</label>
-          <input type="date" id="date" [(ngModel)]="currentPayment.date" name="date" [max]="today" required />
-        </div>
-        <div class="form-group">
-          <label for="status">Статус</label>
-          <select id="status" [(ngModel)]="currentPayment.status" name="status">
-            <option value="completed">Успешно</option>
-            <option value="pending">В обработке</option>
-            <option value="failed">Ошибка</option>
-          </select>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="recipient">Плательщик</label>
+            <input type="text" id="recipient" [(ngModel)]="currentPayment.payer" name="recipient" required />
+          </div>
+          <div class="form-group">
+            <label for="amount">Сумма (RUB)</label>
+            <input
+              type="number"
+              id="amount"
+              [(ngModel)]="currentPayment.amount"
+              name="amount"
+              required
+              min="0"
+              step="0.01" />
+          </div>
+          <div class="form-group">
+            <label for="fee">Комиссия (RUB)</label>
+            <input type="number" id="fee" name="fee" min="0" step="0.01" [(ngModel)]="fee" />
+          </div>
+          <div class="form-group">
+            <label for="paymentDate">Дата платежа</label>
+            <input
+              type="date"
+              id="paymentDate"
+              [(ngModel)]="currentPayment.paymentDate"
+              name="paymentDate"
+              [max]="today"
+              required />
+          </div>
+          <div class="form-group">
+            <label for="status">Статус</label>
+            <select id="status" [(ngModel)]="currentPayment.status" name="status">
+              <option value="completed">Завершён</option>
+              <option value="pending">В обработке</option>
+              <option value="failed">Ошибка</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="type">Тип</label>
+            <select id="type" [(ngModel)]="currentPayment.type" name="type">
+              <option value="subscription">Подписка</option>
+              <option value="assessment">Заявка</option>
+              <option value="documentCopy">Копия документа</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="paymentMethod">Метод оплаты</label>
+            <input
+              type="text"
+              id="paymentMethod"
+              [(ngModel)]="currentPayment.paymentMethod"
+              name="paymentMethod"
+              required />
+          </div>
+          <div class="form-group">
+            <label for="transactionId">TransactionId</label>
+            <input
+              type="text"
+              id="transactionId"
+              [(ngModel)]="currentPayment.transactionId"
+              name="transactionId"
+              required />
+          </div>
+          <div class="form-group">
+            <label for="subscriptionId">SubscriptionId</label>
+            <input type="text" id="subscriptionId" [(ngModel)]="currentPayment.subscriptionId" name="subscriptionId" />
+          </div>
+          <div class="form-group">
+            <label for="assessmentId">AssessmentId</label>
+            <input type="text" id="assessmentId" [(ngModel)]="currentPayment.assessmentId" name="assessmentId" />
+          </div>
+          <div class="form-group">
+            <label for="attachmentFileName">Название чека</label>
+            <input
+              type="text"
+              id="attachmentFileName"
+              [(ngModel)]="currentPayment.attachmentFileName"
+              name="attachmentFileName"
+              required />
+          </div>
+          <div class="form-group">
+            <label for="attachmentFileUrl">Ссылка на чек</label>
+            <input
+              type="text"
+              id="attachmentFileUrl"
+              [(ngModel)]="currentPayment.attachmentFileUrl"
+              name="attachmentFileUrl" />
+          </div>
         </div>
       </form>
     </div>
@@ -136,7 +249,7 @@
     </div>
   </div>
 </div>
-<!-- Модальное окно просмотра -->
+
 <div
   class="modal"
   [ngClass]="{ 'show': isViewModalOpen }"
@@ -153,8 +266,18 @@
     <div class="modal-body view-details">
       <p><strong>ID:</strong> {{ currentPayment.id }}</p>
       <p><strong>Плательщик:</strong> {{ currentPayment.payer }}</p>
+      <p><strong>Тип:</strong> {{ currentPayment.typeText }}</p>
       <p><strong>Сумма:</strong> {{ currentPayment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</p>
-      <p><strong>Дата:</strong> {{ currentPayment.date | date:'dd.MM.yyyy' }}</p>
+      <p><strong>Дата платежа:</strong> {{ currentPayment.paymentDate | date:'dd.MM.yyyy' }}</p>
+      <p><strong>Метод оплаты:</strong> {{ currentPayment.paymentMethod }}</p>
+      <p><strong>TransactionId:</strong> {{ currentPayment.transactionId }}</p>
+      <p><strong>AssessmentId:</strong> {{ currentPayment.assessmentId || '—' }}</p>
+      <p><strong>SubscriptionId:</strong> {{ currentPayment.subscriptionId || '—' }}</p>
+      <p><strong>Чек:</strong> {{ currentPayment.attachmentFileName }}</p>
+      <p>
+        <strong>Ссылка на чек:</strong>
+        <a class="link" [href]="currentPayment.attachmentFileUrl" target="_blank" rel="noopener">Открыть</a>
+      </p>
       <p>
         <strong>Статус:</strong>
         <span class="status-badge" [ngClass]="'status-' + currentPayment.status">{{ currentPayment.statusText }}</span>
@@ -166,7 +289,6 @@
   </div>
 </div>
 
-<!-- Модальное окно подтверждения удаления -->
 <div
   class="modal"
   [ngClass]="{ 'show': isDeleteModalOpen }"

@@ -1,30 +1,34 @@
 @use 'sass:color';
 
-// Цветовая схема
-$primary: #4361ee;
-$primary-dark: #3a56d4;
-$secondary: #6c757d;
-$success: #2ecc71;
-$warning: #f39c12;
-$danger: #e74c3c;
-$light: #f8f9fa;
-$dark: #343a40;
-$border: #dee2e6;
-$text-muted: #6c757d;
+$bg: #f4f5f7;
+$card: #fff;
+$ink: #1f2933;
+$muted: #6b7280;
+$border: #e5e7eb;
+$primary: #1f2937;
+$primary-weak: #e5e7eb;
+$success: #16a34a;
+$warning: #f59e0b;
+$danger: #dc2626;
+$accent: #2563eb;
 
-// Глобальные стили кнопок
+:host {
+  display: block;
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+  color: $ink;
+}
+
 .btn {
   cursor: pointer;
 
-  padding: 0.5rem 1.2rem;
-  border: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
   border-radius: 8px;
 
+  font-size: 0.95rem;
   font-weight: 500;
 
-  transition:
-    background 0.2s,
-    transform 0.1s;
+  transition: 0.2s ease;
 
   &:active {
     transform: translateY(1px);
@@ -32,266 +36,309 @@ $text-muted: #6c757d;
 }
 
 .btn-primary {
-  color: white;
-  background: $primary;
+  border-color: $accent;
+  color: #fff;
+  background: $accent;
 
   &:hover {
-    background: $primary-dark;
+    background: color.adjust($accent, $lightness: -5%);
   }
 }
 
 .btn-secondary {
-  color: white;
-  background: $secondary;
+  border-color: $border;
+  color: $primary;
+  background: #fff;
 
   &:hover {
-    background: color.adjust($secondary, $lightness: -10%);
+    border-color: color.adjust($border, $lightness: -10%);
+    background: $primary-weak;
   }
 }
 
 .btn-danger {
-  color: white;
+  border-color: $danger;
+  color: #fff;
   background: $danger;
 
   &:hover {
-    background: color.adjust($danger, $lightness: -10%);
+    background: color.adjust($danger, $lightness: -6%);
   }
 }
 
-// Основной контейнер
 .payments-container {
   padding: 1.5rem;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
+  border-radius: 16px;
+  background: $bg;
 }
 
-// Заголовок
 .payments-header {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.5rem;
   align-items: center;
   justify-content: space-between;
 
   margin-bottom: 1.5rem;
 
   h2 {
-    margin: 0;
+    margin: 0 0 0.3rem;
     font-size: 2rem;
     font-weight: 700;
-    color: $dark;
+  }
+
+  .subtitle {
+    margin: 0;
+    font-size: 0.95rem;
+    color: $muted;
+  }
+
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 }
 
-// Панель фильтров
 .filters-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  align-items: center;
+
   margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid $border;
+  border-radius: 12px;
 
-  .search-input {
-    flex: 1 1 250px;
+  background: $card;
 
-    padding: 0.5rem 1rem;
+  .search-input,
+  .filter-select,
+  input[type='date'] {
+    padding: 0.55rem 0.75rem;
     border: 1px solid $border;
     border-radius: 8px;
 
     font-size: 0.95rem;
 
-    transition: border-color 0.2s;
+    background: #fff;
 
     &:focus {
-      border-color: $primary;
+      border-color: $accent;
       outline: none;
     }
   }
 
+  .search-input {
+    flex: 1 1 280px;
+  }
+
   .filter-select {
-    cursor: pointer;
+    min-width: 180px;
+  }
 
-    width: 180px;
-    padding: 0.5rem 1rem;
-    border: 1px solid $border;
-    border-radius: 8px;
+  .date-range {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
 
-    background: white;
+    label {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+
+      font-size: 0.85rem;
+      color: $muted;
+    }
   }
 }
 
-// Таблица
-.table-responsive {
-  overflow-x: auto;
+.columns-panel {
   margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid $border;
+  border-radius: 12px;
+
+  background: $card;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+
+    h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+  }
+
+  &__body {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.5rem 1rem;
+  }
+
+  .checkbox {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+
+    font-size: 0.9rem;
+    color: $muted;
+  }
+}
+
+.table-responsive {
+  overflow: auto;
+
+  padding: 0.5rem;
+  border: 1px solid $border;
+  border-radius: 12px;
+
+  background: $card;
 }
 
 .payments-table {
-  table-layout: auto;
   border-collapse: collapse;
   width: 100%;
-  min-width: 800px;
+  min-width: 1200px;
 
-  // Колонки ID, Дата — фиксированная ширина, минимальная ширина чтобы текст не перекрывал соседние колонки
-  th:nth-child(1),
-  td:nth-child(1) {
-    width: 7%;
-    min-width: 50px;
-  }
-
-  th:nth-child(2),
-  td:nth-child(2) {
-    width: 8%;
-    min-width: 90px;
-  }
-
-  // Плательщик — занимает всё освобождённое пространство (эффект margin-left: auto)
-  th:nth-child(3),
-  td:nth-child(3) {
-    width: auto;
-    min-width: 150px;
-  }
-
-  // Сумма и Статус — сдвинуты чуть левее (больше ширины), выравнивание по правому краю
-  th:nth-child(4),
-  td:nth-child(4),
-  th:nth-child(5),
-  td:nth-child(5) {
-    width: 14%;
-    min-width: 90px;
-  }
-
-  // Действия — справа, минимальная ширина
-  th:nth-child(6),
-  td:nth-child(6) {
-    width: 5%;
-    min-width: 140px;
-  }
-
-  th {
-    padding: 1rem 0.75rem;
-    border-bottom: 2px solid $border;
-
-    font-size: 1rem;
-    font-weight: 600;
-    color: $text-muted;
-    text-align: left;
-
-    background: $light;
-  }
-
-  // Заголовки правых колонок — переопределяем выравнивание
-  th:nth-child(4),
-  th:nth-child(5),
-  th:nth-child(6) {
-    text-align: left;
-  }
-
+  th,
   td {
-    padding: 1rem 0.75rem;
+    padding: 0.75rem;
     border-bottom: 1px solid $border;
-    color: $dark;
+    text-align: left;
     vertical-align: middle;
   }
 
-  tr:last-child td {
-    border-bottom: none;
+  th {
+    position: relative;
+    font-size: 0.85rem;
+    color: $muted;
+    background: #f9fafb;
+  }
+
+  td {
+    font-size: 0.92rem;
+  }
+
+  .align-right {
+    text-align: right;
+  }
+
+  .align-center {
+    text-align: center;
+  }
+
+  .sort-btn {
+    cursor: default;
+
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+
+    padding: 0;
+    border: none;
+
+    color: inherit;
+
+    background: none;
+
+    &.sortable {
+      cursor: pointer;
+    }
+  }
+
+  .resize-handle {
+    cursor: col-resize;
+
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 6px;
+    height: 100%;
   }
 
   .status-badge {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 
-    min-width: 90px;
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
+    min-width: 96px;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
 
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    text-align: center;
 
     &.status-completed {
-      color: color.adjust($success, $lightness: -15%);
-      background: rgba($success, 0.15);
+      color: color.adjust($success, $lightness: -10%);
+      background: rgba($success, 0.12);
     }
 
     &.status-pending {
-      color: color.adjust($warning, $lightness: -15%);
+      color: color.adjust($warning, $lightness: -10%);
       background: rgba($warning, 0.15);
     }
 
     &.status-failed {
-      color: color.adjust($danger, $lightness: -15%);
-      background: rgba($danger, 0.15);
+      color: color.adjust($danger, $lightness: -10%);
+      background: rgba($danger, 0.12);
     }
   }
 
   .actions {
     display: flex;
     gap: 0.5rem;
-    justify-content: flex-end;
+    justify-content: center;
 
     .icon-btn {
       cursor: pointer;
 
-      padding: 0.25rem;
+      padding: 0.3rem;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
 
-      font-size: 1.25rem;
+      font-size: 1.1rem;
+      color: $muted;
 
-      background: none;
-
-      transition: background 0.2s;
+      background: transparent;
 
       &:hover {
-        background: rgb(0 0 0 / 5%);
+        color: $primary;
+        background: $primary-weak;
       }
 
-      &.view {
-        color: $primary;
-      }
-      &.edit {
-        color: $warning;
-      }
       &.delete {
         color: $danger;
-      }
-      &.transactions {
-        color: $secondary;
       }
     }
   }
 }
 
-// Пагинация
 .pagination {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   justify-content: flex-end;
+  margin-top: 1rem;
 
   .page-btn {
     cursor: pointer;
 
-    min-width: 36px;
-    height: 36px;
+    min-width: 32px;
+    height: 32px;
     border: 1px solid $border;
     border-radius: 6px;
 
-    font-weight: 500;
-
-    background: white;
-
-    transition: all 0.2s;
-
-    &:hover:not(:disabled) {
-      border-color: color.adjust($border, $lightness: -10%);
-      background: $light;
-    }
+    background: #fff;
 
     &.active {
-      border-color: $primary;
-      color: white;
-      background: $primary;
+      border-color: $accent;
+      color: #fff;
+      background: $accent;
     }
 
     &:disabled {
@@ -301,168 +348,124 @@ $text-muted: #6c757d;
   }
 }
 
-// Модальные окна
 .modal {
   position: fixed;
   z-index: 1000;
-  top: 0;
-  left: 0;
+  inset: 0;
 
   display: none;
   align-items: center;
   justify-content: center;
 
-  width: 100%;
-  height: 100%;
-
-  background: rgb(0 0 0 / 50%);
+  background: rgb(15 23 42 / 45%);
 
   &.show {
     display: flex;
   }
 
   .modal-content {
-    width: 90%;
-    max-width: 600px;
-    max-height: 90%;
-    border-radius: 12px;
+    overflow: hidden;
 
-    background: white;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 50%);
+    width: min(860px, 95vw);
+    border-radius: 16px;
 
-    animation: modal-slide-in 0.3s ease;
-
-    &.view-modal {
-      max-width: 400px;
-      max-height: 100%;
-    }
-
-    &.delete-modal {
-      max-width: 450px;
-    }
+    background: $card;
+    box-shadow: 0 20px 45px rgb(15 23 42 / 25%);
   }
 
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  .view-modal {
+    width: min(520px, 95vw);
+  }
 
-    padding: 1.2rem 1.5rem;
+  .delete-modal {
+    width: min(480px, 95vw);
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding: 1rem 1.5rem;
     border-bottom: 1px solid $border;
-
-    h3 {
-      margin: 0;
-      font-size: 1.3rem;
-      font-weight: 700;
-    }
-
-    .close-btn {
-      cursor: pointer;
-
-      border: none;
-
-      font-size: 1.8rem;
-      line-height: 1;
-      color: $text-muted;
-
-      background: none;
-
-      transition: color 0.2s;
-
-      &:hover {
-        color: $dark;
-      }
-    }
-  }
-
-  .modal-body {
-    padding: 1.5rem;
-
-    .form-group {
-      margin-bottom: 1.3rem;
-
-      label {
-        display: block;
-        margin-bottom: 0.3rem;
-        font-weight: 500;
-        color: $dark;
-      }
-
-      input,
-      select {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid $border;
-        border-radius: 6px;
-
-        font-size: 1rem;
-
-        transition: border-color 0.2s;
-
-        &:focus {
-          border-color: $primary;
-          outline: none;
-        }
-      }
-    }
-
-    &.view-details p {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: center;
-
-      max-width: 100%;
-      margin: 0.8rem 0;
-
-      overflow-wrap: break-word;
-
-      strong {
-        min-width: 100px;
-        color: $text-muted;
-      }
-    }
-
-    // Перенос длинного текста в подтверждении удаления
-    p {
-      max-width: 100%;
-      overflow-wrap: break-word;
-    }
   }
 
   .modal-footer {
     display: flex;
-    gap: 0.8rem;
+    gap: 0.75rem;
     justify-content: flex-end;
 
-    padding: 1.2rem 1.5rem;
     border-top: 1px solid $border;
+    border-bottom: none;
+  }
 
-    .btn {
-      padding: 0.6rem 1.5rem;
-      border-radius: 6px;
+  .modal-body {
+    padding: 1.5rem;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+
+    input,
+    select {
+      padding: 0.55rem 0.75rem;
+      border: 1px solid $border;
+      border-radius: 8px;
+      font-size: 0.95rem;
+
+      &:focus {
+        border-color: $accent;
+        outline: none;
+      }
     }
   }
+
+  .view-details {
+    display: grid;
+    gap: 0.65rem;
+
+    p {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+
+      margin: 0;
+
+      color: $ink;
+    }
+
+    strong {
+      color: $muted;
+    }
+  }
+
+  .close-btn {
+    cursor: pointer;
+
+    border: none;
+
+    font-size: 1.6rem;
+    color: $muted;
+
+    background: none;
+  }
 }
 
-@keyframes modal-slide-in {
-  from {
-    transform: translateY(-30px);
-    opacity: 0;
-  }
+.link {
+  color: $accent;
+  text-decoration: none;
 
-  to {
-    transform: translateY(0);
-    opacity: 1;
+  &:hover {
+    text-decoration: underline;
   }
 }
 
-// Адаптивность
-@media (width <= 768px) {
-  .payments-container {
-    padding: 1rem;
-  }
-
+@media (width <= 980px) {
   .payments-header {
     flex-direction: column;
     align-items: flex-start;
@@ -470,15 +473,20 @@ $text-muted: #6c757d;
 
   .filters-bar {
     flex-direction: column;
+    align-items: stretch;
 
-    .search-input,
-    .filter-select {
+    .filter-select,
+    .search-input {
       width: 100%;
     }
-  }
 
-  .modal .modal-content {
-    width: 95%;
-    margin: 1rem;
+    .date-range {
+      justify-content: space-between;
+      width: 100%;
+
+      label {
+        flex: 1;
+      }
+    }
   }
 }
