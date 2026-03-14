@@ -9,7 +9,6 @@
     </div>
     <div class="header-actions">
       <button class="btn btn-secondary" (click)="toggleColumnsPanel()">Колонки</button>
-      <button class="btn btn-secondary" (click)="exportCsv()">Экспорт CSV</button>
       <button class="btn btn-primary" (click)="openCreateModal()">+ Создать платёж</button>
       <button class="btn btn-secondary" (click)="goToTransactions()">Транзакции нотариуса</button>
     </div>
@@ -51,7 +50,8 @@
     <button class="btn btn-secondary" (click)="onFiltersChanged()">Применить</button>
   </div>
 
-  <div class="columns-panel" *ngIf="showColumnsPanel">
+  @if (showColumnsPanel) {
+  <div class="columns-panel">
     <div class="columns-panel__header">
       <h3>Видимость колонок</h3>
       <button class="icon-btn" (click)="toggleColumnsPanel()"><i class="las la-times"></i></button>
@@ -65,7 +65,7 @@
       }
     </div>
   </div>
-
+  }
   <div class="table-responsive">
     <table class="payments-table">
       <thead>
@@ -81,7 +81,7 @@
               (click)="sortBy(column)"
               [disabled]="!column.sortable">
               <span>{{ column.label }}</span>
-              <i class="las" [class]="getSortIcon(column)"></i>
+              <i [class]="getSortIcon(column)"></i>
             </button>
             <span class="resize-handle" (mousedown)="startResize($event, column.key)"></span>
           </th>
@@ -123,13 +123,13 @@
 
   <div class="pagination">
     @if (totalPages > 1) {
-    <button class="page-btn" (click)="setPage(1)" [disabled]="currentPage === 1">&laquo;</button>
-    <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">&lsaquo;</button>
+    <button class="page-btn" (click)="setPage(1)" [disabled]="currentPage === 1"><<</button>
+    <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1"><</button>
     @for (page of pages; track page) {
     <button class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">{{ page }}</button>
     }
-    <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">&rsaquo;</button>
-    <button class="page-btn" (click)="setPage(totalPages)" [disabled]="currentPage === totalPages">&raquo;</button>
+    <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">></button>
+    <button class="page-btn" (click)="setPage(totalPages)" [disabled]="currentPage === totalPages">>></button>
     }
   </div>
 </div>

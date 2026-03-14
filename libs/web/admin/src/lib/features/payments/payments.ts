@@ -170,16 +170,16 @@ export class Payments implements OnDestroy {
 
   columns: ColumnState[] = [
     { key: 'id', label: 'ID', visible: true, width: 110, sortable: true },
-    { key: 'paymentDate', label: 'Дата платежа', visible: true, width: 130, sortable: true },
-    { key: 'payer', label: 'Плательщик', visible: true, width: 190, sortable: true },
-    { key: 'type', label: 'Тип', visible: true, width: 140, sortable: true },
-    { key: 'amount', label: 'Сумма', visible: true, width: 140, sortable: true, align: 'right' },
+    { key: 'paymentDate', label: 'Дата платежа', visible: true, width: 140, sortable: true },
+    { key: 'payer', label: 'Плательщик', visible: true, width: 200, sortable: true },
+    { key: 'type', label: 'Тип', visible: true, width: 150, sortable: true },
+    { key: 'amount', label: 'Сумма', visible: true, width: 130, sortable: true, align: 'right' },
     { key: 'status', label: 'Статус', visible: true, width: 140, sortable: true },
-    { key: 'paymentMethod', label: 'Метод оплаты', visible: true, width: 160, sortable: true },
-    { key: 'assessmentId', label: 'Заявка', visible: true, width: 210, sortable: true },
-    { key: 'subscriptionId', label: 'Подписка', visible: false, width: 210, sortable: true },
+    { key: 'paymentMethod', label: 'Метод оплаты', visible: true, width: 170, sortable: true },
+    { key: 'assessmentId', label: 'Заявка', visible: true, width: 220, sortable: true },
+    { key: 'subscriptionId', label: 'Подписка', visible: false, width: 220, sortable: true },
     { key: 'transactionId', label: 'TransactionId', visible: true, width: 170, sortable: true },
-    { key: 'attachmentFileName', label: 'Чек', visible: true, width: 170, sortable: true },
+    { key: 'attachmentFileName', label: 'Чек', visible: true, width: 180, sortable: true },
     { key: 'attachmentFileUrl', label: 'Ссылка на чек', visible: true, width: 180, sortable: true },
     { key: 'actions', label: 'Действия', visible: true, width: 150, align: 'center' },
   ];
@@ -358,7 +358,8 @@ export class Payments implements OnDestroy {
     this.isEditMode = false;
     this.paymentForm?.resetForm();
     this.currentPayment = this.resetPayment();
-    this.currentPayment.id = `PMT-${Math.max(...this.payments.map((p) => Number(p.id.split('-')[1])), 0) + 1}`;
+    const nextId = Math.max(...this.payments.map((p) => Number(p.id.split('-')[1]) || 0), 0) + 1;
+    this.currentPayment.id = `PMT-${nextId}`;
     this.fee = 0;
     this.isCreateEditModalOpen = true;
   }
@@ -419,29 +420,6 @@ export class Payments implements OnDestroy {
     this.closeModals();
   }
 
-  exportCsv(): void {
-    const headers = this.columns
-      .filter((col) => col.visible && col.key !== 'actions')
-      .map((col) => col.label);
-    const rows = this.sortedPayments.map((payment) =>
-      this.columns
-        .filter((col) => col.visible && col.key !== 'actions')
-        .map((col) => {
-          const value = this.getColumnValue(payment, col);
-          return `"${String(value ?? '').replace(/"/g, '""')}"`;
-        })
-        .join(','),
-    );
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'payments.csv';
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   private getStatusText(status: Payment['status']): string {
     switch (status) {
       case 'completed':
@@ -484,6 +462,8 @@ export class Payments implements OnDestroy {
         return payment.subscriptionId ?? '';
       case 'attachmentFileName':
         return payment.attachmentFileName;
+      case 'attachmentFileUrl':
+        return payment.attachmentFileUrl;
       case 'transactionId':
         return payment.transactionId;
       case 'paymentMethod':
