@@ -9,6 +9,8 @@ const ADMIN_MENU = [
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
   { label: 'Тарифные планы', route: 'plans', icon: '📋' },
+  { label: 'Скидки', route: 'discounts', icon: '🏷️' },
+  { label: 'Промокоды', route: 'promocodes', icon: '🎫' },
   { label: 'Модерация файлов', route: 'files', icon: '📁' },
   { label: 'Рассылка', route: 'newsletter', icon: '📧' },
   { label: 'Мониторинг и логи', route: 'monitoring', icon: '🖥' },
