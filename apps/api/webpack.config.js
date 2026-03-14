@@ -1,9 +1,15 @@
-const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
+﻿const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const { join } = require('path');
+const os = require('os');
+
+const defaultOutputPath = join(__dirname, '../../dist/apps/api');
+const outputPath = defaultOutputPath.includes('!')
+  ? join(os.tmpdir(), 'notary-portal-dist', 'api')
+  : defaultOutputPath;
 
 module.exports = {
   output: {
-    path: join(__dirname, '../../dist/apps/api'),
+    path: outputPath,
     clean: true,
     ...(process.env.NODE_ENV !== 'production' && {
       devtoolModuleFilenameTemplate: '[absolute-resource-path]',
