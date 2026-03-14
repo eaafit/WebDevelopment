@@ -1,18 +1,24 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Plan } from './plan';
+import { PlanComponent } from './plan';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
-describe('Plan', () => {
-  let component: Plan;
-  let fixture: ComponentFixture<Plan>;
+describe('PlanComponent', () => {
+  let component: PlanComponent;
+  let fixture: ComponentFixture<PlanComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Plan],
+      imports: [
+        CommonModule,
+        FormsModule,
+        PlanComponent, // сам компонент standalone
+      ],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Plan);
+    fixture = TestBed.createComponent(PlanComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {

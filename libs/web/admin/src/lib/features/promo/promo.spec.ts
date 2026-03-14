@@ -1,18 +1,20 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Promo } from './promo';
+import { PromoComponent } from './promo';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
-describe('Promo', () => {
-  let component: Promo;
-  let fixture: ComponentFixture<Promo>;
+describe('PromoComponent', () => {
+  let component: PromoComponent;
+  let fixture: ComponentFixture<PromoComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Promo],
+      imports: [CommonModule, FormsModule, PromoComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Promo);
+    fixture = TestBed.createComponent(PromoComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {

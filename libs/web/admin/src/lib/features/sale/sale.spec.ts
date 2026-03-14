@@ -1,18 +1,20 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Sale } from './sale';
+import { SaleComponent } from './sale';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
-describe('Sale', () => {
-  let component: Sale;
-  let fixture: ComponentFixture<Sale>;
+describe('SaleComponent', () => {
+  let component: SaleComponent;
+  let fixture: ComponentFixture<SaleComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [Sale],
+      imports: [CommonModule, FormsModule, SaleComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(Sale);
+    fixture = TestBed.createComponent(SaleComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
