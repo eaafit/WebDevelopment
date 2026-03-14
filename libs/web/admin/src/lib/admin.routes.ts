@@ -47,7 +47,15 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'plans',
-        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
+        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
+      } as Route,
+      {
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
+      } as Route,
+      {
+        path: 'promocodes',
+        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
       } as Route,
       {
         path: 'files',
