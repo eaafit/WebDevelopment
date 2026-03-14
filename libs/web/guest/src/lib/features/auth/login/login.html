@@ -2,7 +2,7 @@
   <h1>Вход в систему</h1>
 
   @if (error()) {
-    <div class="login__error">{{ error() }}</div>
+  <div class="login__error">{{ error() }}</div>
   }
 
   <div class="login__field">
@@ -12,10 +12,38 @@
 
   <div class="login__field">
     <label for="password">Пароль</label>
-    <input id="password" type="password" [(ngModel)]="password" placeholder="••••••••" autocomplete="current-password" />
+    <input
+      id="password"
+      type="password"
+      [(ngModel)]="password"
+      placeholder="••••••••"
+      autocomplete="current-password" />
   </div>
 
   <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
     {{ loading() ? 'Вход...' : 'Войти' }}
   </button>
+
+  <section class="login__test-accounts" aria-label="Тестовые аккаунты">
+    <h2>Тестовые аккаунты</h2>
+    <ul>
+      @for (account of testAccounts; track account.email) {
+      <li>
+        <button class="login__test-account" type="button" (click)="onUseTestAccount(account)">
+          <span class="login__test-account-role">{{ account.role }}</span>
+          <span class="login__test-account-creds">
+            <code>{{ account.email }}</code>
+            <span>/</span>
+            <code>{{ account.password }}</code>
+          </span>
+          @if (copiedAccount() === account.email) {
+          <span class="login__test-account-copied">Скопировано</span>
+          } @else {
+          <span class="login__test-account-action">Скопировать</span>
+          }
+        </button>
+      </li>
+      }
+    </ul>
+  </section>
 </main>

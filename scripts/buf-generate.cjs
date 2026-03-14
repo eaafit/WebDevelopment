@@ -3,11 +3,12 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const { execSync } = require('node:child_process');
+const { execFileSync } = require('node:child_process');
 
 // Run from cwd = libs/shared/api-contracts; workspace root is ../../..
 const cwd = process.cwd();
 const root = path.resolve(cwd, '..', '..', '..');
+const bufPath = path.join(root, 'node_modules', '.bin', 'buf');
 const pluginPath = path.join(root, 'node_modules', '.bin', 'protoc-gen-es');
 
 // Use a temp file so we never modify repo files (avoids triggering Nx file watcher)
@@ -24,7 +25,11 @@ plugins:
 
 try {
   fs.writeFileSync(tempConfig, bufGenContent, 'utf8');
-  execSync(`buf generate --template "${tempConfig}"`, { cwd, stdio: 'inherit', env: process.env });
+  execFileSync(bufPath, ['generate', '--template', tempConfig], {
+    cwd,
+    stdio: 'inherit',
+    env: process.env,
+  });
 } finally {
   try {
     fs.unlinkSync(tempConfig);

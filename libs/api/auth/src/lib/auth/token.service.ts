@@ -1,19 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
-
-// ─── Интерфейсы ─────────────────────────────────────────────────────────────
-
-export interface AccessTokenPayload {
-  sub: string;   // user id
-  email: string;
-  role: string;
-  iat: number;
-  exp: number;
-}
+import type { AccessTokenPayload } from '@internal/auth-shared';
 
 export interface TokenPair {
   accessToken: string;
-  refreshToken: string;  // opaque random token, хранится как hash в БД
+  refreshToken: string; // opaque random token, хранится как hash в БД
   refreshExpiresAt: Date;
 }
 
@@ -22,9 +13,9 @@ export interface TokenPair {
 @Injectable()
 export class TokenService {
   // TTL из окружения с разумными дефолтами
-  private readonly accessSecret  = this.requireEnv('JWT_ACCESS_SECRET');
-  private readonly accessTtlSec  = Number(process.env['JWT_ACCESS_TTL_SEC']  ?? 900);      // 15 мин
-  private readonly refreshTtlSec = Number(process.env['JWT_REFRESH_TTL_SEC'] ?? 2592000);  // 30 дней
+  private readonly accessSecret = this.requireEnv('JWT_ACCESS_SECRET');
+  private readonly accessTtlSec = Number(process.env['JWT_ACCESS_TTL_SEC'] ?? 900); // 15 мин
+  private readonly refreshTtlSec = Number(process.env['JWT_REFRESH_TTL_SEC'] ?? 2592000); // 30 дней
 
   // ─── Генерация пары токенов ──────────────────────────────────────────────
 
@@ -37,7 +28,7 @@ export class TokenService {
       exp: now + this.accessTtlSec,
     });
 
-    const refreshToken     = randomBytes(48).toString('hex');   // 96-char opaque token
+    const refreshToken = randomBytes(48).toString('hex'); // 96-char opaque token
     const refreshExpiresAt = new Date((now + this.refreshTtlSec) * 1000);
 
     return { accessToken, refreshToken, refreshExpiresAt };
@@ -70,9 +61,9 @@ export class TokenService {
   // ─── JWT helper ─────────────────────────────────────────────────────────
 
   private signJwt(payload: AccessTokenPayload): string {
-    const header  = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const body    = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const sig     = this.hmacSign(`${header}.${body}`);
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const sig = this.hmacSign(`${header}.${body}`);
     return `${header}.${body}.${sig}`;
   }
 

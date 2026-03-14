@@ -48,13 +48,14 @@ export class Transactions {
         switchMap(({ page, filters }) =>
           this.api.getTransactionHistory(this.buildQuery(page, filters)).pipe(
             map((response) => ({ ok: true as const, response, filters })),
-            catchError(() =>
-              of({
+            catchError((err) => {
+              console.error('Failed to load transaction history', err);
+
+              return of({
                 ok: false as const,
-                error:
-                  'Не удалось загрузить историю транзакций. Проверьте API и повторите попытку.',
-              }),
-            ),
+                error: extractTransactionsError(err),
+              });
+            }),
           ),
         ),
         takeUntilDestroyed(this.destroyRef),
@@ -108,4 +109,44 @@ export class Transactions {
       dateTo: filters.dateTo || undefined,
     };
   }
+}
+
+function extractTransactionsError(err: unknown): string {
+  const message = getErrorMessage(err);
+
+  if (!message) {
+    return 'Не удалось загрузить историю транзакций. Проверьте API и повторите попытку.';
+  }
+
+  if (/failed to fetch|fetch failed|networkerror/i.test(message)) {
+    return 'Не удалось подключиться к API. Убедитесь, что backend запущен и доступен.';
+  }
+
+  if (/session expired|unauthenticated|unauthorized|401/i.test(message)) {
+    return 'Сессия истекла или недействительна. Войдите снова.';
+  }
+
+  return `Не удалось загрузить историю транзакций: ${message}`;
+}
+
+function getErrorMessage(err: unknown): string | null {
+  if (!err) {
+    return null;
+  }
+
+  if (typeof err === 'string') {
+    return err;
+  }
+
+  if (typeof err === 'object') {
+    const withRawMessage = err as { rawMessage?: unknown; message?: unknown };
+    if (typeof withRawMessage.rawMessage === 'string' && withRawMessage.rawMessage.trim()) {
+      return withRawMessage.rawMessage.trim();
+    }
+    if (typeof withRawMessage.message === 'string' && withRawMessage.message.trim()) {
+      return withRawMessage.message.trim();
+    }
+  }
+
+  return null;
 }

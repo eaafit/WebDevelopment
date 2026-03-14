@@ -17,6 +17,7 @@
     "paths": {
       "@internal/assessment": ["libs/api/assessment/src/index.ts"],
       "@internal/auth": ["libs/api/auth/src/index.ts"],
+      "@internal/auth-shared": ["libs/api/shared/auth/src/index.ts"],
       "@internal/billing": ["libs/api/billing/src/index.ts"],
       "@internal/document": ["libs/api/document/src/index.ts"],
       "@internal/notification": ["libs/api/notification/src/index.ts"],
