@@ -24,8 +24,8 @@ export class Login {
   readonly copiedAccount = signal<string | null>(null);
   readonly testAccounts: TestAccount[] = [
     { role: 'Applicant', email: 'seed-user-000@seed.local', password: 'SeedPass123!' },
-    { role: 'Notary', email: 'seed-user-050@seed.local', password: 'SeedPass123!' },
-    { role: 'Admin', email: 'seed-user-080@seed.local', password: 'SeedPass123!' },
+    { role: 'Notary', email: 'seed-user-010@seed.local', password: 'SeedPass123!' },
+    { role: 'Admin', email: 'seed-user-020@seed.local', password: 'SeedPass123!' },
   ];
 
   email = '';

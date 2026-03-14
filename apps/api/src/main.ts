@@ -6,7 +6,7 @@ import express from 'express';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { AuthInterceptor } from '@internal/auth';
-import { PaymentWebhookService } from '@internal/billing';
+import { PaymentWebhookError, PaymentWebhookService } from '@internal/billing';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
 
@@ -56,9 +56,17 @@ async function bootstrap() {
     express.json(),
     (req: express.Request, res: express.Response) => {
       paymentWebhookService
-        .handleYooKassaNotification(req.body)
+        .handleYooKassaNotification(req.body, {
+          signature: resolveWebhookSignature(req),
+        })
         .then(() => res.status(200).end())
-        .catch(() => res.status(500).end());
+        .catch((error: unknown) => {
+          if (error instanceof PaymentWebhookError) {
+            res.status(error.statusCode).json({ error: error.message });
+            return;
+          }
+          res.status(500).end();
+        });
     },
   );
 
@@ -78,3 +86,21 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+function resolveWebhookSignature(req: express.Request): string | undefined {
+  const fromQuery = typeof req.query['secret'] === 'string' ? req.query['secret'] : undefined;
+  const fromHeader =
+    req.header('x-payment-webhook-secret') ??
+    req.header('x-yookassa-signature') ??
+    parseBearerToken(req.header('authorization'));
+  return (fromQuery ?? fromHeader)?.trim() || undefined;
+}
+
+function parseBearerToken(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const match = /^Bearer\s+(.+)$/i.exec(value);
+  return match?.[1];
+}

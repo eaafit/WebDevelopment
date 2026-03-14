@@ -27,6 +27,16 @@ export const notaryRoutes: Route[] = [
         ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
       } as Route,
       {
+        path: 'subscription/checkout/success',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
+        path: 'subscription/checkout/cancel',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
         path: 'subscription/checkout',
         loadComponent: () =>
           import('./features/subscription/checkout/checkout').then((m) => m.Checkout),

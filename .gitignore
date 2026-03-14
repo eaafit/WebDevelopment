@@ -1,4 +1,4 @@
-# Compiled output
+﻿# Compiled output
 dist
 tmp
 out-tsc
@@ -54,6 +54,10 @@ yarn.lock
 # Prisma
 *.db
 *.db-journal
+
+# Environment files and local secrets
+.env
+!libs/api/shared/prisma/.env
 
 # Tests and logs
 test-results/
