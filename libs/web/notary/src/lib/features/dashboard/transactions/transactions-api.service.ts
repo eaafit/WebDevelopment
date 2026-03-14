@@ -1,5 +1,6 @@
 ﻿import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
+
 import {
   PaymentService,
   PaymentStatus,
@@ -12,6 +13,8 @@ import type { TransactionHistoryPage, TransactionItem, TransactionStatus } from 
 import { Injectable, inject } from '@angular/core';
 import { from, map, type Observable } from 'rxjs';
 
+const createRpcClient = createClient as unknown as (service: any, transport: any) => any;
+
 export interface TransactionsHistoryQuery {
   page: number;
   limit: number;
@@ -23,7 +26,7 @@ export interface TransactionsHistoryQuery {
 
 @Injectable({ providedIn: 'root' })
 export class TransactionsApiService {
-  private readonly client = createClient<any>(PaymentService as any, inject(RPC_TRANSPORT)) as any;
+  private readonly client = createRpcClient(PaymentService, inject(RPC_TRANSPORT));
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
     return from(this.client['getPaymentHistory'](buildRequest(query))).pipe(

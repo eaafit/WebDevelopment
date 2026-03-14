@@ -1,8 +1,11 @@
 ﻿import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { createClient } from '@connectrpc/connect';
+
 import { AuthService as RpcAuthService } from '@notary-portal/api-contracts';
 import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME } from '@notary-portal/ui';
+
+const createRpcClient = createClient as unknown as (service: any, transport: any) => any;
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -10,7 +13,7 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly transport = inject(RPC_TRANSPORT);
 
-  private readonly client = createClient<any>(RpcAuthService as any, this.transport) as any;
+  private readonly client = createRpcClient(RpcAuthService, this.transport);
 
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
