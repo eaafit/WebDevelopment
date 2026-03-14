@@ -29,9 +29,9 @@ export class TransactionsApiService {
   private readonly client = createRpcClient(PaymentService, inject(RPC_TRANSPORT));
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
-    return from(this.client['getPaymentHistory'](buildRequest(query))).pipe(
-      map((response: GetPaymentHistoryResponse) => this.toTransactionHistoryPage(response)),
-    );
+    return from(
+      this.client['getPaymentHistory'](buildRequest(query)) as Promise<GetPaymentHistoryResponse>,
+    ).pipe(map((response: GetPaymentHistoryResponse) => this.toTransactionHistoryPage(response)));
   }
 
   private toTransactionHistoryPage(response: GetPaymentHistoryResponse): TransactionHistoryPage {
