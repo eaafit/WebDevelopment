@@ -25,20 +25,24 @@
 docker info
 ```
 
-2. Поднимите инфраструктуру (PostgreSQL):
+2. Поднимите инфраструктуру (PostgreSQL, при необходимости — Prometheus и Grafana):
+
    ```bash
    docker-compose up
    ```
 
-3В отдельном терминале запустите Front-end:
+   Для мониторинга метрик вместе с БД поднимаются сервисы **Prometheus** (порт 9090), **Grafana** (порт 3001) и **postgres_exporter** (порт 9187, метрики PostgreSQL). Источник данных Prometheus и дашборды «System metrics», «Business metrics» и «PostgreSQL» подключаются автоматически (provisioning). Логин Grafana по умолчанию: `admin`, пароль задаётся переменной `GF_ADMIN_PASSWORD` (по умолчанию `admin`). Чтобы Prometheus собирал метрики с API, запустите API на хосте (`pnpm nx serve api`); в конфиге используется `host.docker.internal:3000`.
+
+3. В отдельном терминале запустите Front-end:
 
 ```bash
 pnpm nx serve web
 ```
 
-## Примечание
+## Примечания
 
-Если порт `5432` занят (например, установлен PostgreSQL вне Docker), измените порт в `docker-compose.yaml` на свободный.
+- Если порт `5432` занят (например, установлен PostgreSQL вне Docker), измените порт в `docker-compose.yaml` на свободный.
+- **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics» и «PostgreSQL» (метрики БД через postgres_exporter).
 
 ## Создание компонента
 

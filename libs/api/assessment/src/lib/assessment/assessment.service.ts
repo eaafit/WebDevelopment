@@ -25,6 +25,7 @@ import {
   UpdateAssessmentResponseSchema,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { MetricsService } from '@internal/metrics';
 import { AssessmentRepository } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
 
@@ -37,7 +38,10 @@ const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 @Injectable()
 export class AssessmentService {
-  constructor(private readonly assessmentRepository: AssessmentRepository) {}
+  constructor(
+    private readonly assessmentRepository: AssessmentRepository,
+    private readonly metrics: MetricsService,
+  ) {}
 
   listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
     return this.assessmentRepository.listAssessments(this.normalizeListRequest(request));
@@ -57,6 +61,8 @@ export class AssessmentService {
       address: request.address.trim(),
       description: request.description?.trim() || undefined,
     });
+
+    this.metrics.recordAssessmentCreated('new');
 
     return create(CreateAssessmentResponseSchema, { assessment });
   }
@@ -119,9 +125,7 @@ export class AssessmentService {
       limit: normalizePositiveInt(pagination?.limit, DEFAULT_LIMIT),
       userId: request.userId || undefined,
       status:
-        request.statusFilter === AssessmentStatus.UNSPECIFIED
-          ? undefined
-          : request.statusFilter,
+        request.statusFilter === AssessmentStatus.UNSPECIFIED ? undefined : request.statusFilter,
     };
   }
 }

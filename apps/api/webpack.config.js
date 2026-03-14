@@ -1,7 +1,9 @@
-﻿const Module = require('module');
+const Module = require('module');
 const path = require('path');
 const os = require('os');
-
+const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
+const fs = require('fs');
+const { dirname, isAbsolute, join, relative } = require('path');
 const loaderRequests = new Set(['ts-loader', 'swc-loader', 'source-map-loader']);
 const originalResolveFilename = Module._resolveFilename;
 Module._resolveFilename = function (request, parent, isMain, options) {
@@ -13,11 +15,6 @@ Module._resolveFilename = function (request, parent, isMain, options) {
   }
   return originalResolveFilename.call(this, request, parent, isMain, options);
 };
-
-const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
-const fs = require('fs');
-const { dirname, isAbsolute, join, relative } = require('path');
-const os = require('os');
 
 const distRoot = join(__dirname, '../../dist');
 const outputPath = (() => {
@@ -48,6 +45,7 @@ const outputPath = (() => {
 
   return join(os.tmpdir(), 'notary-portal', 'dist', 'apps', 'api');
 })();
+const enableSourceMap = !distRoot.includes('!');
 const workspaceRoot = join(__dirname, '../..');
 
 const sanitizeLoaderPath = (value, basePath) => {
@@ -116,12 +114,6 @@ class SanitizeLoaderPathsPlugin {
     compiler.hooks.beforeCompile.tap('SanitizeLoaderPathsPlugin', sanitize);
   }
 }
-
-const defaultOutputPath = join(__dirname, '../../dist/apps/api');
-const outputPath = defaultOutputPath.includes('!')
-  ? join(os.tmpdir(), 'notary-portal-dist', 'api')
-  : defaultOutputPath;
-const enableSourceMap = !defaultOutputPath.includes('!');
 
 module.exports = {
   output: {

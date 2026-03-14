@@ -5,20 +5,24 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { execFileSync } = require('node:child_process');
 
-// Run from cwd = libs/shared/api-contracts; workspace root is ../../..
-const cwd = process.cwd();
-const root = path.resolve(cwd, '..', '..', '..');
-const isWin = process.platform === 'win32';
-const pluginPath = path.join(root, 'node_modules', '.bin', isWin ? 'protoc-gen-es.cmd' : 'protoc-gen-es');
-const bufScript = path.join(root, 'node_modules', '@bufbuild', 'buf', 'bin', 'buf');
-const bufCommand = isWin ? process.execPath : bufScript;
-const bufArgs = isWin ? [bufScript, 'generate', '--template'] : ['generate', '--template'];
+const projectRoot = process.argv[2] ?? 'libs/shared/api-contracts';
+const root = path.resolve(__dirname, '..');
+const cwd = path.resolve(root, projectRoot);
+const bufCliPath = require.resolve('@bufbuild/buf/bin/buf');
+const pluginPath = require.resolve('@bufbuild/protoc-gen-es/bin/protoc-gen-es');
+
+if (!fs.existsSync(cwd)) {
+  throw new Error(`Proto workspace does not exist: ${cwd}`);
+}
 
 // Use a temp file so we never modify repo files (avoids triggering Nx file watcher)
 const tempConfig = path.join(os.tmpdir(), `buf.gen.${process.pid}.yaml`);
+const pluginCommand = [process.execPath, pluginPath].map((value) =>
+  value.replaceAll('\\', '/')
+);
 const bufGenContent = `version: v2
 plugins:
-  - local: ${pluginPath.replaceAll('\\', '/')}
+  - local: ${JSON.stringify(pluginCommand)}
     out: src/generated
     include_imports: true
     opt:
@@ -28,7 +32,7 @@ plugins:
 
 try {
   fs.writeFileSync(tempConfig, bufGenContent, 'utf8');
-  execFileSync(bufCommand, [...bufArgs, tempConfig], {
+  execFileSync(process.execPath, [bufCliPath, 'generate', '--template', tempConfig], {
     cwd,
     stdio: 'inherit',
     env: process.env,

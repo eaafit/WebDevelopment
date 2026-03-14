@@ -1,6 +1,7 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
 import { Injectable } from '@nestjs/common';
+import { MetricsService } from '@internal/metrics';
 import {
   AuthResultSchema,
   LoginResponseSchema,
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
+    private readonly metrics: MetricsService,
   ) {}
 
   // ─── Register ────────────────────────────────────────────────────────────
@@ -60,21 +62,22 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hash(request.password);
     const user = await this.authRepository.createUser({
-      email:        request.email.toLowerCase(),
+      email: request.email.toLowerCase(),
       passwordHash,
-      fullName:     request.fullName.trim(),
-      phoneNumber:  request.phoneNumber?.trim() || undefined,
-      role:         this.authRepository.toPrismaRole(request.role),
+      fullName: request.fullName.trim(),
+      phoneNumber: request.phoneNumber?.trim() || undefined,
+      role: this.authRepository.toPrismaRole(request.role),
     });
 
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   user.id,
-        email: user.email,
-        role:  user.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: user.id,
+      email: user.email,
+      role: user.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
+
+    this.metrics.recordUserRegistered();
 
     return create(RegisterResponseSchema, {
       result: create(AuthResultSchema, { accessToken, refreshToken, user }),
@@ -96,21 +99,17 @@ export class AuthService {
       throw new ConnectError('account is deactivated', Code.PermissionDenied);
     }
 
-    const passwordValid = await this.passwordService.compare(
-      request.password,
-      record.passwordHash,
-    );
+    const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
     if (!passwordValid) {
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }
 
     const user = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   user.id,
-        email: user.email,
-        role:  user.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: user.id,
+      email: user.email,
+      role: user.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
 
@@ -139,12 +138,11 @@ export class AuthService {
     }
 
     const rpcUser = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   rpcUser.id,
-        email: rpcUser.email,
-        role:  rpcUser.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: rpcUser.id,
+      email: rpcUser.email,
+      role: rpcUser.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(userId, refreshToken, refreshExpiresAt);
 

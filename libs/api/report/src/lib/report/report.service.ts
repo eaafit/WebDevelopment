@@ -17,26 +17,28 @@ import {
   type SignReportResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { MetricsService } from '@internal/metrics';
 import { ReportRepository } from './report.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class ReportService {
-  constructor(private readonly reportRepository: ReportRepository) {}
+  constructor(
+    private readonly reportRepository: ReportRepository,
+    private readonly metrics: MetricsService,
+  ) {}
 
   listReports(request: ListReportsRequest): Promise<ListReportsResponse> {
     return this.reportRepository.listReports({
-      page:         request.pagination?.page  || 1,
-      limit:        request.pagination?.limit || 10,
+      page: request.pagination?.page || 1,
+      limit: request.pagination?.limit || 10,
       assessmentId: request.filters?.assessmentId || undefined,
-      signedById:   request.filters?.signedById   || undefined,
+      signedById: request.filters?.signedById || undefined,
       status:
-        request.filters?.status !== ReportStatus.UNSPECIFIED
-          ? request.filters?.status
-          : undefined,
+        request.filters?.status !== ReportStatus.UNSPECIFIED ? request.filters?.status : undefined,
       sortField: request.sort?.field === 2 ? 'version' : 'generatedAt',
-      sortDesc:  request.sort?.descending ?? false,
+      sortDesc: request.sort?.descending ?? false,
     });
   }
 
@@ -52,9 +54,11 @@ export class ReportService {
 
     const report = await this.reportRepository.createReport({
       assessmentId: request.assessmentId,
-      reportPath:   request.reportPath.trim(),
-      signedById:   request.signedById,
+      reportPath: request.reportPath.trim(),
+      signedById: request.signedById,
     });
+
+    this.metrics.recordReportGenerated();
 
     return create(CreateReportResponseSchema, { report });
   }
@@ -63,10 +67,7 @@ export class ReportService {
     validateUuid(request.id, 'id');
     if (!request.signatureData?.length) throw invalid('signature_data', 'is required');
 
-    const report = await this.reportRepository.signReport(
-      request.id,
-      request.signatureData,
-    );
+    const report = await this.reportRepository.signReport(request.id, request.signatureData);
 
     return create(SignReportResponseSchema, { report });
   }
