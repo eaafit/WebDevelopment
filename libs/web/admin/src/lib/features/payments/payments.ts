@@ -2,6 +2,7 @@ import { Component, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
+import { inject } from '@angular/core';
 
 interface Payment {
   id: number;
@@ -93,14 +94,18 @@ export class Payments {
   pageSize = 7;
   currentPage = 1;
 
+  // Флаги состояния модальных окон
   isCreateEditModalOpen = false;
   isViewModalOpen = false;
   isDeleteModalOpen = false;
   isEditMode = false;
+
+  // Текущая транзакция, с которой работаем в модальном окне
   currentPayment: Payment = this.resetPayment();
 
-  constructor(private router: Router) {}
+  private router = inject(Router);
 
+  // Возвращает отфильтрованный список платежей
   get filteredPayments(): Payment[] {
     const term = this.searchTerm.trim().toLowerCase();
     const status = this.statusFilter;
@@ -121,27 +126,34 @@ export class Payments {
     return this.filteredPayments.slice(start, end);
   }
 
+  // Общее количество страниц
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.filteredPayments.length / this.pageSize));
   }
 
+  // Массив номеров страниц для отображения в пагинации
   get pages(): number[] {
     return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
+  // Методы управления пагинацией
+  // Переход на конкретную страницу
   setPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
   }
 
+  // Переход на предыдущую страницу
   prevPage(): void {
     this.setPage(this.currentPage - 1);
   }
 
+  // Переход на следующую страницу
   nextPage(): void {
     this.setPage(this.currentPage + 1);
   }
 
+  // Сброс на первую страницу при изменении фильтров
   onFiltersChanged(): void {
     // При изменении фильтров всегда возвращаемся на первую страницу.
     this.currentPage = 1;
@@ -158,6 +170,7 @@ export class Payments {
     };
   }
 
+  // Методы открытия модальных окон
   openCreateModal(): void {
     this.closeModals();
     this.isEditMode = false;
@@ -207,6 +220,7 @@ export class Payments {
     }
   }
 
+  // Операции
   savePayment(): void {
     this.currentPayment.statusText = this.getStatusText(this.currentPayment.status);
     if (this.isEditMode) {
@@ -236,6 +250,7 @@ export class Payments {
     }
   }
 
+  // Навигация
   goToTransactions(payment?: Payment): void {
     const extras = payment ? { queryParams: { paymentId: payment.id } } : undefined;
 

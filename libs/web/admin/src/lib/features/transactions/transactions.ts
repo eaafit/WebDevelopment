@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { inject } from '@angular/core';
 
 interface Transaction {
   id: number;
@@ -65,14 +66,18 @@ export class Transactions {
   pageSize = 7;
   currentPage = 1;
 
+  // Флаги состояния модальных окон
   isCreateEditModalOpen = false;
   isViewModalOpen = false;
   isDeleteModalOpen = false;
   isEditMode = false;
+
+  // Текущая транзакция, с которой работаем в модальном окне
   currentTransaction: Transaction = this.resetTransaction();
 
-  constructor(private router: Router) {}
+  private router = inject(Router);
 
+  // Возвращает отфильтрованный список платежей
   get filteredTransactions(): Transaction[] {
     const term = this.searchTerm.trim().toLowerCase();
     const status = this.statusFilter;
@@ -93,27 +98,34 @@ export class Transactions {
     return this.filteredTransactions.slice(start, end);
   }
 
+  // Общее количество страниц
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.filteredTransactions.length / this.pageSize));
   }
 
+  // Массив номеров страниц для отображения в пагинации
   get pages(): number[] {
     return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
+  // Методы управления пагинацией
+  // Переход на конкретную страницу
   setPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
   }
 
+  // Переход на предыдущую страницу
   prevPage(): void {
     this.setPage(this.currentPage - 1);
   }
 
+  // Переход на следующую страницу
   nextPage(): void {
     this.setPage(this.currentPage + 1);
   }
 
+  // Сброс на первую страницу при изменении фильтров
   onFiltersChanged(): void {
     // При изменении фильтров всегда возвращаемся на первую страницу.
     this.currentPage = 1;
@@ -132,6 +144,7 @@ export class Transactions {
     };
   }
 
+  // Методы открытия модальных окон
   openCreateModal(): void {
     this.isEditMode = false;
     this.currentTransaction = this.resetTransaction();
@@ -173,6 +186,7 @@ export class Transactions {
     }
   }
 
+  // Операции
   saveTransaction(): void {
     this.currentTransaction.statusText = this.getStatusText(this.currentTransaction.status);
     if (this.isEditMode) {
@@ -202,6 +216,7 @@ export class Transactions {
     }
   }
 
+  // Навигация
   goToPayments(): void {
     this.router.navigate(['/admin', 'payments']);
   }
