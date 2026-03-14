@@ -88,7 +88,10 @@ export class ConnectRouterRegistry {
     // ─── Payment ─────────────────────────────────────────────
     router.service(PaymentService, {
       createPayment: this.paymentRpcService.createPayment,
+      processWebhook: this.paymentRpcService.processWebhook,
       getPaymentHistory: this.paymentRpcService.getPaymentHistory,
+      getSubscription: this.paymentRpcService.getSubscription,
+      createSubscription: this.paymentRpcService.createSubscription,
     });
   }
 }

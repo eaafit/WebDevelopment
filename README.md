@@ -9,6 +9,7 @@
 >
 > - `npm install -g pnpm` - установить pnpm
 > - `pnpm install` - установить все зависимости (Выполнять в корне проекта)
+> - `copy .env.example .env` - для Windows | `cp .env.example .env` - для Unix
 
 ## Команды
 
@@ -27,6 +28,31 @@
 - `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
 - `pnpm nx serve api` - запустить Back-end
 - `pnpm nx serve web` - запустить Front-end
+
+---
+
+### Платежи (ЮKassa)
+
+- Основной сценарий оплаты подписки для нотариуса выполняется через **embedded Checkout Widget ЮKassa** прямо на странице `/notary/subscription/checkout`, без редиректа на отдельную страницу оплаты.
+- Бэкенд создаёт платёж через YooKassa API, сохраняет локальный `Payment` со статусом `PENDING`, а во фронтенд возвращает только безопасные данные для инициализации виджета (`confirmation_token`, `return_url`, `payment_id`).
+- Карточные данные, СБП и кошелёк вводятся только внутри виджета ЮKassa. На нашем фронтенде эти данные не собираются и не обрабатываются.
+
+**Переменные окружения:**
+
+- `YOOKASSA_SHOP_ID` - shop id из кабинета ЮKassa
+- `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
+- `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
+- `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+
+**Webhook URL для кабинета ЮKassa:**
+
+- `https://<api-host>/api/payments/webhook`
+- если включён `PAYMENT_WEBHOOK_SECRET`: `https://<api-host>/api/payments/webhook?secret=<PAYMENT_WEBHOOK_SECRET>`
+
+**Fallback routes после внешней авторизации / 3DS:**
+
+- `/notary/subscription/checkout/success`
+- `/notary/subscription/checkout/cancel`
 
 ---
 
