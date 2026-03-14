@@ -1,4 +1,4 @@
-import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
+﻿import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import {
   PaymentService,
@@ -26,14 +26,14 @@ export class TransactionsApiService {
   private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
-    return from(this.client.getPaymentHistory(buildRequest(query))).pipe(
+    return from(this.client['getPaymentHistory'](buildRequest(query))).pipe(
       map((response) => this.toTransactionHistoryPage(response)),
     );
   }
 
   private toTransactionHistoryPage(response: GetPaymentHistoryResponse): TransactionHistoryPage {
     return {
-      transactions: response.payments.map((p) => this.toTransactionItem(p)),
+      transactions: response.payments.map((p: Payment) => this.toTransactionItem(p)),
       meta: response.meta
         ? {
             totalItems:  response.meta.totalItems,
@@ -65,7 +65,7 @@ export class TransactionsApiService {
   }
 }
 
-// ─── Хелперы ─────────────────────────────────────────────────────────────────
+// в”Ђв”Ђв”Ђ РҐРµР»РїРµСЂС‹ в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 function buildRequest(query: TransactionsHistoryQuery) {
   const paymentDateRange =
@@ -124,3 +124,4 @@ function toUtcBoundary(value: string, edge: 'start' | 'end') {
   const suffix = edge === 'start' ? 'T00:00:00.000Z' : 'T23:59:59.999Z';
   return timestampFromDate(new Date(`${value}${suffix}`));
 }
+
