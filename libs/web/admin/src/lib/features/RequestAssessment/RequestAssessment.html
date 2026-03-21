@@ -235,8 +235,8 @@
 
 <!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
 @if (showUserModal) {
-<div class="modal active" (click)="closeUserModal()">
-  <div class="modal-content" (click)="$event.stopPropagation()">
+<div class="modal active" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
+  <div class="modal-content" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <div class="modal-header">
       <h3 class="modal-title">{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
       <button class="close-btn" (click)="closeUserModal()">&times;</button>
@@ -244,10 +244,11 @@
 
     <form (ngSubmit)="saveUser()">
       <div class="form-group">
-        <label class="form-label required">Фамилия</label>
+        <label class="form-label required" for="lastName">Фамилия</label>
         <input
           type="text"
           class="form-input"
+          id="lastName"
           [class.error]="formErrors['lastName']"
           [(ngModel)]="formData.lastName"
           name="lastName" />
@@ -257,10 +258,11 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Имя</label>
+        <label class="form-label required" for="firstName">Имя</label>
         <input
           type="text"
           class="form-input"
+          id="firstName"
           [class.error]="formErrors['firstName']"
           [(ngModel)]="formData.firstName"
           name="firstName" />
@@ -270,10 +272,11 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Отчество</label>
+        <label class="form-label required" for="middleName">Отчество</label>
         <input
           type="text"
           class="form-input"
+          id="middleName"
           [class.error]="formErrors['middleName']"
           [(ngModel)]="formData.middleName"
           name="middleName" />
@@ -283,10 +286,11 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Email</label>
+        <label class="form-label required" for="email">Email</label>
         <input
           type="email"
           class="form-input"
+          id="email"
           [class.error]="formErrors['email']"
           [(ngModel)]="formData.email"
           name="email" />
@@ -296,10 +300,11 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Телефон</label>
+        <label class="form-label required" for="phoneNumber">Телефон</label>
         <input
           type="tel"
           class="form-input"
+          id="phoneNumber"
           [class.error]="formErrors['phoneNumber']"
           placeholder="+7 (___) ___-__-__"
           [(ngModel)]="formData.phoneNumber"
@@ -310,9 +315,10 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Подписка</label>
+        <label class="form-label required" for="subscriptionPlan">Подписка</label>
         <select
           class="form-input"
+          id="subscriptionPlan"
           [class.error]="formErrors['subscriptionPlan']"
           [(ngModel)]="formData.subscriptionPlan"
           name="subscriptionPlan">
@@ -327,8 +333,8 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required">Роль</label>
-        <select class="form-input" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
+        <label class="form-label required" for="role">Роль</label>
+        <select class="form-input" id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
           <option value="" disabled>Выберите роль</option>
           <option value="Applicant">Заявитель</option>
           <option value="Notary">Нотариус</option>
@@ -340,10 +346,10 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Статус</label>
+        <label class="form-label" for="isActive">Статус</label>
         <div class="toggle-switch">
           <label class="switch">
-            <input type="checkbox" [checked]="formData.isActive" (change)="onStatusToggle()" />
+            <input type="checkbox" id="isActive" [checked]="formData.isActive" (change)="onStatusToggle()" />
             <span class="slider"></span>
           </label>
           <span>{{ formData.isActive ? 'Активен' : 'Заблокирован' }}</span>
@@ -364,8 +370,12 @@
 
 <!-- ========== МОДАЛКА УДАЛЕНИЯ ========== -->
 @if (showDeleteModal && userToDelete) {
-<div class="modal active" (click)="closeDeleteModal()">
-  <div class="modal-content modal-sm" (click)="$event.stopPropagation()">
+<div class="modal active" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
+  <div
+    class="modal-content modal-sm"
+    role="document"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()">
     <div class="modal-header">
       <h3 class="modal-title">Подтверждение удаления</h3>
       <button class="close-btn" (click)="closeDeleteModal()">&times;</button>

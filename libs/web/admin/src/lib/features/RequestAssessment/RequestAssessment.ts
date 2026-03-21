@@ -188,7 +188,7 @@ export class RequestAssessment implements OnInit {
       localStorage.setItem('users', JSON.stringify(testUsers));
     }
 
-    this.users = JSON.parse(localStorage.getItem('users')!);
+    this.users = JSON.parse(localStorage.getItem('users') ?? '[]');
   }
 
   private saveToStorage(): void {
@@ -372,7 +372,8 @@ export class RequestAssessment implements OnInit {
 
   confirmDelete(): void {
     if (!this.userToDelete) return;
-    this.users = this.users.filter((u) => u.id !== this.userToDelete!.id);
+    const deleteId = this.userToDelete?.id;
+    this.users = this.users.filter((u) => u.id !== deleteId);
     this.saveToStorage();
     this.closeDeleteModal();
     this.applyFilters();
