@@ -40,6 +40,8 @@
 | 29  | [issue-29](issue-29-bokhovoadinova-assessment-history.md)   | Боховодинова Р.А.                   | —            | Модуль оценки — история заказов и таймлайн                 |
 | 30  | [issue-30](issue-30-vasiliev-gushina-admin-assessment.md)   | Васильев Степан + Гущина Мария      | mgusssh      | Админ-панель модуля оценки — очередь + аналитика           |
 | 31  | [issue-31](issue-31-okuntsev-kazarinov-landing.md)          | Окунцев Тимофей + Казаринов Алексей | —            | Landing page                                               |
+| 32  | [issue-32](issue-32-nibylitsin-structured-logging.md)       | Нибылицын Лукьян                    | SuperLuchito | Структурированное логирование API и Angular (ops)          |
+| 33  | [issue-33](issue-33-nibylitsin-loki-grafana.md)             | Нибылицын Лукьян                    | SuperLuchito | Loki + Grafana — сбор и визуализация технических логов     |
 
 ---
 
@@ -62,7 +64,9 @@ issue-26 (форма параметров)
 
 issue-11 (чат) + issue-21 (FAQ) → полный модуль поддержки
 issue-16 (список платежей) + issue-17 (формы) → раздел платежей Admin
-issue-22 (аудит лента) + issue-23 (логи детальные) → мониторинг Admin
+issue-22 (аудит лента) + issue-23 (логи детальные) → мониторинг Admin (UI / доменный аудит)
+issue-32 (структурированные ops-логи API + Angular) → issue-33 (Loki + Grafana)
+issue-22/23 — продуктовый аудит; issue-32/33 — инфраструктурные логи (не замена аудита)
 issue-30 (Васильев + Гущина) → общая задача на 2 разработчика
 ```
 
