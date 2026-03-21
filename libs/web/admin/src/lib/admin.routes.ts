@@ -15,14 +15,8 @@ export const adminRoutes: Route[] = [
       { path: '', ...placeholder('Главное меню', ['Обзор панели администратора']) } as Route,
       {
         path: 'users',
-        ...placeholder('Пользователи и заказы', [
-          'CRUD пользователей',
-          'Роли и права',
-          'Блокировки',
-          'Управление заказами/статусами',
-          'Ручные корректировки',
-          'Модерация файлов',
-        ]),
+        loadComponent: () =>
+          import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
       } as Route,
       {
         path: 'orders',
