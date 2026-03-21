@@ -5,7 +5,11 @@ import { DashboardLayout } from '@notary-portal/ui';
 const ADMIN_MENU = [
   { label: 'Главное меню', route: '.', icon: '☰', exact: true },
   { label: 'Пользователи', route: 'users', icon: '👥' },
-  { label: 'Управление заказами', route: 'orders', icon: '📄' },
+  { label: 'Управление заказами', route: 'orders', icon: '📄', exact: true },
+  { label: 'Заявки', route: 'orders/requests', icon: '📋' },
+  { label: 'Управление статусами', route: 'orders/statuses', icon: '🔄' },
+  { label: 'Очередь оценок', route: 'orders/queue', icon: '📝' },
+  { label: 'Ручная модерация', route: 'orders/moderation', icon: '✅' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
   { label: 'Тарифные планы', route: 'plans', icon: '📋' },

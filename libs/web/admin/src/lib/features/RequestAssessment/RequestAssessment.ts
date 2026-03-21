@@ -24,7 +24,6 @@ export interface User {
 })
 export class RequestAssessment implements OnInit {
   currentView: 'list' | 'detail' = 'list';
-  sidebarVisible = false;
 
   users: User[] = [];
   filteredUsers: User[] = [];
@@ -60,14 +59,6 @@ export class RequestAssessment implements OnInit {
     Notary: 'badge-warning',
     Admin: 'badge-info',
   };
-
-  readonly menuItems = [
-    { label: 'Пользователи', icon: 'fas fa-users', active: true },
-    { label: 'Заявки', icon: 'fas fa-file-alt', active: false },
-    { label: 'Статистика', icon: 'fas fa-chart-line', active: false },
-    { label: 'Настройки', icon: 'fas fa-cog', active: false },
-    { label: 'Выход', icon: 'fas fa-sign-out-alt', active: false },
-  ];
 
   ngOnInit(): void {
     this.initializeData();
@@ -284,10 +275,6 @@ export class RequestAssessment implements OnInit {
   backToList(): void {
     this.selectedUser = null;
     this.currentView = 'list';
-  }
-
-  toggleSidebar(): void {
-    this.sidebarVisible = !this.sidebarVisible;
   }
 
   // ========== СОЗДАНИЕ / РЕДАКТИРОВАНИЕ ==========

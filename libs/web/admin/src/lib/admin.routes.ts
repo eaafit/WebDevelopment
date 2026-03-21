@@ -30,6 +30,35 @@ export const adminRoutes: Route[] = [
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
       } as Route,
       {
+        path: 'orders/requests',
+        ...placeholder('Заявки', [
+          'Список заявок на оценку',
+          'Просмотр деталей заявки',
+          'Назначение нотариуса',
+        ]),
+      } as Route,
+      {
+        path: 'orders/statuses',
+        ...placeholder('Управление статусами', [
+          'Изменение статусов заказов',
+          'Отслеживание переходов между этапами',
+        ]),
+      } as Route,
+      {
+        path: 'orders/queue',
+        ...placeholder('Очередь оценок', [
+          'Список заявок, ожидающих оценки',
+          'Распределение по нотариусам',
+        ]),
+      } as Route,
+      {
+        path: 'orders/moderation',
+        ...placeholder('Ручная модерация', [
+          'Проверка и модерация спорных заявок',
+          'Ручные корректировки',
+        ]),
+      } as Route,
+      {
         path: 'payments',
         ...placeholder('Платежи', [
           'Список платежей/транзакций',

@@ -1,236 +1,170 @@
-<div class="dashboard">
-  <!-- БОКОВАЯ ПАНЕЛЬ -->
-  <aside class="sidebar" [class.mobile-visible]="sidebarVisible">
-    <div class="logo">
-      <h2>
-        <i class="fas fa-balance-scale"></i>
-        Нотариальная оценка
-      </h2>
+<div class="request-assessment-container">
+  <h1 class="page-title">Управление заказами</h1>
+
+  <!-- СТРАНИЦА СПИСКА -->
+  @if (currentView === 'list') {
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Список пользователей</h2>
+      <button class="btn btn-primary" (click)="openCreateModal()">➕ Добавить пользователя</button>
     </div>
-    <nav>
-      @for (item of menuItems; track item.label) {
-      <div class="menu-item" [class.active]="item.active">
-        <i [class]="item.icon"></i>
-        <span>{{ item.label }}</span>
+
+    <!-- ФИЛЬТРЫ -->
+    <div class="filters">
+      <div class="search-box">
+        <input
+          type="text"
+          placeholder="Поиск по имени или email..."
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="applyFilters()" />
       </div>
-      }
-    </nav>
-  </aside>
+      <select class="filter-select" [(ngModel)]="roleFilter" (ngModelChange)="applyFilters()">
+        <option value="">Все роли</option>
+        <option value="Applicant">Заявитель</option>
+        <option value="Notary">Нотариус</option>
+        <option value="Admin">Администратор</option>
+      </select>
+      <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
+        <option value="">Все статусы</option>
+        <option value="true">Активен</option>
+        <option value="false">Заблокирован</option>
+      </select>
+    </div>
 
-  <!-- ГЛАВНЫЙ КОНТЕНТ -->
-  <main class="main-content">
-    <!-- ХЕДЕР -->
-    <header class="header">
-      <div class="header-left">
-        <button class="mobile-menu-btn" (click)="toggleSidebar()">
-          <i class="fas fa-bars"></i>
-        </button>
-        <h1>Управление пользователями</h1>
-      </div>
-      <div class="user-info">
-        <div class="user-details">
-          <div class="user-name">Администратор</div>
-          <div class="user-role">Admin</div>
-        </div>
-        <div class="user-avatar">АД</div>
-      </div>
-    </header>
-
-    <div class="content">
-      <!-- ========== СТРАНИЦА СПИСКА ========== -->
-      @if (currentView === 'list') {
-      <div class="page active">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">Список пользователей</h2>
-            <button class="btn btn-primary" (click)="openCreateModal()">
-              <i class="fas fa-plus"></i>
-              Добавить пользователя
-            </button>
-          </div>
-
-          <!-- ФИЛЬТРЫ -->
-          <div class="filters">
-            <div class="search-box">
-              <i class="fas fa-search"></i>
-              <input
-                type="text"
-                placeholder="Поиск по имени или email..."
-                [(ngModel)]="searchTerm"
-                (ngModelChange)="applyFilters()" />
-            </div>
-            <select class="filter-select" [(ngModel)]="roleFilter" (ngModelChange)="applyFilters()">
-              <option value="">Все роли</option>
-              <option value="Applicant">Заявитель</option>
-              <option value="Notary">Нотариус</option>
-              <option value="Admin">Администратор</option>
-            </select>
-            <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
-              <option value="">Все статусы</option>
-              <option value="true">Активен</option>
-              <option value="false">Заблокирован</option>
-            </select>
-          </div>
-
-          <!-- ТАБЛИЦА -->
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>ФИО</th>
-                  <th>Email</th>
-                  <th>Телефон</th>
-                  <th>Роль</th>
-                  <th>Статус</th>
-                  <th>Дата регистрации</th>
-                  <th>Действия</th>
-                </tr>
-              </thead>
-              <tbody>
-                @if (paginatedUsers.length === 0) {
-                <tr>
-                  <td colspan="7">
-                    <div class="empty-state">
-                      <i class="fas fa-users-slash"></i>
-                      <p>Пользователи не найдены</p>
-                    </div>
-                  </td>
-                </tr>
-                } @for (user of paginatedUsers; track user.id) {
-                <tr>
-                  <td>{{ getFullName(user) }}</td>
-                  <td>{{ user.email }}</td>
-                  <td>{{ user.phoneNumber }}</td>
-                  <td>
-                    <span class="badge" [ngClass]="getRoleBadgeClass(user.role)"> {{ getRoleLabel(user.role) }} </span>
-                  </td>
-                  <td>
-                    <span class="badge" [ngClass]="user.isActive ? 'badge-success' : 'badge-danger'">
-                      {{ user.isActive ? 'Активен' : 'Заблокирован' }}
-                    </span>
-                  </td>
-                  <td>{{ formatDate(user.createdAt) }}</td>
-                  <td>
-                    <div class="actions">
-                      <button class="icon-btn icon-btn-view" (click)="viewUser(user)" title="Просмотр">
-                        <i class="fas fa-eye"></i>
-                      </button>
-                      <button class="icon-btn icon-btn-edit" (click)="openEditModal(user)" title="Редактировать">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button class="icon-btn icon-btn-delete" (click)="openDeleteModal(user)" title="Удалить">
-                        <i class="fas fa-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-
-          <!-- ПАГИНАЦИЯ -->
-          @if (totalPages > 1) {
-          <div class="pagination">
-            <button [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">
-              <i class="fas fa-chevron-left"></i>
-            </button>
-            @for (page of pages; track page) { @if (page === -1) {
-            <button disabled>...</button>
-            } @else {
-            <button [class.active]="page === currentPage" (click)="changePage(page)">{{ page }}</button>
-            } }
-            <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">
-              <i class="fas fa-chevron-right"></i>
-            </button>
-          </div>
+    <!-- ТАБЛИЦА -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ФИО</th>
+            <th>Email</th>
+            <th>Телефон</th>
+            <th>Роль</th>
+            <th>Статус</th>
+            <th>Дата регистрации</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (paginatedUsers.length === 0) {
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <p>Пользователи не найдены</p>
+              </div>
+            </td>
+          </tr>
+          } @for (user of paginatedUsers; track user.id) {
+          <tr>
+            <td>{{ getFullName(user) }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.phoneNumber }}</td>
+            <td>
+              <span class="badge" [ngClass]="getRoleBadgeClass(user.role)"> {{ getRoleLabel(user.role) }} </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="user.isActive ? 'badge-success' : 'badge-danger'">
+                {{ user.isActive ? 'Активен' : 'Заблокирован' }}
+              </span>
+            </td>
+            <td>{{ formatDate(user.createdAt) }}</td>
+            <td>
+              <div class="actions">
+                <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
+                <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
+                <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
+              </div>
+            </td>
+          </tr>
           }
-        </div>
-      </div>
-      }
-
-      <!-- ========== СТРАНИЦА ПРОСМОТРА ========== -->
-      @if (currentView === 'detail' && selectedUser) {
-      <div class="page active">
-        <div class="card">
-          <div class="card-header">
-            <h2 class="card-title">Информация о пользователе</h2>
-            <button class="btn btn-secondary" (click)="backToList()">
-              <i class="fas fa-arrow-left"></i>
-              Назад
-            </button>
-          </div>
-
-          <div class="user-details-card">
-            <div class="detail-row">
-              <div class="detail-label">ID:</div>
-              <div class="detail-value">{{ selectedUser.id }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Фамилия:</div>
-              <div class="detail-value">{{ selectedUser.lastName }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Имя:</div>
-              <div class="detail-value">{{ selectedUser.firstName }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Отчество:</div>
-              <div class="detail-value">{{ selectedUser.middleName }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Подписка:</div>
-              <div class="detail-value">{{ selectedUser.subscriptionPlan }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Email:</div>
-              <div class="detail-value">{{ selectedUser.email }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Телефон:</div>
-              <div class="detail-value">{{ selectedUser.phoneNumber }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Роль:</div>
-              <div class="detail-value">
-                <span class="badge" [ngClass]="getRoleBadgeClass(selectedUser.role)">
-                  {{ getRoleLabel(selectedUser.role) }}
-                </span>
-              </div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Статус:</div>
-              <div class="detail-value">
-                <span class="badge" [ngClass]="selectedUser.isActive ? 'badge-success' : 'badge-danger'">
-                  {{ selectedUser.isActive ? 'Активен' : 'Заблокирован' }}
-                </span>
-              </div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Дата регистрации:</div>
-              <div class="detail-value">{{ formatDate(selectedUser.createdAt) }}</div>
-            </div>
-            <div class="detail-row">
-              <div class="detail-label">Последнее обновление:</div>
-              <div class="detail-value">{{ formatDate(selectedUser.updatedAt) }}</div>
-            </div>
-          </div>
-
-          <div class="form-actions">
-            <button class="btn btn-primary" (click)="editFromView()">
-              <i class="fas fa-edit"></i>
-              Редактировать
-            </button>
-            <button class="btn btn-danger" (click)="deleteFromView()">
-              <i class="fas fa-trash"></i>
-              Удалить
-            </button>
-          </div>
-        </div>
-      </div>
-      }
+        </tbody>
+      </table>
     </div>
-  </main>
+
+    <!-- ПАГИНАЦИЯ -->
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">‹</button>
+      @for (page of pages; track page) { @if (page === -1) {
+      <button disabled>...</button>
+      } @else {
+      <button [class.active]="page === currentPage" (click)="changePage(page)">{{ page }}</button>
+      } }
+      <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">›</button>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- СТРАНИЦА ПРОСМОТРА -->
+  @if (currentView === 'detail' && selectedUser) {
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Информация о пользователе</h2>
+      <button class="btn btn-secondary" (click)="backToList()">← Назад</button>
+    </div>
+
+    <div class="user-details-card">
+      <div class="detail-row">
+        <div class="detail-label">ID:</div>
+        <div class="detail-value">{{ selectedUser.id }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Фамилия:</div>
+        <div class="detail-value">{{ selectedUser.lastName }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Имя:</div>
+        <div class="detail-value">{{ selectedUser.firstName }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Отчество:</div>
+        <div class="detail-value">{{ selectedUser.middleName }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Подписка:</div>
+        <div class="detail-value">{{ selectedUser.subscriptionPlan }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Email:</div>
+        <div class="detail-value">{{ selectedUser.email }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Телефон:</div>
+        <div class="detail-value">{{ selectedUser.phoneNumber }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Роль:</div>
+        <div class="detail-value">
+          <span class="badge" [ngClass]="getRoleBadgeClass(selectedUser.role)">
+            {{ getRoleLabel(selectedUser.role) }}
+          </span>
+        </div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Статус:</div>
+        <div class="detail-value">
+          <span class="badge" [ngClass]="selectedUser.isActive ? 'badge-success' : 'badge-danger'">
+            {{ selectedUser.isActive ? 'Активен' : 'Заблокирован' }}
+          </span>
+        </div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Дата регистрации:</div>
+        <div class="detail-value">{{ formatDate(selectedUser.createdAt) }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Последнее обновление:</div>
+        <div class="detail-value">{{ formatDate(selectedUser.updatedAt) }}</div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" (click)="editFromView()">✏️ Редактировать</button>
+      <button class="btn btn-danger" (click)="deleteFromView()">🗑️ Удалить</button>
+    </div>
+  </div>
+  }
 </div>
 
 <!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
@@ -358,10 +292,7 @@
 
       <div class="form-actions">
         <button type="button" class="btn btn-secondary" (click)="closeUserModal()">Отмена</button>
-        <button type="submit" class="btn btn-success">
-          <i class="fas" [ngClass]="isEditing ? 'fa-save' : 'fa-check'"></i>
-          {{ isEditing ? 'Сохранить' : 'Создать' }}
-        </button>
+        <button type="submit" class="btn btn-success">{{ isEditing ? 'Сохранить' : 'Создать' }}</button>
       </div>
     </form>
   </div>
@@ -388,10 +319,7 @@
 
     <div class="form-actions">
       <button class="btn btn-secondary" (click)="closeDeleteModal()">Отмена</button>
-      <button class="btn btn-danger" (click)="confirmDelete()">
-        <i class="fas fa-trash"></i>
-        Удалить
-      </button>
+      <button class="btn btn-danger" (click)="confirmDelete()">🗑️ Удалить</button>
     </div>
   </div>
 </div>
