@@ -20,4 +20,12 @@ describe('Admin', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('should match main menu item only on the admin root route', () => {
+    expect(component.menuItems[0]).toMatchObject({
+      label: 'Главное меню',
+      route: '.',
+      exact: true,
+    });
+  });
 });
