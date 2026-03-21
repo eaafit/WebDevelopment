@@ -1,53 +1,45 @@
-<section class="geography-page">
-  <header class="geography-page__hero">
-    <div class="geography-page__hero-copy">
-      <p class="geography-page__eyebrow">Администратор / география</p>
+<section class="admin-page geography-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Администратор / география</p>
       <h2>География объектов оценки</h2>
-      <p class="geography-page__lead">
-        Объекты оценки (заявки) на карте. Клик по маркеру — информация и переход к заявке.
-      </p>
+      <p class="admin-page__lead">Объекты оценки (заявки) на карте. Клик по маркеру — информация и переход к заявке.</p>
     </div>
-    <div class="geography-page__actions">
-      <button type="button" class="geography-btn geography-btn--ghost" (click)="resetFilters()">
-        Сбросить фильтры
-      </button>
+    <div class="admin-page__actions">
+      <button type="button" class="admin-btn admin-btn--ghost" (click)="resetFilters()">Сбросить фильтры</button>
     </div>
   </header>
 
-  <section class="geography-page__filters">
-    <div class="geography-filters">
-      <label class="geography-filters__label" for="geo-filter-status">Статус</label>
-      <select
-        id="geo-filter-status"
-        class="geography-filters__select"
-        [value]="filters().status"
-        (change)="setStatus($any($event.target).value)">
-        @for (opt of statusOptions; track opt.id) {
-        <option [value]="opt.id">{{ opt.label }}</option>
-        }
-      </select>
-    </div>
-    <div class="geography-filters">
-      <label class="geography-filters__label" for="geo-filter-date-from">Дата от</label>
-      <input
-        id="geo-filter-date-from"
-        type="date"
-        class="geography-filters__input"
-        [value]="filters().dateFrom"
-        (input)="setDateFrom($any($event.target).value)" />
-    </div>
-    <div class="geography-filters">
-      <label class="geography-filters__label" for="geo-filter-date-to">Дата до</label>
-      <input
-        id="geo-filter-date-to"
-        type="date"
-        class="geography-filters__input"
-        [value]="filters().dateTo"
-        (input)="setDateTo($any($event.target).value)" />
+  <section class="admin-card geography-page__filters-card">
+    <div class="admin-card__body geography-page__filters">
+      <label class="admin-field geography-field" for="geo-filter-status">
+        <span>Статус</span>
+        <select id="geo-filter-status" [value]="filters().status" (change)="setStatus($any($event.target).value)">
+          @for (opt of statusOptions; track opt.id) {
+          <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="admin-field geography-field" for="geo-filter-date-from">
+        <span>Дата от</span>
+        <input
+          id="geo-filter-date-from"
+          type="date"
+          [value]="filters().dateFrom"
+          (input)="setDateFrom($any($event.target).value)" />
+      </label>
+      <label class="admin-field geography-field" for="geo-filter-date-to">
+        <span>Дата до</span>
+        <input
+          id="geo-filter-date-to"
+          type="date"
+          [value]="filters().dateTo"
+          (input)="setDateTo($any($event.target).value)" />
+      </label>
     </div>
   </section>
 
-  <div class="geography-page__map-wrap">
+  <div class="admin-card geography-page__map-wrap">
     <div
       class="geography-map"
       leaflet
