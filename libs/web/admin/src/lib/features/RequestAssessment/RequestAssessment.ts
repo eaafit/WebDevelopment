@@ -33,6 +33,9 @@ export class RequestAssessment implements OnInit {
   roleFilter = '';
   statusFilter = '';
 
+  sortColumn = '';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
   currentPage = 1;
   usersPerPage = 10;
   totalPages = 0;
@@ -208,9 +211,51 @@ export class RequestAssessment implements OnInit {
       result = result.filter((u) => u.isActive === isActive);
     }
 
+    if (this.sortColumn) {
+      result.sort((a, b) => {
+        let cmp = 0;
+        switch (this.sortColumn) {
+          case 'fullName':
+            cmp = this.getFullName(a).localeCompare(this.getFullName(b), 'ru');
+            break;
+          case 'email':
+            cmp = a.email.localeCompare(b.email, 'ru');
+            break;
+          case 'phoneNumber':
+            cmp = a.phoneNumber.localeCompare(b.phoneNumber, 'ru');
+            break;
+          case 'role':
+            cmp = a.role.localeCompare(b.role);
+            break;
+          case 'isActive':
+            cmp = a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1;
+            break;
+          case 'createdAt':
+            cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            break;
+        }
+        return this.sortDirection === 'asc' ? cmp : -cmp;
+      });
+    }
+
     this.filteredUsers = result;
     this.currentPage = 1;
     this.updatePagination();
+  }
+
+  sortBy(column: string): void {
+    if (this.sortColumn === column) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortColumn = column;
+      this.sortDirection = 'asc';
+    }
+    this.applyFilters();
+  }
+
+  getSortIndicator(column: string): string {
+    if (this.sortColumn !== column) return '';
+    return this.sortDirection === 'asc' ? ' ↑' : ' ↓';
   }
 
   private updatePagination(): void {

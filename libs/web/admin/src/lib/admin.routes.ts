@@ -31,11 +31,8 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'orders/requests',
-        ...placeholder('Заявки', [
-          'Список заявок на оценку',
-          'Просмотр деталей заявки',
-          'Назначение нотариуса',
-        ]),
+        loadComponent: () =>
+          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
       } as Route,
       {
         path: 'orders/statuses',

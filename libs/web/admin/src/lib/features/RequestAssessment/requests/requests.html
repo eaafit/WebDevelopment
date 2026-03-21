@@ -1,0 +1,234 @@
+<div class="requests-container">
+  <h1 class="page-title">Заявки на оценку</h1>
+
+  <!-- СПИСОК ЗАЯВОК -->
+  @if (!showView) {
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Список заявок</h2>
+    </div>
+
+    <!-- ФИЛЬТРЫ -->
+    <div class="filters">
+      <div class="search-box">
+        <input
+          type="text"
+          placeholder="Поиск по адресу или заявителю..."
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="applyFilters()" />
+      </div>
+      <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
+        <option value="">Все статусы</option>
+        <option value="New">Новая</option>
+        <option value="Verified">Подтверждена</option>
+        <option value="InProgress">В работе</option>
+        <option value="Completed">Завершена</option>
+        <option value="Cancelled">Отменена</option>
+      </select>
+    </div>
+
+    <!-- ТАБЛИЦА -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th class="sortable" (click)="sortBy('address')">Адрес{{ getSortIndicator('address') }}</th>
+            <th class="sortable" (click)="sortBy('applicantName')">Заявитель{{ getSortIndicator('applicantName') }}</th>
+            <th class="sortable" (click)="sortBy('status')">Статус{{ getSortIndicator('status') }}</th>
+            <th class="sortable" (click)="sortBy('estimatedValue')">
+              Стоимость{{ getSortIndicator('estimatedValue') }}
+            </th>
+            <th class="sortable" (click)="sortBy('createdAt')">Дата создания{{ getSortIndicator('createdAt') }}</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (paginatedAssessments.length === 0) {
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <p>Заявки не найдены</p>
+              </div>
+            </td>
+          </tr>
+          } @for (item of paginatedAssessments; track item.id) {
+          <tr>
+            <td class="id-cell">{{ getShortId(item.id) }}</td>
+            <td>{{ item.address }}</td>
+            <td>{{ item.applicantName }}</td>
+            <td>
+              <span class="badge" [ngClass]="getStatusBadgeClass(item.status)">
+                {{ getStatusLabel(item.status) }}
+              </span>
+            </td>
+            <td>{{ formatValue(item.estimatedValue) }}</td>
+            <td>{{ formatDate(item.createdAt) }}</td>
+            <td>
+              <div class="actions">
+                <button class="btn-icon" (click)="viewAssessment(item)" title="Просмотр">👁️</button>
+                @if (item.status !== 'Cancelled' && item.status !== 'Completed') {
+                <button class="btn-icon" (click)="openCancelModal(item)" title="Отменить">❌</button>
+                } @if (item.status === 'New') {
+                <button class="btn-icon" (click)="openVerifyModal(item)" title="Взять в работу">✅</button>
+                }
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ПАГИНАЦИЯ -->
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">‹</button>
+      @for (page of pages; track page) { @if (page === -1) {
+      <button disabled>...</button>
+      } @else {
+      <button [class.active]="page === currentPage" (click)="changePage(page)">{{ page }}</button>
+      } }
+      <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">›</button>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- ДЕТАЛИ ЗАЯВКИ -->
+  @if (showView && selectedAssessment) {
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Карточка заявки</h2>
+      <button class="btn btn-secondary" (click)="closeView()">← Назад</button>
+    </div>
+
+    <div class="detail-grid">
+      <div class="detail-row">
+        <div class="detail-label">ID:</div>
+        <div class="detail-value">{{ selectedAssessment.id }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Заявитель:</div>
+        <div class="detail-value">{{ selectedAssessment.applicantName }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">ID пользователя:</div>
+        <div class="detail-value">{{ selectedAssessment.userId }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Адрес объекта:</div>
+        <div class="detail-value">{{ selectedAssessment.address }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Описание:</div>
+        <div class="detail-value">{{ selectedAssessment.description }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Статус:</div>
+        <div class="detail-value">
+          <span class="badge" [ngClass]="getStatusBadgeClass(selectedAssessment.status)">
+            {{ getStatusLabel(selectedAssessment.status) }}
+          </span>
+        </div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Оценочная стоимость:</div>
+        <div class="detail-value">{{ formatValue(selectedAssessment.estimatedValue) }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Дата создания:</div>
+        <div class="detail-value">{{ formatDate(selectedAssessment.createdAt) }}</div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-label">Последнее обновление:</div>
+        <div class="detail-value">{{ formatDate(selectedAssessment.updatedAt) }}</div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      @if (selectedAssessment.status === 'New') {
+      <button class="btn btn-primary" (click)="openVerifyModal(selectedAssessment)">✅ Взять в работу</button>
+      } @if (selectedAssessment.status !== 'Cancelled' && selectedAssessment.status !== 'Completed') {
+      <button class="btn btn-danger" (click)="openCancelModal(selectedAssessment)">❌ Отменить</button>
+      }
+    </div>
+  </div>
+  }
+</div>
+
+<!-- МОДАЛКА ОТМЕНЫ -->
+@if (showCancelModal && assessmentToCancel) {
+<div class="modal active" role="dialog" (click)="closeCancelModal()" (keydown.escape)="closeCancelModal()">
+  <div
+    class="modal-content modal-sm"
+    role="document"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3 class="modal-title">Отмена заявки</h3>
+      <button class="close-btn" (click)="closeCancelModal()">&times;</button>
+    </div>
+
+    <p class="modal-message">
+      Отменить заявку <strong>{{ getShortId(assessmentToCancel.id) }}</strong> ({{ assessmentToCancel.address }})?
+    </p>
+
+    <div class="form-group">
+      <label class="form-label required" for="cancelReason">Причина отмены</label>
+      <textarea
+        class="form-input"
+        id="cancelReason"
+        rows="3"
+        [class.error]="cancelReasonError"
+        [(ngModel)]="cancelReason"
+        placeholder="Укажите причину отмены..."></textarea>
+      @if (cancelReasonError) {
+      <div class="form-error active">{{ cancelReasonError }}</div>
+      }
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-secondary" (click)="closeCancelModal()">Отмена</button>
+      <button class="btn btn-danger" (click)="confirmCancel()">❌ Отменить заявку</button>
+    </div>
+  </div>
+</div>
+}
+
+<!-- МОДАЛКА ВЗЯТИЯ В РАБОТУ -->
+@if (showVerifyModal && assessmentToVerify) {
+<div class="modal active" role="dialog" (click)="closeVerifyModal()" (keydown.escape)="closeVerifyModal()">
+  <div
+    class="modal-content modal-sm"
+    role="document"
+    (click)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3 class="modal-title">Назначение нотариуса</h3>
+      <button class="close-btn" (click)="closeVerifyModal()">&times;</button>
+    </div>
+
+    <p class="modal-message">Назначить нотариуса для заявки <strong>{{ getShortId(assessmentToVerify.id) }}</strong></p>
+
+    <div class="form-group">
+      <label class="form-label required" for="notaryId">ID нотариуса</label>
+      <input
+        type="text"
+        class="form-input"
+        id="notaryId"
+        [class.error]="notaryIdError"
+        [(ngModel)]="notaryId"
+        placeholder="Введите ID нотариуса..." />
+      @if (notaryIdError) {
+      <div class="form-error active">{{ notaryIdError }}</div>
+      }
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-secondary" (click)="closeVerifyModal()">Отмена</button>
+      <button class="btn btn-primary" (click)="confirmVerify()">✅ Назначить</button>
+    </div>
+  </div>
+</div>
+}

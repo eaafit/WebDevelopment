@@ -36,12 +36,12 @@
       <table>
         <thead>
           <tr>
-            <th>ФИО</th>
-            <th>Email</th>
-            <th>Телефон</th>
-            <th>Роль</th>
-            <th>Статус</th>
-            <th>Дата регистрации</th>
+            <th class="sortable" (click)="sortBy('fullName')">ФИО{{ getSortIndicator('fullName') }}</th>
+            <th class="sortable" (click)="sortBy('email')">Email{{ getSortIndicator('email') }}</th>
+            <th class="sortable" (click)="sortBy('phoneNumber')">Телефон{{ getSortIndicator('phoneNumber') }}</th>
+            <th class="sortable" (click)="sortBy('role')">Роль{{ getSortIndicator('role') }}</th>
+            <th class="sortable" (click)="sortBy('isActive')">Статус{{ getSortIndicator('isActive') }}</th>
+            <th class="sortable" (click)="sortBy('createdAt')">Дата регистрации{{ getSortIndicator('createdAt') }}</th>
             <th>Действия</th>
           </tr>
         </thead>
