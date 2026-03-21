@@ -3,7 +3,7 @@ import { RouterModule } from '@angular/router';
 import { DashboardLayout } from '@notary-portal/ui';
 
 const ADMIN_MENU = [
-  { label: 'Главное меню', route: '.', icon: '☰' },
+  { label: 'Главное меню', route: '.', icon: '☰', exact: true },
   { label: 'Пользователи', route: 'users', icon: '👥' },
   { label: 'Заявки', route: 'orders', icon: '📄' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
