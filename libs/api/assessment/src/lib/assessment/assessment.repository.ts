@@ -5,15 +5,34 @@ import { Injectable } from '@nestjs/common';
 import {
   AssessmentSchema,
   AssessmentStatus as RpcAssessmentStatus,
+  CitySchema,
+  DistrictSchema,
   GetAssessmentResponseSchema,
+  ListCitiesResponseSchema,
   ListAssessmentsResponseSchema,
+  ListDistrictsResponseSchema,
   PaginationMetaSchema,
   type Assessment as RpcAssessment,
+  type City as RpcCity,
+  type District as RpcDistrict,
   type GetAssessmentResponse,
+  type ListCitiesResponse,
   type ListAssessmentsResponse,
+  type ListDistrictsResponse,
 } from '@notary-portal/api-contracts';
 import { AssessmentStatus as PrismaAssessmentStatus, type Prisma } from '@internal/prisma-client';
 import type { AssessmentQuery } from './assessment.query';
+
+type PrismaCityRow = {
+  id: string;
+  name: string;
+};
+
+type PrismaDistrictRow = {
+  id: string;
+  cityId: string;
+  name: string;
+};
 
 type PrismaAssessmentRow = {
   id: string;
@@ -29,6 +48,35 @@ type PrismaAssessmentRow = {
 @Injectable()
 export class AssessmentRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async listCities(): Promise<ListCitiesResponse> {
+    const cities = await this.prisma.city.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
+    return create(ListCitiesResponseSchema, {
+      cities: cities.map((city) => this.toCityMessage(city)),
+    });
+  }
+
+  async listDistricts(cityId?: string): Promise<ListDistrictsResponse> {
+    const where: Prisma.DistrictWhereInput = {};
+    if (cityId) where.cityId = cityId;
+
+    const orderBy: Prisma.DistrictOrderByWithRelationInput[] = [{ name: 'asc' }];
+    if (!cityId) orderBy.push({ cityId: 'asc' });
+
+    const districts = await this.prisma.district.findMany({
+      where,
+      select: { id: true, cityId: true, name: true },
+      orderBy,
+    });
+
+    return create(ListDistrictsResponseSchema, {
+      districts: districts.map((district) => this.toDistrictMessage(district)),
+    });
+  }
 
   async listAssessments(query: AssessmentQuery): Promise<ListAssessmentsResponse> {
     const page = query.page ?? 1;
@@ -157,6 +205,21 @@ export class AssessmentRepository {
       estimatedValue: a.estimatedValue?.toString() ?? '',
       createdAt: timestampFromDate(a.createdAt),
       updatedAt: timestampFromDate(a.updatedAt),
+    });
+  }
+
+  private toCityMessage(city: PrismaCityRow): RpcCity {
+    return create(CitySchema, {
+      id: city.id,
+      name: city.name,
+    });
+  }
+
+  private toDistrictMessage(district: PrismaDistrictRow): RpcDistrict {
+    return create(DistrictSchema, {
+      id: district.id,
+      cityId: district.cityId,
+      name: district.name,
     });
   }
 

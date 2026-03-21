@@ -3,8 +3,8 @@ syntax = "proto3";
 package notary.forms.v1alpha1;
 
 import "notary/assessment/v1alpha1/assessment.proto";
-import "notary/user/v1alpha1/user.proto";
 import "notary/document/v1alpha1/document.proto";
+import "notary/user/v1alpha1/user.proto";
 
 // FormsService — единая точка входа для сохранения данных из форм веб-приложения.
 // Делегирует в соответствующие сервисы (Assessment, User, Document) или сохраняет напрямую в БД.
@@ -27,6 +27,7 @@ message SaveAssessmentFormRequest {
   string user_id = 2;
   string address = 3;
   string description = 4;
+  notary.assessment.v1alpha1.RealEstateObjectInput real_estate_object = 5;
 }
 
 message SaveAssessmentFormResponse {
@@ -53,6 +54,7 @@ message SaveDocumentFormRequest {
   string file_type = 3;
   string file_path = 4;
   string uploaded_by_id = 5;
+  notary.document.v1alpha1.DocumentType document_type = 6;
 }
 
 message SaveDocumentFormResponse {

@@ -56,6 +56,8 @@ export class ConnectRouterRegistry {
       getAssessment: this.assessmentRpcService.getAssessment,
       updateAssessment: this.assessmentRpcService.updateAssessment,
       listAssessments: this.assessmentRpcService.listAssessments,
+      listCities: this.assessmentRpcService.listCities,
+      listDistricts: this.assessmentRpcService.listDistricts,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,

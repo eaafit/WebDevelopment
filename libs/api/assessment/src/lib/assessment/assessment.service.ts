@@ -7,6 +7,10 @@ import {
   CompleteAssessmentResponseSchema,
   CreateAssessmentResponseSchema,
   GetAssessmentResponseSchema,
+  type ListCitiesRequest,
+  type ListCitiesResponse,
+  type ListDistrictsRequest,
+  type ListDistrictsResponse,
   type CancelAssessmentRequest,
   type CancelAssessmentResponse,
   type CompleteAssessmentRequest,
@@ -42,6 +46,16 @@ export class AssessmentService {
     private readonly assessmentRepository: AssessmentRepository,
     private readonly metrics: MetricsService,
   ) {}
+
+  listCities(_request: ListCitiesRequest): Promise<ListCitiesResponse> {
+    return this.assessmentRepository.listCities();
+  }
+
+  listDistricts(request: ListDistrictsRequest): Promise<ListDistrictsResponse> {
+    return this.assessmentRepository.listDistricts(
+      normalizeOptionalUuid(request.cityId, 'city_id'),
+    );
+  }
 
   listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
     return this.assessmentRepository.listAssessments(this.normalizeListRequest(request));
@@ -134,6 +148,17 @@ function validateUuid(value: string | undefined, fieldName: string): void {
   if (!value || !UUID_PATTERN.test(value)) {
     throw new ConnectError(`${fieldName} must be a valid UUID`, Code.InvalidArgument);
   }
+}
+
+function normalizeOptionalUuid(value: string | undefined, fieldName: string): string | undefined {
+  if (value === undefined) return undefined;
+
+  const normalized = value.trim();
+  if (!normalized || !UUID_PATTERN.test(normalized)) {
+    throw new ConnectError(`${fieldName} must be a valid UUID`, Code.InvalidArgument);
+  }
+
+  return normalized;
 }
 
 function validateRequired(value: string | undefined, fieldName: string): void {
