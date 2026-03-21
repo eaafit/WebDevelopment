@@ -5,7 +5,7 @@ import { DashboardLayout } from '@notary-portal/ui';
 const ADMIN_MENU = [
   { label: 'Главное меню', route: '.', icon: '☰', exact: true },
   { label: 'Пользователи', route: 'users', icon: '👥' },
-  { label: 'Заявки', route: 'orders', icon: '📄' },
+  { label: 'Управление заказами', route: 'orders', icon: '📄' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
   { label: 'Тарифные планы', route: 'plans', icon: '📋' },
