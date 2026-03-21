@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package notary.auth.v1alpha1;
+
+import "notary/user/v1alpha1/user.proto";
+
+service AuthService {
+  rpc Register (RegisterRequest) returns (RegisterResponse);
+  rpc Login (LoginRequest) returns (LoginResponse);
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc Logout (LogoutRequest) returns (LogoutResponse);
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string full_name = 3;
+  string phone_number = 4;
+  notary.user.v1alpha1.UserRole role = 5;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message AuthResult {
+  string access_token = 1;
+  string refresh_token = 2;
+  notary.user.v1alpha1.User user = 3;
+}
+
+message RegisterResponse {
+  AuthResult result = 1;
+}
+
+message LoginResponse {
+  AuthResult result = 1;
+}
+
+message RefreshTokenResponse {
+  AuthResult result = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+}

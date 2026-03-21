@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Оплата подписки</title>
+    <link rel="stylesheet" href="/src/angular/styles/notary-dashboard/styles.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="mb-4">
+        <h1>Оформление подписки</h1>
+        <p class="text-sm">Выберите подходящий тарифный план для работы с оценками.</p>
+      </div>
+
+      <form
+        class="grid-checkout"
+        onsubmit="
+          event.preventDefault();
+          alert('Переход к API оплаты...');
+        ">
+        <div class="flex-col gap-4">
+          <div class="card">
+            <div class="card-title">1. Выберите тариф</div>
+            <div>
+              <label class="tariff-card selected" onclick="selectPlan(this)">
+                <input type="radio" name="plan" value="basic" checked style="display: none" />
+                <div>
+                  <h3>Базовый (Basic)</h3>
+                  <p class="text-sm m-0">До 10 заявок в месяц, стандартная поддержка</p>
+                </div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">1 500 ₽</div>
+              </label>
+
+              <label class="tariff-card" onclick="selectPlan(this)">
+                <input type="radio" name="plan" value="premium" style="display: none" />
+                <div>
+                  <h3>Премиум (Premium)</h3>
+                  <p class="text-sm m-0">Безлимитные заявки, приоритетная поддержка, API</p>
+                </div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">5 000 ₽</div>
+              </label>
+
+              <label class="tariff-card" onclick="selectPlan(this)">
+                <input type="radio" name="plan" value="enterprise" style="display: none" />
+                <div>
+                  <h3>Корпоративный (Enterprise)</h3>
+                  <p class="text-sm m-0">Многопользовательский доступ, личный менеджер</p>
+                </div>
+                <div class="text-bold text-primary" style="font-size: 1.125rem">12 000 ₽</div>
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">2. Банковская карта</div>
+            <div class="form-group">
+              <label class="form-label">Номер карты</label>
+              <input type="text" class="form-input" placeholder="0000 0000 0000 0000" />
+            </div>
+            <div class="flex gap-4">
+              <div class="form-group w-full">
+                <label class="form-label">Срок действия</label>
+                <input type="text" class="form-input" placeholder="MM / YY" />
+              </div>
+              <div class="form-group w-full">
+                <label class="form-label">CVC / CVV</label>
+                <input type="password" class="form-input" placeholder="•••" />
+              </div>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label">Имя держателя</label>
+              <input type="text" class="form-input" placeholder="IVAN IVANOV" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">Сводка заказа</div>
+            <div class="summary-row">
+              <span class="text-secondary">Тариф</span>
+              <span class="text-bold">Базовый</span>
+            </div>
+            <div class="summary-row">
+              <span class="text-secondary">Период</span>
+              <span class="text-bold">1 месяц</span>
+            </div>
+            <div class="summary-row">
+              <span class="text-secondary">Комиссия</span>
+              <span class="text-bold">0 ₽</span>
+            </div>
+
+            <div class="mt-4 mb-4">
+              <label class="form-label">Промокод</label>
+              <div class="flex gap-2">
+                <input type="text" class="form-input" placeholder="PROMO" />
+                <button type="button" class="btn btn-outline btn-sm">OK</button>
+              </div>
+            </div>
+
+            <div class="summary-row total">
+              <span>Итого:</span>
+              <span class="text-primary">1 500 ₽</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full mt-4">Оплатить 1 500 ₽</button>
+            <p class="text-sm text-center mt-4 text-xs">
+              🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы соглашаетесь с
+              <a href="/terms" class="link" target="_blank">условиями сервиса</a>
+              и
+              <a href="/privacy" class="link" target="_blank">политикой конфиденциальности</a>.
+            </p>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <script>
+      function selectPlan(element) {
+        document.querySelectorAll('.tariff-card').forEach((el) => el.classList.remove('selected'));
+        element.classList.add('selected');
+        element.querySelector('input').checked = true;
+      }
+    </script>
+  </body>
+</html>
