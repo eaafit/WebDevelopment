@@ -1,0 +1,54 @@
+{
+  "name": "prisma",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/shared/prisma/src",
+  "projectType": "library",
+  "tags": ["scope:backend-shared"],
+  "targets": {
+    "test": {
+      "dependsOn": ["generate"]
+    },
+    "status": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate status",
+        "cwd": "libs/api/shared/prisma"
+      }
+    },
+    "migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate dev",
+        "cwd": "libs/api/shared/prisma"
+      }
+    },
+    "studio": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma studio",
+        "cwd": "libs/api/shared/prisma"
+      }
+    },
+    "deploy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma migrate deploy",
+        "cwd": "libs/api/shared/prisma"
+      }
+    },
+    "generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma generate",
+        "cwd": "libs/api/shared/prisma"
+      }
+    },
+    "seed": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "prisma generate && prisma db seed",
+        "cwd": "libs/api/shared/prisma"
+      }
+    }
+  }
+}

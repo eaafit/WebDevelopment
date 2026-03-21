@@ -1,0 +1,64 @@
+﻿# Compiled output
+dist
+tmp
+out-tsc
+
+# Dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+.nx/cache
+.nx/workspace-data
+
+.angular
+
+# pnpm
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# Connect RPC
+**/generated/
+**/*.pb.ts
+**/*.connect.ts
+
+# Prisma
+*.db
+*.db-journal
+
+# Environment files and local secrets
+.env
+!libs/api/shared/prisma/.env
+
+# Tests and logs
+test-results/
+.pnpm-debug.log*

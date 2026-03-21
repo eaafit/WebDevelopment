@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package notary.report.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service ReportService {
+  rpc CreateReport(CreateReportRequest) returns (CreateReportResponse);
+  rpc GetReport(GetReportRequest) returns (GetReportResponse);
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
+  rpc SignReport(SignReportRequest) returns (SignReportResponse);
+  rpc DeleteReport(DeleteReportRequest) returns (DeleteReportResponse);
+}
+
+enum ReportStatus {
+  REPORT_STATUS_UNSPECIFIED = 0;
+  REPORT_STATUS_DRAFT = 1;
+  REPORT_STATUS_SIGNED = 2;
+}
+
+enum ReportSortField {
+  REPORT_SORT_FIELD_UNSPECIFIED = 0;
+  REPORT_SORT_FIELD_GENERATED_AT = 1;
+  REPORT_SORT_FIELD_VERSION = 2;
+}
+
+message AssessmentReport {
+  string id = 1;
+  string assessment_id = 2;
+  string report_path = 3;
+  google.protobuf.Timestamp generated_at = 4;
+  string signed_by_id = 5;
+  int32 version = 6;
+  bool has_signature = 7;
+  ReportStatus status = 8;
+}
+
+message ReportFilters {
+  string assessment_id = 1 [(buf.validate.field).string.uuid = true];
+  string signed_by_id = 2 [(buf.validate.field).string.uuid = true];
+  ReportStatus status = 3;
+}
+
+message ReportSort {
+  ReportSortField field = 1;
+  bool descending = 2;
+}
+
+message ListReportsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1 [(buf.validate.field).required = true];
+  ReportFilters filters = 2;
+  ReportSort sort = 3;
+}
+
+message ListReportsResponse {
+  repeated AssessmentReport reports = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message GetReportRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetReportResponse {
+  AssessmentReport report = 1;
+}
+
+message CreateReportRequest {
+  string assessment_id = 1 [(buf.validate.field).string.uuid = true];
+  string report_path = 2 [(buf.validate.field).string.min_len = 1];
+  string signed_by_id = 3 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateReportResponse {
+  AssessmentReport report = 1;
+}
+
+message SignReportRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  bytes signature_data = 2 [(buf.validate.field).required = true];
+}
+
+message SignReportResponse {
+  AssessmentReport report = 1;
+}
+
+message DeleteReportRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeleteReportResponse {
+  bool success = 1;
+}
