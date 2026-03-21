@@ -1,0 +1,77 @@
+# api-contracts
+
+## Сервисы и контракты
+
+| Сервис            | Файл             | Описание                         |
+| ----------------- | ---------------- | -------------------------------- |
+| AssessmentService | assessment.proto | Заявки на оценку (CRUD, статусы) |
+| UserService       | user.proto       | Пользователи, профиль            |
+| PaymentService    | payment.proto    | Платежи, подписки                |
+| DocumentService   | document.proto   | Документы к заявкам              |
+| FormsService      | forms.proto      | Сохранение данных форм (фасад)   |
+
+## Генерация кода
+
+```bash
+# Сгенерировать protobuf-es descriptors/messages из proto
+pnpm nx run api-contracts:generate-proto
+```
+
+Генерация использует `protoc-gen-es` и produces:
+
+- protobuf message types/schemas
+- enum descriptors
+- service descriptors, совместимые с Connect RPC client/server runtime
+
+## PaymentService: checkout flow
+
+- `CreatePaymentResponse` поддерживает embedded-widget сценарий и может возвращать `widget` с безопасными данными для инициализации платёжного виджета.
+- Для интеграции с ЮKassa основной сценарий оплаты проходит через widget flow на checkout-странице, а не через redirect URL.
+
+## Версионность пакетов
+
+- ### package notary.anything.**v1alpha1** (Draft)
+  - **Описание:** Допускаются любые изменения, может отсутствовать валидация данных, можно удалять поля, менять типы и переименовывать сервисы.
+  - **Статус:** Не гарантирует стабильность.
+- ### package notary.anything.**v1** (Stable)
+  - **Описание:** Стабильность v1 проверяется через `buf breaking` (любой Breaking Change проваливает тесты в CI). Допускается добавление новых полей или методов.
+  - **Статус:** Гарантирует полную обратную совместимость.
+
+## Правила
+
+- ### Путь к контракту должен строго зеркалить пакет:
+  ### `/notary/common/v1/common.proto` -> `package notary.common.v1;`
+- ### Название папки версии (`v1`, `v1alpha1`) должно совпадать с версией в названии пакета.
+- ### В стабильных версиях (`v1`) запрещено изменять или переиспользовать номера полей. При удалении поля его номер и имя должны быть зарезервированы.
+
+  **Пример: Необходимо удалить поле `email`:**
+
+  ```proto
+  message User {
+    int32 id = 1;
+    string email = 2;
+    string phone = 3;
+  }
+  ```
+
+  **Ошибка:**
+
+  ```proto
+  message User {
+    int32 id = 1;
+    string phone = 2;
+  }
+  ```
+
+  **Верно:**
+
+  ```proto
+  message User {
+    int32 id = 1;
+
+    reserved 2;
+    reserved "email";
+
+    string phone = 3;
+  }
+  ```

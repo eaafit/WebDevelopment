@@ -1,0 +1,116 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.geography-page {
+  --geo-bg: var(--dash-bg, #f8fafc);
+  --geo-surface: #fff;
+  --geo-border: #e2e8f0;
+  --geo-text: #0f172a;
+  --geo-text-soft: #475569;
+
+  min-width: 0;
+  padding: 0 1rem 1rem;
+}
+
+.geography-page__hero {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  margin-bottom: 1.25rem;
+}
+
+.geography-page__eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.875rem;
+  color: var(--geo-text-soft);
+}
+
+.geography-page__lead {
+  max-width: 48rem;
+  margin: 0.5rem 0 0;
+  color: var(--geo-text-soft);
+}
+
+.geography-page__actions {
+  flex-shrink: 0;
+}
+
+.geography-btn {
+  cursor: pointer;
+
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--geo-border);
+  border-radius: 8px;
+
+  font-size: 0.875rem;
+
+  background: var(--geo-surface);
+}
+
+.geography-btn--ghost:hover {
+  background: var(--geo-bg);
+}
+
+.geography-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--geo-border);
+  border-radius: 12px;
+
+  background: var(--geo-surface);
+}
+
+.geography-filters__label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--geo-text-soft);
+}
+
+.geography-filters__select,
+.geography-filters__input {
+  min-width: 140px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--geo-border);
+  border-radius: 6px;
+
+  font-size: 0.875rem;
+}
+
+.geography-page__map-wrap {
+  overflow: hidden;
+
+  min-height: 400px;
+  border: 1px solid var(--geo-border);
+  border-radius: 12px;
+
+  background: var(--geo-surface);
+}
+
+.geography-map {
+  width: 100%;
+  height: 500px;
+}
+
+::ng-deep .geography-popup-container .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+::ng-deep .geography-popup-container .leaflet-popup-content {
+  min-width: 200px;
+  margin: 0.75rem 1rem;
+}
+
+.geography-popup a {
+  font-size: 0.875rem;
+  color: var(--dash-link-color, #2563eb);
+}

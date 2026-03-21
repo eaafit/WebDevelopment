@@ -1,0 +1,41 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["ESNext", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@internal/assessment": ["libs/api/assessment/src/index.ts"],
+      "@internal/auth": ["libs/api/auth/src/index.ts"],
+      "@internal/auth-shared": ["libs/api/shared/auth/src/index.ts"],
+      "@internal/billing": ["libs/api/billing/src/index.ts"],
+      "@internal/document": ["libs/api/document/src/index.ts"],
+      "@internal/metrics": ["libs/api/shared/metrics/src/index.ts"],
+      "@internal/notification": ["libs/api/notification/src/index.ts"],
+      "@internal/prisma": ["libs/api/shared/prisma/src/index.ts"],
+      "@internal/prisma-client": ["libs/api/shared/prisma/generated/prisma/client.ts"],
+      "@internal/report": ["libs/api/report/src/index.ts"],
+      "@internal/user": ["libs/api/user/src/index.ts"],
+      "@notary-portal/prisma": ["libs/api/prisma/src/index.ts"],
+      "@notary-portal/api-contracts": ["libs/shared/api-contracts/src/index.ts"],
+      "@notary-portal/guest": ["libs/web/guest/src/index.ts"],
+      "@notary-portal/applicant": ["libs/web/applicant/src/index.ts"],
+      "@notary-portal/notary": ["libs/web/notary/src/index.ts"],
+      "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
+      "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
+      "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"],
+      "@notary-portal/billing": ["libs/api/billing/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}

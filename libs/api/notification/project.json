@@ -1,0 +1,12 @@
+{
+  "name": "notification",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/notification/src",
+  "projectType": "library",
+  "tags": ["scope:backend"],
+  "targets": {
+    "test": {
+      "dependsOn": ["prisma:generate"]
+    }
+  }
+}
