@@ -24,6 +24,9 @@ describe('AuthService', () => {
     generateTokenPair: jest.fn(),
     verifyAccessToken: jest.fn(),
   };
+  const metrics = {
+    recordUserRegistered: jest.fn(),
+  };
 
   let service: AuthService;
 
@@ -34,6 +37,7 @@ describe('AuthService', () => {
       refreshTokenRepository as never,
       passwordService as never,
       tokenService as never,
+      metrics as never,
     );
   });
 
