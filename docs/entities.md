@@ -149,6 +149,50 @@
 - `Percent` (numeric) - процент скидки
 - `Type` (enum: Permanent, Subscription, Product, Promo) - тип скидки
 
+## 12. Рассылка (Mailing)
+
+- `Id` (UUID, PK) — идентификатор рассылки
+- `Name` (varchar) — название рассылки
+- `Subject` (varchar) — тема письма
+- `Body` (text) — содержимое письма/шаблона
+- `Status` (enum: Draft, Scheduled, Sending, Completed, Failed, Cancelled) — статус рассылки
+- `ScheduledAt` (timestamp, nullable) — дата и время запланированной отправки
+- `StartedAt` (timestamp, nullable) — дата и время начала отправки
+- `FinishedAt` (timestamp, nullable) — дата и время завершения отправки
+- `SubscriberGroupId` (UUID, FK) — группа подписчиков-получателей
+- `SmtpClientId` (UUID, FK) — SMTP-клиент, через который выполняется отправка
+- `CreatedBy` (UUID, FK) — пользователь, создавший рассылку
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 13. SMTP клиент (SmtpClient)
+
+- `Id` (UUID, PK) — идентификатор SMTP-клиента
+- `Name` (varchar) — наименование SMTP-профиля
+- `Host` (varchar) — SMTP-сервер
+- `Port` (integer) — SMTP-порт
+- `Username` (varchar) — логин для аутентификации
+- `PasswordEncrypted` (varchar) — зашифрованный пароль/токен
+- `EncryptionType` (enum: None, SSL, TLS, STARTTLS) — тип шифрования соединения
+- `FromEmail` (varchar) — email отправителя
+- `FromName` (varchar, nullable) — отображаемое имя отправителя
+- `IsActive` (boolean) — активность профиля
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 14. Группа подписчиков (SubscriberGroup)
+
+- `Id` (UUID, PK) — идентификатор группы подписчиков
+- `Name` (varchar) — название группы
+- `Description` (text, nullable) — описание группы
+- `Type` (enum: Static, Dynamic) — тип группы (фиксированный список или по фильтру)
+- `FilterCriteria` (jsonb, nullable) — критерии отбора получателей для динамической группы
+- `SubscribersCount` (integer, nullable) — количество подписчиков на момент формирования
+- `IsActive` (boolean) — активность группы
+- `CreatedBy` (UUID, FK) — пользователь, создавший группу
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
 ---
 
 # Краткие пояснения
