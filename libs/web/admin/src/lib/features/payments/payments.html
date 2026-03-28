@@ -36,7 +36,13 @@
               <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">▼</button>
             </div>
             @if (activeFilterColumn === column.key) {
-            <div class="column-filter-menu" (click)="$event.stopPropagation()">
+            <div
+              class="column-filter-menu"
+              (click)="$event.stopPropagation()"
+              (keydown)="$event.stopPropagation()"
+              tabindex="-1"
+              role="menu"
+              aria-label="Меню фильтрации">
               <div class="menu-section">
                 <button
                   type="button"
