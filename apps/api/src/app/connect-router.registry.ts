@@ -88,6 +88,7 @@ export class ConnectRouterRegistry {
     // ─── Payment ─────────────────────────────────────────────
     router.service(PaymentService, {
       createPayment: this.paymentRpcService.createPayment,
+      validateSubscriptionPromo: this.paymentRpcService.validateSubscriptionPromo,
       processWebhook: this.paymentRpcService.processWebhook,
       getPaymentHistory: this.paymentRpcService.getPaymentHistory,
       getSubscription: this.paymentRpcService.getSubscription,

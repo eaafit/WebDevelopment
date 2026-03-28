@@ -7,6 +7,10 @@ import { SubscriptionCheckoutApiService } from './subscription-checkout-api.serv
 import { YooKassaWidgetService, type YooKassaWidgetHandlers } from './yookassa-widget.service';
 
 type CheckoutTestApi = Checkout & {
+  applyPromo: () => Promise<void>;
+  promoInput: {
+    set: (value: string) => void;
+  };
   startPayment: () => Promise<void>;
   state: () => string;
   displayAmount: () => string;
@@ -20,6 +24,7 @@ describe('Checkout', () => {
   let checkoutApi: {
     createSubscriptionDraft: jest.Mock;
     createPayment: jest.Mock;
+    validateSubscriptionPromo: jest.Mock;
     waitForPaymentStatus: jest.Mock;
   };
   let widgetHandlers: YooKassaWidgetHandlers | undefined;
@@ -41,6 +46,14 @@ describe('Checkout', () => {
           amount: '1350.00',
           currency: 'RUB',
         },
+      }),
+      validateSubscriptionPromo: jest.fn().mockResolvedValue({
+        status: 'valid',
+        promoCode: 'SPRING10',
+        baseAmount: '1500.00',
+        finalAmount: '1350.00',
+        discountAmount: '150.00',
+        discountPercent: '10.00',
       }),
       waitForPaymentStatus: jest.fn().mockResolvedValue('completed'),
     };
@@ -131,6 +144,58 @@ describe('Checkout', () => {
     expect(element.querySelector('.widget-card')).toBeNull();
   });
 
+  it('should validate promo and update the checkout summary before payment', async () => {
+    checkout.promoInput.set('SPRING10');
+    await checkout.applyPromo();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(checkoutApi.validateSubscriptionPromo).toHaveBeenCalledWith({
+      planCode: 'basic',
+      promoCode: 'SPRING10',
+    });
+    expect(checkout.displayAmount()).toBe('1350.00');
+    expect(element.querySelector('.promo-feedback.is-success')).not.toBeNull();
+    expect(element.textContent).toContain('Промокод применён.');
+    expect(element.textContent).toContain('SPRING10');
+  });
+
+  it('should show an inline error for an invalid promo code', async () => {
+    checkoutApi.validateSubscriptionPromo.mockResolvedValue({
+      status: 'not_found',
+      promoCode: 'NOPE',
+      baseAmount: '1500.00',
+      finalAmount: '1500.00',
+      discountAmount: '0.00',
+      discountPercent: '0.00',
+    });
+
+    checkout.promoInput.set('NOPE');
+    await checkout.applyPromo();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(checkout.state()).toBe('ready');
+    expect(element.querySelector('.promo-feedback.is-error')).not.toBeNull();
+    expect(element.querySelector('.error-card')).toBeNull();
+    expect(element.textContent).toContain('Такой промокод не найден. Проверьте написание.');
+  });
+
+  it('should require promo application before starting payment', async () => {
+    checkout.promoInput.set('SPRING10');
+
+    await checkout.startPayment();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(checkoutApi.createSubscriptionDraft).not.toHaveBeenCalled();
+    expect(element.querySelector('.promo-feedback.is-error')).not.toBeNull();
+    expect(element.textContent).toContain('Промокод ещё не применён.');
+  });
+
   it('should switch to the success state after widget success and confirmed webhook status', async () => {
     await checkout.startPayment();
     await widgetHandlers?.onSuccess();
@@ -142,6 +207,41 @@ describe('Checkout', () => {
     });
     expect(checkout.state()).toBe('success');
     expect((fixture.nativeElement as HTMLElement).querySelector('.success-card')).not.toBeNull();
+  });
+
+  it('should show a user-friendly error card without exposing raw technical details', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    checkoutApi.createPayment.mockRejectedValue(new Error('connect ETIMEDOUT 10.0.0.1'));
+
+    await checkout.startPayment();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(checkout.state()).toBe('error');
+    expect(element.querySelector('.error-card')).not.toBeNull();
+    expect(element.textContent).toContain('Не получилось открыть оплату');
+    expect(element.textContent).toContain(
+      'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
+    );
+    expect(element.textContent).not.toContain('ETIMEDOUT');
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should keep processing UI inside widget stage without a duplicate notice banner', async () => {
+    checkoutApi.waitForPaymentStatus.mockResolvedValue('pending');
+
+    await checkout.startPayment();
+    await widgetHandlers?.onSuccess();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(checkout.state()).toBe('processing');
+    expect(element.querySelector('.widget-stage.is-processing')).not.toBeNull();
+    expect(element.querySelector('.notice-banner')).toBeNull();
+    expect(element.textContent).toContain('Проверяем подтверждение платежа');
   });
 
   it('should show a retryable cancelled state when the widget is closed', async () => {
