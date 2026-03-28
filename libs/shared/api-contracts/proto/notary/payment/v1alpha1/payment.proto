@@ -8,6 +8,7 @@ import "notary/common/v1alpha1/common.proto";
 
 service PaymentService {
   rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc ValidateSubscriptionPromo(ValidateSubscriptionPromoRequest) returns (ValidateSubscriptionPromoResponse);
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
   rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
   rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
@@ -34,6 +35,14 @@ enum PaymentType {
   PAYMENT_TYPE_SUBSCRIPTION = 1;
   PAYMENT_TYPE_ASSESSMENT = 2;
   PAYMENT_TYPE_DOCUMENT_COPY = 3;
+}
+
+enum PromoValidationStatus {
+  PROMO_VALIDATION_STATUS_UNSPECIFIED = 0;
+  PROMO_VALIDATION_STATUS_VALID = 1;
+  PROMO_VALIDATION_STATUS_NOT_FOUND = 2;
+  PROMO_VALIDATION_STATUS_EXPIRED = 3;
+  PROMO_VALIDATION_STATUS_USAGE_LIMIT_REACHED = 4;
 }
 
 message Payment {
@@ -95,6 +104,26 @@ message CreatePaymentResponse {
   string payment_id = 2 [(buf.validate.field).string.uuid = true];
   PaymentWidgetInit widget = 3;
   notary.common.v1alpha1.Money amount = 4;
+}
+
+message ValidateSubscriptionPromoRequest {
+  SubscriptionPlan plan = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string promo_code = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 20
+  }];
+}
+
+message ValidateSubscriptionPromoResponse {
+  PromoValidationStatus status = 1;
+  string promo_code = 2 [(buf.validate.field).string.max_len = 20];
+  notary.common.v1alpha1.Money base_amount = 3;
+  notary.common.v1alpha1.Money final_amount = 4;
+  notary.common.v1alpha1.Money discount_amount = 5;
+  string discount_percent = 6 [(buf.validate.field).string.max_len = 16];
 }
 
 message ProcessWebhookRequest {

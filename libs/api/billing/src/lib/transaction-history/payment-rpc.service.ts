@@ -9,6 +9,8 @@ import {
   type GetSubscriptionResponse,
   type ProcessWebhookRequest,
   type ProcessWebhookResponse,
+  type ValidateSubscriptionPromoRequest,
+  type ValidateSubscriptionPromoResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { PaymentCreateService } from '../payment-create/payment-create.service';
@@ -32,6 +34,11 @@ export class PaymentRpcService {
 
   readonly createPayment = (request: CreatePaymentRequest): Promise<CreatePaymentResponse> =>
     this.paymentCreateService.createPayment(request);
+
+  readonly validateSubscriptionPromo = (
+    request: ValidateSubscriptionPromoRequest,
+  ): Promise<ValidateSubscriptionPromoResponse> =>
+    this.paymentCreateService.validateSubscriptionPromo(request);
 
   readonly processWebhook = (request: ProcessWebhookRequest): Promise<ProcessWebhookResponse> =>
     this.paymentWebhookService.processWebhook(request);

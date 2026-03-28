@@ -2,15 +2,21 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import {
   CreatePaymentResponseSchema,
+  PromoValidationStatus,
   PaymentType as RpcPaymentType,
+  SubscriptionPlan as RpcSubscriptionPlan,
+  ValidateSubscriptionPromoResponseSchema,
   type CreatePaymentRequest,
   type CreatePaymentResponse,
+  type ValidateSubscriptionPromoRequest,
+  type ValidateSubscriptionPromoResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
   PaymentStatus as PrismaPaymentStatus,
+  SubscriptionPlan as PrismaSubscriptionPlan,
   PaymentType as PrismaPaymentType,
   type Promo,
 } from '@internal/prisma-client';
@@ -34,6 +40,12 @@ interface ResolvedPaymentContext {
   assessmentId: string | null;
   promo: Promo | null;
   discountAmount: string | null;
+}
+
+interface PromoValidationResult {
+  promo: Promo | null;
+  promoCode: string;
+  status: PromoValidationStatus;
 }
 
 @Injectable()
@@ -116,6 +128,58 @@ export class PaymentCreateService {
     }
   }
 
+  async validateSubscriptionPromo(
+    request: ValidateSubscriptionPromoRequest,
+  ): Promise<ValidateSubscriptionPromoResponse> {
+    const plan = getSubscriptionPlanByPrisma(this.toPrismaPlan(request.plan));
+    const baseAmountCents = parseAmountToCents(plan.price, 'plan.price');
+    const promoValidation = await this.validatePromoCode(request.promoCode);
+
+    if (promoValidation.status !== PromoValidationStatus.VALID || !promoValidation.promo) {
+      return create(ValidateSubscriptionPromoResponseSchema, {
+        status: promoValidation.status,
+        promoCode: promoValidation.promoCode,
+        baseAmount: {
+          amount: plan.price,
+          currency: SUBSCRIPTION_CURRENCY,
+        },
+        finalAmount: {
+          amount: plan.price,
+          currency: SUBSCRIPTION_CURRENCY,
+        },
+        discountAmount: {
+          amount: centsToAmount(0),
+          currency: SUBSCRIPTION_CURRENCY,
+        },
+        discountPercent: '0.00',
+      });
+    }
+
+    const discountAmount = calculateDiscountAmount(
+      baseAmountCents,
+      promoValidation.promo.discountPercent.toString(),
+    );
+    const finalAmount = Math.max(0, baseAmountCents - discountAmount);
+
+    return create(ValidateSubscriptionPromoResponseSchema, {
+      status: PromoValidationStatus.VALID,
+      promoCode: promoValidation.promo.code,
+      baseAmount: {
+        amount: plan.price,
+        currency: SUBSCRIPTION_CURRENCY,
+      },
+      finalAmount: {
+        amount: centsToAmount(finalAmount),
+        currency: SUBSCRIPTION_CURRENCY,
+      },
+      discountAmount: {
+        amount: centsToAmount(discountAmount),
+        currency: SUBSCRIPTION_CURRENCY,
+      },
+      discountPercent: promoValidation.promo.discountPercent.toString(),
+    });
+  }
+
   private async resolvePaymentContext(
     request: CreatePaymentRequest,
     prismaType: PrismaPaymentType,
@@ -181,6 +245,34 @@ export class PaymentCreateService {
       return null;
     }
 
+    const validation = await this.validatePromoCode(rawPromoCode);
+    if (validation.status === PromoValidationStatus.VALID) {
+      return validation.promo;
+    }
+
+    switch (validation.status) {
+      case PromoValidationStatus.NOT_FOUND:
+        throw new ConnectError('Promo code was not found', Code.InvalidArgument);
+      case PromoValidationStatus.EXPIRED:
+        throw new ConnectError('Promo code has expired', Code.InvalidArgument);
+      case PromoValidationStatus.USAGE_LIMIT_REACHED:
+        throw new ConnectError('Promo code usage limit has been reached', Code.InvalidArgument);
+      case PromoValidationStatus.UNSPECIFIED:
+      default:
+        throw new ConnectError('Promo code is invalid', Code.InvalidArgument);
+    }
+  }
+
+  private async validatePromoCode(rawPromoCode: string): Promise<PromoValidationResult> {
+    const promoCode = rawPromoCode.trim();
+    if (!promoCode) {
+      return {
+        promo: null,
+        promoCode,
+        status: PromoValidationStatus.UNSPECIFIED,
+      };
+    }
+
     const promo = await this.prisma.promo.findFirst({
       where: {
         code: {
@@ -191,18 +283,34 @@ export class PaymentCreateService {
     });
 
     if (!promo) {
-      throw new ConnectError('Promo code was not found', Code.InvalidArgument);
+      return {
+        promo: null,
+        promoCode,
+        status: PromoValidationStatus.NOT_FOUND,
+      };
     }
 
     if (promo.expiresAt && promo.expiresAt.getTime() < Date.now()) {
-      throw new ConnectError('Promo code has expired', Code.InvalidArgument);
+      return {
+        promo: null,
+        promoCode,
+        status: PromoValidationStatus.EXPIRED,
+      };
     }
 
     if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
-      throw new ConnectError('Promo code usage limit has been reached', Code.InvalidArgument);
+      return {
+        promo: null,
+        promoCode,
+        status: PromoValidationStatus.USAGE_LIMIT_REACHED,
+      };
     }
 
-    return promo;
+    return {
+      promo,
+      promoCode: promo.code,
+      status: PromoValidationStatus.VALID,
+    };
   }
 
   private buildReturnUrl(type: PrismaPaymentType, paymentId: string): string {
@@ -235,6 +343,19 @@ export class PaymentCreateService {
         throw new ConnectError('payment type is required', Code.InvalidArgument);
     }
     throw new ConnectError(`Unsupported payment type: ${type}`, Code.InvalidArgument);
+  }
+
+  private toPrismaPlan(plan: RpcSubscriptionPlan): PrismaSubscriptionPlan {
+    switch (plan) {
+      case RpcSubscriptionPlan.BASIC:
+        return PrismaSubscriptionPlan.Basic;
+      case RpcSubscriptionPlan.PREMIUM:
+        return PrismaSubscriptionPlan.Premium;
+      case RpcSubscriptionPlan.ENTERPRISE:
+        return PrismaSubscriptionPlan.Enterprise;
+      default:
+        throw new ConnectError('subscription plan is required', Code.InvalidArgument);
+    }
   }
 }
 
