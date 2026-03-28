@@ -78,8 +78,9 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'settings',
-        ...placeholder('Настройки', ['Конфигурация системы']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
+      },
     ],
   },
 ];

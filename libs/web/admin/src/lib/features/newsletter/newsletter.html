@@ -47,6 +47,14 @@
     <button
       type="button"
       class="newsletter-tab"
+      [class.newsletter-tab--active]="activeTab() === 'groups'"
+      (click)="setTab('groups')">
+      <span>Группы подписчиков</span>
+    </button>
+
+    <button
+      type="button"
+      class="newsletter-tab"
       [class.newsletter-tab--active]="activeTab() === 'history'"
       (click)="setTab('history')">
       <span>История рассылок</span>
@@ -185,6 +193,27 @@
 
       <form class="newsletter-form" (submit)="$event.preventDefault(); sendCampaign()" novalidate>
         <fieldset class="newsletter-form__group">
+          <legend>SMTP клиент</legend>
+
+          <label class="newsletter-field newsletter-field--full">
+            <span>Профиль отправки</span>
+            <select [value]="smtpClientId()" (change)="setSmtpClientId($any($event.target).value)">
+              <option value="">Выберите SMTP профиль</option>
+              @for (client of availableSmtpClients(); track client.id) {
+              <option [value]="client.id">
+                {{ client.name }} — {{ client.host }}:{{ client.port }} ({{ client.encryptionType }})
+              </option>
+              }
+            </select>
+            @if (!availableSmtpClients().length) {
+            <small class="newsletter-field__hint newsletter-field__hint--warning">
+              Нет активных SMTP-профилей. Перейдите в раздел «Настройки», чтобы создать и активировать профиль.
+            </small>
+            }
+          </label>
+        </fieldset>
+
+        <fieldset class="newsletter-form__group">
           <legend>Аудитория</legend>
 
           <label class="newsletter-radio">
@@ -216,6 +245,29 @@
                 <option value="Нотариус">Нотариус</option>
                 <option value="Заявитель">Заявитель</option>
                 <option value="Администратор">Администратор</option>
+              </select>
+            </div>
+          </label>
+
+          <label class="newsletter-radio">
+            <input
+              type="radio"
+              name="audience"
+              [checked]="audienceMode() === 'group'"
+              (change)="setAudienceMode('group')" />
+            <div class="newsletter-radio__body">
+              <strong>Группа подписчиков</strong>
+              <span>Отправить рассылку заранее сформированной группе подписчиков.</span>
+
+              <select
+                class="newsletter-radio__select"
+                [value]="selectedGroupId()"
+                [disabled]="!activeSubscriberGroups().length"
+                (change)="setSelectedGroupId($any($event.target).value)">
+                <option value="">Выберите группу</option>
+                @for (group of activeSubscriberGroups(); track group.id) {
+                <option [value]="group.id">{{ group.name }} ({{ group.emails.length }} email)</option>
+                }
               </select>
             </div>
           </label>
@@ -269,6 +321,146 @@
       </form>
     </article>
   </section>
+  } @else if (activeTab() === 'groups') {
+  <section class="newsletter-layout" aria-label="Группы подписчиков">
+    <article class="newsletter-card">
+      <div class="newsletter-card__header">
+        <div>
+          <h3>Управление группами подписчиков</h3>
+          <p>
+            Создавайте и редактируйте статические группы подписчиков. Группы доступны в форме новой рассылки в режиме
+            «Группа подписчиков».
+          </p>
+        </div>
+      </div>
+
+      <div class="newsletter-groups-toolbar">
+        <label class="newsletter-field newsletter-field--search newsletter-field--wide">
+          <span>Поиск группы</span>
+          <input
+            type="text"
+            placeholder="Название, описание, email"
+            [value]="groupFilterQuery()"
+            (input)="updateGroupFilterQuery($any($event.target).value)" />
+        </label>
+
+        <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="startCreateGroup()">
+          Новая группа
+        </button>
+      </div>
+
+      <div class="newsletter-table-wrapper">
+        <table class="newsletter-table newsletter-table--groups">
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Описание</th>
+              <th>Подписчики</th>
+              <th>Обновлено</th>
+              <th>Статус</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (filteredSubscriberGroups().length) { @for (group of filteredSubscriberGroups(); track group.id) {
+            <tr>
+              <td>
+                <strong>{{ group.name }}</strong>
+              </td>
+              <td class="newsletter-table__subject">{{ group.description || '—' }}</td>
+              <td>{{ group.emails.length }}</td>
+              <td>{{ group.updatedAt }}</td>
+              <td>
+                <span class="newsletter-status-pill" [class.newsletter-status-pill--inactive]="!group.isActive">
+                  {{ group.isActive ? 'Активна' : 'Отключена' }}
+                </span>
+              </td>
+              <td>
+                <div class="newsletter-actions-column">
+                  <button type="button" class="newsletter-link" (click)="startEditGroup(group)">Редактировать</button>
+                  <button type="button" class="newsletter-link" (click)="toggleGroupStatus(group)">
+                    {{ group.isActive ? 'Отключить' : 'Активировать' }}
+                  </button>
+                  <button type="button" class="newsletter-link" (click)="useGroupForCampaign(group)">
+                    Использовать в рассылке
+                  </button>
+                  <button type="button" class="newsletter-link newsletter-link--danger" (click)="removeGroup(group)">
+                    Удалить
+                  </button>
+                </div>
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td colspan="6" class="newsletter-empty">
+                <strong>Группы не найдены.</strong>
+                <p>Измените строку поиска или создайте новую группу.</p>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="newsletter-card newsletter-card--form">
+      <div class="newsletter-card__header">
+        <div>
+          <h3>{{ isGroupEditing() ? 'Редактирование группы' : 'Новая группа подписчиков' }}</h3>
+          <p>Добавляйте email адреса по одному в строке или через запятую.</p>
+        </div>
+      </div>
+
+      <form class="newsletter-form" (submit)="$event.preventDefault(); saveGroup()" novalidate>
+        <label class="newsletter-field">
+          <span>Название группы</span>
+          <input
+            type="text"
+            placeholder="Например: Нотариусы Москвы"
+            [value]="groupForm().name"
+            (input)="updateGroupForm('name', $any($event.target).value)" />
+        </label>
+
+        <label class="newsletter-field">
+          <span>Описание</span>
+          <input
+            type="text"
+            placeholder="Кому предназначена группа"
+            [value]="groupForm().description"
+            (input)="updateGroupForm('description', $any($event.target).value)" />
+        </label>
+
+        <label class="newsletter-field newsletter-field--full">
+          <span>Email подписчиков</span>
+          <textarea
+            rows="6"
+            placeholder="user1@example.com\nuser2@example.com"
+            [value]="groupForm().emailsInput"
+            (input)="updateGroupForm('emailsInput', $any($event.target).value)"></textarea>
+          <small class="newsletter-field__hint"
+            >Поддерживаются разделители: перенос строки, запятая, точка с запятой.</small
+          >
+        </label>
+
+        <label class="newsletter-toggle">
+          <input
+            type="checkbox"
+            [checked]="groupForm().isActive"
+            (change)="updateGroupForm('isActive', $any($event.target).checked)" />
+          <span>Группа активна и доступна для выбора в новой рассылке</span>
+        </label>
+
+        <div class="newsletter-form__actions">
+          <button type="submit" class="newsletter-btn newsletter-btn--primary">
+            {{ isGroupEditing() ? 'Сохранить изменения' : 'Создать группу' }}
+          </button>
+          <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="startCreateGroup()">
+            Очистить
+          </button>
+        </div>
+      </form>
+    </article>
+  </section>
   } @else if (activeTab() === 'history') {
   <section class="newsletter-layout" aria-label="История рассылок">
     <article class="newsletter-card">
@@ -289,6 +481,7 @@
               <th>Дата и время</th>
               <th>Тема</th>
               <th>Аудитория</th>
+              <th>SMTP клиент</th>
               <th>Кол-во получателей</th>
               <th>Статус</th>
             </tr>
@@ -299,6 +492,7 @@
               <td>{{ c.createdAt }}</td>
               <td class="newsletter-table__subject">{{ c.subject }}</td>
               <td>{{ c.audienceLabel }}</td>
+              <td>{{ c.smtpLabel }}</td>
               <td>{{ c.recipientsCount }}</td>
               <td>
                 <span
@@ -310,7 +504,7 @@
             </tr>
             } } @else {
             <tr>
-              <td colspan="5" class="newsletter-empty">
+              <td colspan="6" class="newsletter-empty">
                 <strong>История пока пуста.</strong>
                 <p>После отправки первой рассылки здесь появится список кампаний.</p>
               </td>
