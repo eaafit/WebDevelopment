@@ -9,6 +9,7 @@ import {
 import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
 import { resolveSubscriptionPlan, type SubscriptionPlanCode } from './subscription-checkout.models';
+import { addCalendarMonths, normalizeDate } from './subscription-date.util';
 
 export type CheckoutPaymentStatus = 'completed' | 'pending' | 'failed' | 'refunded' | 'not_found';
 export type CheckoutPromoValidationStatus =
@@ -36,8 +37,7 @@ export class SubscriptionCheckoutApiService {
   }): Promise<string> {
     const plan = resolveSubscriptionPlan(params.planCode);
     const startDate = normalizeDate(new Date());
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
+    const endDate = addCalendarMonths(startDate, 1);
 
     const response = await this.client.createSubscription({
       userId: params.userId,
@@ -144,10 +144,6 @@ export class SubscriptionCheckoutApiService {
         return 'pending';
     }
   }
-}
-
-function normalizeDate(value: Date): Date {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 }
 
 function delay(ms: number): Promise<void> {
