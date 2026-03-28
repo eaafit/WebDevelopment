@@ -1,0 +1,126 @@
+<section class="role-notifications">
+  <header class="role-notifications__hero">
+    <div>
+      <p class="role-notifications__eyebrow">Кабинет заявителя</p>
+      <h2>Уведомления</h2>
+      <p class="role-notifications__lead">
+        Уведомления по заявкам и сервису. Статусы: создано, отправлено, прочитано, удалено. Можно убрать запись или
+        очистить список целиком.
+      </p>
+    </div>
+
+    <div class="role-notifications__actions">
+      <div class="role-notifications__action-row">
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--secondary"
+          (click)="markAllAsRead()">
+          Отметить все прочитанными
+        </button>
+        <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
+      </div>
+      <button
+        type="button"
+        class="role-notifications__btn role-notifications__btn--ghost"
+        *ngIf="!notifications().length"
+        (click)="restoreDemoData()">
+        Вернуть демо-данные
+      </button>
+      <span class="role-notifications__badge" *ngIf="inboxCount() as c"> К просмотру: {{ c }} </span>
+    </div>
+  </header>
+
+  <section class="role-notifications__filters">
+    <label class="role-notifications__field">
+      <span>Тип</span>
+      <select (change)="setFilter('type', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="application">Заявки</option>
+        <option value="document">Документы</option>
+        <option value="payment">Платежи</option>
+        <option value="system">Системные</option>
+      </select>
+    </label>
+
+    <label class="role-notifications__field">
+      <span>Канал</span>
+      <select (change)="setFilter('channel', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="in-app">In-app</option>
+        <option value="email">Email</option>
+        <option value="push">Push</option>
+      </select>
+    </label>
+
+    <label class="role-notifications__field">
+      <span>Статус уведомления</span>
+      <select (change)="setFilter('lifecycle', $any($event.target).value)">
+        <option value="active">Активные (без удалённых)</option>
+        <option value="all">Все, включая удалённые</option>
+        <option value="created">Создано</option>
+        <option value="sent">Отправлено</option>
+        <option value="read">Прочитано</option>
+        <option value="deleted">Удалено</option>
+      </select>
+    </label>
+  </section>
+
+  <p class="role-notifications__hint">
+    Клик по карточке: прочитано ↔ отправлено. «Удалить» помечает уведомление удалённым.
+  </p>
+
+  <section class="role-notifications__list" *ngIf="filtered().length; else emptyState">
+    <article
+      class="role-notifications__card"
+      [class.role-notifications__card--attention]="
+        item.lifecycle === 'sent' || item.lifecycle === 'created'
+      "
+      [class.role-notifications__card--deleted]="item.lifecycle === 'deleted'"
+      *ngFor="let item of filtered()"
+      (click)="toggleReadOnCard(item.id)">
+      <div class="role-notifications__card-main">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.description }}</p>
+
+        <div class="role-notifications__chips">
+          <span class="chip chip--type">
+            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
+            ? 'Платёж' : 'Система' }}
+          </span>
+          <span class="chip chip--channel">
+            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+          </span>
+          <span
+            class="chip chip--lifecycle"
+            [class.chip--lifecycle-created]="item.lifecycle === 'created'"
+            [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
+            [class.chip--lifecycle-read]="item.lifecycle === 'read'"
+            [class.chip--lifecycle-deleted]="item.lifecycle === 'deleted'">
+            {{ lifecycleLabel(item.lifecycle) }}
+          </span>
+        </div>
+      </div>
+
+      <div class="role-notifications__card-aside">
+        <div class="role-notifications__datetime">
+          <span class="role-notifications__time">{{ item.relativeTime }}</span>
+          <span class="role-notifications__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
+        </div>
+        <button
+          type="button"
+          class="role-notifications__btn-delete"
+          (click)="deleteOne(item.id, $event)"
+          title="Удалить">
+          Удалить
+        </button>
+      </div>
+    </article>
+  </section>
+
+  <ng-template #emptyState>
+    <div class="role-notifications__empty">
+      <strong>Уведомлений нет.</strong>
+      <p>История пуста или фильтры ничего не показывают.</p>
+    </div>
+  </ng-template>
+</section>

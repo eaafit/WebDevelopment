@@ -34,6 +34,13 @@ export const adminRoutes: Route[] = [
         ]),
       } as Route,
       {
+        path: 'order-status-history',
+        loadComponent: () =>
+          import('./features/order-status-history/order-status-history').then(
+            (m) => m.OrderStatusHistory,
+          ),
+      },
+      {
         path: 'payments',
         ...placeholder('Платежи', [
           'Список платежей/транзакций',
@@ -66,8 +73,9 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['Управление уведомлениями']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.AdminNotifications),
+      },
       {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),

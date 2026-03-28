@@ -6,6 +6,7 @@ const ADMIN_MENU = [
   { label: 'Главное меню', route: '.', icon: '☰' },
   { label: 'Пользователи', route: 'users', icon: '👥' },
   { label: 'Заявки', route: 'orders', icon: '📄' },
+  { label: 'История статусов заявок', route: 'order-status-history', icon: '📜' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
   { label: 'Тарифные планы', route: 'plans', icon: '📋' },
