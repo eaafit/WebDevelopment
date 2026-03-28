@@ -4,27 +4,24 @@
 }
 
 .newsletter-page {
-  --nl-bg: #f8fafc;
-  --nl-surface: #fff;
-  --nl-surface-alt: #f1f5f9;
-  --nl-border: #e2e8f0;
-  --nl-border-strong: #cbd5e1;
-  --nl-text: #0f172a;
-  --nl-text-soft: #475569;
-  --nl-text-muted: #64748b;
-  --nl-accent: #2563eb;
-  --nl-accent-soft: rgb(37 99 235 / 8%);
-  --nl-radius: 18px;
-  --nl-radius-sm: 14px;
-  --nl-shadow-soft: 0 10px 28px rgb(15 23 42 / 7%);
+  --nl-bg: var(--bg-page, #f3f4f6);
+  --nl-surface: var(--bg-card, #fff);
+  --nl-surface-alt: var(--bg-secondary, #f9fafb);
+  --nl-border: var(--border, #e5e7eb);
+  --nl-border-strong: var(--border-strong, #d1d5db);
+  --nl-text: var(--text-main, #111827);
+  --nl-text-soft: var(--text-secondary, #6b7280);
+  --nl-text-muted: var(--text-secondary, #6b7280);
+  --nl-accent: var(--primary, #4f46e5);
+  --nl-accent-hover: var(--primary-hover, #4338ca);
+  --nl-accent-soft: rgb(79 70 229 / 8%);
+  --nl-radius: var(--radius, 12px);
+  --nl-radius-sm: var(--radius-sm, 8px);
+  --nl-shadow-soft: var(--shadow, 0 4px 6px -1px rgb(0 0 0 / 10%));
+  --nl-shadow-sm: var(--shadow-sm, 0 1px 2px 0 rgb(0 0 0 / 5%));
 
   min-width: 0;
-  font-family:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: inherit;
   color: var(--nl-text);
 }
 
@@ -158,7 +155,7 @@
 .newsletter-tab--active {
   color: var(--nl-accent);
   background: #fff;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+  box-shadow: var(--nl-shadow-sm);
 }
 
 .newsletter-layout {
@@ -172,7 +169,7 @@
   border: 1px solid var(--nl-border);
   border-radius: var(--nl-radius);
 
-  background: linear-gradient(180deg, #fff, #f9fafb);
+  background: var(--nl-surface);
   box-shadow: var(--nl-shadow-soft);
 }
 
@@ -228,7 +225,7 @@
   min-width: 0;
   padding: 0.8rem 0.9rem;
   border: 1px solid var(--nl-border-strong);
-  border-radius: 14px;
+  border-radius: var(--nl-radius-sm);
 
   font-size: 0.92rem;
   color: var(--nl-text);
@@ -244,9 +241,9 @@
 .newsletter-field input:focus,
 .newsletter-field select:focus,
 .newsletter-field textarea:focus {
-  border-color: rgb(37 99 235 / 42%);
+  border-color: var(--nl-accent);
   outline: none;
-  box-shadow: 0 0 0 3px rgb(191 219 254 / 80%);
+  box-shadow: var(--focus-ring, 0 0 0 3px rgb(79 70 229 / 10%));
 }
 
 .newsletter-field--search {
@@ -297,20 +294,34 @@
 .newsletter-btn--primary {
   border-color: transparent;
   color: #fff;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  box-shadow: 0 12px 28px rgb(37 99 235 / 40%);
+  background: var(--nl-accent);
+  box-shadow: var(--nl-shadow-sm);
+}
+
+.newsletter-btn--primary:hover:not(:disabled) {
+  background: var(--nl-accent-hover);
 }
 
 .newsletter-btn--secondary {
-  border-color: rgb(37 99 235 / 26%);
-  color: var(--nl-accent);
-  background: var(--nl-accent-soft);
+  border-color: var(--nl-border);
+  color: var(--nl-text);
+  background: #fff;
+}
+
+.newsletter-btn--secondary:hover:not(:disabled) {
+  border-color: var(--nl-border-strong);
+  background: var(--nl-surface-alt);
 }
 
 .newsletter-btn--ghost {
-  border-color: var(--nl-border);
-  color: var(--nl-text-soft);
-  background: #fff;
+  border-color: rgb(79 70 229 / 16%);
+  color: var(--nl-accent);
+  background: rgb(79 70 229 / 7%);
+}
+
+.newsletter-btn--ghost:hover:not(:disabled) {
+  border-color: rgb(79 70 229 / 26%);
+  background: rgb(79 70 229 / 12%);
 }
 
 .newsletter-link {
@@ -505,7 +516,7 @@
   margin-top: 0.45rem;
   padding: 0.45rem 0.75rem;
   border: 1px solid var(--nl-border-strong);
-  border-radius: 999px;
+  border-radius: var(--nl-radius-sm);
 
   font-size: 0.86rem;
 
