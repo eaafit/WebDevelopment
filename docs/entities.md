@@ -68,7 +68,19 @@
 - `EndDate` (date) — дата окончания
 - `IsActive` (boolean) — активность подписки
 
-## 6. Платёж (Payment)
+## 6. План (TariffPlan)
+
+- `Id` (UUID, PK) — уникальный идентификатор тарифного плана
+- `Name` (varchar) — название тарифного плана
+- `Price` (numeric) — стоимость в рублях
+- `Description` (text) — описание
+- `IsActive` (boolean) — активен ли план
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `CreatedAt` (timestamp) — дата создания записи
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 7. Платёж (Payment)
 
 - `Id` (UUID, PK) — идентификатор платежа
 - `UserId` (UUID, FK) — пользователь
@@ -83,7 +95,7 @@
 - `AttachmentFileName` (varchar) — название чека
 - `AttachmentFileUrl` (varchar) — ссылка на чек
 
-## 7. Отчёт об оценке (AssessmentReport)
+## 8. Отчёт об оценке (AssessmentReport)
 
 - `Id` (UUID, PK) — идентификатор отчёта
 - `AssessmentId` (UUID, FK) — заявка
@@ -95,7 +107,7 @@
 
 # <<<<<<< HEAD
 
-## 7. Результат оценки недвижимости (RealEstateAppraisalResult)
+## 8. Результат оценки недвижимости (RealEstateAppraisalResult)
 
 - `Id` (UUID, PK) — уникальный идентификатор результата оценки
 - `AssessmentId` (UUID, FK) — заявка на оценку
@@ -115,7 +127,7 @@
 
 > > > > > > > main
 
-## 8. Уведомление (Notification)
+## 9. Уведомление (Notification)
 
 - `Id` (UUID, PK) — идентификатор уведомления
 - `UserId` (UUID, FK) — получатель
@@ -124,7 +136,7 @@
 - `SentAt` (timestamp) — время отправки
 - `Status` (enum: Pending, Sent, Failed) — статус доставки
 
-## 9. Лог действий (AuditLog)
+## 10. Лог действий (AuditLog)
 
 - `Id` (UUID, PK) — идентификатор лога
 - `UserId` (UUID, FK) — пользователь, инициировавший действие
@@ -134,20 +146,31 @@
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
-## 10. Промокод (Promo)
+## 11. Промокод (Promo)
 
 - `Id` (UUID, PK) — идентификатор промокода
-- `Code` (varchar) - код
-- `Description` (text) - описание промокода
+- `Code` (varchar) — код
+- `Description` (text) — описание промокода
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `DiscountType` (enum: percentage, fixed) — тип скидки (процент или фиксированная)
+- `DiscountValue` (numeric) — значение скидки
+- `MaxUses` (integer) — максимальное количество использований
+- `UsedCount` (integer) — количество уже использованных
+- `IsActive` (boolean) — активен ли промокод
 
-## 11. Скидка (Sale)
+## 12. Скидка (Sale)
 
 - `Id` (UUID, PK) — идентификатор скидки
-- `SourceId` (UUID, FK) - ID промокода или товара, если есть
-- `StartDate` (date) — дата начала
-- `EndDate` (date) — дата окончания
-- `Percent` (numeric) - процент скидки
-- `Type` (enum: Permanent, Subscription, Product, Promo) - тип скидки
+- `Name` (varchar) — название скидки
+- `Percentage` (numeric) — процент скидки
+- `Description` (text) — описание
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `IsActive` (boolean) — активна ли скидка
+- `MinOrderAmount` (numeric, nullable) — минимальная сумма заказа
+- `MaxDiscountAmount` (numeric, nullable) — максимальная сумма скидки
+- `Type` (enum: Permanent, Subscription, Product, Promo) — тип скидки
 
 ---
 
