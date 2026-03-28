@@ -23,8 +23,8 @@ interface Promocode {
   styleUrls: ['./promo.scss'],
 })
 export class PromoComponent {
-  // Промокоды
-  promocodes: Promocode[] = [
+  // Исходные данные
+  allPromocodes: Promocode[] = [
     {
       id: 1,
       code: 'WELCOME10',
@@ -71,7 +71,97 @@ export class PromoComponent {
   selectedPromo: Promocode | null = null;
   isEditMode = false;
 
-  // Данные формы
+  // Пагинация
+  currentPage = 1;
+  pageSize = 5;
+
+  // Сортировка
+  sortField: keyof Promocode = 'id';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
+  // Фильтры
+  filterName = '';
+  filterStatus: 'all' | 'active' | 'inactive' = 'all';
+  filterDateFrom = '';
+  filterDateTo = '';
+
+  // Геттер для отфильтрованных и отсортированных промокодов
+  get filteredAndSortedPromocodes(): Promocode[] {
+    let result = [...this.allPromocodes];
+
+    // Фильтр по коду
+    if (this.filterName) {
+      result = result.filter((p) => p.code.toLowerCase().includes(this.filterName.toLowerCase()));
+    }
+    // Фильтр по статусу
+    if (this.filterStatus !== 'all') {
+      const active = this.filterStatus === 'active';
+      result = result.filter((p) => p.isActive === active);
+    }
+    // Фильтр по дате начала
+    if (this.filterDateFrom) {
+      const from = new Date(this.filterDateFrom);
+      result = result.filter((p) => p.validFrom >= from);
+    }
+    // Фильтр по дате окончания
+    if (this.filterDateTo) {
+      const to = new Date(this.filterDateTo);
+      result = result.filter((p) => p.validTo <= to);
+    }
+
+    // Сортировка
+    result.sort((a, b) => {
+      const aVal = a[this.sortField];
+      const bVal = b[this.sortField];
+      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return result;
+  }
+
+  // Отображаемые на текущей странице записи
+  get paginatedPromocodes(): Promocode[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredAndSortedPromocodes.slice(start, start + this.pageSize);
+  }
+
+  // Общее количество страниц
+  get totalPages(): number {
+    return Math.ceil(this.filteredAndSortedPromocodes.length / this.pageSize);
+  }
+
+  // Переход на предыдущую страницу
+  prevPage(): void {
+    if (this.currentPage > 1) this.currentPage--;
+  }
+
+  // Переход на следующую страницу
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) this.currentPage++;
+  }
+
+  // Сортировка по полю
+  sortBy(field: keyof Promocode): void {
+    if (this.sortField === field) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortField = field;
+      this.sortDirection = 'asc';
+    }
+    this.currentPage = 1; // при изменении сортировки сбрасываем на первую страницу
+  }
+
+  // Сброс всех фильтров
+  resetFilters(): void {
+    this.filterName = '';
+    this.filterStatus = 'all';
+    this.filterDateFrom = '';
+    this.filterDateTo = '';
+    this.currentPage = 1;
+  }
+
+  // Данные формы (для создания/редактирования)
   formData = {
     code: '',
     discountType: 'percentage' as 'percentage' | 'fixed',
@@ -84,7 +174,7 @@ export class PromoComponent {
     description: '',
   };
 
-  // Методы для промокодов
+  // Создание нового промокода
   createPromo(): void {
     this.isEditMode = false;
     this.formData = {
@@ -102,6 +192,7 @@ export class PromoComponent {
     this.showView = false;
   }
 
+  // Редактирование промокода
   editPromo(promo: Promocode): void {
     this.isEditMode = true;
     this.selectedPromo = promo;
@@ -120,18 +211,20 @@ export class PromoComponent {
     this.showView = false;
   }
 
+  // Просмотр промокода
   viewPromo(promo: Promocode): void {
     this.selectedPromo = promo;
     this.showView = true;
     this.showForm = false;
   }
 
+  // Сохранение (создание или обновление)
   savePromo(): void {
     if (this.isEditMode && this.selectedPromo) {
       // Обновление
-      const index = this.promocodes.findIndex((p) => p.id === this.selectedPromo?.id);
+      const index = this.allPromocodes.findIndex((p) => p.id === this.selectedPromo!.id);
       if (index !== -1) {
-        this.promocodes[index] = {
+        this.allPromocodes[index] = {
           ...this.selectedPromo,
           code: this.formData.code,
           discountType: this.formData.discountType,
@@ -148,7 +241,7 @@ export class PromoComponent {
     } else {
       // Создание
       const newPromo: Promocode = {
-        id: Math.max(...this.promocodes.map((p) => p.id)) + 1,
+        id: Math.max(...this.allPromocodes.map((p) => p.id), 0) + 1,
         code: this.formData.code,
         discountType: this.formData.discountType,
         discountValue: this.formData.discountValue,
@@ -159,48 +252,53 @@ export class PromoComponent {
         isActive: this.formData.isActive,
         description: this.formData.description,
       };
-      this.promocodes.push(newPromo);
+      this.allPromocodes.push(newPromo);
       console.log('Создан промокод:', newPromo);
     }
     this.showForm = false;
     this.selectedPromo = null;
+    this.currentPage = 1; // после сохранения возвращаемся на первую страницу
   }
 
+  // Подтверждение удаления
   confirmDelete(promo: Promocode): void {
     this.promoToDelete = promo;
     this.showDeleteModal = true;
   }
 
+  // Удаление
   deletePromo(): void {
     if (this.promoToDelete) {
-      this.promocodes = this.promocodes.filter((p) => p.id !== this.promoToDelete?.id);
+      this.allPromocodes = this.allPromocodes.filter((p) => p.id !== this.promoToDelete!.id);
       console.log('Удален промокод:', this.promoToDelete);
       this.showDeleteModal = false;
       this.promoToDelete = null;
     }
   }
 
+  // Отмена удаления
   cancelDelete(): void {
     this.showDeleteModal = false;
     this.promoToDelete = null;
   }
 
+  // Отмена формы
   cancelForm(): void {
     this.showForm = false;
     this.selectedPromo = null;
   }
 
+  // Закрыть просмотр
   closeView(): void {
     this.showView = false;
     this.selectedPromo = null;
   }
 
-  // Форматирование типа скидки
+  // Вспомогательные методы
   getDiscountTypeLabel(type: 'percentage' | 'fixed'): string {
     return type === 'percentage' ? '%' : '₽';
   }
 
-  // Проверка активности промокода по дате
   isPromoActive(promo: Promocode): boolean {
     const now = new Date();
     return (
