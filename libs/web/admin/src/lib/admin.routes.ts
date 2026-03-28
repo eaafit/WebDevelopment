@@ -35,11 +35,7 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Список платежей/транзакций',
-          'Формы создания/редактирования',
-          'Модальное окно удаления',
-        ]),
+        loadComponent: () => import('./features/payments/payments').then((m) => m.AdminPayments),
       } as Route,
       {
         path: 'subscriptions',

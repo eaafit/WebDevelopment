@@ -1,4 +1,6 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import {
   TransactionTable,
@@ -8,7 +10,7 @@ import {
   type TransactionTableFilters,
 } from '@notary-portal/ui';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
-import { TransactionsApiService, type TransactionsHistoryQuery } from './transactions-api.service';
+import { AdminPaymentsApiService, type AdminPaymentsHistoryQuery } from './payments-api.service';
 
 const DEFAULT_FILTERS: TransactionTableFilters = {
   searchQuery: '',
@@ -17,26 +19,32 @@ const DEFAULT_FILTERS: TransactionTableFilters = {
   dateFrom: '',
   dateTo: '',
 };
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 15;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Component({
-  selector: 'lib-transactions',
-  imports: [TransactionTable],
-  templateUrl: './transactions.html',
-  styleUrl: './transactions.scss',
+  selector: 'lib-admin-payments',
+  standalone: true,
+  imports: [CommonModule, FormsModule, TransactionTable],
+  templateUrl: './payments.html',
+  styleUrl: './payments.scss',
 })
-export class Transactions {
+export class AdminPayments {
   readonly transactions = signal<TransactionItem[]>([]);
   readonly filters = signal<TransactionTableFilters>({ ...DEFAULT_FILTERS });
   readonly meta = signal<TransactionPageMeta | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
 
-  private readonly api = inject(TransactionsApiService);
+  /** Черновик поля «пользователь» до применения (кнопка или общий запрос). */
+  userIdDraft = '';
+
+  private readonly api = inject(AdminPaymentsApiService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly queryState = signal({
     page: 1,
     filters: DEFAULT_FILTERS,
+    userId: '' as string,
   });
 
   constructor() {
@@ -46,15 +54,14 @@ export class Transactions {
           this.loading.set(true);
           this.error.set(null);
         }),
-        switchMap(({ page, filters }) =>
-          this.api.getTransactionHistory(this.buildQuery(page, filters)).pipe(
+        switchMap(({ page, filters, userId }) =>
+          this.api.getPaymentHistory(this.buildQuery(page, filters, userId)).pipe(
             map((response) => ({ ok: true as const, response, filters })),
             catchError((err) => {
-              console.error('Failed to load transaction history', err);
-
+              console.error('Admin: failed to load payments', err);
               return of({
                 ok: false as const,
-                error: extractTransactionsError(err),
+                error: extractPaymentsError(err),
               });
             }),
           ),
@@ -83,6 +90,7 @@ export class Transactions {
         ...filters,
         searchQuery: filters.searchQuery.trim(),
       },
+      userId: this.normalizedUserId(this.queryState().userId),
     });
   }
 
@@ -97,7 +105,30 @@ export class Transactions {
     }));
   }
 
-  private buildQuery(page: number, filters: TransactionTableFilters): TransactionsHistoryQuery {
+  applyUserFilter(): void {
+    const uid = this.normalizedUserId(this.userIdDraft);
+    this.userIdDraft = uid;
+    this.queryState.set({
+      page: 1,
+      filters: { ...this.queryState().filters },
+      userId: uid,
+    });
+  }
+
+  clearUserFilter(): void {
+    this.userIdDraft = '';
+    this.queryState.set({
+      page: 1,
+      filters: { ...this.queryState().filters },
+      userId: '',
+    });
+  }
+
+  private buildQuery(
+    page: number,
+    filters: TransactionTableFilters,
+    userId: string,
+  ): AdminPaymentsHistoryQuery {
     const status: TransactionStatus | undefined =
       filters.status === 'all' ? undefined : filters.status;
     const type = filters.type === 'all' ? undefined : filters.type;
@@ -105,6 +136,7 @@ export class Transactions {
     return {
       page,
       limit: PAGE_SIZE,
+      userId: userId || undefined,
       searchQuery: filters.searchQuery.trim() || undefined,
       status,
       type,
@@ -112,13 +144,21 @@ export class Transactions {
       dateTo: filters.dateTo || undefined,
     };
   }
+
+  private normalizedUserId(raw: string): string {
+    const t = raw.trim();
+    if (!t) {
+      return '';
+    }
+    return UUID_PATTERN.test(t) ? t : '';
+  }
 }
 
-function extractTransactionsError(err: unknown): string {
+function extractPaymentsError(err: unknown): string {
   const message = getErrorMessage(err);
 
   if (!message) {
-    return 'Не удалось загрузить историю транзакций. Проверьте API и повторите попытку.';
+    return 'Не удалось загрузить платежи. Проверьте API и повторите попытку.';
   }
 
   if (/failed to fetch|fetch failed|networkerror/i.test(message)) {
@@ -129,7 +169,7 @@ function extractTransactionsError(err: unknown): string {
     return 'Сессия истекла или недействительна. Войдите снова.';
   }
 
-  return `Не удалось загрузить историю транзакций: ${message}`;
+  return `Не удалось загрузить платежи: ${message}`;
 }
 
 function getErrorMessage(err: unknown): string | null {

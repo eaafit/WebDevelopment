@@ -68,6 +68,7 @@ describe('Transactions', () => {
       limit: 10,
       searchQuery: undefined,
       status: undefined,
+      type: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -84,6 +85,7 @@ describe('Transactions', () => {
       limit: 10,
       searchQuery: undefined,
       status: undefined,
+      type: undefined,
       dateFrom: undefined,
       dateTo: undefined,
     });
@@ -104,6 +106,7 @@ describe('Transactions', () => {
     component.onFiltersApply({
       searchQuery: '  sbp  ',
       status: 'pending',
+      type: 'subscription',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });
@@ -114,6 +117,7 @@ describe('Transactions', () => {
       limit: 10,
       searchQuery: 'sbp',
       status: 'pending',
+      type: 'subscription',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });
@@ -126,6 +130,7 @@ describe('Transactions', () => {
     component.onFiltersApply({
       searchQuery: 'sbp',
       status: 'pending',
+      type: 'subscription',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });
@@ -135,6 +140,7 @@ describe('Transactions', () => {
     expect(component.filters()).toEqual({
       searchQuery: '',
       status: 'all',
+      type: 'all',
       dateFrom: '',
       dateTo: '',
     });
@@ -154,6 +160,7 @@ describe('Transactions', () => {
     expect(component.filters()).toEqual({
       searchQuery: 'sbp',
       status: 'pending',
+      type: 'subscription',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });

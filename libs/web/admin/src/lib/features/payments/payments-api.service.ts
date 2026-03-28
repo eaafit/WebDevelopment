@@ -17,9 +17,11 @@ import type {
 import { Injectable, inject } from '@angular/core';
 import { from, map, type Observable } from 'rxjs';
 
-export interface TransactionsHistoryQuery {
+export interface AdminPaymentsHistoryQuery {
   page: number;
   limit: number;
+  /** Ограничить платежи одним пользователем (UUID). */
+  userId?: string;
   searchQuery?: string;
   status?: TransactionStatus;
   type?: TransactionType;
@@ -28,10 +30,10 @@ export interface TransactionsHistoryQuery {
 }
 
 @Injectable({ providedIn: 'root' })
-export class TransactionsApiService {
+export class AdminPaymentsApiService {
   private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
 
-  getTransactionHistory(query: TransactionsHistoryQuery): Observable<TransactionHistoryPage> {
+  getPaymentHistory(query: AdminPaymentsHistoryQuery): Observable<TransactionHistoryPage> {
     return from(this.client.getPaymentHistory(buildRequest(query))).pipe(
       map((response) => this.toTransactionHistoryPage(response)),
     );
@@ -71,9 +73,7 @@ export class TransactionsApiService {
   }
 }
 
-// ─── Хелперы ─────────────────────────────────────────────────────────────────
-
-function buildRequest(query: TransactionsHistoryQuery) {
+function buildRequest(query: AdminPaymentsHistoryQuery) {
   const paymentDateRange =
     query.dateFrom || query.dateTo
       ? {
@@ -83,6 +83,7 @@ function buildRequest(query: TransactionsHistoryQuery) {
       : undefined;
 
   return {
+    userId: query.userId,
     pagination: { page: query.page, limit: query.limit },
     filters: {
       searchQuery: query.searchQuery ?? '',

@@ -1,13 +1,17 @@
 <div class="container">
   <div class="flex justify-between items-center mb-4">
     <div>
+      @if (showNotaryChrome) {
       <a routerLink="/notary" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
-      <h1>История транзакций</h1>
-      <p class="text-sm">Список всех ваших транзакций и документы к ним.</p>
+      }
+      <h1>{{ pageTitle }}</h1>
+      <p class="text-sm">{{ pageSubtitle }}</p>
     </div>
+    @if (showNotaryChrome) {
     <div>
       <a routerLink="/notary/subscription/checkout" class="btn btn-primary">Пополнить баланс</a>
     </div>
+    }
   </div>
 
   <div class="card p-6 mb-4">
@@ -20,7 +24,17 @@
           class="form-input"
           name="searchQuery"
           [(ngModel)]="draftFilters.searchQuery"
-          placeholder="ID, адрес или способ оплаты" />
+          placeholder="ID, имя или сумма" />
+      </div>
+
+      <div class="form-group no-mb">
+        <label for="typeSelect" class="form-label">Тип</label>
+        <select id="typeSelect" class="form-input form-select" name="type" [(ngModel)]="draftFilters.type">
+          <option value="all">Все типы</option>
+          <option value="subscription">Подписка</option>
+          <option value="assessment">Оценка</option>
+          <option value="document_copy">Копия документа</option>
+        </select>
       </div>
 
       <div class="form-group no-mb">
@@ -78,8 +92,9 @@
       <div>
         <div class="transaction-table-summary__title">Всего найдено {{ meta.totalItems }} операций</div>
         <p class="transaction-table-summary__meta text-sm m-0">
-          @if (transactions.length > 0) { Показаны {{ getVisibleRangeStart(meta) }}-{{ getVisibleRangeEnd(meta,
-          transactions.length) }} из {{ meta.totalItems }}. } @else { По выбранным условиям транзакции не найдены. }
+          @if (displayedTransactions.length > 0) { Показаны {{ getVisibleRangeStart(meta) }}-{{ getVisibleRangeEnd(meta,
+          displayedTransactions.length) }} из {{ meta.totalItems }}. } @else { По выбранным условиям транзакции не
+          найдены. }
         </p>
       </div>
 
@@ -93,26 +108,133 @@
     </div>
     }
 
+    <div class="transaction-table-toolbar">
+      <div class="transaction-table-toolbar__left">
+        <details class="transaction-columns">
+          <summary>Колонки</summary>
+          <div class="transaction-columns__menu">
+            @for (column of columnSettings; track column.id) {
+            <label class="transaction-columns__item">
+              <input
+                type="checkbox"
+                [checked]="isColumnVisible(column.id)"
+                [disabled]="!canToggleColumn(column.id)"
+                (change)="toggleColumnVisibility(column.id)" />
+              <span>{{ column.label }}</span>
+            </label>
+            }
+            <button type="button" class="btn btn-outline btn-sm w-full" (click)="resetTableView()">Сбросить вид</button>
+          </div>
+        </details>
+        <span class="text-xs text-secondary">Перетащите границы в заголовке, чтобы изменить ширину.</span>
+      </div>
+      <div class="transaction-table-toolbar__right">
+        <button
+          type="button"
+          class="btn btn-outline btn-sm"
+          [disabled]="displayedTransactions.length === 0"
+          (click)="exportCsv()">
+          Экспорт CSV
+        </button>
+        @if (!showNotaryChrome) {
+        <a routerLink="/notary/transactions" class="btn btn-outline btn-sm">Перейти к транзакциям</a>
+        }
+      </div>
+    </div>
+
     <div class="table-responsive">
-      <table class="table">
+      <table class="table transaction-table" [class.transaction-table--resizing]="isResizing">
         <thead>
           <tr>
-            <th>Дата</th>
-            <th>Описание</th>
-            <th>Сумма</th>
-            <th>Способ</th>
-            <th>Статус</th>
-            <th class="transaction-documents-column">Документы</th>
+            @if (isColumnVisible('date')) {
+            <th
+              [style.width.px]="getColumnWidth('date')"
+              [attr.aria-sort]="isColumnSortable('date') ? getAriaSort('paymentDate') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('paymentDate')">
+                <span>{{ getColumnLabel('date') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('paymentDate')">
+                  {{ getSortIcon('paymentDate') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('date', $event)"></span>
+            </th>
+            } @if (showUserColumn && isColumnVisible('user')) {
+            <th
+              [style.width.px]="getColumnWidth('user')"
+              [attr.aria-sort]="isColumnSortable('user') ? getAriaSort('userId') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('userId')">
+                <span>{{ getColumnLabel('user') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('userId')">
+                  {{ getSortIcon('userId') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('user', $event)"></span>
+            </th>
+            } @if (isColumnVisible('description')) {
+            <th
+              [style.width.px]="getColumnWidth('description')"
+              [attr.aria-sort]="isColumnSortable('description') ? getAriaSort('description') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('description')">
+                <span>{{ getColumnLabel('description') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('description')">
+                  {{ getSortIcon('description') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('description', $event)"></span>
+            </th>
+            } @if (isColumnVisible('amount')) {
+            <th
+              [style.width.px]="getColumnWidth('amount')"
+              [attr.aria-sort]="isColumnSortable('amount') ? getAriaSort('amount') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('amount')">
+                <span>{{ getColumnLabel('amount') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('amount')">
+                  {{ getSortIcon('amount') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('amount', $event)"></span>
+            </th>
+            } @if (isColumnVisible('method')) {
+            <th
+              [style.width.px]="getColumnWidth('method')"
+              [attr.aria-sort]="isColumnSortable('method') ? getAriaSort('paymentMethod') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('paymentMethod')">
+                <span>{{ getColumnLabel('method') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('paymentMethod')">
+                  {{ getSortIcon('paymentMethod') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('method', $event)"></span>
+            </th>
+            } @if (isColumnVisible('status')) {
+            <th
+              [style.width.px]="getColumnWidth('status')"
+              [attr.aria-sort]="isColumnSortable('status') ? getAriaSort('status') : null">
+              <button type="button" class="table-sort" (click)="toggleSort('status')">
+                <span>{{ getColumnLabel('status') }}</span>
+                <span class="table-sort__icon" [class.is-active]="getSortDirection('status')">
+                  {{ getSortIcon('status') }}
+                </span>
+              </button>
+              <span class="column-resizer" (pointerdown)="startColumnResize('status', $event)"></span>
+            </th>
+            } @if (isColumnVisible('documents')) {
+            <th class="transaction-documents-column" [style.width.px]="getColumnWidth('documents')">
+              <span class="table-header-label">{{ getColumnLabel('documents') }}</span>
+              <span class="column-resizer" (pointerdown)="startColumnResize('documents', $event)"></span>
+            </th>
+            }
           </tr>
         </thead>
         <tbody>
-          @if (!loading && transactions.length === 0) {
+          @if (!loading && displayedTransactions.length === 0) {
           <tr>
-            <td colspan="6" class="text-center p-6">Транзакции по выбранным фильтрам не найдены.</td>
+            <td [attr.colspan]="tableColspan" class="text-center p-6">Транзакции по выбранным фильтрам не найдены.</td>
           </tr>
-          } @else { @for (transaction of transactions; track trackByTransaction($index, transaction)) {
+          } @else { @for (transaction of displayedTransactions; track trackByTransaction($index, transaction)) {
           <tr class="transaction-row">
-            <td>
+            @if (isColumnVisible('date')) {
+            <td [style.width.px]="getColumnWidth('date')">
               <div class="transaction-date">
                 <div class="transaction-date__value text-bold">
                   {{ formatTransactionDate(transaction.paymentDate) }}
@@ -120,17 +242,29 @@
                 <div class="transaction-date__time text-sm">{{ formatTransactionTime(transaction.paymentDate) }}</div>
               </div>
             </td>
-            <td>
+            } @if (showUserColumn && isColumnVisible('user')) {
+            <td [style.width.px]="getColumnWidth('user')">
+              <span class="text-xs break-all" [title]="transaction.userId">{{ transaction.userId }}</span>
+            </td>
+            } @if (isColumnVisible('description')) {
+            <td [style.width.px]="getColumnWidth('description')">
               <div class="transaction-description">
                 <span class="text-bold">{{ transaction.description }}</span>
                 <div class="transaction-description__meta">
                   <span class="transaction-type-chip">{{ getTypeLabel(transaction.type) }}</span>
                   <span class="text-xs">ID: {{ transaction.transactionId || transaction.id }}</span>
+                  <button type="button" class="transaction-details-link" (click)="openDetails(transaction)">
+                    Подробнее
+                  </button>
                 </div>
               </div>
             </td>
-            <td class="text-bold">{{ formatAmount(transaction.amount, transaction.currency) }}</td>
-            <td>
+            } @if (isColumnVisible('amount')) {
+            <td class="text-bold" [style.width.px]="getColumnWidth('amount')">
+              {{ formatAmount(transaction.amount, transaction.currency) }}
+            </td>
+            } @if (isColumnVisible('method')) {
+            <td [style.width.px]="getColumnWidth('method')">
               @let paymentMethod = getPaymentMethodPresentation(transaction.paymentMethod);
               <div class="payment-method-chip">
                 <span
@@ -146,10 +280,14 @@
                 </div>
               </div>
             </td>
-            <td>
+            } @if (isColumnVisible('status')) {
+            <td [style.width.px]="getColumnWidth('status')">
               <span [class]="getStatusClass(transaction.status)"> {{ getStatusLabel(transaction.status) }} </span>
             </td>
-            <td class="transaction-documents-cell transaction-documents-column">
+            } @if (isColumnVisible('documents')) {
+            <td
+              class="transaction-documents-cell transaction-documents-column"
+              [style.width.px]="getColumnWidth('documents')">
               @if (canShowDocument(transaction)) { @let document = getDocumentPresentation(transaction);
               <a [href]="transaction.attachmentFileUrl" target="_blank" rel="noreferrer" class="document-link">
                 <span class="document-link__icon">{{ document.icon }}</span>
@@ -166,6 +304,7 @@
               </span>
               }
             </td>
+            }
           </tr>
           } }
         </tbody>
@@ -193,6 +332,89 @@
         (click)="goToNextPage()">
         Вперёд
       </button>
+    </div>
+  </div>
+  } @if (selectedTransaction) {
+  <div
+    class="transaction-modal-backdrop"
+    tabindex="0"
+    (click)="onBackdropClick($event)"
+    (keydown)="onBackdropKeydown($event)">
+    <div class="transaction-modal" role="dialog" aria-modal="true">
+      <div class="transaction-modal__header">
+        <div>
+          <h3>Детали платежа</h3>
+          <p class="text-sm">Подробная информация о выбранной операции.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" (click)="closeDetails()">Закрыть</button>
+      </div>
+      <div class="transaction-modal__grid">
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">ID платежа</span>
+          <span class="transaction-modal__value">{{ selectedTransaction.id }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">ID транзакции</span>
+          <span class="transaction-modal__value"
+            >{{ selectedTransaction.transactionId || selectedTransaction.id }}</span
+          >
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Пользователь</span>
+          <span class="transaction-modal__value">{{ selectedTransaction.userId }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Тип</span>
+          <span class="transaction-modal__value">{{ getTypeLabel(selectedTransaction.type) }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Статус</span>
+          <span class="transaction-modal__value">{{ getStatusLabel(selectedTransaction.status) }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Сумма</span>
+          <span class="transaction-modal__value"
+            >{{ formatAmount(selectedTransaction.amount, selectedTransaction.currency) }}</span
+          >
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Дата</span>
+          <span class="transaction-modal__value"
+            >{{ formatTransactionDate(selectedTransaction.paymentDate) }} {{
+            formatTransactionTime(selectedTransaction.paymentDate) }}</span
+          >
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">Способ оплаты</span>
+          <span class="transaction-modal__value"
+            >{{ getPaymentMethodPresentation(selectedTransaction.paymentMethod).label }}</span
+          >
+        </div>
+        <div class="transaction-modal__item transaction-modal__item--wide">
+          <span class="transaction-modal__label">Описание</span>
+          <span class="transaction-modal__value">{{ selectedTransaction.description }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">ID подписки</span>
+          <span class="transaction-modal__value">{{ selectedTransaction.subscriptionId || "—" }}</span>
+        </div>
+        <div class="transaction-modal__item">
+          <span class="transaction-modal__label">ID оценки</span>
+          <span class="transaction-modal__value">{{ selectedTransaction.assessmentId || "—" }}</span>
+        </div>
+      </div>
+      <div class="transaction-modal__actions">
+        @if (selectedTransaction.attachmentFileUrl) {
+        <a
+          class="btn btn-outline btn-sm"
+          [href]="selectedTransaction.attachmentFileUrl"
+          target="_blank"
+          rel="noreferrer">
+          Открыть документ
+        </a>
+        }
+        <button type="button" class="btn btn-outline btn-sm" (click)="closeDetails()">Закрыть</button>
+      </div>
     </div>
   </div>
   }

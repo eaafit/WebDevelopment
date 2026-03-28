@@ -181,6 +181,16 @@ export class TransactionHistoryRepository {
         },
       },
       {
+        user: {
+          is: {
+            fullName: {
+              contains: searchQuery,
+              mode: 'insensitive',
+            },
+          },
+        },
+      },
+      {
         assessment: {
           is: {
             address: {
@@ -190,12 +200,16 @@ export class TransactionHistoryRepository {
           },
         },
       },
+      ...this.getAmountSearchFilters(searchQuery),
       ...this.getTypeSearchFilters(normalizedQuery),
       ...this.getPlanSearchFilters(normalizedQuery),
       ...this.getPaymentMethodSearchFilters(normalizedQuery),
     ];
 
     if (this.isUuid(searchQuery)) {
+      searchFilters.unshift({
+        userId: searchQuery,
+      });
       searchFilters.unshift({
         id: searchQuery,
       });
@@ -258,6 +272,26 @@ export class TransactionHistoryRepository {
       .map(([method]) => ({
         paymentMethod: method,
       }));
+  }
+
+  private getAmountSearchFilters(searchQuery: string): Prisma.PaymentWhereInput[] {
+    const normalized = searchQuery
+      .replace(/[^\d.,]/g, '')
+      .replace(/\s+/g, '')
+      .replace(',', '.');
+    if (!normalized) {
+      return [];
+    }
+
+    if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+      return [];
+    }
+
+    return [
+      {
+        amount: normalized,
+      },
+    ];
   }
 
   private getDurationDays(startDate: Date, endDate: Date): number | null {

@@ -1,0 +1,46 @@
+<div class="admin-payments">
+  <div class="card p-4 mb-4">
+    <div class="admin-payments__user-filter">
+      <div class="form-group no-mb flex-1">
+        <label class="form-label" for="adminPaymentsUserId">Фильтр по пользователю</label>
+        <input
+          id="adminPaymentsUserId"
+          type="text"
+          class="form-input"
+          name="userId"
+          [(ngModel)]="userIdDraft"
+          placeholder="UUID пользователя (необязательно)"
+          autocomplete="off" />
+        <p class="text-xs text-secondary m-0 mt-1">
+          Оставьте пустым, чтобы видеть все платежи. Некорректный UUID игнорируется.
+        </p>
+      </div>
+      <div class="admin-payments__user-actions">
+        <button type="button" class="btn btn-outline" [disabled]="loading()" (click)="applyUserFilter()">
+          Применить
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline"
+          [disabled]="loading() || !userIdDraft.trim()"
+          (click)="clearUserFilter()">
+          Сбросить пользователя
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <lib-transaction-table
+    [transactions]="transactions()"
+    [filters]="filters()"
+    [meta]="meta()"
+    [loading]="loading()"
+    [error]="error()"
+    [pageTitle]="'Платежи и транзакции'"
+    [pageSubtitle]="'Все операции в системе: подписки, оценки, копии документов.'"
+    [showNotaryChrome]="false"
+    [showUserColumn]="true"
+    (filtersApply)="onFiltersApply($event)"
+    (pageChange)="onPageChange($event)">
+  </lib-transaction-table>
+</div>

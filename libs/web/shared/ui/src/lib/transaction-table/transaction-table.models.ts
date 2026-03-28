@@ -34,6 +34,7 @@ export interface TransactionHistoryPage {
 export interface TransactionTableFilters {
   searchQuery: string;
   status: TransactionStatus | 'all';
+  type: TransactionType | 'all';
   dateFrom: string;
   dateTo: string;
 }
