@@ -42,6 +42,7 @@
 | 31  | [issue-31](issue-31-okuntsev-kazarinov-landing.md)          | Окунцев Тимофей + Казаринов Алексей | —            | Landing page                                               |
 | 32  | [issue-32](issue-32-nibylitsin-structured-logging.md)       | Нибылицын Лукьян                    | SuperLuchito | Структурированное логирование API и Angular (ops)          |
 | 33  | [issue-33](issue-33-nibylitsin-loki-grafana.md)             | Нибылицын Лукьян                    | SuperLuchito | Loki + Grafana — сбор и визуализация технических логов     |
+| 34  | [issue-34](issue-34-voronin-support-ai-widget.md)           | Воронин Егор                        | EgorVoronin06 | UI-kit окна техподдержки с заделом под ИИ-агента          |
 
 ---
 
@@ -62,7 +63,7 @@ issue-26 (форма параметров)
   ├── issue-27 (таблица запросов)
   └── issue-29 (история + повтор)
 
-issue-11 (чат) + issue-21 (FAQ) → полный модуль поддержки
+issue-11 (чат) + issue-21 (FAQ) + issue-34 (UI-kit / ИИ-задел) → полный модуль поддержки
 issue-16 (список платежей) + issue-17 (формы) → раздел платежей Admin
 issue-22 (аудит лента) + issue-23 (логи детальные) → мониторинг Admin (UI / доменный аудит)
 issue-32 (структурированные ops-логи API + Angular) → issue-33 (Loki + Grafana)
