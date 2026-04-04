@@ -1,16 +1,33 @@
 <div class="app-estimation-form-page">
   <main class="container page">
     <section class="card">
-      <header class="card-header">
-        <h1>Заявка на оценку</h1>
-        <p class="card-subtitle m-0">Заполните характеристики недвижимости для формирования заявки на оценку.</p>
+      <header class="card-header estimation-form-header">
+        <h1>Параметры объекта для оценки</h1>
+        <p class="card-subtitle m-0">
+          Укажите адрес и характеристики недвижимости. Черновик сохраняется автоматически.
+        </p>
+        <p
+          class="estimation-form-status"
+          [class.estimation-form-status-progress]="autosaveStatus().tone === 'progress'"
+          [class.estimation-form-status-saved]="autosaveStatus().tone === 'saved'">
+          {{ autosaveStatus().message }}
+        </p>
       </header>
+
+      @if (loadError()) {
+      <p class="form-banner form-banner-error">{{ loadError() }}</p>
+      } @if (saveError()) {
+      <p class="form-banner form-banner-error">{{ saveError() }}</p>
+      } @if (validationErrorMessage) {
+      <p class="form-banner form-banner-error">{{ validationErrorMessage }}</p>
+      }
 
       <form
         #valuationForm
         class="form"
         id="valuationForm"
         novalidate
+        [formGroup]="estimationForm"
         [class.form--submitted]="showValidationErrors"
         (submit)="onSubmit($event, valuationForm)">
         <div class="flex-col gap-4">
@@ -21,62 +38,67 @@
               <div class="form-group no-mb">
                 <label class="form-label" for="city">Город <span class="required-mark">*</span></label>
                 <select
-                  #cityField
                   class="form-input form-select"
                   id="city"
-                  name="city"
-                  required
-                  [class.form-input-invalid]="showValidationErrors && !cityField.validity.valid">
-                  <option value="" selected disabled>Выберите город</option>
-                  <option>Москва</option>
-                  <option>Санкт-Петербург</option>
-                  <option>Казань</option>
-                  <option>Екатеринбург</option>
-                  <option>Новосибирск</option>
+                  formControlName="cityId"
+                  [class.form-input-invalid]="isControlInvalid(formControls.cityId)">
+                  <option value="" disabled>Выберите город</option>
+                  @for (city of cities(); track city.id) {
+                  <option [value]="city.id">{{ city.name }}</option>
+                  }
                 </select>
-                @if (showValidationErrors && cityField.validity.valueMissing) {
+                @if (isControlInvalid(formControls.cityId) && formControls.cityId.hasError('required')) {
                 <p class="field-error">Выберите город.</p>
                 }
               </div>
 
               <div class="form-group no-mb">
                 <label class="form-label" for="district">Район / округ</label>
-                <select class="form-input form-select" id="district" name="district">
-                  <option value="" selected>Не выбрано</option>
-                  <option>Центральный</option>
-                  <option>Северный</option>
-                  <option>Южный</option>
-                  <option>Западный</option>
-                  <option>Восточный</option>
+                <select class="form-input form-select" id="district" formControlName="districtId">
+                  <option value="">Не выбрано</option>
+                  @for (district of districts(); track district.id) {
+                  <option [value]="district.id">{{ district.name }}</option>
+                  }
                 </select>
+                <div class="form-help">Справочник районов зависит от выбранного города.</div>
               </div>
             </div>
 
-            <div class="form-group no-mb mt-6">
-              <label class="form-label" for="address">Адрес (с подсказками) <span class="required-mark">*</span></label>
-              <input
-                #addressField
-                class="form-input"
-                id="address"
-                name="address"
-                list="address-suggestions"
-                placeholder="Введите адрес"
-                required
-                minlength="8"
-                maxlength="180"
-                [class.form-input-invalid]="showValidationErrors && !addressField.validity.valid" />
-              @if (showValidationErrors && addressField.validity.valueMissing) {
-              <p class="field-error">Введите адрес объекта.</p>
-              } @if (showValidationErrors && !addressField.validity.valueMissing && addressField.validity.tooShort) {
-              <p class="field-error">Адрес слишком короткий (минимум 8 символов).</p>
-              }
-              <datalist id="address-suggestions">
-                <option value="Москва, Тверская ул., д. 10"></option>
-                <option value="Москва, Ленинский пр-т, д. 45"></option>
-                <option value="Санкт-Петербург, Невский пр-т, д. 28"></option>
-                <option value="Казань, ул. Баумана, д. 5"></option>
-                <option value="Екатеринбург, ул. Малышева, д. 16"></option>
-              </datalist>
+            <div class="form-grid form-grid-2 mt-6">
+              <div class="form-group no-mb">
+                <label class="form-label" for="address"> Адрес объекта <span class="required-mark">*</span> </label>
+                <input
+                  class="form-input"
+                  id="address"
+                  formControlName="address"
+                  list="address-suggestions"
+                  placeholder="Введите адрес"
+                  [class.form-input-invalid]="isControlInvalid(formControls.address)" />
+                @if (isControlInvalid(formControls.address) && formControls.address.hasError('required')) {
+                <p class="field-error">Введите адрес объекта.</p>
+                } @if ( isControlInvalid(formControls.address) && !formControls.address.hasError('required') &&
+                formControls.address.hasError('minlength') ) {
+                <p class="field-error">Адрес слишком короткий, минимум 8 символов.</p>
+                }
+                <datalist id="address-suggestions">
+                  @for (suggestion of getAddressSuggestions(); track suggestion) {
+                  <option [value]="suggestion"></option>
+                  }
+                </datalist>
+              </div>
+
+              <div class="form-group no-mb">
+                <label class="form-label" for="cadastralNumber">Кадастровый номер</label>
+                <input
+                  class="form-input"
+                  id="cadastralNumber"
+                  formControlName="cadastralNumber"
+                  maxlength="64"
+                  placeholder="Например: 66:41:0101021:37" />
+                <div class="form-help">
+                  Поле сохраняется в черновик. Внешние API для автозаполнения не используются.
+                </div>
+              </div>
             </div>
           </fieldset>
 
@@ -87,22 +109,18 @@
               <div class="form-group no-mb">
                 <label class="form-label" for="area">Площадь, м² <span class="required-mark">*</span></label>
                 <input
-                  #areaField
                   class="form-input"
                   id="area"
-                  name="area"
-                  type="number"
-                  required
-                  min="1"
-                  max="100000"
-                  step="0.1"
+                  type="text"
+                  formControlName="area"
                   inputmode="decimal"
                   placeholder="Например: 54.6"
-                  [class.form-input-invalid]="showValidationErrors && !areaField.validity.valid" />
-                @if (showValidationErrors && areaField.validity.valueMissing) {
+                  [class.form-input-invalid]="isControlInvalid(formControls.area)" />
+                @if (isControlInvalid(formControls.area) && formControls.area.hasError('required')) {
                 <p class="field-error">Укажите площадь объекта.</p>
-                } @if ( showValidationErrors && !areaField.validity.valueMissing && (areaField.validity.rangeUnderflow
-                || areaField.validity.rangeOverflow) ) {
+                } @if (isControlInvalid(formControls.area) && formControls.area.hasError('decimal')) {
+                <p class="field-error">Введите площадь положительным числом, например 54.6.</p>
+                } @if (isControlInvalid(formControls.area) && formControls.area.hasError('range')) {
                 <p class="field-error">Площадь должна быть в диапазоне от 1 до 100000 м².</p>
                 }
               </div>
@@ -110,41 +128,33 @@
               <div class="form-group no-mb">
                 <label class="form-label" for="objectType">Тип объекта <span class="required-mark">*</span></label>
                 <select
-                  #objectTypeField
                   class="form-input form-select"
                   id="objectType"
-                  name="objectType"
-                  required
-                  [class.form-input-invalid]="showValidationErrors && !objectTypeField.validity.valid">
-                  <option value="" selected disabled>Выберите тип</option>
-                  <option>Квартира</option>
-                  <option>Дом</option>
-                  <option>Комната</option>
-                  <option>Апартаменты</option>
-                  <option>Земельный участок</option>
-                  <option>Коммерческая недвижимость</option>
+                  formControlName="objectType"
+                  [class.form-input-invalid]="isControlInvalid(formControls.objectType)">
+                  <option value="" disabled>Выберите тип</option>
+                  @for (option of objectTypeOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                  }
                 </select>
-                @if (showValidationErrors && objectTypeField.validity.valueMissing) {
+                @if (isControlInvalid(formControls.objectType) && formControls.objectType.hasError('required')) {
                 <p class="field-error">Выберите тип объекта.</p>
                 }
               </div>
 
               <div class="form-group no-mb">
-                <label class="form-label" for="rooms">Кол-во комнат</label>
+                <label class="form-label" for="rooms">Количество комнат</label>
                 <input
-                  #roomsField
                   class="form-input"
                   id="rooms"
-                  name="rooms"
-                  type="number"
-                  min="0"
-                  max="50"
-                  step="1"
+                  type="text"
+                  formControlName="rooms"
                   inputmode="numeric"
                   placeholder="Например: 2"
-                  [class.form-input-invalid]="showValidationErrors && !roomsField.validity.valid" />
-                @if ( showValidationErrors && !roomsField.validity.valueMissing && (roomsField.validity.rangeUnderflow
-                || roomsField.validity.rangeOverflow) ) {
+                  [class.form-input-invalid]="isControlInvalid(formControls.rooms)" />
+                @if (isControlInvalid(formControls.rooms) && formControls.rooms.hasError('integer')) {
+                <p class="field-error">Количество комнат должно быть целым числом.</p>
+                } @if (isControlInvalid(formControls.rooms) && formControls.rooms.hasError('range')) {
                 <p class="field-error">Количество комнат должно быть от 0 до 50.</p>
                 }
               </div>
@@ -154,27 +164,56 @@
           <fieldset class="fieldset">
             <legend class="fieldset-legend">Характеристики</legend>
 
+            @if (isLandPlotSelected()) {
+            <div class="form-grid form-grid-3">
+              <div class="form-group no-mb">
+                <label class="form-label" for="landCategory">Категория земли</label>
+                <input
+                  class="form-input"
+                  id="landCategory"
+                  formControlName="landCategory"
+                  maxlength="150"
+                  placeholder="Например: земли населённых пунктов" />
+              </div>
+
+              <div class="form-group no-mb">
+                <label class="form-label" for="permittedUse">ВРИ</label>
+                <input
+                  class="form-input"
+                  id="permittedUse"
+                  formControlName="permittedUse"
+                  maxlength="150"
+                  placeholder="Например: ИЖС" />
+              </div>
+
+              <div class="form-group no-mb">
+                <label class="form-label" for="utilities">Коммуникации</label>
+                <input
+                  class="form-input"
+                  id="utilities"
+                  formControlName="utilities"
+                  maxlength="500"
+                  placeholder="Газ, электричество, вода" />
+              </div>
+            </div>
+            } @else {
             <div class="form-grid form-grid-3">
               <div class="form-group no-mb">
                 <label class="form-label" for="floorsTotal">
-                  Этажность (всего этажей) <span class="required-mark">*</span>
+                  Этажность здания <span class="required-mark">*</span>
                 </label>
                 <input
-                  #floorsTotalField
                   class="form-input"
                   id="floorsTotal"
-                  name="floorsTotal"
-                  type="number"
-                  required
-                  min="1"
-                  max="200"
-                  step="1"
+                  type="text"
+                  formControlName="floorsTotal"
                   inputmode="numeric"
-                  [class.form-input-invalid]="showValidationErrors && !floorsTotalField.validity.valid" />
-                @if (showValidationErrors && floorsTotalField.validity.valueMissing) {
+                  [class.form-input-invalid]="isControlInvalid(formControls.floorsTotal)" />
+                @if ( isControlInvalid(formControls.floorsTotal) && formControls.floorsTotal.hasError('required') ) {
                 <p class="field-error">Укажите общую этажность здания.</p>
-                } @if ( showValidationErrors && !floorsTotalField.validity.valueMissing &&
-                (floorsTotalField.validity.rangeUnderflow || floorsTotalField.validity.rangeOverflow) ) {
+                } @if ( isControlInvalid(formControls.floorsTotal) && formControls.floorsTotal.hasError('integer') ) {
+                <p class="field-error">Этажность должна быть целым числом.</p>
+                } @if ( isControlInvalid(formControls.floorsTotal) && formControls.floorsTotal.hasError('range') ) {
                 <p class="field-error">Этажность должна быть в диапазоне от 1 до 200.</p>
                 }
               </div>
@@ -182,39 +221,32 @@
               <div class="form-group no-mb">
                 <label class="form-label" for="floor">Этаж</label>
                 <input
-                  #floorField
                   class="form-input"
                   id="floor"
-                  name="floor"
-                  type="number"
-                  min="0"
-                  max="200"
-                  step="1"
+                  type="text"
+                  formControlName="floor"
                   inputmode="numeric"
-                  [class.form-input-invalid]="showValidationErrors && !floorField.validity.valid" />
-                @if ( showValidationErrors && !floorField.validity.valueMissing && (floorField.validity.rangeUnderflow
-                || floorField.validity.rangeOverflow) ) {
+                  [class.form-input-invalid]="isControlInvalid(formControls.floor)" />
+                @if (isControlInvalid(formControls.floor) && formControls.floor.hasError('integer')) {
+                <p class="field-error">Этаж должен быть целым числом.</p>
+                } @if (isControlInvalid(formControls.floor) && formControls.floor.hasError('range')) {
                 <p class="field-error">Этаж должен быть в диапазоне от 0 до 200.</p>
                 }
-                <div class="form-help">0 — если частный дом/участок.</div>
               </div>
 
               <div class="form-group no-mb">
                 <label class="form-label" for="condition">Состояние <span class="required-mark">*</span></label>
                 <select
-                  #conditionField
                   class="form-input form-select"
                   id="condition"
-                  name="condition"
-                  required
-                  [class.form-input-invalid]="showValidationErrors && !conditionField.validity.valid">
-                  <option value="" selected disabled>Выберите</option>
-                  <option>Новостройка</option>
-                  <option>Хорошее</option>
-                  <option>Требует ремонта</option>
-                  <option>Аварийное</option>
+                  formControlName="condition"
+                  [class.form-input-invalid]="isControlInvalid(formControls.condition)">
+                  <option value="" disabled>Выберите</option>
+                  @for (option of conditionOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                  }
                 </select>
-                @if (showValidationErrors && conditionField.validity.valueMissing) {
+                @if (isControlInvalid(formControls.condition) && formControls.condition.hasError('required')) {
                 <p class="field-error">Выберите состояние объекта.</p>
                 }
               </div>
@@ -222,505 +254,70 @@
               <div class="form-group no-mb">
                 <label class="form-label" for="yearBuilt">Год постройки</label>
                 <input
-                  #yearBuiltField
                   class="form-input"
                   id="yearBuilt"
-                  name="yearBuilt"
-                  type="number"
-                  min="1700"
-                  max="2100"
-                  step="1"
+                  type="text"
+                  formControlName="yearBuilt"
                   inputmode="numeric"
                   placeholder="Например: 2012"
-                  [class.form-input-invalid]="showValidationErrors && !yearBuiltField.validity.valid" />
-                @if ( showValidationErrors && !yearBuiltField.validity.valueMissing &&
-                (yearBuiltField.validity.rangeUnderflow || yearBuiltField.validity.rangeOverflow) ) {
+                  [class.form-input-invalid]="isControlInvalid(formControls.yearBuilt)" />
+                @if (isControlInvalid(formControls.yearBuilt) && formControls.yearBuilt.hasError('integer')) {
+                <p class="field-error">Год постройки должен быть целым числом.</p>
+                } @if (isControlInvalid(formControls.yearBuilt) && formControls.yearBuilt.hasError('range')) {
                 <p class="field-error">Год постройки должен быть в диапазоне от 1700 до 2100.</p>
                 }
               </div>
 
               <div class="form-group no-mb">
                 <label class="form-label" for="wallMaterial">Тип дома</label>
-                <select class="form-input form-select" id="wallMaterial" name="wallMaterial">
-                  <option value="" selected>Не выбрано</option>
-                  <option>Кирпичный</option>
-                  <option>Панельный</option>
-                  <option>Блочный</option>
-                  <option>Монолитный</option>
-                  <option>Монолитно-кирпичный</option>
-                  <option>Деревянный</option>
-                  <option>Газобетонный</option>
+                <select class="form-input form-select" id="wallMaterial" formControlName="wallMaterial">
+                  @for (option of wallMaterialOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                  }
                 </select>
               </div>
 
               <div class="form-group no-mb">
-                <label class="form-label" for="elevator">Лифт</label>
-                <select class="form-input form-select" id="elevator" name="elevator">
-                  <option value="" selected>Не выбрано</option>
-                  <option>Нет</option>
-                  <option>Грузовой</option>
-                  <option>Пассажирский</option>
-                  <option>Пассажирский и грузовой</option>
+                <label class="form-label" for="elevatorType">Лифт</label>
+                <select class="form-input form-select" id="elevatorType" formControlName="elevatorType">
+                  @for (option of elevatorTypeOptions; track option.value) {
+                  <option [value]="option.value">{{ option.label }}</option>
+                  }
                 </select>
               </div>
             </div>
 
-            <div class="form-group no-mb mt-6">
-              <label class="form-label" for="description">Описание (доп. параметры)</label>
+            <div class="form-check mt-6">
+              <input
+                class="form-check-input"
+                id="hasBalconyOrLoggia"
+                type="checkbox"
+                formControlName="hasBalconyOrLoggia" />
+              <label class="form-check-label" for="hasBalconyOrLoggia">Есть балкон или лоджия</label>
+            </div>
+            }
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend class="fieldset-legend">Комментарий</legend>
+            <div class="form-group no-mb">
+              <label class="form-label" for="description">Дополнительные сведения</label>
               <textarea
                 class="form-input form-textarea"
                 id="description"
-                name="description"
-                rows="4"
+                formControlName="description"
                 maxlength="1000"
-                placeholder="Например: вид из окна, парковка, санузел, наличие обременений (если известно)…"></textarea>
+                placeholder="Особенности состояния, планировки или объекта"></textarea>
+              <div class="form-help">Необязательное поле для пояснений оценщику.</div>
             </div>
           </fieldset>
 
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Документы и фото</legend>
-
-            <div class="form-grid form-grid-2">
-              <div class="form-group no-mb">
-                <label class="form-label" for="documentFiles">
-                  Сканы и документы <span class="required-mark">*</span>
-                </label>
-                <input
-                  #documentFilesField
-                  class="form-input form-file"
-                  id="documentFiles"
-                  name="documentFiles"
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.heic,.doc,.docx"
-                  multiple
-                  [class.form-input-invalid]="showValidationErrors && isRequiredUploadMissing('documents')"
-                  (change)="onFilesSelected($event, 'documents')" />
-                <div class="form-help">
-                  Поддерживаются PDF, DOC/DOCX и сканы/изображения (JPG, PNG, HEIC). Файлы можно добавлять в несколько
-                  подходов.
-                </div>
-                @if (showValidationErrors && isRequiredUploadMissing('documents')) {
-                <p class="field-error">Загрузите хотя бы один документ или скан.</p>
-                } @if (documentFiles.length) {
-                <div class="upload-summary">
-                  <span class="upload-summary-badge">{{ documentFiles.length }}</span>
-                  <span class="upload-summary-text"> Добавлено {{ formatFileCount(documentFiles.length) }} </span>
-                </div>
-                <ul class="upload-card-list">
-                  @for (file of documentFiles; track file.name + file.size + file.lastModified) {
-                  <li class="upload-card">
-                    @if (isImageFile(file)) {
-                    <button
-                      class="upload-card-preview"
-                      type="button"
-                      [attr.aria-label]="'Открыть превью файла ' + file.name"
-                      (click)="openImagePreview(file)">
-                      <img class="upload-card-preview-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
-                    </button>
-                    } @else {
-                    <div class="upload-card-icon" aria-hidden="true">{{ getFileCategoryLabel(file) }}</div>
-                    }
-
-                    <div class="upload-card-content">
-                      <span class="upload-card-name" [title]="file.name">{{ file.name }}</span>
-                      <span class="upload-card-meta">
-                        {{ getFileCategoryLabel(file) }} · {{ formatFileSize(file.size) }}
-                      </span>
-                    </div>
-
-                    <div class="upload-card-actions">
-                      @if (canPreviewFile(file)) {
-                      <button class="btn btn-ghost btn-sm" type="button" (click)="previewFile(file)">
-                        Просмотреть
-                      </button>
-                      } @else if (canOpenFile(file)) {
-                      <button class="btn btn-ghost btn-sm" type="button" (click)="openFile(file)">Открыть</button>
-                      }
-                      <button class="btn btn-outline btn-sm" type="button" (click)="downloadFile(file)">Скачать</button>
-                      <button
-                        class="upload-list-remove"
-                        type="button"
-                        [attr.aria-label]="'Удалить файл ' + file.name"
-                        (click)="removeFile(documentFilesField, 'documents', $index)">
-                        <span aria-hidden="true">×</span>
-                      </button>
-                    </div>
-                  </li>
-                  }
-                </ul>
-                }
-              </div>
-
-              <div class="form-group no-mb">
-                <label class="form-label" for="photoFiles">Фото объекта <span class="required-mark">*</span></label>
-                <input
-                  #photoFilesField
-                  class="form-input form-file"
-                  id="photoFiles"
-                  name="photoFiles"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  [class.form-input-invalid]="showValidationErrors && isRequiredUploadMissing('photos')"
-                  (change)="onFilesSelected($event, 'photos')" />
-                <div class="form-help">
-                  Добавьте фото фасада, комнат и состояния объекта. Новые файлы добавляются к уже выбранным.
-                </div>
-                @if (showValidationErrors && isRequiredUploadMissing('photos')) {
-                <p class="field-error">Загрузите хотя бы одно фото объекта.</p>
-                } @if (photoFiles.length) {
-                <div class="upload-summary">
-                  <span class="upload-summary-badge">{{ photoFiles.length }}</span>
-                  <span class="upload-summary-text"> Добавлено {{ formatFileCount(photoFiles.length) }} </span>
-                </div>
-                <ul class="photo-grid" role="list">
-                  @for (file of photoFiles; track file.name + file.size + file.lastModified) {
-                  <li class="photo-card">
-                    <button
-                      class="photo-card-remove"
-                      type="button"
-                      [attr.aria-label]="'Удалить файл ' + file.name"
-                      (click)="removeFile(photoFilesField, 'photos', $index)">
-                      <span aria-hidden="true">×</span>
-                    </button>
-
-                    <button
-                      class="photo-card-preview"
-                      type="button"
-                      [attr.aria-label]="'Открыть фото ' + file.name"
-                      (click)="openImagePreview(file)">
-                      <img class="photo-card-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
-                    </button>
-
-                    <div class="photo-card-caption">
-                      <span class="photo-card-name" [title]="file.name">{{ file.name }}</span>
-                      <span class="photo-card-meta">{{ formatFileSize(file.size) }}</span>
-                    </div>
-                  </li>
-                  }
-                </ul>
-                }
-              </div>
-            </div>
-
-            <div class="form-group no-mb mt-6">
-              <label class="form-label" for="additionalFiles">Дополнительные файлы</label>
-              <input
-                #additionalFilesField
-                class="form-input form-file"
-                id="additionalFiles"
-                name="additionalFiles"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                multiple
-                (change)="onFilesSelected($event, 'additional')" />
-              <div class="form-help">
-                При необходимости добавьте доп. справки, планы или иные материалы. Можно выбирать файлы несколько раз.
-              </div>
-
-              @if (additionalFiles.length) {
-              <div class="upload-summary">
-                <span class="upload-summary-badge">{{ additionalFiles.length }}</span>
-                <span class="upload-summary-text"> Добавлено {{ formatFileCount(additionalFiles.length) }} </span>
-              </div>
-              <ul class="upload-card-list">
-                @for (file of additionalFiles; track file.name + file.size + file.lastModified) {
-                <li class="upload-card">
-                  @if (isImageFile(file)) {
-                  <button
-                    class="upload-card-preview"
-                    type="button"
-                    [attr.aria-label]="'Открыть превью файла ' + file.name"
-                    (click)="openImagePreview(file)">
-                    <img class="upload-card-preview-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
-                  </button>
-                  } @else {
-                  <div class="upload-card-icon" aria-hidden="true">{{ getFileCategoryLabel(file) }}</div>
-                  }
-
-                  <div class="upload-card-content">
-                    <span class="upload-card-name" [title]="file.name">{{ file.name }}</span>
-                    <span class="upload-card-meta">
-                      {{ getFileCategoryLabel(file) }} · {{ formatFileSize(file.size) }}
-                    </span>
-                  </div>
-
-                  <div class="upload-card-actions">
-                    @if (canPreviewFile(file)) {
-                    <button class="btn btn-ghost btn-sm" type="button" (click)="previewFile(file)">Просмотреть</button>
-                    } @else if (canOpenFile(file)) {
-                    <button class="btn btn-ghost btn-sm" type="button" (click)="openFile(file)">Открыть</button>
-                    }
-                    <button class="btn btn-outline btn-sm" type="button" (click)="downloadFile(file)">Скачать</button>
-                    <button
-                      class="upload-list-remove"
-                      type="button"
-                      [attr.aria-label]="'Удалить файл ' + file.name"
-                      (click)="removeFile(additionalFilesField, 'additional', $index)">
-                      <span aria-hidden="true">×</span>
-                    </button>
-                  </div>
-                </li>
-                }
-              </ul>
-              }
-            </div>
-          </fieldset>
-
-          <fieldset class="fieldset">
-            <legend class="fieldset-legend">Подтверждения</legend>
-
-            <label class="form-check">
-              <input
-                #confirmCorrectField
-                class="form-check-input"
-                [class.form-check-input-invalid]="showValidationErrors && confirmCorrectField.validity.valueMissing"
-                id="confirmCorrect"
-                type="checkbox"
-                name="confirmCorrect"
-                required />
-              <span>
-                Подтверждаю, что данные введены корректно и соответствуют объекту.
-                <span class="required-mark">*</span>
-              </span>
-            </label>
-
-            <div class="form-check">
-              <input
-                #confirmProcessingField
-                class="form-check-input"
-                [class.form-check-input-invalid]="showValidationErrors && confirmProcessingField.validity.valueMissing"
-                id="confirmProcessing"
-                type="checkbox"
-                name="confirmProcessing"
-                aria-label="Согласен(на) на обработку данных для проведения оценки."
-                required />
-              <span>
-                <button class="form-check-link" id="confirmProcessingLink" type="button" (click)="openConsentModal()">
-                  Согласен(на) на обработку данных для проведения оценки.
-                </button>
-                <span class="required-mark">*</span>
-              </span>
-            </div>
-          </fieldset>
-        </div>
-
-        <div class="flex flex-wrap gap-4 justify-center mt-6">
-          <button class="btn btn-primary" type="submit">Сохранить параметры</button>
-          <a class="btn btn-outline" href="./requests_table.html">Перейти к заявкам</a>
-        </div>
-
-        @if (imagePreviewState; as preview) {
-        <div
-          class="lightbox"
-          role="dialog"
-          aria-modal="true"
-          tabindex="0"
-          [attr.aria-label]="'Просмотр изображения ' + preview.fileName"
-          (click)="closeImagePreview()"
-          (keydown.enter)="closeImagePreview()"
-          (keydown.space)="closeImagePreview()">
-          <div
-            class="lightbox-dialog"
-            tabindex="0"
-            (click)="$event.stopPropagation()"
-            (keydown.enter)="$event.stopPropagation()"
-            (keydown.space)="$event.stopPropagation()">
-            <button class="lightbox-close" type="button" aria-label="Закрыть просмотр" (click)="closeImagePreview()">
-              ×
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit" [disabled]="isBusy()">
+              {{ saving() ? 'Сохраняем...' : 'Сохранить и перейти к статусу' }}
             </button>
-            <img class="lightbox-image" [src]="preview.objectUrl" [alt]="preview.fileName" />
-            <p class="lightbox-caption">{{ preview.fileName }}</p>
           </div>
         </div>
-        } @if (isConsentModalOpen) {
-        <div
-          class="lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="consentDocumentTitle"
-          tabindex="0"
-          (click)="closeConsentModal()"
-          (keydown.enter)="closeConsentModal()"
-          (keydown.space)="closeConsentModal()">
-          <div
-            class="lightbox-dialog"
-            style="padding: clamp(1.75rem, 4vw, 2.5rem) clamp(2.5rem, 6vw, 3.5rem)"
-            tabindex="0"
-            (click)="$event.stopPropagation()"
-            (keydown.enter)="$event.stopPropagation()"
-            (keydown.space)="$event.stopPropagation()">
-            <button class="lightbox-close" type="button" aria-label="Закрыть документ" (click)="closeConsentModal()">
-              ×
-            </button>
-
-            <div class="document-modal-body" style="text-align: justify">
-              <h2 id="consentDocumentTitle" style="margin-bottom: 1.5rem; text-align: center">
-                СОГЛАСИЕ НА ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ
-              </h2>
-              <p>Дата редакции: «___» __________ 20__ г. Версия: v1.0</p>
-              <p>Оператор персональных данных: ________________________________________________</p>
-              <p>(полное наименование организации / ИП)</p>
-              <p>ОГРН/ОГРНИП: ____________________ ИНН: ____________________</p>
-              <p>Адрес: ______________________________________________________________________</p>
-              <p>E-mail: ___________________________ Телефон: _______________________________</p>
-
-              <section>
-                <h3>1. ОБЩИЕ ПОЛОЖЕНИЯ</h3>
-                <p>
-                  1.1. Действуя свободно, своей волей и в своем интересе, а также подтверждая свою дееспособность, я
-                  (далее — Пользователь) даю Оператору конкретное, информированное и сознательное согласие на обработку
-                  моих персональных данных в соответствии с Федеральным законом от 27.07.2006 № 152-ФЗ «О персональных
-                  данных».
-                </p>
-                <p>
-                  1.2. Согласие предоставляется на обработку персональных данных как с использованием средств
-                  автоматизации, так и без использования таких средств.
-                </p>
-                <p>1.3. Согласие считается предоставленным с момента:</p>
-                <ul>
-                  <li>
-                    проставления отметки (чекбокса) «Я ознакомлен(а) и даю согласие на обработку персональных данных» в
-                    веб-интерфейсе Сервиса; и/или
-                  </li>
-                  <li>отправки формы/заявки, содержащей персональные данные, через веб-интерфейс Сервиса.</li>
-                </ul>
-                <p>
-                  1.4. Настоящее согласие применяется к обработке данных в рамках веб-сервиса (далее — Сервис),
-                  предназначенного для приема, обработки и сопровождения заявок на оценку наследственного
-                  имущества/недвижимости, взаимодействия с нотариусом/уполномоченными лицами, а также формирования
-                  результатов/отчетов.
-                </p>
-              </section>
-
-              <section>
-                <h3>2. ПЕРЕЧЕНЬ ПЕРСОНАЛЬНЫХ ДАННЫХ</h3>
-                <p>
-                  2.1. Согласие дается на обработку следующих категорий персональных данных (в зависимости от
-                  заполняемых форм, сценариев использования и загружаемых файлов):
-                </p>
-                <p>2.1.1. Данные, предоставляемые Пользователем:</p>
-                <ul>
-                  <li>фамилия, имя, отчество (при указании);</li>
-                  <li>контактные данные: номер телефона, адрес электронной почты;</li>
-                  <li>
-                    сведения об обращении/заявке: информация об объекте оценки (адрес/местоположение, характеристики,
-                    описание), сведения о наследственном деле — в объеме, указанном Пользователем;
-                  </li>
-                  <li>
-                    файлы, загружаемые в Сервис (сканы/фото документов). Такие файлы могут содержать персональные
-                    данные, в том числе реквизиты документов, удостоверяющих личность, и иные сведения — в объеме,
-                    предоставленном Пользователем.
-                  </li>
-                </ul>
-                <p>2.1.2. Данные учетной записи (если используется личный кабинет):</p>
-                <ul>
-                  <li>идентификатор пользователя, логин (при наличии);</li>
-                  <li>пароль (хранится в виде хэша; в открытом виде не хранится).</li>
-                </ul>
-                <p>2.1.3. Технические данные, формируемые при использовании Сервиса:</p>
-                <ul>
-                  <li>IP-адрес, cookie-файлы, идентификаторы сессии;</li>
-                  <li>сведения о браузере/устройстве;</li>
-                  <li>дата и время действий в Сервисе (журналы событий/аудит).</li>
-                </ul>
-              </section>
-
-              <section>
-                <h3>3. ЦЕЛИ ОБРАБОТКИ ПЕРСОНАЛЬНЫХ ДАННЫХ</h3>
-                <p>3.1. Персональные данные обрабатываются в целях:</p>
-                <ul>
-                  <li>регистрации, аутентификации и предоставления доступа к функциям Сервиса;</li>
-                  <li>
-                    приема, обработки и сопровождения заявок на оценку наследственного имущества/недвижимости, включая
-                    проверку корректности предоставленных данных;
-                  </li>
-                  <li>обеспечения взаимодействия Пользователя с нотариусом/уполномоченными лицами в рамках Сервиса;</li>
-                  <li>
-                    направления уведомлений (email/SMS/внутрисистемные), ответов на обращения, предоставления
-                    технической и консультационной поддержки;
-                  </li>
-                  <li>формирования и предоставления результатов/отчетов, а также ведения истории заявок;</li>
-                  <li>
-                    обеспечения информационной безопасности, предотвращения мошенничества, ведения журналов действий
-                    (аудита);
-                  </li>
-                  <li>исполнения требований законодательства Российской Федерации.</li>
-                </ul>
-              </section>
-
-              <section>
-                <h3>4. ДЕЙСТВИЯ С ПЕРСОНАЛЬНЫМИ ДАННЫМИ</h3>
-                <p>
-                  4.1. В ходе обработки с персональными данными могут совершаться следующие действия: сбор, запись,
-                  систематизация, накопление, хранение, уточнение (обновление, изменение), извлечение, использование,
-                  передача (предоставление, доступ), обезличивание, блокирование, удаление и уничтожение.
-                </p>
-              </section>
-
-              <section>
-                <h3>5. ПЕРЕДАЧА ДАННЫХ И ПОРУЧЕНИЕ ОБРАБОТКИ ТРЕТЬИМ ЛИЦАМ</h3>
-                <p>
-                  5.1. Оператор вправе поручать обработку персональных данных третьим лицам (обработчикам) для
-                  достижения целей, указанных в разделе 3, при условии соблюдения ими требований законодательства и
-                  конфиденциальности.
-                </p>
-                <p>5.2. К таким лицам могут относиться:</p>
-                <ul>
-                  <li>провайдеры хостинга/облачного хранения файлов;</li>
-                  <li>провайдеры email/SMS/пуш-уведомлений;</li>
-                  <li>платежные провайдеры (если функциональность оплаты предусмотрена Сервисом);</li>
-                  <li>
-                    нотариусы и/или уполномоченные специалисты, участвующие в обработке заявки, — в объеме, необходимом
-                    для оказания услуги и формирования результата.
-                  </li>
-                </ul>
-                <p>
-                  5.3. Актуальный перечень категорий получателей и/или обработчиков может дополнительно указываться в
-                  политике обработки персональных данных/иных документах Оператора (при наличии).
-                </p>
-              </section>
-
-              <section>
-                <h3>6. СРОК ДЕЙСТВИЯ СОГЛАСИЯ И ХРАНЕНИЕ ДАННЫХ</h3>
-                <p>
-                  6.1. Согласие действует до достижения целей обработки или до его отзыва Пользователем, если иное не
-                  предусмотрено законодательством Российской Федерации или договорными обязательствами.
-                </p>
-                <p>
-                  6.2. Персональные данные хранятся не дольше, чем это требуется целями обработки, если иные сроки не
-                  установлены законом.
-                </p>
-              </section>
-
-              <section>
-                <h3>7. ОТЗЫВ СОГЛАСИЯ</h3>
-                <p>
-                  7.1. Пользователь вправе отозвать настоящее согласие путем направления Оператору письменного заявления
-                  (в том числе в форме электронного документа) по контактам, указанным в шапке настоящего Согласия.
-                </p>
-                <p>7.2. Отзыв согласия не влияет на законность обработки, осуществленной до его отзыва.</p>
-              </section>
-
-              <section>
-                <h3>8. ЗАКЛЮЧИТЕЛЬНЫЕ ПОЛОЖЕНИЯ</h3>
-                <p>
-                  8.1. Пользователь подтверждает, что предоставляемые персональные данные принадлежат ему и являются
-                  достоверными.
-                </p>
-                <p>
-                  8.2. Пользователь обязуется не предоставлять персональные данные третьих лиц без наличия законных
-                  оснований и/или их согласия.
-                </p>
-              </section>
-
-              <div class="flex flex-wrap gap-4 justify-center mt-6">
-                <button class="btn btn-primary btn-sm" type="button" (click)="closeConsentModal()">Закрыть</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        }
       </form>
     </section>
   </main>
