@@ -22,8 +22,7 @@ interface Discount {
   styleUrls: ['./sale.scss'],
 })
 export class SaleComponent {
-  // Скидки
-  discounts: Discount[] = [
+  allDiscounts: Discount[] = [
     {
       id: 1,
       name: 'Скидка новым клиентам',
@@ -67,7 +66,6 @@ export class SaleComponent {
     },
   ];
 
-  // Состояния
   showDeleteModal = false;
   discountToDelete: Discount | null = null;
   showForm = false;
@@ -75,7 +73,94 @@ export class SaleComponent {
   selectedDiscount: Discount | null = null;
   isEditMode = false;
 
-  // Данные формы
+  currentPage = 1;
+  pageSize = 5;
+
+  sortField: keyof Discount = 'id';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
+  filterName = '';
+  filterStatus: 'all' | 'active' | 'inactive' = 'all';
+  filterDateFrom = '';
+  filterDateTo = '';
+
+  get filteredAndSortedDiscounts(): Discount[] {
+    let result = [...this.allDiscounts];
+
+    if (this.filterName) {
+      result = result.filter((d) => d.name.toLowerCase().includes(this.filterName.toLowerCase()));
+    }
+    if (this.filterStatus !== 'all') {
+      const active = this.filterStatus === 'active';
+      result = result.filter((d) => d.isActive === active);
+    }
+    if (this.filterDateFrom) {
+      const from = new Date(this.filterDateFrom);
+      result = result.filter((d) => d.validFrom.getTime() >= from.getTime());
+    }
+    if (this.filterDateTo) {
+      const to = new Date(this.filterDateTo);
+      result = result.filter((d) => d.validTo.getTime() <= to.getTime());
+    }
+
+    result.sort((a, b) => {
+      let aVal: any = a[this.sortField];
+      let bVal: any = b[this.sortField];
+
+      // Если поле — дата, сравниваем по числовому значению
+      if (aVal instanceof Date && bVal instanceof Date) {
+        aVal = aVal.getTime();
+        bVal = bVal.getTime();
+      }
+
+      // Обработка undefined/null (считаем их меньше любого значения)
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1; // null/undefined считаем бОльшими (чтобы шли вниз)
+      if (bVal == null) return -1;
+
+      // Сравнение
+      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return result;
+  }
+
+  get paginatedDiscounts(): Discount[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredAndSortedDiscounts.slice(start, start + this.pageSize);
+  }
+
+  get totalPages(): number {
+    return Math.ceil(this.filteredAndSortedDiscounts.length / this.pageSize);
+  }
+
+  prevPage(): void {
+    if (this.currentPage > 1) this.currentPage--;
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.totalPages) this.currentPage++;
+  }
+
+  sortBy(field: keyof Discount): void {
+    if (this.sortField === field) {
+      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortField = field;
+      this.sortDirection = 'asc';
+    }
+    this.currentPage = 1;
+  }
+
+  resetFilters(): void {
+    this.filterName = '';
+    this.filterStatus = 'all';
+    this.filterDateFrom = '';
+    this.filterDateTo = '';
+    this.currentPage = 1;
+  }
+
   formData = {
     name: '',
     percentage: 0,
@@ -87,7 +172,6 @@ export class SaleComponent {
     maxDiscountAmount: null as number | null,
   };
 
-  // Методы для скидок
   createDiscount(): void {
     this.isEditMode = false;
     this.formData = {
@@ -129,10 +213,9 @@ export class SaleComponent {
 
   saveDiscount(): void {
     if (this.isEditMode && this.selectedDiscount) {
-      // Обновление
-      const index = this.discounts.findIndex((d) => d.id === this.selectedDiscount?.id);
+      const index = this.allDiscounts.findIndex((d) => d.id === this.selectedDiscount!.id);
       if (index !== -1) {
-        this.discounts[index] = {
+        this.allDiscounts[index] = {
           ...this.selectedDiscount,
           name: this.formData.name,
           percentage: this.formData.percentage,
@@ -146,9 +229,8 @@ export class SaleComponent {
       }
       console.log('Обновлена скидка:', this.formData);
     } else {
-      // Создание
       const newDiscount: Discount = {
-        id: Math.max(...this.discounts.map((d) => d.id)) + 1,
+        id: Math.max(...this.allDiscounts.map((d) => d.id), 0) + 1,
         name: this.formData.name,
         percentage: this.formData.percentage,
         validFrom: new Date(this.formData.validFrom),
@@ -158,11 +240,12 @@ export class SaleComponent {
         minOrderAmount: this.formData.minOrderAmount || undefined,
         maxDiscountAmount: this.formData.maxDiscountAmount || undefined,
       };
-      this.discounts.push(newDiscount);
+      this.allDiscounts.push(newDiscount);
       console.log('Создана скидка:', newDiscount);
     }
     this.showForm = false;
     this.selectedDiscount = null;
+    this.currentPage = 1;
   }
 
   confirmDelete(discount: Discount): void {
@@ -172,7 +255,7 @@ export class SaleComponent {
 
   deleteDiscount(): void {
     if (this.discountToDelete) {
-      this.discounts = this.discounts.filter((d) => d.id !== this.discountToDelete?.id);
+      this.allDiscounts = this.allDiscounts.filter((d) => d.id !== this.discountToDelete!.id);
       console.log('Удалена скидка:', this.discountToDelete);
       this.showDeleteModal = false;
       this.discountToDelete = null;
@@ -194,23 +277,19 @@ export class SaleComponent {
     this.selectedDiscount = null;
   }
 
-  // Проверка активности скидки по дате
   isDiscountActive(discount: Discount): boolean {
     const now = new Date();
     return (
-      discount.isActive && new Date(discount.validFrom) <= now && new Date(discount.validTo) >= now
+      discount.isActive &&
+      discount.validFrom.getTime() <= now.getTime() &&
+      discount.validTo.getTime() >= now.getTime()
     );
   }
 
-  // Форматирование ограничений
   getDiscountLimits(discount: Discount): string {
     const limits = [];
-    if (discount.minOrderAmount) {
-      limits.push(`от ${discount.minOrderAmount}₽`);
-    }
-    if (discount.maxDiscountAmount) {
-      limits.push(`макс. скидка ${discount.maxDiscountAmount}₽`);
-    }
+    if (discount.minOrderAmount) limits.push(`от ${discount.minOrderAmount}₽`);
+    if (discount.maxDiscountAmount) limits.push(`макс. скидка ${discount.maxDiscountAmount}₽`);
     return limits.length ? limits.join(', ') : 'нет';
   }
 }

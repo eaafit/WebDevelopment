@@ -1,11 +1,31 @@
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
-import { PaymentService, PaymentStatus, PaymentType } from '@notary-portal/api-contracts';
+import {
+  PaymentService,
+  PaymentStatus,
+  PaymentType,
+  PromoValidationStatus,
+} from '@notary-portal/api-contracts';
 import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
 import { resolveSubscriptionPlan, type SubscriptionPlanCode } from './subscription-checkout.models';
+import { addCalendarMonths, normalizeDate } from './subscription-date.util';
 
 export type CheckoutPaymentStatus = 'completed' | 'pending' | 'failed' | 'refunded' | 'not_found';
+export type CheckoutPromoValidationStatus =
+  | 'valid'
+  | 'not_found'
+  | 'expired'
+  | 'usage_limit_reached';
+
+export interface CheckoutPromoValidationResult {
+  status: CheckoutPromoValidationStatus;
+  promoCode: string;
+  baseAmount: string;
+  finalAmount: string;
+  discountAmount: string;
+  discountPercent: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class SubscriptionCheckoutApiService {
@@ -17,8 +37,7 @@ export class SubscriptionCheckoutApiService {
   }): Promise<string> {
     const plan = resolveSubscriptionPlan(params.planCode);
     const startDate = normalizeDate(new Date());
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
+    const endDate = addCalendarMonths(startDate, 1);
 
     const response = await this.client.createSubscription({
       userId: params.userId,
@@ -48,6 +67,26 @@ export class SubscriptionCheckoutApiService {
       targetId: params.subscriptionId,
       promoCode: params.promoCode?.trim() ?? '',
     });
+  }
+
+  async validateSubscriptionPromo(params: {
+    planCode: SubscriptionPlanCode;
+    promoCode: string;
+  }): Promise<CheckoutPromoValidationResult> {
+    const plan = resolveSubscriptionPlan(params.planCode);
+    const response = await this.client.validateSubscriptionPromo({
+      plan: plan.rpcPlan,
+      promoCode: params.promoCode.trim(),
+    });
+
+    return {
+      status: mapPromoValidationStatus(response.status),
+      promoCode: response.promoCode.trim(),
+      baseAmount: response.baseAmount?.amount?.trim() || plan.price,
+      finalAmount: response.finalAmount?.amount?.trim() || plan.price,
+      discountAmount: response.discountAmount?.amount?.trim() || '0.00',
+      discountPercent: response.discountPercent.trim() || '0.00',
+    };
   }
 
   async waitForPaymentStatus(params: {
@@ -107,10 +146,21 @@ export class SubscriptionCheckoutApiService {
   }
 }
 
-function normalizeDate(value: Date): Date {
-  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
-}
-
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function mapPromoValidationStatus(status: PromoValidationStatus): CheckoutPromoValidationStatus {
+  switch (status) {
+    case PromoValidationStatus.VALID:
+      return 'valid';
+    case PromoValidationStatus.EXPIRED:
+      return 'expired';
+    case PromoValidationStatus.USAGE_LIMIT_REACHED:
+      return 'usage_limit_reached';
+    case PromoValidationStatus.NOT_FOUND:
+    case PromoValidationStatus.UNSPECIFIED:
+    default:
+      return 'not_found';
+  }
 }

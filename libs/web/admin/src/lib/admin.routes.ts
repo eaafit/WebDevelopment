@@ -1,6 +1,9 @@
 import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { Payments } from './features/payments/payments';
+import { Applications } from './features/applications/applications';
+import { PaymentFormComponent } from './features/payments/payment-form.component';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -56,28 +59,29 @@ export const adminRoutes: Route[] = [
         ]),
       } as Route,
       {
+        path: 'payments/new',
+        component: PaymentFormComponent,
+      },
+      {
+        path: 'payments/:id/edit',
+        component: PaymentFormComponent,
+      },
+      {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Список платежей/транзакций',
-          'Формы создания/редактирования',
-          'Модальное окно удаления',
-        ]),
-      } as Route,
+        component: Payments,
+      },
+
+      {
+        path: 'applications',
+        component: Applications,
+      },
       {
         path: 'subscriptions',
         ...placeholder('Подписки', ['Просмотр списка подписок']),
       } as Route,
       {
         path: 'plans',
-        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
-      } as Route,
-      {
-        path: 'discounts',
-        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
-      } as Route,
-      {
-        path: 'promocodes',
-        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
+        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
       } as Route,
       {
         path: 'files',

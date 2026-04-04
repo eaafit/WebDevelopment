@@ -10,6 +10,7 @@ import {
   type SubscriptionPlanViewModel,
 } from './subscription-checkout.models';
 import {
+  type CheckoutPromoValidationStatus,
   SubscriptionCheckoutApiService,
   type CheckoutPaymentStatus,
 } from './subscription-checkout-api.service';
@@ -28,8 +29,15 @@ export class Checkout implements OnDestroy {
   protected readonly formatPrice = formatPrice;
   protected readonly state = signal<CheckoutState>('ready');
   protected readonly loading = signal(false);
-  protected readonly promoCode = signal('');
+  protected readonly promoLoading = signal(false);
+  protected readonly promoInput = signal('');
+  protected readonly appliedPromoCode = signal('');
+  protected readonly promoFeedback = signal('');
+  protected readonly promoFeedbackTone = signal<'success' | 'error' | null>(null);
+  protected readonly promoPreviewAmount = signal<string | null>(null);
+  protected readonly promoDiscountAmount = signal<string | null>(null);
   protected readonly notice = signal('');
+  protected readonly errorTitle = signal('Не получилось продолжить оплату');
   protected readonly errorMessage = signal('');
   protected readonly paymentId = signal<string | null>(null);
   protected readonly selectedPlanCode = signal<SubscriptionPlanCode>(
@@ -41,12 +49,24 @@ export class Checkout implements OnDestroy {
     resolveSubscriptionPlan(this.selectedPlanCode()),
   );
   protected readonly displayAmount = computed(
-    () => this.confirmedAmount() ?? this.selectedPlan().price,
+    () => this.confirmedAmount() ?? this.promoPreviewAmount() ?? this.selectedPlan().price,
   );
   protected readonly displayAmountLabel = computed(() => formatPrice(this.displayAmount()));
   protected readonly isBusy = computed(
-    () => this.loading() || this.state() === 'widget' || this.state() === 'processing',
+    () =>
+      this.loading() ||
+      this.promoLoading() ||
+      this.state() === 'widget' ||
+      this.state() === 'processing',
   );
+  protected readonly hasPendingPromoChanges = computed(() => {
+    const draftCode = normalizePromoCode(this.promoInput());
+    if (!draftCode) {
+      return false;
+    }
+
+    return draftCode !== normalizePromoCode(this.appliedPromoCode());
+  });
 
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -70,26 +90,77 @@ export class Checkout implements OnDestroy {
     this.selectedPlanCode.set(code);
     this.confirmedAmount.set(null);
     this.notice.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
     this.errorMessage.set('');
     this.state.set('ready');
     this.paymentId.set(null);
     this.destroyWidget();
+    this.clearAppliedPromoState();
+    this.clearPromoFeedback();
   }
 
-  protected applyPromo(): void {
-    const promoCode = this.promoCode().trim();
+  protected updatePromoInput(value: string): void {
+    this.promoInput.set(value);
     this.errorMessage.set('');
 
+    if (normalizePromoCode(value) !== normalizePromoCode(this.appliedPromoCode())) {
+      this.clearAppliedPromoState();
+    }
+
+    this.clearPromoFeedback();
+  }
+
+  protected async applyPromo(): Promise<void> {
+    const promoCode = this.promoInput().trim();
+    this.errorMessage.set('');
+    this.clearPromoFeedback();
+
     if (!promoCode) {
-      this.notice.set('Промокод очищен. Итоговая сумма будет без скидки.');
-      this.confirmedAmount.set(null);
+      this.clearAppliedPromoState();
+      this.setPromoFeedback('success', 'Промокод очищен. Итоговая сумма снова без скидки.');
       return;
     }
 
-    this.notice.set('Промокод сохранён. Сервер проверит скидку при создании платежа.');
+    this.promoLoading.set(true);
+
+    try {
+      const validation = await this.checkoutApi.validateSubscriptionPromo({
+        planCode: this.selectedPlanCode(),
+        promoCode,
+      });
+
+      if (validation.status !== 'valid') {
+        this.clearAppliedPromoState();
+        this.setPromoFeedback('error', promoValidationMessage(validation.status));
+        return;
+      }
+
+      this.promoInput.set(validation.promoCode);
+      this.appliedPromoCode.set(validation.promoCode);
+      this.promoPreviewAmount.set(validation.finalAmount);
+      this.promoDiscountAmount.set(
+        validation.discountAmount === '0.00' ? null : validation.discountAmount,
+      );
+      this.confirmedAmount.set(null);
+      this.setPromoFeedback('success', 'Промокод применён.');
+    } catch (error) {
+      console.error('[Checkout] Failed to validate promo code', error);
+      this.clearAppliedPromoState();
+      this.setPromoFeedback('error', 'Не удалось проверить промокод. Попробуйте ещё раз.');
+    } finally {
+      this.promoLoading.set(false);
+    }
   }
 
   protected async startPayment(): Promise<void> {
+    if (this.hasPendingPromoChanges()) {
+      this.setPromoFeedback(
+        'error',
+        'Промокод ещё не применён. Нажмите «Применить» или очистите поле.',
+      );
+      return;
+    }
+
     const userId = this.requireUserId();
     if (!userId) {
       return;
@@ -97,7 +168,9 @@ export class Checkout implements OnDestroy {
 
     this.loading.set(true);
     this.errorMessage.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
     this.notice.set('');
+    this.clearPromoFeedback();
     this.confirmedAmount.set(null);
     this.state.set('ready');
     this.destroyWidget();
@@ -113,7 +186,7 @@ export class Checkout implements OnDestroy {
         userId,
         amount: this.selectedPlan().price,
         subscriptionId,
-        promoCode: this.promoCode().trim(),
+        promoCode: this.appliedPromoCode().trim(),
       });
 
       const confirmationToken = response.widget?.confirmationToken?.trim();
@@ -132,15 +205,25 @@ export class Checkout implements OnDestroy {
         {
           onSuccess: () => void this.handleWidgetSuccess(),
           onFail: () => this.handleWidgetCancellation('Платёж был отменён в ЮKassa.'),
-          onComplete: () =>
-            this.notice.set('Платёж отправлен в обработку, ждём подтверждение webhook.'),
+          onComplete: () => undefined,
           onClose: () => this.handleWidgetCancellation('Виджет оплаты закрыт. Попробуйте снова.'),
           onError: (error) => this.handleWidgetError(error),
         },
       );
     } catch (error) {
-      this.state.set('error');
-      this.errorMessage.set(readErrorMessage(error, 'Не удалось создать платёж'));
+      const promoErrorMessage = readPromoErrorMessage(error);
+      if (promoErrorMessage) {
+        this.clearAppliedPromoState();
+        this.setPromoFeedback('error', promoErrorMessage);
+        return;
+      }
+
+      this.showErrorState(
+        'Не получилось открыть оплату',
+        'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
+        'Failed to start checkout payment',
+        error,
+      );
     } finally {
       this.loading.set(false);
     }
@@ -163,10 +246,12 @@ export class Checkout implements OnDestroy {
 
     this.state.set('ready');
     this.notice.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
     this.errorMessage.set('');
     this.confirmedAmount.set(null);
     this.paymentId.set(null);
     this.destroyWidget();
+    this.clearPromoFeedback();
   }
 
   protected readonly cabinetLink = '/notary';
@@ -186,7 +271,7 @@ export class Checkout implements OnDestroy {
       return;
     }
 
-    this.notice.set('Платёж подтверждён в виджете. Проверяем статус на сервере...');
+    this.notice.set('');
     this.state.set('processing');
     await this.confirmPayment(userId, paymentId);
   }
@@ -206,9 +291,12 @@ export class Checkout implements OnDestroy {
       return;
     }
 
-    this.state.set('error');
-    this.notice.set('');
-    this.errorMessage.set(readErrorMessage(error, 'Виджет ЮKassa завершился с ошибкой'));
+    this.showErrorState(
+      'Не получилось продолжить оплату',
+      'Мы не смогли завершить оплату через ЮKassa. Попробуйте открыть виджет ещё раз.',
+      'YooKassa widget error',
+      error,
+    );
   }
 
   private async confirmPayment(userId: string, paymentId: string): Promise<void> {
@@ -220,8 +308,12 @@ export class Checkout implements OnDestroy {
       });
       this.applyPaymentStatus(status);
     } catch (error) {
-      this.state.set('error');
-      this.errorMessage.set(readErrorMessage(error, 'Не удалось получить статус платежа'));
+      this.showErrorState(
+        'Не получилось подтвердить платёж',
+        'Мы не смогли получить актуальный статус платежа. Попробуйте запросить проверку ещё раз.',
+        'Failed to confirm payment status',
+        error,
+      );
     } finally {
       this.loading.set(false);
     }
@@ -247,9 +339,7 @@ export class Checkout implements OnDestroy {
       default:
         this.state.set('processing');
         this.errorMessage.set('');
-        this.notice.set(
-          'ЮKassa уже приняла платёж, но webhook ещё не обновил статус. Нажмите "Проверить ещё раз" через несколько секунд.',
-        );
+        this.notice.set('');
         return;
     }
   }
@@ -285,7 +375,7 @@ export class Checkout implements OnDestroy {
 
     this.paymentId.set(paymentId);
     this.state.set('processing');
-    this.notice.set('Возвращение из ЮKassa завершено. Проверяем финальный статус платежа...');
+    this.notice.set('');
     void this.confirmPayment(userId, paymentId);
   }
 
@@ -295,12 +385,45 @@ export class Checkout implements OnDestroy {
       return userId;
     }
 
-    this.state.set('error');
-    this.errorMessage.set(
-      'Сессия пользователя недоступна. Авторизуйтесь заново и повторите оплату.',
+    this.showErrorState(
+      'Нужно войти заново',
+      'Сессия истекла. Авторизуйтесь снова и повторите оплату.',
     );
     void this.router.navigateByUrl('/auth');
     return null;
+  }
+
+  private showErrorState(
+    title: string,
+    message: string,
+    logMessage?: string,
+    error?: unknown,
+  ): void {
+    if (logMessage) {
+      console.error(`[Checkout] ${logMessage}`, error);
+    }
+
+    this.state.set('error');
+    this.notice.set('');
+    this.errorTitle.set(title);
+    this.errorMessage.set(message);
+  }
+
+  private clearAppliedPromoState(): void {
+    this.appliedPromoCode.set('');
+    this.promoPreviewAmount.set(null);
+    this.promoDiscountAmount.set(null);
+    this.confirmedAmount.set(null);
+  }
+
+  private clearPromoFeedback(): void {
+    this.promoFeedback.set('');
+    this.promoFeedbackTone.set(null);
+  }
+
+  private setPromoFeedback(tone: 'success' | 'error', message: string): void {
+    this.promoFeedbackTone.set(tone);
+    this.promoFeedback.set(message);
   }
 
   private destroyWidget(): void {
@@ -314,9 +437,40 @@ function resolvePlanCode(rawPlan: string | null): SubscriptionPlanCode {
   return plan === 'premium' || plan === 'enterprise' ? plan : 'basic';
 }
 
-function readErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
+function normalizePromoCode(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function promoValidationMessage(status: CheckoutPromoValidationStatus): string {
+  switch (status) {
+    case 'expired':
+      return 'Срок действия этого промокода закончился.';
+    case 'usage_limit_reached':
+      return 'Этот промокод больше недоступен.';
+    case 'not_found':
+    default:
+      return 'Такой промокод не найден. Проверьте написание.';
   }
-  return fallback;
+}
+
+function readPromoErrorMessage(error: unknown): string | null {
+  if (!(error instanceof Error)) {
+    return null;
+  }
+
+  const message = error.message.trim();
+
+  if (message.includes('Promo code was not found')) {
+    return promoValidationMessage('not_found');
+  }
+
+  if (message.includes('Promo code has expired')) {
+    return promoValidationMessage('expired');
+  }
+
+  if (message.includes('Promo code usage limit has been reached')) {
+    return promoValidationMessage('usage_limit_reached');
+  }
+
+  return null;
 }

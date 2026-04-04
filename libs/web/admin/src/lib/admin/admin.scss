@@ -957,6 +957,56 @@
   box-shadow: 0 10px 22px rgb(185 28 28 / 18%);
 }
 
+.admin-wrapper .admin-crud-page .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-sm);
+
+  background: var(--admin-surface);
+}
+
+.admin-wrapper .admin-crud-page .filter-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  input,
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: var(--admin-radius-xs);
+
+    color: var(--admin-text);
+
+    background: var(--admin-surface);
+  }
+}
+
+.admin-wrapper .admin-crud-page .sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.8rem;
+}
+
+.admin-wrapper .admin-crud-page .pagination {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+
+  margin-top: 24px;
+
+  .page-info {
+    color: var(--admin-text-soft);
+  }
+}
+
 @keyframes admin-fade-in {
   from {
     opacity: 0;

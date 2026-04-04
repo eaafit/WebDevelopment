@@ -125,6 +125,7 @@ model User {
   signedReports     AssessmentReport[] @relation("SignedBy")
   notifications     Notification[]
   refreshTokens     RefreshToken[]
+  passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
 
   @@map("users")
@@ -250,6 +251,20 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id])
 
   @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar
+  expiresAt DateTime  @map("expires_at") @db.Timestamp()
+  usedAt    DateTime? @map("used_at") @db.Timestamp()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("password_resets")
+  @@index([userId])
 }
 
 model AuditLog {

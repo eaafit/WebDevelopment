@@ -59,7 +59,18 @@ export function getSubscriptionPlanByPrisma(
 }
 
 export function addSubscriptionMonths(startDate: Date, months: number): Date {
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + months);
-  return endDate;
+  const targetMonthStart = new Date(
+    Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + months, 1),
+  );
+  const lastDayOfTargetMonth = new Date(
+    Date.UTC(targetMonthStart.getUTCFullYear(), targetMonthStart.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+
+  return new Date(
+    Date.UTC(
+      targetMonthStart.getUTCFullYear(),
+      targetMonthStart.getUTCMonth(),
+      Math.min(startDate.getUTCDate(), lastDayOfTargetMonth),
+    ),
+  );
 }

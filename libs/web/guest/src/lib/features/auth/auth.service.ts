@@ -80,6 +80,32 @@ export class AuthService {
 
   // ─── Logout ──────────────────────────────────────────────────────────────
 
+  async forgotPassword(email: string): Promise<void> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      await this.client.forgotPassword({ email: email.trim() });
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      throw err;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      await this.client.resetPassword({ token, newPassword });
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      throw err;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
   async logout(): Promise<void> {
     const rt = this.tokenStore.getRefreshToken();
     if (rt) {

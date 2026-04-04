@@ -7,9 +7,9 @@
     </p>
   </div>
 
-  @if (notice()) {
-  <section class="card info-card status-banner">
-    <div class="card-title">Статус</div>
+  @if (notice() && state() === 'ready') {
+  <section class="card notice-banner" aria-live="polite">
+    <div class="notice-banner-label">Уведомление</div>
     <p class="m-0">{{ notice() }}</p>
   </section>
   } @if (state() === 'success') {
@@ -33,8 +33,9 @@
         <h2>{{ state() === 'widget' ? 'Оплата через ЮKassa' : 'Проверяем подтверждение платежа' }}</h2>
         <p class="text-sm m-0">
           @if (state() === 'widget') { Виджет открылся прямо на странице и занял всю рабочую область, чтобы шаг с вводом
-          карты и кодом подтверждения отображался аккуратно и без тесного сайдбара. } @else { Платёж уже отправлен в
-          обработку. Если webhook ещё не дошёл, можно вручную запросить повторную проверку статуса. }
+          карты и кодом подтверждения отображался аккуратно и без тесного сайдбара. } @else { Статус обновится
+          автоматически, как только ЮKassa пришлёт webhook. Если подтверждение задержалось, можно вручную запросить
+          повторную проверку. }
         </p>
       </div>
 
@@ -47,10 +48,15 @@
           <span>Период</span>
           <strong>{{ selectedPlan().periodLabel }}</strong>
         </div>
-        @if (promoCode().trim()) {
+        @if (appliedPromoCode().trim()) {
         <div class="widget-stage-summary-row">
           <span>Промокод</span>
-          <strong>{{ promoCode().trim() }}</strong>
+          <strong>{{ appliedPromoCode().trim() }}</strong>
+        </div>
+        } @if (promoDiscountAmount()) {
+        <div class="widget-stage-summary-row">
+          <span>Скидка</span>
+          <strong class="discount-value">-{{ formatPrice(promoDiscountAmount()!) }}</strong>
         </div>
         }
         <div class="widget-stage-summary-row total">
@@ -69,7 +75,7 @@
     </p>
     } @else {
     <div class="widget-processing">
-      <p class="m-0">Если статус не обновился автоматически, нажмите кнопку ниже через несколько секунд.</p>
+      <p class="m-0">Если через несколько секунд статус всё ещё не обновился, запустите ручную проверку.</p>
       <div class="state-actions">
         <button type="button" class="btn btn-outline" [disabled]="loading()" (click)="retryStatusCheck()">
           Проверить ещё раз
@@ -116,14 +122,27 @@
           <input
             type="text"
             class="form-input"
+            [class.is-invalid]="promoFeedbackTone() === 'error'"
             placeholder="Например, SPRING10"
-            [ngModel]="promoCode()"
-            (ngModelChange)="promoCode.set($event)"
-            [disabled]="isBusy()" />
-          <button type="button" class="btn btn-outline btn-sm" [disabled]="isBusy()" (click)="applyPromo()">
-            Применить
+            [ngModel]="promoInput()"
+            (ngModelChange)="updatePromoInput($event)"
+            [disabled]="isBusy() || promoLoading()" />
+          <button
+            type="button"
+            class="btn btn-outline btn-sm"
+            [disabled]="isBusy() || promoLoading()"
+            (click)="applyPromo()">
+            {{ promoLoading() ? 'Проверяем...' : 'Применить' }}
           </button>
         </div>
+        @if (promoFeedback()) {
+        <p
+          class="promo-feedback"
+          [class.is-error]="promoFeedbackTone() === 'error'"
+          [class.is-success]="promoFeedbackTone() === 'success'">
+          {{ promoFeedback() }}
+        </p>
+        }
       </section>
     </div>
 
@@ -138,10 +157,15 @@
           <span class="text-secondary">Период</span>
           <span class="text-bold">{{ selectedPlan().periodLabel }}</span>
         </div>
-        @if (promoCode().trim()) {
+        @if (appliedPromoCode().trim()) {
         <div class="summary-row">
           <span class="text-secondary">Промокод</span>
-          <span class="text-bold">{{ promoCode().trim() }}</span>
+          <span class="text-bold">{{ appliedPromoCode().trim() }}</span>
+        </div>
+        } @if (promoDiscountAmount()) {
+        <div class="summary-row">
+          <span class="text-secondary">Скидка</span>
+          <span class="text-bold discount-value">-{{ formatPrice(promoDiscountAmount()!) }}</span>
         </div>
         }
         <div class="summary-row total">
@@ -149,7 +173,11 @@
           <span class="text-primary">{{ displayAmountLabel() }}</span>
         </div>
 
-        <button type="button" class="btn btn-primary w-full mt-4" [disabled]="isBusy()" (click)="startPayment()">
+        <button
+          type="button"
+          class="btn btn-primary w-full mt-4"
+          [disabled]="isBusy() || promoLoading()"
+          (click)="startPayment()">
           {{ loading() ? 'Создаём платёж...' : state() === 'processing' ? 'Проверяем статус...' : 'Оплатить через
           ЮKassa' }}
         </button>
@@ -172,8 +200,11 @@
       </section>
       } @if (state() === 'error') {
       <section class="card state-card error-card">
-        <div class="card-title">Не удалось начать оплату</div>
-        <p>{{ errorMessage() }}</p>
+        <div class="state-card-copy">
+          <p class="state-card-eyebrow error-card-eyebrow">Нужна повторная попытка</p>
+          <h2>{{ errorTitle() }}</h2>
+          <p class="m-0">{{ errorMessage() }}</p>
+        </div>
         <div class="state-actions">
           <button type="button" class="btn btn-primary" [disabled]="isBusy()" (click)="resetCheckout()">
             Повторить

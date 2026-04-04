@@ -9,11 +9,14 @@ import { ReportModule } from '@internal/report';
 import { UserModule } from '@internal/user';
 import { PrismaModule } from '@internal/prisma';
 import { ConnectRouterRegistry } from './connect-router.registry';
+import { MailModule } from './mail.module';
+import { PaymentAttachmentController } from './payment-attachment.controller';
 
 @Module({
   imports: [
     PrismaModule,
     MetricsModule,
+    MailModule,
     AuthModule,
     AssessmentModule,
     BillingModule,
@@ -22,6 +25,7 @@ import { ConnectRouterRegistry } from './connect-router.registry';
     ReportModule,
     UserModule,
   ],
+  controllers: [PaymentAttachmentController],
   providers: [ConnectRouterRegistry],
 })
 export class AppModule {}
