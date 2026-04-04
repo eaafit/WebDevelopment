@@ -1,0 +1,11 @@
+# Provision dashboards from JSON files in this directory.
+apiVersion: 1
+providers:
+  - name: 'Notarius'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

@@ -1,0 +1,104 @@
+:host {
+  display: block;
+}
+
+.status-card {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.status-card-title {
+  margin-bottom: 0;
+}
+
+.status-card-description {
+  margin: 0.5rem 0 0;
+  color: var(--text-secondary);
+}
+
+.status-card-current {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+
+  margin-top: 1rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-round);
+
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-badge-current {
+  color: #fff;
+  background: var(--primary);
+}
+
+.status-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+
+  margin: 1rem 0 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.status-step {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 40px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+
+  color: var(--text-secondary);
+  text-align: center;
+
+  background: #fff;
+}
+
+.status-step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-light);
+}
+
+.status-step-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.status-step-done {
+  border-color: rgb(79 70 229 / 25%);
+  color: var(--text-main);
+  background: rgb(79 70 229 / 8%);
+}
+
+.status-step-done .status-step-dot {
+  background: var(--primary);
+}
+
+@media (width <= 760px) {
+  .status-steps {
+    grid-template-columns: 1fr;
+  }
+}

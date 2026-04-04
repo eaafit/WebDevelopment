@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package notary.document.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service DocumentService {
+  rpc CreateDocument(CreateDocumentRequest) returns (CreateDocumentResponse);
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  rpc ListDocumentsByAssessment(ListDocumentsByAssessmentRequest) returns (ListDocumentsByAssessmentResponse);
+}
+
+message Document {
+  string id = 1;
+  string assessment_id = 2;
+  string file_name = 3;
+  string file_type = 4;
+  string file_path = 5;
+  int32 version = 6;
+  google.protobuf.Timestamp uploaded_at = 7;
+  string uploaded_by_id = 8;
+}
+
+message CreateDocumentRequest {
+  string assessment_id = 1;
+  string file_name = 2;
+  string file_type = 3;
+  string file_path = 4;
+  string uploaded_by_id = 5;
+}
+
+message CreateDocumentResponse {
+  Document document = 1;
+}
+
+message GetDocumentRequest {
+  string id = 1;
+}
+
+message GetDocumentResponse {
+  Document document = 1;
+}
+
+message ListDocumentsByAssessmentRequest {
+  string assessment_id = 1;
+  notary.common.v1alpha1.PaginationParams pagination = 2;
+}
+
+message ListDocumentsByAssessmentResponse {
+  repeated Document documents = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}

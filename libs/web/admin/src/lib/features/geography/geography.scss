@@ -1,0 +1,50 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.geography-page {
+  min-width: 0;
+}
+
+.geography-page__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+
+.geography-field {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+
+.geography-page__map-wrap {
+  overflow: hidden;
+  min-height: 400px;
+}
+
+.geography-map {
+  width: 100%;
+  height: 500px;
+}
+
+::ng-deep .geography-popup-container .leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+::ng-deep .geography-popup-container .leaflet-popup-content {
+  min-width: 200px;
+  margin: 0.75rem 1rem;
+}
+
+.geography-popup a {
+  font-size: 0.875rem;
+  color: var(--admin-accent);
+}
+
+@media (width <= 640px) {
+  .geography-field {
+    flex-basis: 100%;
+  }
+}

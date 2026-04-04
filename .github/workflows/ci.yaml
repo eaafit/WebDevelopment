@@ -16,9 +16,6 @@ permissions:
   actions: read
   contents: read
 
-env:
-      NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-
 jobs:
   code-quality:
     runs-on: ubuntu-latest

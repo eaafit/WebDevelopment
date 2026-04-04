@@ -1,0 +1,14 @@
+# Scrape API metrics. When API runs on host, use host.docker.internal (Windows/Mac).
+# When API runs in Docker as service "api", use api:3000.
+scrape_configs:
+  - job_name: 'api'
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+    metrics_path: /metrics
+    scrape_interval: 15s

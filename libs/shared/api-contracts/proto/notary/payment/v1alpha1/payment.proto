@@ -2,15 +2,17 @@ syntax = "proto3";
 
 package notary.payment.v1alpha1;
 
-import "google/protobuf/timestamp.proto";
 import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
 import "notary/common/v1alpha1/common.proto";
 
 service PaymentService {
-  rpc CreatePayment (CreatePaymentRequest) returns (CreatePaymentResponse);
-  rpc ProcessWebhook (ProcessWebhookRequest) returns (ProcessWebhookResponse);
-  rpc GetPaymentHistory (GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
-  rpc GetSubscription (GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc ValidateSubscriptionPromo(ValidateSubscriptionPromoRequest) returns (ValidateSubscriptionPromoResponse);
+  rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
+  rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
+  rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
+  rpc CreateSubscription(CreateSubscriptionRequest) returns (CreateSubscriptionResponse);
 }
 
 enum SubscriptionPlan {
@@ -35,14 +37,28 @@ enum PaymentType {
   PAYMENT_TYPE_DOCUMENT_COPY = 3;
 }
 
+enum PromoValidationStatus {
+  PROMO_VALIDATION_STATUS_UNSPECIFIED = 0;
+  PROMO_VALIDATION_STATUS_VALID = 1;
+  PROMO_VALIDATION_STATUS_NOT_FOUND = 2;
+  PROMO_VALIDATION_STATUS_EXPIRED = 3;
+  PROMO_VALIDATION_STATUS_USAGE_LIMIT_REACHED = 4;
+}
+
 message Payment {
   string id = 1;
   string user_id = 2;
-  string amount = 3;
+  PaymentType type = 3;
   PaymentStatus status = 4;
   google.protobuf.Timestamp payment_date = 5;
   string transaction_id = 6;
-  string attachment_url = 7;
+  notary.common.v1alpha1.Money amount = 7;
+  string description = 8;
+  string payment_method = 9;
+  string attachment_file_name = 10;
+  string attachment_file_url = 11;
+  string subscription_id = 12;
+  string assessment_id = 13;
 }
 
 message Subscription {
@@ -58,22 +74,56 @@ message CreatePaymentRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
 
   string amount = 2 [(buf.validate.field).string = {
-    pattern: "^[0-9]+(\\.[0-9]{1,2})?$",
+    pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
     min_len: 1
   }];
 
   PaymentType type = 3 [(buf.validate.field).enum = {
-      defined_only: true,
-      not_in: [0]
+    defined_only: true
+    not_in: [0]
   }];
 
   string target_id = 4 [(buf.validate.field).string.uuid = true];
   string promo_code = 5 [(buf.validate.field).string.max_len = 20];
 }
 
+message PaymentWidgetInit {
+  string provider = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  string confirmation_token = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 2048
+  }];
+  string return_url = 3 [(buf.validate.field).string.uri = true];
+}
+
 message CreatePaymentResponse {
-  string payment_url = 1 [(buf.validate.field).string.uri = true];
+  optional string payment_url = 1 [(buf.validate.field).string.uri = true];
   string payment_id = 2 [(buf.validate.field).string.uuid = true];
+  PaymentWidgetInit widget = 3;
+  notary.common.v1alpha1.Money amount = 4;
+}
+
+message ValidateSubscriptionPromoRequest {
+  SubscriptionPlan plan = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string promo_code = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 20
+  }];
+}
+
+message ValidateSubscriptionPromoResponse {
+  PromoValidationStatus status = 1;
+  string promo_code = 2 [(buf.validate.field).string.max_len = 20];
+  notary.common.v1alpha1.Money base_amount = 3;
+  notary.common.v1alpha1.Money final_amount = 4;
+  notary.common.v1alpha1.Money discount_amount = 5;
+  string discount_percent = 6 [(buf.validate.field).string.max_len = 16];
 }
 
 message ProcessWebhookRequest {
@@ -86,8 +136,9 @@ message ProcessWebhookResponse {
 }
 
 message GetPaymentHistoryRequest {
-  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  optional string user_id = 1 [(buf.validate.field).string.uuid = true];
   notary.common.v1alpha1.PaginationParams pagination = 2 [(buf.validate.field).required = true];
+  PaymentHistoryFilters filters = 3;
 }
 
 message GetPaymentHistoryResponse {
@@ -95,10 +146,31 @@ message GetPaymentHistoryResponse {
   notary.common.v1alpha1.PaginationMeta meta = 2;
 }
 
+message PaymentHistoryFilters {
+  string search_query = 1 [(buf.validate.field).string.max_len = 120];
+  repeated PaymentStatus statuses = 2;
+  repeated PaymentType types = 3;
+  notary.common.v1alpha1.DateRange payment_date_range = 4;
+}
+
 message GetSubscriptionRequest {
   string user_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message GetSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message CreateSubscriptionRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  SubscriptionPlan plan = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp end_date = 4 [(buf.validate.field).required = true];
+}
+
+message CreateSubscriptionResponse {
   Subscription subscription = 1;
 }

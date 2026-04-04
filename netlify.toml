@@ -1,6 +1,5 @@
 [build]
-  command = "npx nx build web --prod"
-
+  command = "pnpm nx build web --prod"
   publish = "dist/apps/web/browser"
 
 [[redirects]]
@@ -10,3 +9,5 @@
 
 [build.environment]
   NODE_VERSION = "24"
+  NX_NO_CLOUD = "true"
+  NX_DAEMON = "false"

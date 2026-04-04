@@ -1,0 +1,219 @@
+<div class="container checkout-shell">
+  <div class="mb-4">
+    <a routerLink="/notary/subscription" class="link text-sm mb-2 back-link">← Вернуться</a>
+    <h1>Оформление подписки</h1>
+    <p class="text-sm">
+      Выберите тариф, при необходимости добавьте промокод и оплатите подписку через официальный виджет ЮKassa.
+    </p>
+  </div>
+
+  @if (notice() && state() === 'ready') {
+  <section class="card notice-banner" aria-live="polite">
+    <div class="notice-banner-label">Уведомление</div>
+    <p class="m-0">{{ notice() }}</p>
+  </section>
+  } @if (state() === 'success') {
+  <section class="card state-card state-card-standalone success-card">
+    <div class="card-title">Оплата прошла успешно</div>
+    <p>
+      Подписка <strong>{{ selectedPlan().title }}</strong> активирована. Платёж подтверждён, а статус в системе
+      обновлён.
+    </p>
+    <div class="summary-row total compact">
+      <span>Оплачено</span>
+      <span class="text-primary">{{ displayAmountLabel() }}</span>
+    </div>
+    <a [routerLink]="cabinetLink" class="btn btn-primary">Перейти в кабинет</a>
+  </section>
+  } @else if (state() === 'widget' || state() === 'processing') {
+  <section class="card widget-stage" [class.is-processing]="state() === 'processing'">
+    <div class="widget-stage-intro">
+      <div class="widget-stage-copy">
+        <p class="widget-stage-eyebrow">Защищённая оплата</p>
+        <h2>{{ state() === 'widget' ? 'Оплата через ЮKassa' : 'Проверяем подтверждение платежа' }}</h2>
+        <p class="text-sm m-0">
+          @if (state() === 'widget') { Виджет открылся прямо на странице и занял всю рабочую область, чтобы шаг с вводом
+          карты и кодом подтверждения отображался аккуратно и без тесного сайдбара. } @else { Статус обновится
+          автоматически, как только ЮKassa пришлёт webhook. Если подтверждение задержалось, можно вручную запросить
+          повторную проверку. }
+        </p>
+      </div>
+
+      <div class="widget-stage-summary">
+        <div class="widget-stage-summary-row">
+          <span>Тариф</span>
+          <strong>{{ selectedPlan().title }}</strong>
+        </div>
+        <div class="widget-stage-summary-row">
+          <span>Период</span>
+          <strong>{{ selectedPlan().periodLabel }}</strong>
+        </div>
+        @if (appliedPromoCode().trim()) {
+        <div class="widget-stage-summary-row">
+          <span>Промокод</span>
+          <strong>{{ appliedPromoCode().trim() }}</strong>
+        </div>
+        } @if (promoDiscountAmount()) {
+        <div class="widget-stage-summary-row">
+          <span>Скидка</span>
+          <strong class="discount-value">-{{ formatPrice(promoDiscountAmount()!) }}</strong>
+        </div>
+        }
+        <div class="widget-stage-summary-row total">
+          <span>Итого</span>
+          <strong class="text-primary">{{ displayAmountLabel() }}</strong>
+        </div>
+      </div>
+    </div>
+
+    @if (state() === 'widget') {
+    <div class="widget-frame">
+      <div id="yookassa-widget-host" class="widget-host"></div>
+    </div>
+    <p class="text-sm text-center text-xs widget-stage-caption">
+      Карточные данные и код подтверждения остаются только внутри защищённого интерфейса ЮKassa.
+    </p>
+    } @else {
+    <div class="widget-processing">
+      <p class="m-0">Если через несколько секунд статус всё ещё не обновился, запустите ручную проверку.</p>
+      <div class="state-actions">
+        <button type="button" class="btn btn-outline" [disabled]="loading()" (click)="retryStatusCheck()">
+          Проверить ещё раз
+        </button>
+        <a [routerLink]="cabinetLink" class="btn btn-outline">В кабинет</a>
+      </div>
+    </div>
+    }
+  </section>
+  } @else {
+  <div class="grid-checkout">
+    <div class="flex-col gap-4">
+      <section class="card">
+        <div class="card-title">1. Тариф</div>
+        <div class="plan-grid">
+          @for (plan of plans; track plan.code) {
+          <button
+            type="button"
+            class="tariff-card"
+            [class.selected]="selectedPlanCode() === plan.code"
+            [disabled]="isBusy()"
+            (click)="selectPlan(plan.code)">
+            <div class="plan-copy">
+              <div class="plan-heading">
+                <h3>{{ plan.title }}</h3>
+                <span class="plan-chip">{{ plan.periodLabel }}</span>
+              </div>
+              <p class="text-sm">{{ plan.subtitle }}</p>
+              <ul class="plan-features">
+                @for (feature of plan.features; track feature) {
+                <li>{{ feature }}</li>
+                }
+              </ul>
+            </div>
+            <div class="plan-price">{{ formatPrice(plan.price) }}</div>
+          </button>
+          }
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">2. Промокод</div>
+        <div class="promo-row">
+          <input
+            type="text"
+            class="form-input"
+            [class.is-invalid]="promoFeedbackTone() === 'error'"
+            placeholder="Например, SPRING10"
+            [ngModel]="promoInput()"
+            (ngModelChange)="updatePromoInput($event)"
+            [disabled]="isBusy() || promoLoading()" />
+          <button
+            type="button"
+            class="btn btn-outline btn-sm"
+            [disabled]="isBusy() || promoLoading()"
+            (click)="applyPromo()">
+            {{ promoLoading() ? 'Проверяем...' : 'Применить' }}
+          </button>
+        </div>
+        @if (promoFeedback()) {
+        <p
+          class="promo-feedback"
+          [class.is-error]="promoFeedbackTone() === 'error'"
+          [class.is-success]="promoFeedbackTone() === 'success'">
+          {{ promoFeedback() }}
+        </p>
+        }
+      </section>
+    </div>
+
+    <div class="flex-col gap-4">
+      <section class="card summary-card">
+        <div class="card-title">Сводка заказа</div>
+        <div class="summary-row">
+          <span class="text-secondary">Тариф</span>
+          <span class="text-bold">{{ selectedPlan().title }}</span>
+        </div>
+        <div class="summary-row">
+          <span class="text-secondary">Период</span>
+          <span class="text-bold">{{ selectedPlan().periodLabel }}</span>
+        </div>
+        @if (appliedPromoCode().trim()) {
+        <div class="summary-row">
+          <span class="text-secondary">Промокод</span>
+          <span class="text-bold">{{ appliedPromoCode().trim() }}</span>
+        </div>
+        } @if (promoDiscountAmount()) {
+        <div class="summary-row">
+          <span class="text-secondary">Скидка</span>
+          <span class="text-bold discount-value">-{{ formatPrice(promoDiscountAmount()!) }}</span>
+        </div>
+        }
+        <div class="summary-row total">
+          <span>Итого</span>
+          <span class="text-primary">{{ displayAmountLabel() }}</span>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary w-full mt-4"
+          [disabled]="isBusy() || promoLoading()"
+          (click)="startPayment()">
+          {{ loading() ? 'Создаём платёж...' : state() === 'processing' ? 'Проверяем статус...' : 'Оплатить через
+          ЮKassa' }}
+        </button>
+        <p class="text-sm text-center mt-4 text-xs summary-caption">
+          Нажимая кнопку, вы открываете защищённый виджет ЮKassa. Карточные данные остаются только у платёжного
+          провайдера.
+        </p>
+      </section>
+
+      @if (state() === 'cancelled') {
+      <section class="card state-card cancel-card">
+        <div class="card-title">Платёж не завершён</div>
+        <p>{{ errorMessage() }}</p>
+        <div class="state-actions">
+          <button type="button" class="btn btn-primary" [disabled]="isBusy()" (click)="resetCheckout()">
+            Попробовать снова
+          </button>
+          <a [routerLink]="cabinetLink" class="btn btn-outline">В кабинет</a>
+        </div>
+      </section>
+      } @if (state() === 'error') {
+      <section class="card state-card error-card">
+        <div class="state-card-copy">
+          <p class="state-card-eyebrow error-card-eyebrow">Нужна повторная попытка</p>
+          <h2>{{ errorTitle() }}</h2>
+          <p class="m-0">{{ errorMessage() }}</p>
+        </div>
+        <div class="state-actions">
+          <button type="button" class="btn btn-primary" [disabled]="isBusy()" (click)="resetCheckout()">
+            Повторить
+          </button>
+          <a [routerLink]="cabinetLink" class="btn btn-outline">В кабинет</a>
+        </div>
+      </section>
+      }
+    </div>
+  </div>
+  }
+</div>

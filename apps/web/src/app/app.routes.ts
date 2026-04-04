@@ -1,22 +1,26 @@
 import { Route } from '@angular/router';
+import { guestRoutes } from '@notary-portal/guest';
+import { authGuard, roleGuard } from '@notary-portal/ui';
+import { UserRole } from '@notary-portal/ui';
 
 export const appRoutes: Route[] = [
   {
-    path: 'auth',
-    loadComponent: () => import('./features/auth/login/login').then((m) => m.LoginComponent),
-  },
-  {
-    path: 'payment-history',
-    loadComponent: () =>
-      import('./features/payments/payment-history/payment-history').then((m) => m.PaymentHistory),
-  },
-  {
     path: '',
-    pathMatch: 'full',
-    loadComponent: () => import('./landing-page/landing-page').then((m) => m.LandingPage),
+    children: guestRoutes,
   },
   {
-    path: '**',
-    redirectTo: 'auth',
+    path: 'applicant',
+    canActivate: [authGuard, roleGuard(UserRole.Applicant)],
+    loadChildren: () => import('@notary-portal/applicant').then((m) => m.applicantRoutes),
+  },
+  {
+    path: 'notary',
+    canActivate: [authGuard, roleGuard(UserRole.Notary)],
+    loadChildren: () => import('@notary-portal/notary').then((m) => m.notaryRoutes),
+  },
+  {
+    path: 'admin',
+    canActivate: [authGuard, roleGuard(UserRole.Admin)],
+    loadChildren: () => import('@notary-portal/admin').then((m) => m.adminRoutes),
   },
 ];

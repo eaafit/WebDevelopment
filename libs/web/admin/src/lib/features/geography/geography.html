@@ -1,0 +1,53 @@
+<section class="admin-page geography-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Администратор / география</p>
+      <h2>География объектов оценки</h2>
+      <p class="admin-page__lead">Объекты оценки (заявки) на карте. Клик по маркеру — информация и переход к заявке.</p>
+    </div>
+    <div class="admin-page__actions">
+      <button type="button" class="admin-btn admin-btn--ghost" (click)="resetFilters()">Сбросить фильтры</button>
+    </div>
+  </header>
+
+  <section class="admin-card geography-page__filters-card">
+    <div class="admin-card__body geography-page__filters">
+      <label class="admin-field geography-field" for="geo-filter-status">
+        <span>Статус</span>
+        <select id="geo-filter-status" [value]="filters().status" (change)="setStatus($any($event.target).value)">
+          @for (opt of statusOptions; track opt.id) {
+          <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="admin-field geography-field" for="geo-filter-date-from">
+        <span>Дата от</span>
+        <input
+          id="geo-filter-date-from"
+          type="date"
+          [value]="filters().dateFrom"
+          (input)="setDateFrom($any($event.target).value)" />
+      </label>
+      <label class="admin-field geography-field" for="geo-filter-date-to">
+        <span>Дата до</span>
+        <input
+          id="geo-filter-date-to"
+          type="date"
+          [value]="filters().dateTo"
+          (input)="setDateTo($any($event.target).value)" />
+      </label>
+    </div>
+  </section>
+
+  <div class="admin-card geography-page__map-wrap">
+    <div
+      class="geography-map"
+      leaflet
+      [leafletOptions]="mapOptions"
+      [leafletCenter]="center"
+      [leafletZoom]="zoom"
+      (leafletMapReady)="onMapReady($event)">
+      <div [leafletLayers]="layers()"></div>
+    </div>
+  </div>
+</section>

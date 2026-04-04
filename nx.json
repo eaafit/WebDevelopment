@@ -14,7 +14,7 @@
     ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
-  "nxCloudId": "6990880347cf8ef3dc850ece",
+  "neverConnectToCloud": true,
   "plugins": [
     {
       "plugin": "@nx/webpack/plugin",
@@ -53,12 +53,11 @@
       "inputs": ["production", "^production"],
       "outputs": ["{projectRoot}/dist", "{workspaceRoot}/dist/{projectRoot}"]
     },
-
     "test": {
       "cache": true,
+      "dependsOn": ["^generate-proto"],
       "inputs": ["default", "^default", "{workspaceRoot}/jest.config.ts"]
     },
-
     "lint": {
       "cache": true,
       "inputs": ["default", "{workspaceRoot}/.eslintrc.json", "{workspaceRoot}/.eslintignore"]
@@ -67,14 +66,12 @@
       "cache": true,
       "inputs": ["default", "{workspaceRoot}/.stylelintrc(/.json|/.js|/.yml)?"]
     },
-
     "lint-proto": {
       "cache": true
     },
     "breaking-proto": {
       "cache": true
     },
-
     "@angular/build:application": {
       "cache": true,
       "dependsOn": ["^build"],
@@ -88,10 +85,18 @@
   },
   "generators": {
     "@nx/angular:application": {
+      "style": "scss",
       "e2eTestRunner": "none",
       "linter": "eslint",
-      "style": "scss",
       "unitTestRunner": "jest"
+    },
+    "@nx/angular:component": {
+      "style": "scss"
+    },
+    "@nx/angular:library": {
+      "linter": "eslint",
+      "unitTestRunner": "jest",
+      "style": "scss"
     }
   }
 }

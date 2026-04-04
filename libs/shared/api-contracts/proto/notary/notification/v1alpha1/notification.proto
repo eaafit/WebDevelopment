@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package notary.notification.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
+  rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse);
+}
+
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_EMAIL = 1;
+  NOTIFICATION_TYPE_SMS = 2;
+  NOTIFICATION_TYPE_PUSH = 3;
+}
+
+enum NotificationStatus {
+  NOTIFICATION_STATUS_UNSPECIFIED = 0;
+  NOTIFICATION_STATUS_PENDING = 1;
+  NOTIFICATION_STATUS_SENT = 2;
+  NOTIFICATION_STATUS_FAILED = 3;
+}
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  NotificationType type = 3;
+  string message = 4;
+  google.protobuf.Timestamp sent_at = 5;
+  optional google.protobuf.Timestamp read_at = 6;
+  NotificationStatus status = 7;
+}
+
+message NotificationFilters {
+  repeated NotificationType types = 1;
+  repeated NotificationStatus statuses = 2;
+  bool unread_only = 3;
+}
+
+message ListNotificationsRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+  notary.common.v1alpha1.PaginationParams pagination = 2 [(buf.validate.field).required = true];
+  NotificationFilters filters = 3;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+  int32 unread_count = 3;
+}
+
+message MarkAsReadRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkAsReadResponse {
+  Notification notification = 1;
+}
+
+message MarkAllAsReadRequest {
+  string user_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message MarkAllAsReadResponse {
+  int32 updated_count = 1;
+}
+
+message DeleteNotificationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeleteNotificationResponse {
+  bool success = 1;
+}
