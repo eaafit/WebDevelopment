@@ -17,6 +17,10 @@ export const guestRoutes: Route[] = [
         loadComponent: () => import('./features/auth/login/login').then((m) => m.Login),
       },
       {
+        path: 'password-restore',
+        loadComponent: () => import('./features/password-restore/password-restore').then((m) => m.PasswordRestore),
+      },
+      {
         path: 'transactions',
         component: TransactionTable,
       },

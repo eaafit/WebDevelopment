@@ -26,6 +26,20 @@
   border-radius: 0.75rem;
 }
 
+.login__restore-link {
+  width: min(100%, 24rem);
+  margin-top: -0.25rem;
+  color: #295a8a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: right;
+  text-decoration: none;
+}
+
+.login__restore-link:hover {
+  text-decoration: underline;
+}
+
 .role-list {
   display: flex;
   flex-direction: column;
