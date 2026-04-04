@@ -9,22 +9,6 @@ service DocumentService {
   rpc CreateDocument(CreateDocumentRequest) returns (CreateDocumentResponse);
   rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
   rpc ListDocumentsByAssessment(ListDocumentsByAssessmentRequest) returns (ListDocumentsByAssessmentResponse);
-  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
-}
-
-enum DocumentType {
-  DOCUMENT_TYPE_UNSPECIFIED = 0;
-  DOCUMENT_TYPE_PASSPORT = 1;
-  DOCUMENT_TYPE_PROPERTY_DEED = 2;
-  DOCUMENT_TYPE_TECHNICAL_PLAN = 3;
-  DOCUMENT_TYPE_CADASTRAL_PASSPORT = 4;
-  DOCUMENT_TYPE_PHOTO = 5;
-  DOCUMENT_TYPE_OTHER = 6;
-}
-
-message DocumentFilters {
-  DocumentType document_type = 1;
-  optional string uploaded_by_id = 2;
 }
 
 message Document {
@@ -36,7 +20,6 @@ message Document {
   int32 version = 6;
   google.protobuf.Timestamp uploaded_at = 7;
   string uploaded_by_id = 8;
-  DocumentType document_type = 9;
 }
 
 message CreateDocumentRequest {
@@ -45,7 +28,6 @@ message CreateDocumentRequest {
   string file_type = 3;
   string file_path = 4;
   string uploaded_by_id = 5;
-  DocumentType document_type = 6;
 }
 
 message CreateDocumentResponse {
@@ -63,18 +45,9 @@ message GetDocumentResponse {
 message ListDocumentsByAssessmentRequest {
   string assessment_id = 1;
   notary.common.v1alpha1.PaginationParams pagination = 2;
-  DocumentFilters filters = 3;
 }
 
 message ListDocumentsByAssessmentResponse {
   repeated Document documents = 1;
   notary.common.v1alpha1.PaginationMeta meta = 2;
-}
-
-message DeleteDocumentRequest {
-  string id = 1;
-}
-
-message DeleteDocumentResponse {
-  bool success = 1;
 }

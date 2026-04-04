@@ -27,7 +27,6 @@ message SaveAssessmentFormRequest {
   string user_id = 2;
   string address = 3;
   string description = 4;
-  notary.assessment.v1alpha1.RealEstateObjectInput real_estate_object = 5;
 }
 
 message SaveAssessmentFormResponse {
@@ -54,7 +53,6 @@ message SaveDocumentFormRequest {
   string file_type = 3;
   string file_path = 4;
   string uploaded_by_id = 5;
-  notary.document.v1alpha1.DocumentType document_type = 6;
 }
 
 message SaveDocumentFormResponse {
