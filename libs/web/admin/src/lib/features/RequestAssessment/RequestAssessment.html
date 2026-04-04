@@ -68,10 +68,12 @@
               </span>
             </td>
             <td>{{ formatDate(user.createdAt) }}</td>
-            <td class="actions">
-              <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
-              <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
-              <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
+            <td>
+              <div class="actions">
+                <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
+                <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
+                <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
+              </div>
             </td>
           </tr>
           }
@@ -96,214 +98,227 @@
 
   <!-- СТРАНИЦА ПРОСМОТРА -->
   @if (currentView === 'detail' && selectedUser) {
-  <div class="view-container">
-    <div class="list-header">
-      <h2>Информация о пользователе</h2>
+  <div class="admin-card view-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Информация о пользователе</h3>
+      </div>
       <button class="btn btn-secondary" (click)="backToList()">← Назад</button>
     </div>
 
-    <div class="view-details">
-      <div class="detail-row">
-        <div class="detail-label">ID:</div>
-        <div class="detail-value">{{ selectedUser.id }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Фамилия:</div>
-        <div class="detail-value">{{ selectedUser.lastName }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Имя:</div>
-        <div class="detail-value">{{ selectedUser.firstName }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Отчество:</div>
-        <div class="detail-value">{{ selectedUser.middleName }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Подписка:</div>
-        <div class="detail-value">{{ selectedUser.subscriptionPlan }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Email:</div>
-        <div class="detail-value">{{ selectedUser.email }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Телефон:</div>
-        <div class="detail-value">{{ selectedUser.phoneNumber }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Роль:</div>
-        <div class="detail-value">
-          <span class="badge" [ngClass]="getRoleBadgeClass(selectedUser.role)">
-            {{ getRoleLabel(selectedUser.role) }}
-          </span>
+    <div class="admin-card__body">
+      <div class="view-details">
+        <div class="detail-row">
+          <div class="detail-label">ID:</div>
+          <div class="detail-value">{{ selectedUser.id }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Фамилия:</div>
+          <div class="detail-value">{{ selectedUser.lastName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Имя:</div>
+          <div class="detail-value">{{ selectedUser.firstName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Отчество:</div>
+          <div class="detail-value">{{ selectedUser.middleName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Подписка:</div>
+          <div class="detail-value">{{ selectedUser.subscriptionPlan }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Email:</div>
+          <div class="detail-value">{{ selectedUser.email }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Телефон:</div>
+          <div class="detail-value">{{ selectedUser.phoneNumber }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Роль:</div>
+          <div class="detail-value">
+            <span class="badge" [ngClass]="getRoleBadgeClass(selectedUser.role)">
+              {{ getRoleLabel(selectedUser.role) }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Статус:</div>
+          <div class="detail-value">
+            <span class="badge" [ngClass]="selectedUser.isActive ? 'badge-success' : 'badge-danger'">
+              {{ selectedUser.isActive ? 'Активен' : 'Заблокирован' }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Дата регистрации:</div>
+          <div class="detail-value">{{ formatDate(selectedUser.createdAt) }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Последнее обновление:</div>
+          <div class="detail-value">{{ formatDate(selectedUser.updatedAt) }}</div>
         </div>
       </div>
-      <div class="detail-row">
-        <div class="detail-label">Статус:</div>
-        <div class="detail-value">
-          <span class="badge" [ngClass]="selectedUser.isActive ? 'badge-success' : 'badge-danger'">
-            {{ selectedUser.isActive ? 'Активен' : 'Заблокирован' }}
-          </span>
-        </div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Дата регистрации:</div>
-        <div class="detail-value">{{ formatDate(selectedUser.createdAt) }}</div>
-      </div>
-      <div class="detail-row">
-        <div class="detail-label">Последнее обновление:</div>
-        <div class="detail-value">{{ formatDate(selectedUser.updatedAt) }}</div>
+
+      <div class="view-card-actions">
+        <button class="btn btn-primary" (click)="editFromView()">✏️ Редактировать</button>
+        <button class="btn btn-danger" (click)="deleteFromView()">🗑️ Удалить</button>
       </div>
     </div>
+  </div>
+  }
 
-    <div class="form-actions">
-      <button class="btn btn-primary" (click)="editFromView()">✏️ Редактировать</button>
-      <button class="btn btn-danger" (click)="deleteFromView()">🗑️ Удалить</button>
+  <!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
+  @if (showUserModal) {
+  <div class="modal-overlay" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
+    <div
+      class="modal modal-form"
+      role="document"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
+        <button class="close-btn" (click)="closeUserModal()">&times;</button>
+      </div>
+
+      <form (ngSubmit)="saveUser()">
+        <div class="form-group">
+          <label class="required" for="lastName">Фамилия</label>
+          <input
+            type="text"
+            id="lastName"
+            [class.error]="formErrors['lastName']"
+            [(ngModel)]="formData.lastName"
+            name="lastName" />
+          @if (formErrors['lastName']) {
+          <div class="form-error active">{{ formErrors['lastName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="firstName">Имя</label>
+          <input
+            type="text"
+            id="firstName"
+            [class.error]="formErrors['firstName']"
+            [(ngModel)]="formData.firstName"
+            name="firstName" />
+          @if (formErrors['firstName']) {
+          <div class="form-error active">{{ formErrors['firstName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="middleName">Отчество</label>
+          <input
+            type="text"
+            id="middleName"
+            [class.error]="formErrors['middleName']"
+            [(ngModel)]="formData.middleName"
+            name="middleName" />
+          @if (formErrors['middleName']) {
+          <div class="form-error active">{{ formErrors['middleName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            [class.error]="formErrors['email']"
+            [(ngModel)]="formData.email"
+            name="email" />
+          @if (formErrors['email']) {
+          <div class="form-error active">{{ formErrors['email'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="phoneNumber">Телефон</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            [class.error]="formErrors['phoneNumber']"
+            placeholder="+7 (___) ___-__-__"
+            [(ngModel)]="formData.phoneNumber"
+            name="phoneNumber" />
+          @if (formErrors['phoneNumber']) {
+          <div class="form-error active">{{ formErrors['phoneNumber'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="subscriptionPlan">Подписка</label>
+          <select
+            id="subscriptionPlan"
+            [class.error]="formErrors['subscriptionPlan']"
+            [(ngModel)]="formData.subscriptionPlan"
+            name="subscriptionPlan">
+            <option value="" disabled>Выберите план</option>
+            <option value="Basic">Basic</option>
+            <option value="Premium">Premium</option>
+            <option value="Enterprise">Enterprise</option>
+          </select>
+          @if (formErrors['subscriptionPlan']) {
+          <div class="form-error active">{{ formErrors['subscriptionPlan'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="role">Роль</label>
+          <select id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
+            <option value="" disabled>Выберите роль</option>
+            <option value="Applicant">Заявитель</option>
+            <option value="Notary">Нотариус</option>
+            <option value="Admin">Администратор</option>
+          </select>
+          @if (formErrors['role']) {
+          <div class="form-error active">{{ formErrors['role'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="isActive">Статус</label>
+          <div class="toggle-switch">
+            <label class="switch">
+              <input type="checkbox" id="isActive" [checked]="formData.isActive" (change)="onStatusToggle()" />
+              <span class="slider"></span>
+            </label>
+            <span>{{ formData.isActive ? 'Активен' : 'Заблокирован' }}</span>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="closeUserModal()">Отмена</button>
+          <button type="submit" class="btn btn-success">{{ isEditing ? 'Сохранить' : 'Создать' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- ========== МОДАЛКА УДАЛЕНИЯ ========== -->
+  @if (showDeleteModal && userToDelete) {
+  <div class="modal-overlay" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
+    <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Подтверждение удаления</h3>
+        <button class="close-btn" (click)="closeDeleteModal()">&times;</button>
+      </div>
+
+      <p>
+        Вы уверены, что хотите удалить пользователя
+        <strong>{{ getFullName(userToDelete) }}</strong>?
+      </p>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="closeDeleteModal()">Отмена</button>
+        <button class="btn btn-danger" (click)="confirmDelete()">🗑️ Удалить</button>
+      </div>
     </div>
   </div>
   }
 </div>
-
-<!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
-@if (showUserModal) {
-<div class="modal-overlay" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
-  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h3>{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
-      <button class="close-btn" (click)="closeUserModal()">&times;</button>
-    </div>
-
-    <form (ngSubmit)="saveUser()">
-      <div class="form-group">
-        <label class="required" for="lastName">Фамилия</label>
-        <input
-          type="text"
-          id="lastName"
-          [class.error]="formErrors['lastName']"
-          [(ngModel)]="formData.lastName"
-          name="lastName" />
-        @if (formErrors['lastName']) {
-        <div class="form-error active">{{ formErrors['lastName'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="firstName">Имя</label>
-        <input
-          type="text"
-          id="firstName"
-          [class.error]="formErrors['firstName']"
-          [(ngModel)]="formData.firstName"
-          name="firstName" />
-        @if (formErrors['firstName']) {
-        <div class="form-error active">{{ formErrors['firstName'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="middleName">Отчество</label>
-        <input
-          type="text"
-          id="middleName"
-          [class.error]="formErrors['middleName']"
-          [(ngModel)]="formData.middleName"
-          name="middleName" />
-        @if (formErrors['middleName']) {
-        <div class="form-error active">{{ formErrors['middleName'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="email">Email</label>
-        <input type="email" id="email" [class.error]="formErrors['email']" [(ngModel)]="formData.email" name="email" />
-        @if (formErrors['email']) {
-        <div class="form-error active">{{ formErrors['email'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="phoneNumber">Телефон</label>
-        <input
-          type="tel"
-          id="phoneNumber"
-          [class.error]="formErrors['phoneNumber']"
-          placeholder="+7 (___) ___-__-__"
-          [(ngModel)]="formData.phoneNumber"
-          name="phoneNumber" />
-        @if (formErrors['phoneNumber']) {
-        <div class="form-error active">{{ formErrors['phoneNumber'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="subscriptionPlan">Подписка</label>
-        <select
-          id="subscriptionPlan"
-          [class.error]="formErrors['subscriptionPlan']"
-          [(ngModel)]="formData.subscriptionPlan"
-          name="subscriptionPlan">
-          <option value="" disabled>Выберите план</option>
-          <option value="Basic">Basic</option>
-          <option value="Premium">Premium</option>
-          <option value="Enterprise">Enterprise</option>
-        </select>
-        @if (formErrors['subscriptionPlan']) {
-        <div class="form-error active">{{ formErrors['subscriptionPlan'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label class="required" for="role">Роль</label>
-        <select id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
-          <option value="" disabled>Выберите роль</option>
-          <option value="Applicant">Заявитель</option>
-          <option value="Notary">Нотариус</option>
-          <option value="Admin">Администратор</option>
-        </select>
-        @if (formErrors['role']) {
-        <div class="form-error active">{{ formErrors['role'] }}</div>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="isActive">Статус</label>
-        <div class="toggle-switch">
-          <label class="switch">
-            <input type="checkbox" id="isActive" [checked]="formData.isActive" (change)="onStatusToggle()" />
-            <span class="slider"></span>
-          </label>
-          <span>{{ formData.isActive ? 'Активен' : 'Заблокирован' }}</span>
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button type="button" class="btn btn-secondary" (click)="closeUserModal()">Отмена</button>
-        <button type="submit" class="btn btn-success">{{ isEditing ? 'Сохранить' : 'Создать' }}</button>
-      </div>
-    </form>
-  </div>
-</div>
-}
-
-<!-- ========== МОДАЛКА УДАЛЕНИЯ ========== -->
-@if (showDeleteModal && userToDelete) {
-<div class="modal-overlay" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
-  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h3>Подтверждение удаления</h3>
-      <button class="close-btn" (click)="closeDeleteModal()">&times;</button>
-    </div>
-
-    <p>
-      Вы уверены, что хотите удалить пользователя
-      <strong>{{ getFullName(userToDelete) }}</strong>?
-    </p>
-
-    <div class="form-actions">
-      <button class="btn btn-secondary" (click)="closeDeleteModal()">Отмена</button>
-      <button class="btn btn-danger" (click)="confirmDelete()">🗑️ Удалить</button>
-    </div>
-  </div>
-</div>
-}

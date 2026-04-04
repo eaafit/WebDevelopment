@@ -208,6 +208,98 @@ input:checked + .slider {
   }
 }
 
+/* ========== VIEW CARD ========== */
+.view-card {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.view-card .view-details {
+  max-width: none;
+  margin: 0;
+}
+
+.view-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+/* ========== MODAL HEADER & CLOSE BTN ========== */
+.modal-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  margin-bottom: 1rem;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.close-btn {
+  cursor: pointer;
+
+  flex: 0 0 auto;
+
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--admin-text-muted);
+
+  background: transparent;
+
+  &:hover {
+    border-color: var(--admin-accent);
+    color: var(--admin-accent);
+  }
+}
+
+/* ========== FORM MODAL (wider) ========== */
+.modal-form {
+  overflow-y: auto;
+  width: min(100%, 560px);
+  max-height: 90vh;
+}
+
+/* ========== EMAIL / TEL inputs ========== */
+.form-group {
+  input[type='email'],
+  input[type='tel'] {
+    width: 100%;
+    padding: 0.82rem 0.95rem;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: var(--admin-radius-xs);
+
+    font-size: 1rem;
+    color: var(--admin-text);
+
+    background: #fff;
+
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease;
+
+    &:focus {
+      border-color: rgb(220 38 38 / 38%);
+      outline: none;
+      box-shadow: 0 0 0 4px rgb(220 38 38 / 10%);
+    }
+  }
+}
+
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (width <= 768px) {
   .filters {

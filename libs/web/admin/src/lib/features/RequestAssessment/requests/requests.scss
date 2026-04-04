@@ -156,6 +156,65 @@
   }
 }
 
+/* ========== VIEW CARD ========== */
+.view-card {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.view-card .view-details {
+  max-width: none;
+  margin: 0;
+}
+
+.view-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--admin-border);
+}
+
+/* ========== MODAL HEADER & CLOSE BTN ========== */
+.modal-header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  margin-bottom: 1rem;
+
+  h3 {
+    margin: 0;
+  }
+}
+
+.close-btn {
+  cursor: pointer;
+
+  flex: 0 0 auto;
+
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--admin-text-muted);
+
+  background: transparent;
+
+  &:hover {
+    border-color: var(--admin-accent);
+    color: var(--admin-accent);
+  }
+}
+
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (width <= 768px) {
   .filters {
