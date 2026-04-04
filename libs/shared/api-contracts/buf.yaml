@@ -2,13 +2,14 @@
 version: v2
 modules:
   - path: proto
-deps:
-  - buf.build/bufbuild/protovalidate
+  - path: vendor
+# Vendored to avoid BSR 403 when fetching buf.build/bufbuild/protovalidate
+# deps:
+#   - buf.build/bufbuild/protovalidate
 lint:
   use:
     - STANDARD
 breaking:
   use:
     - FILE
-  ignore:
-    - 'proto/**/v*alpha*'
+  ignore_unstable_packages: true

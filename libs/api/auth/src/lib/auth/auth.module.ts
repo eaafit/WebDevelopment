@@ -1,0 +1,24 @@
+import { Module } from '@nestjs/common';
+import { PrismaModule } from '@internal/prisma';
+import { AuthRepository } from './auth.repository';
+import { RefreshTokenRepository } from './refresh-token.repository';
+import { PasswordService } from './password.service';
+import { TokenService } from './token.service';
+import { AuthService } from './auth.service';
+import { AuthRpcService } from './auth-rpc.service';
+import { AuthInterceptor } from './auth.interceptor';
+
+@Module({
+  imports: [PrismaModule],
+  providers: [
+    AuthRepository,
+    RefreshTokenRepository,
+    PasswordService,
+    TokenService,
+    AuthService,
+    AuthRpcService,
+    AuthInterceptor,
+  ],
+  exports: [AuthRpcService, TokenService, AuthInterceptor],
+})
+export class AuthModule {}

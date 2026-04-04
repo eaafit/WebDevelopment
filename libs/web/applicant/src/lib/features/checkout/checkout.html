@@ -1,0 +1,86 @@
+<div class="container">
+  <div class="mb-4">
+    <a href="#" class="link text-sm mb-2" style="display: inline-block">← Вернуться</a>
+    <h1>Оплата услуги</h1>
+    <p class="text-sm">Безопасная оплата услуг нотариуса через наш сервис.</p>
+  </div>
+
+  <form
+    class="grid-checkout"
+    onsubmit="
+          event.preventDefault();
+          alert('Обработка платежа...');
+        ">
+    <div class="flex-col gap-4">
+      <div class="card">
+        <div class="card-title">1. Детали заказа</div>
+
+        <div class="box-summary">
+          <div class="flex justify-between items-start">
+            <div>
+              <h3>Удостоверение доверенности</h3>
+              <p class="text-sm mb-2">Категория: Физические лица</p>
+              <div class="mt-4">
+                <div class="text-xs">Дата и время</div>
+                <div class="text-bold">12 февраля • 14:00</div>
+              </div>
+            </div>
+            <div class="text-bold" style="font-size: 1.25rem">2 500 ₽</div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <label for="emailInput" class="form-label">Email для отправки чека</label>
+          <input
+            id="emailInput"
+            type="email"
+            class="form-input"
+            placeholder="client@example.com"
+            value="client@example.com" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">2. Защищённая оплата</div>
+        <div class="alert-info m-0">
+          <span>🛡️</span>
+          <span>
+            Реквизиты карты, СБП или кошелька будут вводиться только в защищённом платёжном виджете ЮKassa. На нашем
+            сайте эти данные не собираются.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="mb-4">
+          <label for="promoInput" class="form-label">Промокод</label>
+          <div class="flex gap-2">
+            <input id="promoInput" type="text" class="form-input" placeholder="Winter2026" />
+            <button type="button" class="btn btn-outline btn-sm">OK</button>
+          </div>
+        </div>
+
+        <div class="summary-row total">
+          <span>Итого:</span>
+          <span class="text-primary">2 500 ₽</span>
+        </div>
+
+        <div class="alert-info mt-4">
+          <span>🛡️</span>
+          <span>Деньги будут заморожены на счете и поступят нотариусу только после оказания услуги.</span>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full mt-4">Оплатить 2 500 ₽</button>
+
+        <p class="text-sm text-center mt-4 text-xs">
+          🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы соглашаетесь с
+          <a href="/terms" class="link" target="_blank">условиями сервиса</a>
+          и
+          <a href="/privacy" class="link" target="_blank">политикой конфиденциальности</a>.
+        </p>
+      </div>
+    </div>
+  </form>
+</div>

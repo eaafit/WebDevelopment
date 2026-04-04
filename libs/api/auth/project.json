@@ -1,0 +1,18 @@
+{
+  "name": "auth",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/auth/src",
+  "projectType": "library",
+  "tags": ["scope:backend"],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "dependsOn": ["prisma:generate"],
+      "options": {
+        "jestConfig": "libs/api/auth/jest.config.cts",
+        "tsConfig": "libs/api/auth/tsconfig.spec.json"
+      }
+    }
+  }
+}

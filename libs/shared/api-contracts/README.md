@@ -1,5 +1,33 @@
 # api-contracts
 
+## Сервисы и контракты
+
+| Сервис            | Файл             | Описание                         |
+| ----------------- | ---------------- | -------------------------------- |
+| AssessmentService | assessment.proto | Заявки на оценку (CRUD, статусы) |
+| UserService       | user.proto       | Пользователи, профиль            |
+| PaymentService    | payment.proto    | Платежи, подписки                |
+| DocumentService   | document.proto   | Документы к заявкам              |
+| FormsService      | forms.proto      | Сохранение данных форм (фасад)   |
+
+## Генерация кода
+
+```bash
+# Сгенерировать protobuf-es descriptors/messages из proto
+pnpm nx run api-contracts:generate-proto
+```
+
+Генерация использует `protoc-gen-es` и produces:
+
+- protobuf message types/schemas
+- enum descriptors
+- service descriptors, совместимые с Connect RPC client/server runtime
+
+## PaymentService: checkout flow
+
+- `CreatePaymentResponse` поддерживает embedded-widget сценарий и может возвращать `widget` с безопасными данными для инициализации платёжного виджета.
+- Для интеграции с ЮKassa основной сценарий оплаты проходит через widget flow на checkout-странице, а не через redirect URL.
+
 ## Версионность пакетов
 
 - ### package notary.anything.**v1alpha1** (Draft)

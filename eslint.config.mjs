@@ -20,6 +20,22 @@ export default [
               sourceTag: '*',
               onlyDependOnLibsWithTags: ['*'],
             },
+            {
+              sourceTag: 'scope:backend',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:backend-shared'],
+            },
+            {
+              sourceTag: 'scope:backend-shared',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:backend-shared'],
+            },
+            {
+              sourceTag: 'scope:frontend',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:frontend-shared'],
+            },
+            {
+              sourceTag: 'scope:frontend-shared',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:frontend-shared'],
+            },
           ],
         },
       ],
