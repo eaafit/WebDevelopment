@@ -1,9 +1,20 @@
-import path from 'path';
+export const DOCUMENT_CONTENT_ROUTE_BASE = '/api/documents';
 
-export const DOCUMENT_UPLOADS_ROUTE = '/uploads';
-const DOCUMENT_UPLOADS_ENV = 'DOCUMENT_UPLOAD_DIR';
+export type DocumentContentMode = 'preview' | 'download';
 
-export function getDocumentUploadsRoot(): string {
-  const configuredRoot = process.env[DOCUMENT_UPLOADS_ENV]?.trim();
-  return path.resolve(configuredRoot || path.join(process.cwd(), 'uploads'));
+export interface BuildDocumentContentPathParams {
+  documentId: string;
+  mode: DocumentContentMode;
+  expiresAtEpochSec: number;
+  signature: string;
+}
+
+export function buildDocumentContentPath(params: BuildDocumentContentPathParams): string {
+  const searchParams = new URLSearchParams({
+    mode: params.mode,
+    expires: String(params.expiresAtEpochSec),
+    signature: params.signature,
+  });
+
+  return `${DOCUMENT_CONTENT_ROUTE_BASE}/${encodeURIComponent(params.documentId)}/content?${searchParams.toString()}`;
 }

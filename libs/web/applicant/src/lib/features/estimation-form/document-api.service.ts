@@ -32,7 +32,6 @@ export class DocumentApiService {
       assessmentId: params.assessmentId,
       fileName: params.file.name,
       fileType: params.file.type || 'application/octet-stream',
-      filePath: '',
       uploadedById: '',
       documentType: resolveDocumentType(params.group),
       fileContent: new Uint8Array(await params.file.arrayBuffer()),
@@ -50,15 +49,16 @@ export class DocumentApiService {
   }
 
   private toDocumentModel(document: Document): AssessmentDocumentModel {
-    const resolvedFileUrl = resolveStoredDocumentUrl(document.filePath);
+    const resolvedPreviewUrl = resolveStoredDocumentUrl(document.previewUrl);
+    const resolvedDownloadUrl = resolveStoredDocumentUrl(document.downloadUrl);
 
     return {
       id: document.id,
       fileName: document.fileName,
       fileType: document.fileType,
-      filePath: document.filePath,
-      previewUrl: resolvedFileUrl,
-      downloadUrl: resolvedFileUrl,
+      fileSize: document.fileSize,
+      previewUrl: resolvedPreviewUrl,
+      downloadUrl: resolvedDownloadUrl,
       version: document.version,
       uploadedAt: document.uploadedAt ? timestampDate(document.uploadedAt).toISOString() : null,
       kind: resolveStoredDocumentKind(document.documentType),
@@ -90,8 +90,8 @@ function resolveStoredDocumentKind(documentType: DocumentType): AssessmentDocume
   return 'document';
 }
 
-function resolveStoredDocumentUrl(filePath: string): string {
-  const normalizedPath = filePath.trim();
+function resolveStoredDocumentUrl(fileUrl: string): string {
+  const normalizedPath = fileUrl.trim();
   if (!normalizedPath) {
     return '';
   }

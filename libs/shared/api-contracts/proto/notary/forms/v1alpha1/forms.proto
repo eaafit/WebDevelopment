@@ -51,8 +51,10 @@ message SaveDocumentFormRequest {
   string assessment_id = 1;
   string file_name = 2;
   string file_type = 3;
-  string file_path = 4;
-  string uploaded_by_id = 5;
+  int32 file_size = 4;
+  string bucket_name = 5;
+  string object_key = 6;
+  string uploaded_by_id = 7;
 }
 
 message SaveDocumentFormResponse {

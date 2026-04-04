@@ -57,7 +57,7 @@ export interface AssessmentDocumentModel {
   id: string;
   fileName: string;
   fileType: string;
-  filePath: string;
+  fileSize: number;
   previewUrl: string;
   downloadUrl: string;
   version: number;

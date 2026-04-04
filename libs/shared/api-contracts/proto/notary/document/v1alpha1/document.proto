@@ -33,21 +33,24 @@ message Document {
   string assessment_id = 2;
   string file_name = 3;
   string file_type = 4;
-  string file_path = 5;
-  int32 version = 6;
-  google.protobuf.Timestamp uploaded_at = 7;
-  string uploaded_by_id = 8;
-  DocumentType document_type = 9;
+  int32 file_size = 5;
+  string bucket_name = 6;
+  string object_key = 7;
+  int32 version = 8;
+  google.protobuf.Timestamp uploaded_at = 9;
+  string uploaded_by_id = 10;
+  DocumentType document_type = 11;
+  string preview_url = 12;
+  string download_url = 13;
 }
 
 message CreateDocumentRequest {
   string assessment_id = 1;
   string file_name = 2;
   string file_type = 3;
-  string file_path = 4;
-  string uploaded_by_id = 5;
-  DocumentType document_type = 6;
-  bytes file_content = 7;
+  string uploaded_by_id = 4;
+  DocumentType document_type = 5;
+  bytes file_content = 6;
 }
 
 message CreateDocumentResponse {

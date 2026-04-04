@@ -16,9 +16,15 @@ import {
 import { requireAuth } from '@internal/auth-shared';
 import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
-import { DocumentRepository } from './document.repository';
+import path from 'path';
+import { Readable } from 'stream';
+import { DocumentRecordNotFoundError, DocumentRepository } from './document.repository';
 import type { DocumentQuery } from './document.query';
-import { DocumentStorageService } from './document-storage.service';
+import {
+  DocumentObjectNotFoundError,
+  DocumentStorageService,
+  DocumentStorageUnavailableError,
+} from './document-storage.service';
 import { toPrismaDocumentType } from './document-type.mapper';
 
 const DEFAULT_PAGE = 1;
@@ -44,17 +50,24 @@ export class DocumentService {
 
   getDocument(request: GetDocumentRequest): Promise<GetDocumentResponse> {
     validateUuid(request.id, 'id');
-    return this.documentRepository.getDocument(request.id);
+    return this.documentRepository.getDocument(request.id).catch((error: unknown) => {
+      if (error instanceof DocumentRecordNotFoundError) {
+        throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+      }
+
+      throw error;
+    });
   }
 
   async createDocument(request: CreateDocumentRequest): Promise<CreateDocumentResponse> {
     const currentUser = requireAuth();
     const assessmentId = request.assessmentId.trim();
-    const fileName = request.fileName.trim();
+    const fileName = normalizeDisplayFileName(request.fileName);
     const fileContent = request.fileContent.length ? request.fileContent : undefined;
 
     validateUuid(assessmentId, 'assessment_id');
     if (!fileName) throw invalid('file_name', 'is required');
+    if (!fileContent) throw invalid('file_content', 'is required');
 
     const uploadedById = resolveUploadedById(request.uploadedById, currentUser.sub);
     const fileType = request.fileType?.trim() || 'application/octet-stream';
@@ -68,56 +81,95 @@ export class DocumentService {
       throw new ConnectError(`assessment ${assessmentId} not found`, Code.NotFound);
     }
 
-    if (fileContent) {
-      let filePath: string | undefined;
-
-      try {
-        filePath = await this.documentStorageService.saveFile({
-          assessmentId,
-          fileName,
-          content: fileContent,
-        });
-
-        const document = await this.documentRepository.createDocument({
-          assessmentId,
-          fileName,
-          fileType,
-          documentType,
-          filePath,
-          uploadedById,
-        });
-
-        return create(CreateDocumentResponseSchema, { document });
-      } catch (error: unknown) {
-        if (filePath) {
-          await this.documentStorageService.deleteFile(filePath).catch(() => undefined);
+    let storedFile:
+      | {
+          bucketName: string;
+          objectKey: string;
+          fileSize: number;
         }
-        throw error;
+      | undefined;
+
+    try {
+      storedFile = await this.documentStorageService.saveFile({
+        assessmentId,
+        fileName,
+        content: fileContent,
+        contentType: fileType,
+        documentType,
+      });
+
+      const document = await this.documentRepository.createDocument({
+        assessmentId,
+        fileName,
+        fileType,
+        fileSize: storedFile.fileSize,
+        documentType,
+        bucketName: storedFile.bucketName,
+        objectKey: storedFile.objectKey,
+        uploadedById,
+      });
+
+      return create(CreateDocumentResponseSchema, { document });
+    } catch (error: unknown) {
+      if (storedFile) {
+        await this.documentStorageService
+          .deleteFile({
+            bucketName: storedFile.bucketName,
+            objectKey: storedFile.objectKey,
+          })
+          .catch(() => undefined);
       }
+
+      throw toConnectStorageError(error);
     }
-
-    const filePath = request.filePath.trim();
-    if (!filePath) throw invalid('file_path', 'is required when file_content is empty');
-
-    const document = await this.documentRepository.createDocument({
-      assessmentId,
-      fileName,
-      fileType,
-      documentType,
-      filePath,
-      uploadedById,
-    });
-
-    return create(CreateDocumentResponseSchema, { document });
   }
 
   async deleteDocument(request: DeleteDocumentRequest): Promise<DeleteDocumentResponse> {
     validateUuid(request.id, 'id');
 
-    const deletedDocument = await this.documentRepository.deleteDocument(request.id);
-    await this.documentStorageService.deleteFile(deletedDocument.filePath);
+    const document = await this.documentRepository.findDocumentRecord(request.id);
+    if (!document) {
+      throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+    }
+
+    try {
+      await this.documentStorageService.deleteFile({
+        bucketName: document.bucketName,
+        objectKey: document.objectKey,
+      });
+    } catch (error: unknown) {
+      throw toConnectStorageError(error);
+    }
+
+    await this.documentRepository.deleteDocument(request.id);
 
     return create(DeleteDocumentResponseSchema, { success: true });
+  }
+
+  async getDocumentFile(documentId: string): Promise<{
+    body: Readable;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+  } | null> {
+    validateUuid(documentId, 'id');
+
+    const document = await this.documentRepository.findDocumentRecord(documentId);
+    if (!document) {
+      return null;
+    }
+
+    const storedFile = await this.documentStorageService.getFile({
+      bucketName: document.bucketName,
+      objectKey: document.objectKey,
+    });
+
+    return {
+      body: storedFile.body,
+      fileName: document.fileName,
+      fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
+      fileSize: storedFile.contentLength ?? document.fileSize,
+    };
   }
 
   private normalizeListRequest(request: ListDocumentsByAssessmentRequest): DocumentQuery {
@@ -175,4 +227,21 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
 
 function invalid(field: string, msg: string): ConnectError {
   return new ConnectError(`${field} ${msg}`, Code.InvalidArgument);
+}
+
+function normalizeDisplayFileName(value: string): string {
+  const normalized = path.basename(value).trim().slice(0, 255);
+  return normalized || 'document.bin';
+}
+
+function toConnectStorageError(error: unknown): never {
+  if (error instanceof DocumentObjectNotFoundError) {
+    throw new ConnectError('document object not found', Code.NotFound);
+  }
+
+  if (error instanceof DocumentStorageUnavailableError) {
+    throw new ConnectError('document object storage unavailable', Code.Unavailable);
+  }
+
+  throw error;
 }

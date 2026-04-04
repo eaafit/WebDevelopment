@@ -78,8 +78,14 @@ services:
     environment:
       MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin}@minio:9000
       S3_BUCKET_PAYMENT_DOCUMENTS: ${S3_BUCKET_PAYMENT_DOCUMENTS:-payment-documents}
+      S3_BUCKET_ASSESSMENT_FILES: ${S3_BUCKET_ASSESSMENT_FILES:-assessment-files}
     entrypoint: /bin/sh
-    command: -c "sleep 5 && mc mb --ignore-existing local/$${S3_BUCKET_PAYMENT_DOCUMENTS}"
+    command:
+      - -c
+      - >
+        sleep 5 &&
+        mc mb --ignore-existing local/$${S3_BUCKET_PAYMENT_DOCUMENTS} &&
+        mc mb --ignore-existing local/$${S3_BUCKET_ASSESSMENT_FILES}
     restart: 'no'
 
 volumes:
