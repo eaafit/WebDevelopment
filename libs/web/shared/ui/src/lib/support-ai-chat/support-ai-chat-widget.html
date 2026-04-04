@@ -1,0 +1,73 @@
+<!-- Плавающая кнопка: открывает панель; скрывается визуально, пока панель открыта (закрытие через «×»). -->
+@if (isFloating) {
+  <button
+    type="button"
+    class="support-ai-chat-widget__fab"
+    [class.support-ai-chat-widget__fab--hidden]="panelOpen"
+    (click)="toggle()"
+    aria-label="Открыть окно поддержки"
+    [attr.aria-expanded]="panelOpen"
+  >
+    <span class="support-ai-chat-widget__fab-icon" aria-hidden="true">💬</span>
+  </button>
+}
+
+<!-- Основная панель: диалог для скринридеров; в inline-режиме FAB выше нет. -->
+@if (showPanel) {
+  <section
+    class="support-ai-chat-widget__panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="support-ai-chat-title"
+  >
+    <header class="support-ai-chat-widget__head">
+      <div class="support-ai-chat-widget__head-text">
+        <h2 id="support-ai-chat-title" class="support-ai-chat-widget__title">{{ title }}</h2>
+        <p class="support-ai-chat-widget__subtitle">{{ subtitle }}</p>
+      </div>
+      @if (isFloating) {
+        <button
+          type="button"
+          class="support-ai-chat-widget__icon-btn"
+          (click)="close()"
+          aria-label="Закрыть"
+        >
+          ×
+        </button>
+      }
+    </header>
+
+    <!-- Зона под будущую переписку: сейчас статичная подсказка; после подключения ИИ — список сообщений. -->
+    <div class="support-ai-chat-widget__body">
+      <p class="support-ai-chat-widget__hint">
+        Ответ ассистента появится здесь после подключения сервиса.
+      </p>
+    </div>
+
+    <!-- Ввод вопроса: привязка к `draft`; отправка по кнопке или Enter (см. TS). -->
+    <footer class="support-ai-chat-widget__composer">
+      <label class="support-ai-chat-widget__label" for="support-ai-chat-input">Ваш вопрос</label>
+      <textarea
+        id="support-ai-chat-input"
+        class="support-ai-chat-widget__input"
+        name="supportAiChatDraft"
+        [(ngModel)]="draft"
+        [placeholder]="placeholder"
+        [disabled]="disabled"
+        rows="3"
+        (keydown)="onComposerKeydown($event)"
+      ></textarea>
+      <div class="support-ai-chat-widget__actions">
+        <span class="support-ai-chat-widget__kbd-hint">Enter — отправить · Shift+Enter — новая строка</span>
+        <button
+          type="button"
+          class="support-ai-chat-widget__send"
+          [disabled]="!canSend()"
+          (click)="submit()"
+        >
+          {{ sendLabel }}
+        </button>
+      </div>
+    </footer>
+  </section>
+}

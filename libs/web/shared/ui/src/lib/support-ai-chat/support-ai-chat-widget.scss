@@ -1,0 +1,286 @@
+/**
+ * Стили виджета техподдержки (support-ai-chat-widget).
+ *
+ * Идея: наследовать визуальный язык портала через `--primary`, `--bg-card` и т.д.;
+ * локальные алиасы `--support-ai-*` дают запасные значения, если компонент вставлен
+ * без обёртки с токенами.
+ */
+/* Токены и шрифт на корне компонента */
+:host {
+  --support-ai-primary: var(--primary, #4f46e5);
+  --support-ai-primary-hover: var(--primary-hover, #4338ca);
+  --support-ai-bg-card: var(--bg-card, #fff);
+  --support-ai-bg-muted: var(--bg-secondary, #f9fafb);
+  --support-ai-text: var(--text-main, #111827);
+  --support-ai-text-muted: var(--text-secondary, #6b7280);
+  --support-ai-border: var(--border, #e5e7eb);
+  --support-ai-info-bg: var(--info-bg, #eff6ff);
+  --support-ai-radius: var(--radius-sm, 8px);
+  --support-ai-shadow: var(--shadow, 0 4px 6px -1px rgb(0 0 0 / 10%));
+  --support-ai-focus: var(--focus-ring, 0 0 0 3px rgb(79 70 229 / 10%));
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+/* Режим floating: фиксация у правого нижнего края, поверх контента */
+:host.support-ai-chat-widget--floating {
+  position: fixed;
+  z-index: 1000;
+  right: 1.25rem;
+  bottom: 1.25rem;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+/* Режим inline: блок в потоке документа, ограниченная ширина */
+:host.support-ai-chat-widget--inline {
+  display: block;
+  width: 100%;
+  max-width: 22.5rem;
+}
+
+/* Круглая кнопка открытия чата */
+.support-ai-chat-widget__fab {
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 3.25rem;
+  height: 3.25rem;
+  border: none;
+  border-radius: 999px;
+
+  font-size: 1.35rem;
+  line-height: 1;
+
+  color: #fff;
+
+  background: linear-gradient(145deg, var(--support-ai-primary) 0%, #6366f1 100%);
+  box-shadow: var(--support-ai-shadow);
+
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    box-shadow: 0 8px 20px -4px rgb(79 70 229 / 35%);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--support-ai-focus), var(--support-ai-shadow);
+  }
+
+  &--hidden {
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
+.support-ai-chat-widget__fab-icon {
+  display: block;
+}
+
+/* Карточка панели: заголовок, тело, композер */
+.support-ai-chat-widget__panel {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  width: min(22.5rem, calc(100vw - 2.5rem));
+  max-height: min(26rem, 70vh);
+  border: 1px solid var(--support-ai-border);
+  border-radius: calc(var(--support-ai-radius) + 2px);
+
+  color: var(--support-ai-text);
+
+  background: var(--support-ai-bg-card);
+  box-shadow: var(--support-ai-shadow);
+}
+
+.support-ai-chat-widget__head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  padding: 0.9rem 1rem;
+
+  background: linear-gradient(180deg, var(--support-ai-info-bg) 0%, var(--support-ai-bg-card) 100%);
+  border-bottom: 1px solid var(--support-ai-border);
+}
+
+.support-ai-chat-widget__title {
+  margin: 0;
+
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.support-ai-chat-widget__subtitle {
+  margin: 0.2rem 0 0;
+
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--support-ai-text-muted);
+}
+
+.support-ai-chat-widget__icon-btn {
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--support-ai-radius);
+
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--support-ai-text-muted);
+
+  background: transparent;
+
+  transition: background 0.15s ease;
+
+  &:hover {
+    color: var(--support-ai-text);
+    background: rgb(0 0 0 / 5%);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--support-ai-focus);
+  }
+}
+
+.support-ai-chat-widget__body {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  overflow-y: auto;
+}
+
+.support-ai-chat-widget__hint {
+  margin: 0;
+
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--support-ai-text-muted);
+}
+
+/* Нижняя зона: textarea + кнопка отправки */
+.support-ai-chat-widget__composer {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--support-ai-border);
+  background: var(--support-ai-bg-muted);
+}
+
+.support-ai-chat-widget__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.support-ai-chat-widget__input {
+  resize: vertical;
+
+  width: 100%;
+  min-height: 4.5rem;
+  max-height: 9rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--support-ai-border);
+  border-radius: var(--support-ai-radius);
+
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+
+  background: var(--support-ai-bg-card);
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: var(--support-ai-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--support-ai-primary);
+    outline: none;
+    box-shadow: var(--support-ai-focus);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+}
+
+.support-ai-chat-widget__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-top: 0.6rem;
+}
+
+.support-ai-chat-widget__kbd-hint {
+  flex: 1 1 8rem;
+
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  color: var(--support-ai-text-muted);
+}
+
+.support-ai-chat-widget__send {
+  cursor: pointer;
+
+  padding: 0.45rem 1rem;
+  border: none;
+  border-radius: var(--support-ai-radius);
+
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+
+  background: var(--support-ai-primary);
+
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--support-ai-primary-hover);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--support-ai-focus);
+  }
+}
