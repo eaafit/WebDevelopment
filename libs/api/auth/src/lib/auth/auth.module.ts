@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '@internal/prisma';
 import { AuthRepository } from './auth.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { PasswordResetRepository } from './password-reset.repository';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { AuthService } from './auth.service';
@@ -13,6 +14,7 @@ import { AuthInterceptor } from './auth.interceptor';
   providers: [
     AuthRepository,
     RefreshTokenRepository,
+    PasswordResetRepository,
     PasswordService,
     TokenService,
     AuthService,

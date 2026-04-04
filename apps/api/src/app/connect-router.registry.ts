@@ -40,6 +40,8 @@ export class ConnectRouterRegistry {
       login: this.authRpcService.login,
       refreshToken: this.authRpcService.refreshToken,
       logout: this.authRpcService.logout,
+      forgotPassword: this.authRpcService.forgotPassword,
+      resetPassword: this.authRpcService.resetPassword,
     });
 
     // ─── User ────────────────────────────────────────────────
