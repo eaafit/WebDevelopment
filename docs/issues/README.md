@@ -40,6 +40,7 @@
 | 29  | [issue-29](issue-29-bokhovoadinova-assessment-history.md)   | Боховодинова Р.А.                   | —            | Модуль оценки — история заказов и таймлайн                 |
 | 30  | [issue-30](issue-30-vasiliev-gushina-admin-assessment.md)   | Васильев Степан + Гущина Мария      | mgusssh      | Админ-панель модуля оценки — очередь + аналитика           |
 | 31  | [issue-31](issue-31-okuntsev-kazarinov-landing.md)          | Окунцев Тимофей + Казаринов Алексей | —            | Landing page                                               |
+| 32  | [issue-32](issue-32-voronin-support-ai-widget.md)           | Воронин Егор                        | EgorVoronin06 | UI-kit окна техподдержки с заделом под ИИ-агента          |
 
 ---
 
@@ -60,7 +61,7 @@ issue-26 (форма параметров)
   ├── issue-27 (таблица запросов)
   └── issue-29 (история + повтор)
 
-issue-11 (чат) + issue-21 (FAQ) → полный модуль поддержки
+issue-11 (чат) + issue-21 (FAQ) + issue-32 (UI-kit / ИИ-задел) → полный модуль поддержки
 issue-16 (список платежей) + issue-17 (формы) → раздел платежей Admin
 issue-22 (аудит лента) + issue-23 (логи детальные) → мониторинг Admin
 issue-30 (Васильев + Гущина) → общая задача на 2 разработчика
