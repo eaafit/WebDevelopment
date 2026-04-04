@@ -1,11 +1,11 @@
-<div class="requests-container">
+<div class="admin-page admin-crud-page requests-container">
   <h1 class="page-title">Заявки на оценку</h1>
 
   <!-- СПИСОК ЗАЯВОК -->
   @if (!showView) {
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">Список заявок</h2>
+  <div class="list-container">
+    <div class="list-header">
+      <h2>Список заявок</h2>
     </div>
 
     <!-- ФИЛЬТРЫ -->
@@ -28,8 +28,8 @@
     </div>
 
     <!-- ТАБЛИЦА -->
-    <div class="table-container">
-      <table>
+    <div class="table-responsive">
+      <table class="data-table">
         <thead>
           <tr>
             <th>ID</th>
@@ -64,15 +64,13 @@
             </td>
             <td>{{ formatValue(item.estimatedValue) }}</td>
             <td>{{ formatDate(item.createdAt) }}</td>
-            <td>
-              <div class="actions">
-                <button class="btn-icon" (click)="viewAssessment(item)" title="Просмотр">👁️</button>
-                @if (item.status !== 'Cancelled' && item.status !== 'Completed') {
-                <button class="btn-icon" (click)="openCancelModal(item)" title="Отменить">❌</button>
-                } @if (item.status === 'New') {
-                <button class="btn-icon" (click)="openVerifyModal(item)" title="Взять в работу">✅</button>
-                }
-              </div>
+            <td class="actions">
+              <button class="btn-icon" (click)="viewAssessment(item)" title="Просмотр">👁️</button>
+              @if (item.status !== 'Cancelled' && item.status !== 'Completed') {
+              <button class="btn-icon" (click)="openCancelModal(item)" title="Отменить">❌</button>
+              } @if (item.status === 'New') {
+              <button class="btn-icon" (click)="openVerifyModal(item)" title="Взять в работу">✅</button>
+              }
             </td>
           </tr>
           }
@@ -97,13 +95,13 @@
 
   <!-- ДЕТАЛИ ЗАЯВКИ -->
   @if (showView && selectedAssessment) {
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">Карточка заявки</h2>
+  <div class="view-container">
+    <div class="list-header">
+      <h2>Карточка заявки</h2>
       <button class="btn btn-secondary" (click)="closeView()">← Назад</button>
     </div>
 
-    <div class="detail-grid">
+    <div class="view-details">
       <div class="detail-row">
         <div class="detail-label">ID:</div>
         <div class="detail-value">{{ selectedAssessment.id }}</div>
@@ -159,25 +157,18 @@
 
 <!-- МОДАЛКА ОТМЕНЫ -->
 @if (showCancelModal && assessmentToCancel) {
-<div class="modal active" role="dialog" (click)="closeCancelModal()" (keydown.escape)="closeCancelModal()">
-  <div
-    class="modal-content modal-sm"
-    role="document"
-    (click)="$event.stopPropagation()"
-    (keydown)="$event.stopPropagation()">
+<div class="modal-overlay" role="dialog" (click)="closeCancelModal()" (keydown.escape)="closeCancelModal()">
+  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3 class="modal-title">Отмена заявки</h3>
+      <h3>Отмена заявки</h3>
       <button class="close-btn" (click)="closeCancelModal()">&times;</button>
     </div>
 
-    <p class="modal-message">
-      Отменить заявку <strong>{{ getShortId(assessmentToCancel.id) }}</strong> ({{ assessmentToCancel.address }})?
-    </p>
+    <p>Отменить заявку <strong>{{ getShortId(assessmentToCancel.id) }}</strong> ({{ assessmentToCancel.address }})?</p>
 
     <div class="form-group">
-      <label class="form-label required" for="cancelReason">Причина отмены</label>
+      <label class="required" for="cancelReason">Причина отмены</label>
       <textarea
-        class="form-input"
         id="cancelReason"
         rows="3"
         [class.error]="cancelReasonError"
@@ -198,24 +189,19 @@
 
 <!-- МОДАЛКА ВЗЯТИЯ В РАБОТУ -->
 @if (showVerifyModal && assessmentToVerify) {
-<div class="modal active" role="dialog" (click)="closeVerifyModal()" (keydown.escape)="closeVerifyModal()">
-  <div
-    class="modal-content modal-sm"
-    role="document"
-    (click)="$event.stopPropagation()"
-    (keydown)="$event.stopPropagation()">
+<div class="modal-overlay" role="dialog" (click)="closeVerifyModal()" (keydown.escape)="closeVerifyModal()">
+  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3 class="modal-title">Назначение нотариуса</h3>
+      <h3>Назначение нотариуса</h3>
       <button class="close-btn" (click)="closeVerifyModal()">&times;</button>
     </div>
 
-    <p class="modal-message">Назначить нотариуса для заявки <strong>{{ getShortId(assessmentToVerify.id) }}</strong></p>
+    <p>Назначить нотариуса для заявки <strong>{{ getShortId(assessmentToVerify.id) }}</strong></p>
 
     <div class="form-group">
-      <label class="form-label required" for="notaryId">ID нотариуса</label>
+      <label class="required" for="notaryId">ID нотариуса</label>
       <input
         type="text"
-        class="form-input"
         id="notaryId"
         [class.error]="notaryIdError"
         [(ngModel)]="notaryId"
