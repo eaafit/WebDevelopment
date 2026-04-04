@@ -48,12 +48,9 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'assessment',
-        ...placeholder('Модуль оценки', [
-          'Запрос оценки с параметрами',
-          'Ввод параметров объекта',
-          'Результаты и отчёты',
-        ]),
-      } as Route,
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
       {
         path: 'copies',
         ...placeholder('Копии документов', [
