@@ -3,8 +3,8 @@ syntax = "proto3";
 package notary.forms.v1alpha1;
 
 import "notary/assessment/v1alpha1/assessment.proto";
-import "notary/document/v1alpha1/document.proto";
 import "notary/user/v1alpha1/user.proto";
+import "notary/document/v1alpha1/document.proto";
 
 // FormsService — единая точка входа для сохранения данных из форм веб-приложения.
 // Делегирует в соответствующие сервисы (Assessment, User, Document) или сохраняет напрямую в БД.
