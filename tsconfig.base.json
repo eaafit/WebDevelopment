@@ -25,6 +25,7 @@
       "@internal/prisma": ["libs/api/shared/prisma/src/index.ts"],
       "@internal/prisma-client": ["libs/api/shared/prisma/generated/prisma/client.ts"],
       "@internal/report": ["libs/api/report/src/index.ts"],
+      "@internal/support": ["libs/api/support/src/index.ts"],
       "@internal/user": ["libs/api/user/src/index.ts"],
       "@notary-portal/prisma": ["libs/api/prisma/src/index.ts"],
       "@notary-portal/api-contracts": ["libs/shared/api-contracts/src/index.ts"],

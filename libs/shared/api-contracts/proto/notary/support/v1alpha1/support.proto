@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package notary.support.v1alpha1;
+
+import "buf/validate/validate.proto";
+
+// Техподдержка: вопрос к ИИ (OpenAI на бэкенде).
+service SupportService {
+  rpc AskSupportAi(AskSupportAiRequest) returns (AskSupportAiResponse);
+}
+
+message AskSupportAiRequest {
+  // Текст вопроса пользователя
+  string text = 1 [(buf.validate.field).string = { min_len: 1, max_len: 8000 }];
+  // Опционально: идентификатор диалога для будущей истории в БД
+  optional string conversation_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message AskSupportAiResponse {
+  string answer = 1;
+  bool success = 2;
+  string error_message = 3;
+}

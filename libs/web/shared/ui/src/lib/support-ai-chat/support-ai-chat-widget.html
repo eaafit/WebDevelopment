@@ -12,7 +12,6 @@
   </button>
 }
 
-<!-- Основная панель: диалог для скринридеров; в inline-режиме FAB выше нет. -->
 @if (showPanel) {
   <section
     class="support-ai-chat-widget__panel"
@@ -37,14 +36,32 @@
       }
     </header>
 
-    <!-- Зона под будущую переписку: сейчас статичная подсказка; после подключения ИИ — список сообщений. -->
     <div class="support-ai-chat-widget__body">
-      <p class="support-ai-chat-widget__hint">
-        Ответ ассистента появится здесь после подключения сервиса.
-      </p>
+      @if (transcript().length === 0 && !aiLoading()) {
+        <p class="support-ai-chat-widget__hint">
+          @if (useBackendAi) {
+            Задайте вопрос — ответ сформирует ИИ-помощник.
+          } @else {
+            Ответ ассистента появится здесь после подключения сервиса.
+          }
+        </p>
+      }
+      @for (msg of transcript(); track $index) {
+        <div
+          class="support-ai-chat-widget__msg"
+          [class.support-ai-chat-widget__msg--user]="msg.role === 'user'"
+          [class.support-ai-chat-widget__msg--assistant]="msg.role === 'assistant'"
+        >
+          {{ msg.text }}
+        </div>
+      }
+      @if (aiLoading()) {
+        <p class="support-ai-chat-widget__hint support-ai-chat-widget__hint--loading" aria-live="polite">
+          Печатает…
+        </p>
+      }
     </div>
 
-    <!-- Ввод вопроса: привязка к `draft`; отправка по кнопке или Enter (см. TS). -->
     <footer class="support-ai-chat-widget__composer">
       <label class="support-ai-chat-widget__label" for="support-ai-chat-input">Ваш вопрос</label>
       <textarea
@@ -53,7 +70,7 @@
         name="supportAiChatDraft"
         [(ngModel)]="draft"
         [placeholder]="placeholder"
-        [disabled]="disabled"
+        [disabled]="disabled || aiLoading()"
         rows="3"
         (keydown)="onComposerKeydown($event)"
       ></textarea>

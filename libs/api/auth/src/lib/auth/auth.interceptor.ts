@@ -10,6 +10,8 @@ const PUBLIC_METHODS = new Set([
   'notary.auth.v1alpha1.AuthService/Register',
   'notary.auth.v1alpha1.AuthService/Login',
   'notary.auth.v1alpha1.AuthService/RefreshToken',
+  // Гостевой чат поддержки (OpenAI на бэкенде; без токена)
+  'notary.support.v1alpha1.SupportService/AskSupportAi',
 ]);
 
 @Injectable()

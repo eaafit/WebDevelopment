@@ -41,7 +41,9 @@ export type RpcTransportOptionsFactory = () => RpcTransportOptions;
 export function createAuthInterceptor(opts: RpcTransportOptions, router: Router): Interceptor {
   return (next) => async (req) => {
     // Пропускаем публичные методы auth-сервиса — у них нет токена
-    const isPublic = req.url.includes('/notary.auth.v1alpha1.AuthService/');
+    const isPublic =
+      req.url.includes('/notary.auth.v1alpha1.AuthService/') ||
+      req.url.includes('/notary.support.v1alpha1.SupportService/');
     if (isPublic) return next(req);
 
     let token = opts.getToken();

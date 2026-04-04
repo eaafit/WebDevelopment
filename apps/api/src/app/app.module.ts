@@ -6,6 +6,7 @@ import { DocumentModule } from '@internal/document';
 import { MetricsModule } from '@internal/metrics';
 import { NotificationModule } from '@internal/notification';
 import { ReportModule } from '@internal/report';
+import { SupportModule } from '@internal/support';
 import { UserModule } from '@internal/user';
 import { PrismaModule } from '@internal/prisma';
 import { ConnectRouterRegistry } from './connect-router.registry';
@@ -20,6 +21,7 @@ import { ConnectRouterRegistry } from './connect-router.registry';
     DocumentModule,
     NotificationModule,
     ReportModule,
+    SupportModule,
     UserModule,
   ],
   providers: [ConnectRouterRegistry],

@@ -8,6 +8,7 @@ import { PaymentRpcService } from '@internal/billing';
 import { DocumentRpcService } from '@internal/document';
 import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
+import { SupportRpcService } from '@internal/support';
 import { UserRpcService } from '@internal/user';
 
 // gRPC-контракты (сгенерированные сервисы)
@@ -18,6 +19,7 @@ import {
   NotificationService,
   PaymentService,
   ReportService,
+  SupportService,
   UserService,
 } from '@notary-portal/api-contracts';
 
@@ -30,6 +32,7 @@ export class ConnectRouterRegistry {
     private readonly documentRpcService: DocumentRpcService,
     private readonly notificationRpcService: NotificationRpcService,
     private readonly reportRpcService: ReportRpcService,
+    private readonly supportRpcService: SupportRpcService,
     private readonly userRpcService: UserRpcService,
   ) {}
 
@@ -83,6 +86,11 @@ export class ConnectRouterRegistry {
       listReports: this.reportRpcService.listReports,
       signReport: this.reportRpcService.signReport,
       deleteReport: this.reportRpcService.deleteReport,
+    });
+
+    // ─── Support (ИИ) ───────────────────────────────────────
+    router.service(SupportService, {
+      askSupportAi: this.supportRpcService.askSupportAi,
     });
 
     // ─── Payment ─────────────────────────────────────────────

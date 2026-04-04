@@ -5,6 +5,7 @@
  * локальные алиасы `--support-ai-*` дают запасные значения, если компонент вставлен
  * без обёртки с токенами.
  */
+
 /* Токены и шрифт на корне компонента */
 :host {
   --support-ai-primary: var(--primary, #4f46e5);
@@ -70,21 +71,21 @@
   transition:
     transform 0.15s ease,
     box-shadow 0.15s ease;
+}
 
-  &:hover {
-    box-shadow: 0 8px 20px -4px rgb(79 70 229 / 35%);
-    transform: translateY(-1px);
-  }
+.support-ai-chat-widget__fab:hover {
+  box-shadow: 0 8px 20px -4px rgb(79 70 229 / 35%);
+  transform: translateY(-1px);
+}
 
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--support-ai-focus), var(--support-ai-shadow);
-  }
+.support-ai-chat-widget__fab:focus-visible {
+  outline: none;
+  box-shadow: var(--support-ai-focus), var(--support-ai-shadow);
+}
 
-  &--hidden {
-    pointer-events: none;
-    opacity: 0;
-  }
+.support-ai-chat-widget__fab--hidden {
+  pointer-events: none;
+  opacity: 0;
 }
 
 .support-ai-chat-widget__fab-icon {
@@ -156,16 +157,16 @@
   background: transparent;
 
   transition: background 0.15s ease;
+}
 
-  &:hover {
-    color: var(--support-ai-text);
-    background: rgb(0 0 0 / 5%);
-  }
+.support-ai-chat-widget__icon-btn:hover {
+  color: var(--support-ai-text);
+  background: rgb(0 0 0 / 5%);
+}
 
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--support-ai-focus);
-  }
+.support-ai-chat-widget__icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--support-ai-focus);
 }
 
 .support-ai-chat-widget__body {
@@ -180,6 +181,42 @@
   font-size: 0.8125rem;
   line-height: 1.45;
   color: var(--support-ai-text-muted);
+}
+
+.support-ai-chat-widget__hint--loading {
+  font-style: italic;
+}
+
+.support-ai-chat-widget__msg {
+  margin-bottom: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--support-ai-radius);
+
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.support-ai-chat-widget__msg:last-child {
+  margin-bottom: 0;
+}
+
+.support-ai-chat-widget__msg--user {
+  margin-left: 1.5rem;
+
+  color: var(--support-ai-text);
+
+  background: var(--support-ai-info-bg);
+  border: 1px solid var(--support-ai-border);
+}
+
+.support-ai-chat-widget__msg--assistant {
+  margin-right: 1.5rem;
+
+  color: var(--support-ai-text);
+
+  background: var(--support-ai-bg-muted);
+  border: 1px solid var(--support-ai-border);
 }
 
 /* Нижняя зона: textarea + кнопка отправки */
@@ -220,21 +257,21 @@
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
+}
 
-  &::placeholder {
-    color: var(--support-ai-text-muted);
-  }
+.support-ai-chat-widget__input::placeholder {
+  color: var(--support-ai-text-muted);
+}
 
-  &:focus {
-    border-color: var(--support-ai-primary);
-    outline: none;
-    box-shadow: var(--support-ai-focus);
-  }
+.support-ai-chat-widget__input:focus {
+  border-color: var(--support-ai-primary);
+  outline: none;
+  box-shadow: var(--support-ai-focus);
+}
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.65;
-  }
+.support-ai-chat-widget__input:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .support-ai-chat-widget__actions {
@@ -269,18 +306,18 @@
   background: var(--support-ai-primary);
 
   transition: background 0.15s ease;
+}
 
-  &:hover:not(:disabled) {
-    background: var(--support-ai-primary-hover);
-  }
+.support-ai-chat-widget__send:hover:not(:disabled) {
+  background: var(--support-ai-primary-hover);
+}
 
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-  }
+.support-ai-chat-widget__send:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 
-  &:focus-visible {
-    outline: none;
-    box-shadow: var(--support-ai-focus);
-  }
+.support-ai-chat-widget__send:focus-visible {
+  outline: none;
+  box-shadow: var(--support-ai-focus);
 }

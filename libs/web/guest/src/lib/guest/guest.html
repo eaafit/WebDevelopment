@@ -46,7 +46,7 @@
       </div>
     </footer>
 
-    <!-- Виджет техподдержки; ответ ИИ — после подключения API в onSupportDraftSubmit. -->
-    <lib-support-ai-chat-widget (messageSubmit)="onSupportDraftSubmit($event)" />
+    <!-- Техподдержка: OpenAI через SupportService.AskSupportAi (ключ на API). -->
+    <lib-support-ai-chat-widget [useBackendAi]="true" (messageSubmit)="onSupportDraftSubmit($event)" />
   </div>
 </div>

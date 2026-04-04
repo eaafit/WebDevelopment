@@ -1,48 +1,41 @@
 /**
  * UI-kit: окно технической поддержки с заделом под ИИ-агента.
  *
- * Назначение:
- * - Компактная панель с полем ввода вопроса и кнопкой отправки.
- * - Логика ответа ИИ и вызов API здесь не реализованы: родитель подписывается на
- *   `(messageSubmit)` и дальше передаёт текст в сервис (позже — RPC/stream к бэкенду).
- *
- * Режимы отображения (`layout`):
- * - `floating` — плавающая кнопка (FAB) + выезжающая панель справа снизу (типично для всего портала).
- * - `inline` — только панель без FAB (встраивание в страницу, боковая колонка и т.п.).
- *
- * Доступ из приложения:
- * ```ts
- * import { SupportAiChatWidget } from '@notary-portal/ui';
- * ```
- *
- * Пример в шаблоне:
- * ```html
- * <lib-support-ai-chat-widget (messageSubmit)="onQuestion($event)" />
- * ```
- *
- * Стили: используют CSS-переменные портала (`--primary`, `--bg-card`, …), см. `support-ai-chat-widget.scss`.
+ * Режим `useBackendAi`: вызов `SupportService.AskSupportAi` через Connect (публичный RPC).
+ * Иначе — только `(messageSubmit)` для кастомной интеграции.
  */
-import { Component, EventEmitter, HostBinding, Input, OnInit, Output } from '@angular/core';
+import { Component, EventEmitter, HostBinding, inject, Input, OnInit, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { createClient } from '@connectrpc/connect';
+import { SupportService } from '@notary-portal/api-contracts';
+import { RPC_TRANSPORT } from '../rpc/rpc-transport';
 
 /** Вариант вёрстки: плавающий виджет или встроенный блок. */
 export type SupportAiChatLayout = 'floating' | 'inline';
+
+export type SupportChatMessage = {
+  role: 'user' | 'assistant';
+  text: string;
+};
 
 @Component({
   selector: 'lib-support-ai-chat-widget',
   standalone: true,
   imports: [FormsModule],
   templateUrl: './support-ai-chat-widget.html',
-  styleUrl: './support-ai-chat-widget.scss',
+  styleUrl: './support-ai-chat-widget.css',
 })
 export class SupportAiChatWidget implements OnInit {
-  /** Класс на `:host` для позиционирования FAB + панели у края экрана. */
   @HostBinding('class.support-ai-chat-widget--floating')
   hostFloating = true;
 
-  /** Класс на `:host` для встроенного блока без фиксированного позиционирования. */
   @HostBinding('class.support-ai-chat-widget--inline')
   hostInline = false;
+
+  private readonly transport = inject(RPC_TRANSPORT, { optional: true });
+  private readonly supportClient = this.transport
+    ? createClient(SupportService, this.transport)
+    : null;
 
   private _layout: SupportAiChatLayout = 'floating';
 
@@ -55,51 +48,30 @@ export class SupportAiChatWidget implements OnInit {
     return this._layout;
   }
 
-  /** При `floating`: открыть панель сразу после инициализации (без первого клика по FAB). */
+  /** Вызов `AskSupportAi` на API (гость без токена; см. публичный RPC в AuthInterceptor). */
+  @Input() useBackendAi = false;
+
   @Input() defaultOpen = false;
-
-  /** Заголовок панели (например «Техподдержка»). */
   @Input() title = 'Техподдержка';
-
-  /** Подзаголовок под заголовком (статус подключения ИИ, подсказка пользователю). */
-  @Input() subtitle = 'ИИ-агент будет подключён позже';
-
-  /** Текст-плейсхолдер в поле ввода. */
+  @Input() subtitle = 'ИИ-помощник';
   @Input() placeholder = 'Опишите вопрос…';
-
-  /** Подпись на кнопке отправки. */
   @Input() sendLabel = 'Отправить';
-
-  /** Полностью отключает ввод и отправку (например, пока нет сети или сессии). */
   @Input() disabled = false;
-
-  /** Если true — кнопка «Отправить» неактивна при пустом или только пробельном тексте. */
   @Input() requireNonEmpty = true;
 
-  /**
-   * Событие после нажатия «Отправить» (или Enter в поле).
-   * Полезная нагрузка — текст вопроса; дальше родитель вызывает API/ИИ.
-   * После успешной эмиссии поле ввода очищается.
-   */
   @Output() readonly messageSubmit = new EventEmitter<string>();
-
-  /**
-   * Уведомление об открытии/закрытии панели (актуально для `layout="floating"`).
-   * `true` — панель открыта, `false` — закрыта.
-   */
   @Output() readonly openChange = new EventEmitter<boolean>();
 
-  /** Текущий черновик сообщения (двусторонняя привязка через `FormsModule`). */
   draft = '';
-
-  /** В режиме floating: видна ли панель (не путать с «есть ли ответ от ИИ»). */
   panelOpen = false;
+
+  readonly transcript = signal<SupportChatMessage[]>([]);
+  readonly aiLoading = signal(false);
 
   get isFloating(): boolean {
     return this.layout === 'floating';
   }
 
-  /** Показывать ли разметку панели: в inline всегда; в floating — только когда `panelOpen`. */
   get showPanel(): boolean {
     return !this.isFloating || this.panelOpen;
   }
@@ -116,13 +88,11 @@ export class SupportAiChatWidget implements OnInit {
     this.hostInline = this.layout === 'inline';
   }
 
-  /** Переключение видимости панели по клику на FAB. */
   toggle(): void {
     this.panelOpen = !this.panelOpen;
     this.openChange.emit(this.panelOpen);
   }
 
-  /** Закрытие панели (кнопка «×» в floating-режиме). */
   close(): void {
     if (!this.panelOpen) {
       return;
@@ -131,31 +101,55 @@ export class SupportAiChatWidget implements OnInit {
     this.openChange.emit(false);
   }
 
-  /** Отправка текста родителю и сброс черновика. */
-  submit(): void {
+  async submit(): Promise<void> {
     const text = this.draft.trim();
     if (this.requireNonEmpty && !text) {
       return;
     }
-    if (this.disabled) {
+    if (this.disabled || this.aiLoading()) {
       return;
     }
+
+    if (this.useBackendAi && this.supportClient) {
+      this.draft = '';
+      this.transcript.update((list) => [...list, { role: 'user', text }]);
+      this.aiLoading.set(true);
+      try {
+        const res = await this.supportClient.askSupportAi({ text });
+        if (res.success) {
+          this.transcript.update((list) => [...list, { role: 'assistant', text: res.answer }]);
+        } else {
+          this.transcript.update((list) => [
+            ...list,
+            { role: 'assistant', text: res.errorMessage || 'Не удалось получить ответ.' },
+          ]);
+        }
+      } catch {
+        this.transcript.update((list) => [
+          ...list,
+          { role: 'assistant', text: 'Сервис временно недоступен. Попробуйте позже.' },
+        ]);
+      } finally {
+        this.aiLoading.set(false);
+      }
+      this.messageSubmit.emit(text);
+      return;
+    }
+
     this.messageSubmit.emit(text);
     this.draft = '';
   }
 
-  /** Enter — отправка; Shift+Enter — перенос строки без отправки. */
   onComposerKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.shiftKey) {
       return;
     }
     event.preventDefault();
-    this.submit();
+    void this.submit();
   }
 
-  /** Условие активности кнопки «Отправить». */
   canSend(): boolean {
-    if (this.disabled) {
+    if (this.disabled || this.aiLoading()) {
       return false;
     }
     if (!this.requireNonEmpty) {

@@ -1,0 +1,12 @@
+{
+  "name": "support",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/support/src",
+  "projectType": "library",
+  "tags": ["scope:backend"],
+  "targets": {
+    "test": {
+      "dependsOn": ["prisma:generate"]
+    }
+  }
+}
