@@ -1,7 +1,8 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { cors } from '@connectrpc/connect';
+import { cors as connectCors } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
+import cors from 'cors';
 import express from 'express';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
@@ -15,19 +16,36 @@ async function bootstrap() {
     bodyParser: false,
   });
 
+  const httpAdapter = app.getHttpAdapter();
+  const expressInstance = httpAdapter.getInstance();
+
+  // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
+  // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
+  // without CORS headers otherwise.
+  const corsOriginEnv = process.env['CORS_ORIGIN'];
+  const corsOriginList = corsOriginEnv
+    ? corsOriginEnv
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    : undefined;
+  expressInstance.use(
+    cors({
+      origin:
+        corsOriginList && corsOriginList.length > 0
+          ? corsOriginList
+          : (requestOrigin: string | undefined, cb) => {
+              cb(null, requestOrigin ? requestOrigin : true);
+            },
+      methods: [...connectCors.allowedMethods],
+      allowedHeaders: [...connectCors.allowedHeaders, 'Authorization'],
+      exposedHeaders: [...connectCors.exposedHeaders],
+    }),
+  );
+
   const connectRouterRegistry = app.get(ConnectRouterRegistry);
   const authInterceptor = app.get(AuthInterceptor);
   const paymentWebhookService = app.get(PaymentWebhookService);
-
-  app.enableCors({
-    origin: true,
-    methods: [...cors.allowedMethods],
-    allowedHeaders: [...cors.allowedHeaders, 'Authorization'],
-    exposedHeaders: [...cors.exposedHeaders],
-  });
-
-  const httpAdapter = app.getHttpAdapter();
-  const expressInstance = httpAdapter.getInstance();
 
   expressInstance.get('/health', async (_req: express.Request, res: express.Response) => {
     try {

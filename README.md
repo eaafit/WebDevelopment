@@ -23,6 +23,7 @@
 ### Запуск проекта
 
 - `docker-compose up` - запустить PostgreSQL
+- `pnpm nx prune` - очистка nx
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
 - `pnpm nx run prisma:deploy` - применить миграции к базе данных
 - `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
