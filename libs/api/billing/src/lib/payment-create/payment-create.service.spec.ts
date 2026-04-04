@@ -1,6 +1,12 @@
 import { create } from '@bufbuild/protobuf';
-import { CreatePaymentRequestSchema, PaymentType } from '@notary-portal/api-contracts';
-import { PaymentStatus, SubscriptionPlan } from '@internal/prisma-client';
+import {
+  CreatePaymentRequestSchema,
+  PaymentType,
+  PromoValidationStatus,
+  SubscriptionPlan,
+  ValidateSubscriptionPromoRequestSchema,
+} from '@notary-portal/api-contracts';
+import { PaymentStatus, SubscriptionPlan as PrismaSubscriptionPlan } from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
 
 describe('PaymentCreateService', () => {
@@ -41,7 +47,7 @@ describe('PaymentCreateService', () => {
     paymentSubscriptionService.resolveSubscriptionForPayment.mockResolvedValue({
       id: 'subscription-1',
       userId: 'user-1',
-      plan: SubscriptionPlan.Basic,
+      plan: PrismaSubscriptionPlan.Basic,
       basePrice: {
         toString: () => '1500.00',
       },
@@ -133,5 +139,41 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPayment).toHaveBeenCalledWith('pending');
+  });
+
+  it('should validate a subscription promo and return discounted preview data', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+    );
+
+    const request = create(ValidateSubscriptionPromoRequestSchema, {
+      plan: SubscriptionPlan.BASIC,
+      promoCode: 'spring10',
+    });
+
+    const response = await service.validateSubscriptionPromo(request);
+
+    expect(response).toEqual(
+      expect.objectContaining({
+        status: PromoValidationStatus.VALID,
+        promoCode: 'SPRING10',
+        baseAmount: expect.objectContaining({
+          amount: '1500.00',
+          currency: 'RUB',
+        }),
+        finalAmount: expect.objectContaining({
+          amount: '1350.00',
+          currency: 'RUB',
+        }),
+        discountAmount: expect.objectContaining({
+          amount: '150.00',
+          currency: 'RUB',
+        }),
+        discountPercent: '10.00',
+      }),
+    );
   });
 });

@@ -62,6 +62,15 @@ describe('TransactionTable', () => {
     });
 
     expect(component.getPaymentMethodPresentation('bank_card').label).toBe('Банковская карта');
+    expect(component.getPaymentMethodPresentation('yookassa_widget')).toEqual({
+      label: 'ЮKassa',
+      caption: 'Способ оплаты отобразится после подтверждения',
+      icon: '💠',
+      iconType: 'emoji',
+    });
+    expect(component.getPaymentMethodPresentation('custom_gateway').caption).toBe(
+      'Подробности способа оплаты недоступны',
+    );
   });
 
   it('should provide a dedicated refund document label', () => {

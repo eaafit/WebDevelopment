@@ -88,6 +88,12 @@ const PAYMENT_METHOD_PRESENTATIONS: Record<string, PaymentMethodPresentation> = 
     icon: '📲',
     iconType: 'emoji',
   },
+  yookassa_widget: {
+    label: 'ЮKassa',
+    caption: 'Способ оплаты отобразится после подтверждения',
+    icon: '💠',
+    iconType: 'emoji',
+  },
 };
 
 @Component({
@@ -276,7 +282,7 @@ export class TransactionTable implements OnChanges {
 
     return {
       label: humanizePaymentMethod(normalizedMethod),
-      caption: `Код платёжного шлюза: ${paymentMethod}`,
+      caption: 'Подробности способа оплаты недоступны',
       icon: '💠',
       iconType: 'emoji',
     };
