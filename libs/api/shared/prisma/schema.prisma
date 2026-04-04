@@ -99,6 +99,7 @@ enum DocumentType {
   CadastralPassport @map("cadastral_passport")
   Photo             @map("photo")
   Other             @map("other")
+  Additional        @map("additional")
 
   @@map("document_type")
 }

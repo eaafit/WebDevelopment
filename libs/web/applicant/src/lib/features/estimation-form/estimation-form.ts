@@ -3,6 +3,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  HostListener,
+  OnDestroy,
   computed,
   inject,
   signal,
@@ -14,11 +16,11 @@ import {
   Validators,
   type ValidatorFn,
 } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { RealEstateObjectType } from '@notary-portal/api-contracts';
-import { TokenStore } from '@notary-portal/ui';
 import { debounceTime, distinctUntilChanged, filter, from, startWith, switchMap } from 'rxjs';
 import { AssessmentApiService } from './assessment-api.service';
+import { DocumentApiService, type UploadGroup } from './document-api.service';
 import { EstimationFormLocalDraftService } from './estimation-form-local-draft.service';
 import {
   CONDITION_OPTIONS,
@@ -26,32 +28,51 @@ import {
   INITIAL_ESTIMATION_FORM_VALUE,
   OBJECT_TYPE_OPTIONS,
   WALL_MATERIAL_OPTIONS,
+  type AssessmentDocumentModel,
   type AssessmentDraftModel,
   type DistrictLookupOption,
   type EstimationFormDraftData,
+  type EstimationFormValue,
   type LookupOption,
 } from './estimation-form.models';
+import { EstimationFormSessionService } from './estimation-form-session.service';
 
 type PersistReason = 'autosave' | 'submit';
+type RequiredUploadGroup = Exclude<UploadGroup, 'additional'>;
 type FormControlElement = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+type FileCategory = 'image' | 'pdf' | 'word' | 'spreadsheet' | 'other';
+type AutosaveStatusTone = 'neutral' | 'progress' | 'saved';
+type UploadState = Record<UploadGroup, boolean>;
+
+interface ImagePreviewState {
+  fileKey: string;
+  fileName: string;
+  previewUrl: string;
+}
 
 interface AutosaveStatus {
   message: string;
-  tone: 'neutral' | 'progress' | 'saved';
+  tone: AutosaveStatusTone;
 }
 
+const ASSESSMENT_ID_QUERY_PARAM = 'assessmentId';
 const AUTOSAVE_DEBOUNCE_MS = 700;
 const LAND_PLOT_OBJECT_TYPE = String(RealEstateObjectType.LAND_PLOT);
+const INITIAL_UPLOAD_STATE: UploadState = {
+  documents: false,
+  photos: false,
+  additional: false,
+};
 
 @Component({
   selector: 'lib-estimation-form',
   standalone: true,
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './estimation-form.html',
   styleUrl: './estimation-form.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EstimationForm {
+export class EstimationForm implements OnDestroy {
   readonly estimationForm = inject(FormBuilder).nonNullable.group({
     cityId: ['', [trimmedRequiredValidator]],
     districtId: [''],
@@ -71,6 +92,8 @@ export class EstimationForm {
     permittedUse: ['', [Validators.maxLength(150)]],
     utilities: ['', [Validators.maxLength(500)]],
     description: ['', [Validators.maxLength(1000)]],
+    confirmCorrect: [false, [Validators.requiredTrue]],
+    confirmProcessing: [false, [Validators.requiredTrue]],
   });
   readonly formControls = this.estimationForm.controls;
 
@@ -81,21 +104,55 @@ export class EstimationForm {
   readonly draftSaving = signal(false);
   readonly loadError = signal<string | null>(null);
   readonly saveError = signal<string | null>(null);
+  readonly documentsError = signal<string | null>(null);
   readonly assessmentId = signal<string | null>(null);
-  readonly lastDraftSavedAt = signal<string | null>(null);
+  readonly storedDocuments = signal<AssessmentDocumentModel[]>([]);
   readonly userId = signal<string | null>(null);
-  readonly isBusy = computed(() => this.loading() || this.saving() || this.draftSaving());
+  readonly lastDraftSavedAt = signal<string | null>(null);
+  readonly uploadingState = signal<UploadState>({ ...INITIAL_UPLOAD_STATE });
+  readonly deletingStoredDocumentIds = signal<string[]>([]);
+  readonly uploadedDocumentItems = computed(() =>
+    this.storedDocuments().filter((document) => document.kind === 'document'),
+  );
+  readonly uploadedPhotoItems = computed(() =>
+    this.storedDocuments().filter((document) => document.kind === 'photo'),
+  );
+  readonly uploadedAdditionalItems = computed(() =>
+    this.storedDocuments().filter((document) => document.kind === 'additional'),
+  );
+  readonly hasAssessmentId = computed(() => Boolean(this.assessmentId()));
+  readonly hasActiveUploads = computed(() =>
+    Object.values(this.uploadingState()).some((isUploading) => isUploading),
+  );
+  readonly hasPendingDocumentDeletions = computed(
+    () => this.deletingStoredDocumentIds().length > 0,
+  );
+  readonly canUploadFiles = computed(
+    () =>
+      this.hasAssessmentId() &&
+      !this.draftSaving() &&
+      !this.saving() &&
+      !this.hasPendingDocumentDeletions(),
+  );
+  readonly isBusy = computed(
+    () =>
+      this.loading() ||
+      this.saving() ||
+      this.draftSaving() ||
+      this.hasActiveUploads() ||
+      this.hasPendingDocumentDeletions(),
+  );
   readonly autosaveStatus = computed<AutosaveStatus>(() => {
     if (this.loading()) {
       return {
-        message: 'Восстанавливаем черновик параметров объекта...',
+        message: 'Восстанавливаем незавершённую заявку…',
         tone: 'progress',
       };
     }
 
-    if (this.draftSaving()) {
+    if (this.draftSaving() || this.hasActiveUploads()) {
       return {
-        message: 'Изменения сохраняются автоматически...',
+        message: 'Изменения и файлы сохраняются автоматически…',
         tone: 'progress',
       };
     }
@@ -103,7 +160,7 @@ export class EstimationForm {
     const savedAt = this.lastDraftSavedAt();
     if (savedAt) {
       return {
-        message: `Черновик сохранён ${new Date(savedAt).toLocaleString('ru-RU')}.`,
+        message: `Изменения сохранены ${new Date(savedAt).toLocaleString('ru-RU')}.`,
         tone: 'saved',
       };
     }
@@ -116,7 +173,7 @@ export class EstimationForm {
     }
 
     return {
-      message: 'После заполнения обязательных полей черновик будет создан автоматически.',
+      message: 'После заполнения обязательных полей заявка сохранится автоматически.',
       tone: 'neutral',
     };
   });
@@ -127,12 +184,22 @@ export class EstimationForm {
 
   showValidationErrors = false;
   validationErrorMessage = '';
+  documentFiles: ReadonlyArray<File> = [];
+  photoFiles: ReadonlyArray<File> = [];
+  additionalFiles: ReadonlyArray<File> = [];
+  imagePreviewState: ImagePreviewState | null = null;
+  isConsentModalOpen = false;
 
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly tokenStore = inject(TokenStore);
   private readonly assessmentApi = inject(AssessmentApiService);
+  private readonly documentApi = inject(DocumentApiService);
+  private readonly sessionService = inject(EstimationFormSessionService);
   private readonly localDraftService = inject(EstimationFormLocalDraftService);
+  private readonly objectUrls = new Map<string, string>();
+  private readonly allDistricts = signal<DistrictLookupOption[]>([]);
+  private readonly queuedUploadGroups = new Set<UploadGroup>();
   private isApplyingDraft = false;
   private draftSavePromise: Promise<AssessmentDraftModel> | null = null;
   private autosaveQueuedAfterCurrentSave = false;
@@ -161,27 +228,47 @@ export class EstimationForm {
       return;
     }
 
+    if (this.hasActiveUploads()) {
+      this.saveError.set('Дождитесь завершения загрузки файлов перед переходом к статусу заявки.');
+      return;
+    }
+
+    const missingRequiredUploadGroup = this.getFirstMissingRequiredUploadGroup();
+    if (missingRequiredUploadGroup) {
+      this.validationErrorMessage = this.buildUploadValidationErrorMessage(
+        missingRequiredUploadGroup,
+      );
+      this.focusUploadInput(form, missingRequiredUploadGroup);
+      return;
+    }
+
     this.saving.set(true);
 
     try {
-      await this.flushDraftSave('submit');
-      await this.router.navigate(['/applicant/assessment/status']);
+      const assessment = await this.flushDraftSave('submit');
+      const uploadFailures = await this.uploadPendingFiles(assessment.id);
+
+      await this.loadStoredDocuments(assessment.id);
+
+      if (uploadFailures.length) {
+        throw new Error(
+          `Не удалось загрузить часть файлов: ${uploadFailures.slice(0, 3).join(', ')}`,
+        );
+      }
+
+      await this.router.navigate(['/applicant/assessment/status'], {
+        queryParams: {
+          [ASSESSMENT_ID_QUERY_PARAM]: assessment.id,
+        },
+      });
     } catch (error) {
       console.error('Failed to submit estimation form', error);
       this.saveError.set(
-        extractErrorMessage(error, 'Не удалось сохранить параметры объекта. Попробуйте ещё раз.'),
+        extractErrorMessage(error, 'Не удалось сохранить параметры оценки. Попробуйте ещё раз.'),
       );
     } finally {
       this.saving.set(false);
     }
-  }
-
-  isControlInvalid(control: AbstractControl): boolean {
-    return control.invalid && (control.touched || this.showValidationErrors);
-  }
-
-  isLandPlotSelected(): boolean {
-    return this.formControls.objectType.value === LAND_PLOT_OBJECT_TYPE;
   }
 
   getAddressSuggestions(): string[] {
@@ -195,6 +282,316 @@ export class EstimationForm {
       `${cityPrefix}, пр-т Мира, д. 25`,
       `${cityPrefix}, ул. Гагарина, д. 8`,
     ];
+  }
+
+  onFilesSelected(event: Event, group: UploadGroup): void {
+    const inputElement = event.target as HTMLInputElement;
+    const selectedFiles = inputElement.files ? Array.from(inputElement.files) : [];
+    if (!selectedFiles.length) {
+      return;
+    }
+
+    if (!this.assessmentId()) {
+      this.documentsError.set(
+        'Сначала заполните обязательные поля и дождитесь автоматического создания заявки, затем прикрепите файлы.',
+      );
+      inputElement.value = '';
+      return;
+    }
+
+    this.documentsError.set(null);
+
+    const nextFiles = this.mergeFiles(this.getFiles(group), selectedFiles);
+    this.setFiles(group, nextFiles);
+    this.syncFileInput(inputElement, nextFiles);
+    this.queueGroupUpload(group);
+  }
+
+  removeFile(inputElement: HTMLInputElement, group: UploadGroup, fileIndex: number): void {
+    if (this.isGroupUploading(group)) {
+      return;
+    }
+
+    const files = this.getFiles(group);
+    const removedFile = files[fileIndex];
+    const nextFiles = files.filter((_, index) => index !== fileIndex);
+
+    if (removedFile) {
+      this.closeImagePreviewIfOpen(removedFile);
+      this.releaseObjectUrl(removedFile);
+    }
+
+    this.setFiles(group, nextFiles);
+    this.syncFileInput(inputElement, nextFiles);
+  }
+
+  hasFiles(group: UploadGroup): boolean {
+    if (this.getFiles(group).length > 0) {
+      return true;
+    }
+
+    return this.getStoredDocuments(group).length > 0;
+  }
+
+  hasStoredDocuments(group: UploadGroup): boolean {
+    return this.getStoredDocuments(group).length > 0;
+  }
+
+  isRequiredUploadMissing(group: RequiredUploadGroup): boolean {
+    return !this.hasFiles(group);
+  }
+
+  isControlInvalid(control: AbstractControl): boolean {
+    return control.invalid && (control.touched || this.showValidationErrors);
+  }
+
+  isLandPlotSelected(): boolean {
+    return this.formControls.objectType.value === LAND_PLOT_OBJECT_TYPE;
+  }
+
+  isGroupUploading(group: UploadGroup): boolean {
+    return this.uploadingState()[group];
+  }
+
+  isStoredDocumentDeleting(documentId: string): boolean {
+    return this.deletingStoredDocumentIds().includes(documentId);
+  }
+
+  formatFileSize(bytes: number): string {
+    const kilobytes = bytes / 1024;
+    if (kilobytes < 1024) {
+      return `${kilobytes.toFixed(1)} КБ`;
+    }
+
+    const megabytes = kilobytes / 1024;
+    return `${megabytes.toFixed(1)} МБ`;
+  }
+
+  formatFileCount(count: number): string {
+    const lastDigit = count % 10;
+    const lastTwoDigits = count % 100;
+
+    if (lastDigit === 1 && lastTwoDigits !== 11) {
+      return `${count} файл`;
+    }
+
+    if (lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14)) {
+      return `${count} файла`;
+    }
+
+    return `${count} файлов`;
+  }
+
+  formatStoredDocumentMeta(document: AssessmentDocumentModel): string {
+    const parts = [this.getStoredDocumentLabel(document), `v${document.version}`];
+
+    if (document.uploadedAt) {
+      parts.push(new Date(document.uploadedAt).toLocaleString('ru-RU'));
+    }
+
+    return parts.join(' · ');
+  }
+
+  isStoredImage(document: AssessmentDocumentModel): boolean {
+    return Boolean(document.previewUrl) && this.isImageType(document.fileType, document.fileName);
+  }
+
+  canPreviewStoredDocument(document: AssessmentDocumentModel): boolean {
+    return (
+      Boolean(document.previewUrl) &&
+      (this.isStoredImage(document) || this.isPdfType(document.fileType, document.fileName))
+    );
+  }
+
+  canOpenStoredDocument(document: AssessmentDocumentModel): boolean {
+    return Boolean(document.downloadUrl) && !this.isStoredImage(document);
+  }
+
+  getStoredDocumentSource(document: AssessmentDocumentModel): string {
+    return document.previewUrl;
+  }
+
+  getStoredDocumentIcon(document: AssessmentDocumentModel): string {
+    if (document.kind === 'photo') {
+      return 'IMG';
+    }
+
+    if (document.kind === 'additional') {
+      return 'FILE';
+    }
+
+    return 'DOC';
+  }
+
+  async removeStoredDocument(document: AssessmentDocumentModel): Promise<void> {
+    if (this.isStoredDocumentDeleting(document.id)) {
+      return;
+    }
+
+    this.documentsError.set(null);
+    this.setStoredDocumentDeleting(document.id, true);
+
+    try {
+      await this.documentApi.deleteDocument(document.id);
+      this.storedDocuments.update((documents) =>
+        documents.filter((storedDocument) => storedDocument.id !== document.id),
+      );
+    } catch (error) {
+      console.error('Failed to delete stored assessment document', error);
+      this.documentsError.set(
+        extractErrorMessage(error, `Не удалось удалить файл "${document.fileName}".`),
+      );
+    } finally {
+      this.setStoredDocumentDeleting(document.id, false);
+    }
+  }
+
+  isImageFile(file: File): boolean {
+    return this.isImageType(file.type, file.name);
+  }
+
+  canPreviewFile(file: File): boolean {
+    return this.isImageFile(file) || this.isPdfFile(file);
+  }
+
+  canOpenFile(file: File): boolean {
+    return !this.isImageFile(file);
+  }
+
+  getFileObjectUrl(file: File): string {
+    return this.ensureObjectUrl(file) ?? '';
+  }
+
+  getFileCategoryLabel(file: File): string {
+    const category = this.getFileCategory(file);
+    if (category === 'image') {
+      return 'Изображение';
+    }
+
+    if (category === 'pdf') {
+      return 'PDF';
+    }
+
+    if (category === 'word') {
+      return 'DOC';
+    }
+
+    if (category === 'spreadsheet') {
+      return 'XLS';
+    }
+
+    const extension = this.getFileExtension(file.name);
+    return extension ? extension.toUpperCase() : 'FILE';
+  }
+
+  previewFile(file: File): void {
+    if (this.isImageFile(file)) {
+      this.openImagePreview(file);
+      return;
+    }
+
+    if (this.isPdfFile(file)) {
+      this.openFileInBrowser(file);
+    }
+  }
+
+  openFile(file: File): void {
+    if (this.isImageFile(file)) {
+      this.openImagePreview(file);
+      return;
+    }
+
+    this.openFileInBrowser(file);
+  }
+
+  downloadFile(file: File): void {
+    const objectUrl = this.ensureObjectUrl(file);
+    if (!objectUrl) {
+      return;
+    }
+
+    this.downloadUrl(objectUrl, file.name);
+  }
+
+  openImagePreview(file: File): void {
+    const objectUrl = this.ensureObjectUrl(file);
+    if (!objectUrl) {
+      return;
+    }
+
+    this.closeConsentModal();
+    this.imagePreviewState = {
+      fileKey: this.buildFileKey(file),
+      fileName: file.name,
+      previewUrl: objectUrl,
+    };
+  }
+
+  previewStoredDocument(documentModel: AssessmentDocumentModel): void {
+    if (!documentModel.previewUrl) {
+      return;
+    }
+
+    if (this.isStoredImage(documentModel)) {
+      this.openStoredImagePreview(documentModel);
+      return;
+    }
+
+    if (this.isPdfType(documentModel.fileType, documentModel.fileName)) {
+      this.openUrlInBrowser(documentModel.previewUrl, documentModel.fileName);
+    }
+  }
+
+  openStoredDocument(documentModel: AssessmentDocumentModel): void {
+    if (!documentModel.downloadUrl) {
+      return;
+    }
+
+    if (this.isStoredImage(documentModel)) {
+      this.openStoredImagePreview(documentModel);
+      return;
+    }
+
+    this.openUrlInBrowser(documentModel.downloadUrl, documentModel.fileName);
+  }
+
+  downloadStoredDocument(documentModel: AssessmentDocumentModel): void {
+    if (!documentModel.downloadUrl) {
+      return;
+    }
+
+    this.downloadUrl(documentModel.downloadUrl, documentModel.fileName);
+  }
+
+  closeImagePreview(): void {
+    this.imagePreviewState = null;
+  }
+
+  openConsentModal(): void {
+    this.closeImagePreview();
+    this.isConsentModalOpen = true;
+  }
+
+  closeConsentModal(): void {
+    this.isConsentModalOpen = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKeydown(): void {
+    this.closeImagePreview();
+    this.closeConsentModal();
+  }
+
+  ngOnDestroy(): void {
+    if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') {
+      return;
+    }
+
+    for (const objectUrl of this.objectUrls.values()) {
+      URL.revokeObjectURL(objectUrl);
+    }
+
+    this.objectUrls.clear();
   }
 
   private setupFormSubscriptions(): void {
@@ -236,16 +633,40 @@ export class EstimationForm {
   private async initialize(): Promise<void> {
     this.loading.set(true);
     this.loadError.set(null);
+    this.documentsError.set(null);
     let shouldAutosaveRestoredState = false;
 
     try {
-      const cities = await this.assessmentApi.listCities();
-      const userId = this.requireUserId();
-      const localDraftSnapshot = this.localDraftService.load(userId);
-      const localAssessmentId = localDraftSnapshot?.assessmentId?.trim() ?? '';
+      const userId = await this.requireUserId();
+      const [cities, districts] = await Promise.all([
+        this.assessmentApi.listCities(),
+        this.assessmentApi.listDistricts(),
+      ]);
 
       this.userId.set(userId);
       this.cities.set(cities);
+      this.allDistricts.set(districts);
+      this.districts.set(districts);
+
+      const localDraftSnapshot = this.localDraftService.load(userId);
+      const routeAssessmentId =
+        this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
+      const localAssessmentId = localDraftSnapshot?.assessmentId?.trim() ?? '';
+
+      if (routeAssessmentId) {
+        const draft = await this.assessmentApi.getAssessment(routeAssessmentId);
+        this.applyDraft(draft);
+        shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
+        if (!shouldAutosaveRestoredState) {
+          this.persistAssessmentSnapshot(draft);
+        }
+        await this.loadDistrictsForCity(
+          this.formControls.cityId.value,
+          this.formControls.districtId.value,
+        );
+        await this.loadStoredDocuments(draft.id);
+        return;
+      }
 
       if (localAssessmentId) {
         try {
@@ -255,10 +676,12 @@ export class EstimationForm {
           if (!shouldAutosaveRestoredState) {
             this.persistAssessmentSnapshot(draft);
           }
+          await this.syncAssessmentId(draft.id);
           await this.loadDistrictsForCity(
             this.formControls.cityId.value,
             this.formControls.districtId.value,
           );
+          await this.loadStoredDocuments(draft.id);
           return;
         } catch (error) {
           console.error('Failed to restore estimation assessment from local snapshot', error);
@@ -275,20 +698,10 @@ export class EstimationForm {
         shouldAutosaveRestoredState = this.canPersistDraft();
         return;
       }
-
-      const latestDraft = await this.assessmentApi.findLatestDraft(userId);
-      if (latestDraft) {
-        this.applyDraft(latestDraft);
-        this.persistAssessmentSnapshot(latestDraft);
-        await this.loadDistrictsForCity(
-          this.formControls.cityId.value,
-          this.formControls.districtId.value,
-        );
-      }
     } catch (error) {
       console.error('Failed to initialize estimation form', error);
       this.loadError.set(
-        extractErrorMessage(error, 'Не удалось загрузить форму параметров оценки.'),
+        extractErrorMessage(error, 'Не удалось загрузить форму оценки. Проверьте backend.'),
       );
     } finally {
       this.loading.set(false);
@@ -297,16 +710,6 @@ export class EstimationForm {
         void this.handleAutosave();
       }
     }
-  }
-
-  private requireUserId(): string {
-    const userId = this.tokenStore.user()?.id?.trim() ?? '';
-    if (userId) {
-      return userId;
-    }
-
-    void this.router.navigateByUrl('/auth');
-    throw new Error('Сессия пользователя недоступна. Авторизуйтесь заново.');
   }
 
   private applyDraft(draft: AssessmentDraftModel): void {
@@ -343,6 +746,8 @@ export class EstimationForm {
       {
         ...INITIAL_ESTIMATION_FORM_VALUE,
         ...formValue,
+        confirmCorrect: false,
+        confirmProcessing: false,
       },
       { emitEvent: false },
     );
@@ -471,7 +876,7 @@ export class EstimationForm {
   }
 
   private buildDraftRequirementsMessage(): string {
-    return 'Чтобы сохранить черновик, заполните город, адрес, площадь и тип объекта.';
+    return 'Чтобы автоматически сохранить заявку, заполните город, адрес, площадь и тип объекта.';
   }
 
   private applyConditionalValidators(objectType: string): void {
@@ -511,7 +916,7 @@ export class EstimationForm {
 
   private async loadDistrictsForCity(cityId: string, preferredDistrictId?: string): Promise<void> {
     if (!cityId.trim()) {
-      this.districts.set([]);
+      this.districts.set(this.allDistricts());
       this.formControls.districtId.setValue('', { emitEvent: false });
       return;
     }
@@ -528,8 +933,210 @@ export class EstimationForm {
     this.formControls.districtId.setValue('', { emitEvent: false });
   }
 
+  private async loadStoredDocuments(assessmentId: string): Promise<void> {
+    this.documentsError.set(null);
+
+    try {
+      const documents = await this.documentApi.listDocumentsByAssessment(assessmentId);
+      this.storedDocuments.set(documents);
+    } catch (error) {
+      console.error('Failed to load documents for assessment', error);
+      this.documentsError.set(
+        extractErrorMessage(error, 'Не удалось загрузить список документов заявки.'),
+      );
+    }
+  }
+
+  private queueGroupUpload(group: UploadGroup): void {
+    if (this.isGroupUploading(group)) {
+      this.queuedUploadGroups.add(group);
+      return;
+    }
+
+    void this.flushGroupUpload(group);
+  }
+
+  private async flushGroupUpload(group: UploadGroup): Promise<void> {
+    const assessmentId = this.assessmentId();
+    if (!assessmentId || !this.getFiles(group).length) {
+      return;
+    }
+
+    this.setGroupUploading(group, true);
+
+    try {
+      const failures = await this.uploadGroupFiles(group, assessmentId);
+      await this.loadStoredDocuments(assessmentId);
+
+      if (failures.length) {
+        this.documentsError.set(
+          `Не удалось загрузить часть файлов: ${failures.slice(0, 3).join(', ')}`,
+        );
+      } else {
+        this.documentsError.set(null);
+      }
+    } catch (error) {
+      console.error('Failed to upload files for estimation draft', error);
+      this.documentsError.set(
+        extractErrorMessage(error, 'Не удалось загрузить часть файлов заявки.'),
+      );
+    } finally {
+      this.setGroupUploading(group, false);
+
+      if (this.queuedUploadGroups.delete(group)) {
+        void this.flushGroupUpload(group);
+      }
+    }
+  }
+
+  private setGroupUploading(group: UploadGroup, value: boolean): void {
+    this.uploadingState.update((state) => ({
+      ...state,
+      [group]: value,
+    }));
+  }
+
+  private setStoredDocumentDeleting(documentId: string, value: boolean): void {
+    this.deletingStoredDocumentIds.update((documentIds) => {
+      const nextDocumentIds = new Set(documentIds);
+      if (value) {
+        nextDocumentIds.add(documentId);
+      } else {
+        nextDocumentIds.delete(documentId);
+      }
+
+      return Array.from(nextDocumentIds);
+    });
+  }
+
+  private async uploadPendingFiles(assessmentId: string): Promise<string[]> {
+    const failures: string[] = [];
+
+    for (const group of ['documents', 'photos', 'additional'] as const) {
+      if (!this.getFiles(group).length) {
+        continue;
+      }
+
+      this.setGroupUploading(group, true);
+
+      try {
+        failures.push(...(await this.uploadGroupFiles(group, assessmentId)));
+      } finally {
+        this.setGroupUploading(group, false);
+      }
+    }
+
+    this.syncAllUploadInputs();
+    if (!failures.length) {
+      this.documentsError.set(null);
+    }
+
+    return failures;
+  }
+
+  private async uploadGroupFiles(group: UploadGroup, assessmentId: string): Promise<string[]> {
+    const files = [...this.getFiles(group)];
+    if (!files.length) {
+      return [];
+    }
+
+    const results = await Promise.allSettled(
+      files.map((file) =>
+        this.documentApi.uploadDocument({
+          assessmentId,
+          file,
+          group,
+        }),
+      ),
+    );
+
+    const uploadedFiles: File[] = [];
+    const failedFiles: string[] = [];
+
+    results.forEach((result, index) => {
+      const file = files[index];
+
+      if (result.status === 'fulfilled') {
+        uploadedFiles.push(file);
+        return;
+      }
+
+      failedFiles.push(file.name);
+    });
+
+    if (uploadedFiles.length) {
+      this.removeUploadedPendingFiles(group, uploadedFiles);
+    }
+
+    return failedFiles;
+  }
+
+  private removeUploadedPendingFiles(group: UploadGroup, uploadedFiles: ReadonlyArray<File>): void {
+    const uploadedFileKeys = new Set(uploadedFiles.map((file) => this.buildFileKey(file)));
+    const remainingFiles = this.getFiles(group).filter((file) => {
+      const wasUploaded = uploadedFileKeys.has(this.buildFileKey(file));
+      if (wasUploaded) {
+        this.closeImagePreviewIfOpen(file);
+        this.releaseObjectUrl(file);
+      }
+
+      return !wasUploaded;
+    });
+
+    this.setFiles(group, remainingFiles);
+  }
+
+  private syncAllUploadInputs(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const documentInput = document.getElementById('documentFiles') as HTMLInputElement | null;
+    const photoInput = document.getElementById('photoFiles') as HTMLInputElement | null;
+    const additionalInput = document.getElementById('additionalFiles') as HTMLInputElement | null;
+
+    if (documentInput) {
+      this.syncFileInput(documentInput, this.documentFiles);
+    }
+
+    if (photoInput) {
+      this.syncFileInput(photoInput, this.photoFiles);
+    }
+
+    if (additionalInput) {
+      this.syncFileInput(additionalInput, this.additionalFiles);
+    }
+  }
+
+  private async syncAssessmentId(assessmentId: string): Promise<void> {
+    const currentRouteValue =
+      this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
+
+    if (currentRouteValue === assessmentId) {
+      return;
+    }
+
+    await this.router.navigate([], {
+      relativeTo: this.route,
+      replaceUrl: true,
+      queryParamsHandling: 'merge',
+      queryParams: {
+        [ASSESSMENT_ID_QUERY_PARAM]: assessmentId,
+      },
+    });
+  }
+
+  private async requireUserId(): Promise<string> {
+    try {
+      return await this.sessionService.ensureUserId();
+    } catch (error) {
+      await this.router.navigateByUrl('/auth');
+      throw error;
+    }
+  }
+
   private toDraftData(): EstimationFormDraftData {
-    const value = this.estimationForm.getRawValue();
+    const value: EstimationFormValue = this.estimationForm.getRawValue();
 
     return {
       cityId: value.cityId,
@@ -568,6 +1175,146 @@ export class EstimationForm {
     return labelText;
   }
 
+  private getFiles(group: UploadGroup): ReadonlyArray<File> {
+    if (group === 'documents') {
+      return this.documentFiles;
+    }
+
+    if (group === 'photos') {
+      return this.photoFiles;
+    }
+
+    return this.additionalFiles;
+  }
+
+  private getStoredDocuments(group: UploadGroup): ReadonlyArray<AssessmentDocumentModel> {
+    if (group === 'documents') {
+      return this.uploadedDocumentItems();
+    }
+
+    if (group === 'photos') {
+      return this.uploadedPhotoItems();
+    }
+
+    return this.uploadedAdditionalItems();
+  }
+
+  private setFiles(group: UploadGroup, files: ReadonlyArray<File>): void {
+    if (group === 'documents') {
+      this.documentFiles = files;
+      return;
+    }
+
+    if (group === 'photos') {
+      this.photoFiles = files;
+      return;
+    }
+
+    this.additionalFiles = files;
+  }
+
+  private mergeFiles(
+    existingFiles: ReadonlyArray<File>,
+    selectedFiles: ReadonlyArray<File>,
+  ): ReadonlyArray<File> {
+    const nextFiles = new Map<string, File>();
+
+    for (const file of [...existingFiles, ...selectedFiles]) {
+      nextFiles.set(this.buildFileKey(file), file);
+    }
+
+    return Array.from(nextFiles.values());
+  }
+
+  private getFirstMissingRequiredUploadGroup(): RequiredUploadGroup | null {
+    if (!this.hasFiles('documents')) {
+      return 'documents';
+    }
+
+    if (!this.hasFiles('photos')) {
+      return 'photos';
+    }
+
+    return null;
+  }
+
+  private buildUploadValidationErrorMessage(group: RequiredUploadGroup): string {
+    if (group === 'documents') {
+      return 'Сканы и документы: загрузите хотя бы один документ или скан.';
+    }
+
+    return 'Фото объекта: загрузите хотя бы одно фото объекта.';
+  }
+
+  private focusUploadInput(form: HTMLFormElement, group: RequiredUploadGroup): void {
+    const uploadInput = form.querySelector<HTMLInputElement>(`#${this.getUploadInputId(group)}`);
+    uploadInput?.focus();
+  }
+
+  private syncFileInput(inputElement: HTMLInputElement, files: ReadonlyArray<File>): void {
+    if (!files.length) {
+      inputElement.value = '';
+      return;
+    }
+
+    if (typeof DataTransfer === 'undefined') {
+      return;
+    }
+
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+      dataTransfer.items.add(file);
+    }
+
+    inputElement.files = dataTransfer.files;
+  }
+
+  private openFileInBrowser(file: File): void {
+    const objectUrl = this.ensureObjectUrl(file);
+    if (!objectUrl) {
+      return;
+    }
+
+    this.openUrlInBrowser(objectUrl, file.name);
+  }
+
+  private ensureObjectUrl(file: File): string | null {
+    const fileKey = this.buildFileKey(file);
+    const cachedUrl = this.objectUrls.get(fileKey);
+    if (cachedUrl) {
+      return cachedUrl;
+    }
+
+    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+      return null;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    this.objectUrls.set(fileKey, objectUrl);
+    return objectUrl;
+  }
+
+  private releaseObjectUrl(file: File): void {
+    const fileKey = this.buildFileKey(file);
+    const objectUrl = this.objectUrls.get(fileKey);
+
+    if (!objectUrl) {
+      return;
+    }
+
+    if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+      URL.revokeObjectURL(objectUrl);
+    }
+
+    this.objectUrls.delete(fileKey);
+  }
+
+  private closeImagePreviewIfOpen(file: File): void {
+    if (this.imagePreviewState?.fileKey === this.buildFileKey(file)) {
+      this.closeImagePreview();
+    }
+  }
+
   private getControlLabel(form: HTMLFormElement, control: FormControlElement): string {
     if (control.id) {
       const boundLabel = form.querySelector<HTMLLabelElement>(`label[for="${control.id}"]`);
@@ -603,6 +1350,10 @@ export class EstimationForm {
       return 'поле обязательно для заполнения.';
     }
 
+    if (formControl.hasError('requiredTrue')) {
+      return 'подтвердите это поле.';
+    }
+
     if (formControl.hasError('minlength')) {
       return 'значение слишком короткое.';
     }
@@ -624,6 +1375,115 @@ export class EstimationForm {
     }
 
     return '';
+  }
+
+  private getUploadInputId(group: RequiredUploadGroup): string {
+    return group === 'documents' ? 'documentFiles' : 'photoFiles';
+  }
+
+  private getStoredDocumentLabel(document: AssessmentDocumentModel): string {
+    if (document.kind === 'photo') {
+      return 'Фото';
+    }
+
+    if (document.kind === 'additional') {
+      return 'Доп. файл';
+    }
+
+    return 'Документ';
+  }
+
+  private buildFileKey(file: File): string {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }
+
+  private getFileCategory(file: File): FileCategory {
+    const extension = this.getFileExtension(file.name);
+
+    if (this.isImageFile(file)) {
+      return 'image';
+    }
+
+    if (this.isPdfFile(file)) {
+      return 'pdf';
+    }
+
+    if (
+      extension === 'doc' ||
+      extension === 'docx' ||
+      file.type.includes('word') ||
+      file.type.includes('officedocument.wordprocessingml')
+    ) {
+      return 'word';
+    }
+
+    if (
+      extension === 'xls' ||
+      extension === 'xlsx' ||
+      file.type.includes('sheet') ||
+      file.type.includes('excel')
+    ) {
+      return 'spreadsheet';
+    }
+
+    return 'other';
+  }
+
+  private isPdfFile(file: File): boolean {
+    return this.isPdfType(file.type, file.name);
+  }
+
+  private isImageType(fileType: string, fileName: string): boolean {
+    return (
+      fileType.startsWith('image/') ||
+      ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'svg'].includes(
+        this.getFileExtension(fileName),
+      )
+    );
+  }
+
+  private isPdfType(fileType: string, fileName: string): boolean {
+    return fileType === 'application/pdf' || this.getFileExtension(fileName) === 'pdf';
+  }
+
+  private getFileExtension(fileName: string): string {
+    return fileName.split('.').pop()?.toLowerCase() ?? '';
+  }
+
+  private openStoredImagePreview(documentModel: AssessmentDocumentModel): void {
+    if (!documentModel.previewUrl) {
+      return;
+    }
+
+    this.closeConsentModal();
+    this.imagePreviewState = {
+      fileKey: `stored-${documentModel.id}`,
+      fileName: documentModel.fileName,
+      previewUrl: documentModel.previewUrl,
+    };
+  }
+
+  private openUrlInBrowser(url: string, fileName: string): void {
+    if (!url || typeof window === 'undefined') {
+      return;
+    }
+
+    const previewWindow = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!previewWindow) {
+      this.downloadUrl(url, fileName);
+    }
+  }
+
+  private downloadUrl(url: string, fileName: string): void {
+    if (!url || typeof document === 'undefined') {
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.rel = 'noopener';
+    link.click();
   }
 
   private getSelectedCityName(): string {

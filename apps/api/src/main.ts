@@ -3,10 +3,12 @@ import { NestFactory } from '@nestjs/core';
 import { cors } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
 import express from 'express';
+import { mkdir } from 'fs/promises';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { AuthInterceptor } from '@internal/auth';
 import { PaymentWebhookError, PaymentWebhookService } from '@internal/billing';
+import { DOCUMENT_UPLOADS_ROUTE, getDocumentUploadsRoot } from '@internal/document';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
 
@@ -28,6 +30,10 @@ async function bootstrap() {
 
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
+  const documentUploadsRoot = getDocumentUploadsRoot();
+
+  await mkdir(documentUploadsRoot, { recursive: true });
+  expressInstance.use(DOCUMENT_UPLOADS_ROUTE, express.static(documentUploadsRoot));
 
   expressInstance.get('/health', async (_req: express.Request, res: express.Response) => {
     try {

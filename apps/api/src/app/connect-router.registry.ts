@@ -68,6 +68,7 @@ export class ConnectRouterRegistry {
       createDocument: this.documentRpcService.createDocument,
       getDocument: this.documentRpcService.getDocument,
       listDocumentsByAssessment: this.documentRpcService.listDocumentsByAssessment,
+      deleteDocument: this.documentRpcService.deleteDocument,
     });
 
     // ─── Notification ────────────────────────────────────────

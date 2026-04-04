@@ -41,6 +41,11 @@ export interface EstimationFormDraftData {
   description: string;
 }
 
+export interface EstimationFormValue extends EstimationFormDraftData {
+  confirmCorrect: boolean;
+  confirmProcessing: boolean;
+}
+
 export interface AssessmentDraftModel {
   id: string;
   status: AssessmentStatus;
@@ -48,7 +53,19 @@ export interface AssessmentDraftModel {
   form: EstimationFormDraftData;
 }
 
-export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormDraftData = {
+export interface AssessmentDocumentModel {
+  id: string;
+  fileName: string;
+  fileType: string;
+  filePath: string;
+  previewUrl: string;
+  downloadUrl: string;
+  version: number;
+  uploadedAt: string | null;
+  kind: 'document' | 'photo' | 'additional';
+}
+
+export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormValue = {
   cityId: '',
   districtId: '',
   address: '',
@@ -67,6 +84,8 @@ export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormDraftData = {
   permittedUse: '',
   utilities: '',
   description: '',
+  confirmCorrect: false,
+  confirmProcessing: false,
 };
 
 export const OBJECT_TYPE_OPTIONS: ReadonlyArray<SelectOption> = [

@@ -13,12 +13,15 @@ import {
 } from '@notary-portal/api-contracts';
 import { DocumentType as PrismaDocumentType, type Prisma } from '@internal/prisma-client';
 import type { DocumentQuery } from './document.query';
+import { fromPrismaDocumentType } from './document-type.mapper';
 
 @Injectable()
 export class DocumentRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listDocumentsByAssessment(query: DocumentQuery): Promise<ListDocumentsByAssessmentResponse> {
+  async listDocumentsByAssessment(
+    query: DocumentQuery,
+  ): Promise<ListDocumentsByAssessmentResponse> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const where = this.buildWhere(query);
@@ -45,7 +48,17 @@ export class DocumentRepository {
     return create(GetDocumentResponseSchema, { document: this.toMessage(document) });
   }
 
+  async assessmentExists(id: string): Promise<boolean> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    return !!assessment;
+  }
+
   async createDocument(data: {
+    id?: string;
     assessmentId: string;
     fileName: string;
     fileType: string;
@@ -61,6 +74,7 @@ export class DocumentRepository {
 
     const document = await this.prisma.document.create({
       data: {
+        ...(data.id && { id: data.id }),
         assessmentId: data.assessmentId,
         fileName: data.fileName,
         fileType: data.fileType,
@@ -71,6 +85,11 @@ export class DocumentRepository {
       },
     });
 
+    return this.toMessage(document);
+  }
+
+  async deleteDocument(id: string): Promise<RpcDocument> {
+    const document = await this.prisma.document.delete({ where: { id } });
     return this.toMessage(document);
   }
 
@@ -96,6 +115,7 @@ export class DocumentRepository {
     version: number;
     uploadedAt: Date;
     uploadedById: string;
+    documentType: PrismaDocumentType;
   }): RpcDocument {
     return create(DocumentSchema, {
       id: d.id,
@@ -106,6 +126,7 @@ export class DocumentRepository {
       version: d.version,
       uploadedAt: timestampFromDate(d.uploadedAt),
       uploadedById: d.uploadedById,
+      documentType: fromPrismaDocumentType(d.documentType),
     });
   }
 }

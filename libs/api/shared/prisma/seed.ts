@@ -1,7 +1,7 @@
-import 'dotenv/config';
 import * as crypto from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
+import { loadPrismaEnv } from './load-env';
 import {
   AssessmentStatus,
   DocumentType,
@@ -15,6 +15,8 @@ import {
   SaleType,
   SubscriptionPlan,
 } from './generated/prisma/client';
+
+loadPrismaEnv();
 
 const connectionString = process.env['DATABASE_URL'];
 
