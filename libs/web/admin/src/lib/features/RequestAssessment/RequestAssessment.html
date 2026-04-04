@@ -1,11 +1,11 @@
-<div class="request-assessment-container">
+<div class="admin-page admin-crud-page request-assessment-container">
   <h1 class="page-title">Управление заказами</h1>
 
   <!-- СТРАНИЦА СПИСКА -->
   @if (currentView === 'list') {
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">Список пользователей</h2>
+  <div class="list-container">
+    <div class="list-header">
+      <h2>Список пользователей</h2>
       <button class="btn btn-primary" (click)="openCreateModal()">➕ Добавить пользователя</button>
     </div>
 
@@ -32,8 +32,8 @@
     </div>
 
     <!-- ТАБЛИЦА -->
-    <div class="table-container">
-      <table>
+    <div class="table-responsive">
+      <table class="data-table">
         <thead>
           <tr>
             <th class="sortable" (click)="sortBy('fullName')">ФИО{{ getSortIndicator('fullName') }}</th>
@@ -68,12 +68,10 @@
               </span>
             </td>
             <td>{{ formatDate(user.createdAt) }}</td>
-            <td>
-              <div class="actions">
-                <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
-                <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
-                <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
-              </div>
+            <td class="actions">
+              <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
+              <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
+              <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
             </td>
           </tr>
           }
@@ -98,13 +96,13 @@
 
   <!-- СТРАНИЦА ПРОСМОТРА -->
   @if (currentView === 'detail' && selectedUser) {
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">Информация о пользователе</h2>
+  <div class="view-container">
+    <div class="list-header">
+      <h2>Информация о пользователе</h2>
       <button class="btn btn-secondary" (click)="backToList()">← Назад</button>
     </div>
 
-    <div class="user-details-card">
+    <div class="view-details">
       <div class="detail-row">
         <div class="detail-label">ID:</div>
         <div class="detail-value">{{ selectedUser.id }}</div>
@@ -169,19 +167,18 @@
 
 <!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
 @if (showUserModal) {
-<div class="modal active" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
-  <div class="modal-content" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+<div class="modal-overlay" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
+  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3 class="modal-title">{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
+      <h3>{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
       <button class="close-btn" (click)="closeUserModal()">&times;</button>
     </div>
 
     <form (ngSubmit)="saveUser()">
       <div class="form-group">
-        <label class="form-label required" for="lastName">Фамилия</label>
+        <label class="required" for="lastName">Фамилия</label>
         <input
           type="text"
-          class="form-input"
           id="lastName"
           [class.error]="formErrors['lastName']"
           [(ngModel)]="formData.lastName"
@@ -192,10 +189,9 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="firstName">Имя</label>
+        <label class="required" for="firstName">Имя</label>
         <input
           type="text"
-          class="form-input"
           id="firstName"
           [class.error]="formErrors['firstName']"
           [(ngModel)]="formData.firstName"
@@ -206,10 +202,9 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="middleName">Отчество</label>
+        <label class="required" for="middleName">Отчество</label>
         <input
           type="text"
-          class="form-input"
           id="middleName"
           [class.error]="formErrors['middleName']"
           [(ngModel)]="formData.middleName"
@@ -220,24 +215,17 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="email">Email</label>
-        <input
-          type="email"
-          class="form-input"
-          id="email"
-          [class.error]="formErrors['email']"
-          [(ngModel)]="formData.email"
-          name="email" />
+        <label class="required" for="email">Email</label>
+        <input type="email" id="email" [class.error]="formErrors['email']" [(ngModel)]="formData.email" name="email" />
         @if (formErrors['email']) {
         <div class="form-error active">{{ formErrors['email'] }}</div>
         }
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="phoneNumber">Телефон</label>
+        <label class="required" for="phoneNumber">Телефон</label>
         <input
           type="tel"
-          class="form-input"
           id="phoneNumber"
           [class.error]="formErrors['phoneNumber']"
           placeholder="+7 (___) ___-__-__"
@@ -249,9 +237,8 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="subscriptionPlan">Подписка</label>
+        <label class="required" for="subscriptionPlan">Подписка</label>
         <select
-          class="form-input"
           id="subscriptionPlan"
           [class.error]="formErrors['subscriptionPlan']"
           [(ngModel)]="formData.subscriptionPlan"
@@ -267,8 +254,8 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label required" for="role">Роль</label>
-        <select class="form-input" id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
+        <label class="required" for="role">Роль</label>
+        <select id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
           <option value="" disabled>Выберите роль</option>
           <option value="Applicant">Заявитель</option>
           <option value="Notary">Нотариус</option>
@@ -280,7 +267,7 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="isActive">Статус</label>
+        <label for="isActive">Статус</label>
         <div class="toggle-switch">
           <label class="switch">
             <input type="checkbox" id="isActive" [checked]="formData.isActive" (change)="onStatusToggle()" />
@@ -301,18 +288,14 @@
 
 <!-- ========== МОДАЛКА УДАЛЕНИЯ ========== -->
 @if (showDeleteModal && userToDelete) {
-<div class="modal active" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
-  <div
-    class="modal-content modal-sm"
-    role="document"
-    (click)="$event.stopPropagation()"
-    (keydown)="$event.stopPropagation()">
+<div class="modal-overlay" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
+  <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <div class="modal-header">
-      <h3 class="modal-title">Подтверждение удаления</h3>
+      <h3>Подтверждение удаления</h3>
       <button class="close-btn" (click)="closeDeleteModal()">&times;</button>
     </div>
 
-    <p class="delete-message">
+    <p>
       Вы уверены, что хотите удалить пользователя
       <strong>{{ getFullName(userToDelete) }}</strong>?
     </p>
