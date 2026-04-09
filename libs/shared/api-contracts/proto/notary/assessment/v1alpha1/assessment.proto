@@ -6,17 +6,19 @@ import "google/protobuf/timestamp.proto";
 import "notary/common/v1alpha1/common.proto";
 
 service AssessmentService {
-  rpc CreateAssessment (CreateAssessmentRequest) returns (CreateAssessmentResponse);
-  rpc GetAssessment (GetAssessmentRequest) returns (GetAssessmentResponse);
-  rpc UpdateAssessment (UpdateAssessmentRequest) returns (UpdateAssessmentResponse);
+  rpc CreateAssessment(CreateAssessmentRequest) returns (CreateAssessmentResponse);
+  rpc GetAssessment(GetAssessmentRequest) returns (GetAssessmentResponse);
+  rpc UpdateAssessment(UpdateAssessmentRequest) returns (UpdateAssessmentResponse);
 
   // Получение списка (для заявителя - свои, для нотариуса - доступные)
-  rpc ListAssessments (ListAssessmentsRequest) returns (ListAssessmentsResponse);
+  rpc ListAssessments(ListAssessmentsRequest) returns (ListAssessmentsResponse);
+  rpc ListCities(ListCitiesRequest) returns (ListCitiesResponse);
+  rpc ListDistricts(ListDistrictsRequest) returns (ListDistrictsResponse);
 
   // Смена статусов (Specific operations)
-  rpc VerifyAssessment (VerifyAssessmentRequest) returns (VerifyAssessmentResponse); // Нотариус берет в работу
-  rpc CompleteAssessment (CompleteAssessmentRequest) returns (CompleteAssessmentResponse); // Оценка завершена
-  rpc CancelAssessment (CancelAssessmentRequest) returns (CancelAssessmentResponse);
+  rpc VerifyAssessment(VerifyAssessmentRequest) returns (VerifyAssessmentResponse); // Нотариус берет в работу
+  rpc CompleteAssessment(CompleteAssessmentRequest) returns (CompleteAssessmentResponse); // Оценка завершена
+  rpc CancelAssessment(CancelAssessmentRequest) returns (CancelAssessmentResponse);
 }
 
 enum AssessmentStatus {
@@ -28,21 +30,121 @@ enum AssessmentStatus {
   ASSESSMENT_STATUS_CANCELLED = 5;
 }
 
+enum RealEstateObjectType {
+  REAL_ESTATE_OBJECT_TYPE_UNSPECIFIED = 0;
+  REAL_ESTATE_OBJECT_TYPE_APARTMENT = 1;
+  REAL_ESTATE_OBJECT_TYPE_HOUSE = 2;
+  REAL_ESTATE_OBJECT_TYPE_ROOM = 3;
+  REAL_ESTATE_OBJECT_TYPE_APARTMENTS = 4;
+  REAL_ESTATE_OBJECT_TYPE_LAND_PLOT = 5;
+  REAL_ESTATE_OBJECT_TYPE_COMMERCIAL_PROPERTY = 6;
+  REAL_ESTATE_OBJECT_TYPE_OTHER = 7;
+}
+
+enum RealEstateCondition {
+  REAL_ESTATE_CONDITION_UNSPECIFIED = 0;
+  REAL_ESTATE_CONDITION_EXCELLENT = 1;
+  REAL_ESTATE_CONDITION_GOOD = 2;
+  REAL_ESTATE_CONDITION_SATISFACTORY = 3;
+  REAL_ESTATE_CONDITION_POOR = 4;
+}
+
+enum WallMaterial {
+  WALL_MATERIAL_UNSPECIFIED = 0;
+  WALL_MATERIAL_BRICK = 1;
+  WALL_MATERIAL_PANEL = 2;
+  WALL_MATERIAL_BLOCK = 3;
+  WALL_MATERIAL_MONOLITHIC = 4;
+  WALL_MATERIAL_MONOLITHIC_BRICK = 5;
+  WALL_MATERIAL_WOODEN = 6;
+  WALL_MATERIAL_AERATED_CONCRETE = 7;
+}
+
+enum ElevatorType {
+  ELEVATOR_TYPE_UNSPECIFIED = 0;
+  ELEVATOR_TYPE_NONE = 1;
+  ELEVATOR_TYPE_CARGO = 2;
+  ELEVATOR_TYPE_PASSENGER = 3;
+  ELEVATOR_TYPE_PASSENGER_AND_CARGO = 4;
+}
+
+message City {
+  string id = 1;
+  string name = 2;
+}
+
+message District {
+  string id = 1;
+  string city_id = 2;
+  string name = 3;
+}
+
+message RealEstateObject {
+  string id = 1;
+  string city_id = 2;
+  optional string district_id = 3;
+  string address = 4;
+  optional string cadastral_number = 5;
+  string area = 6;
+  RealEstateObjectType object_type = 7;
+  optional int32 rooms_count = 8;
+  optional int32 floors_total = 9;
+  optional int32 floor = 10;
+  optional RealEstateCondition condition = 11;
+  optional int32 year_built = 12;
+  optional WallMaterial wall_material = 13;
+  optional ElevatorType elevator_type = 14;
+  optional bool has_balcony_or_loggia = 15;
+  optional string land_category = 16;
+  optional string permitted_use = 17;
+  optional string utilities = 18;
+  optional string description = 19;
+  City city = 20;
+  District district = 21;
+  google.protobuf.Timestamp created_at = 22;
+  google.protobuf.Timestamp updated_at = 23;
+}
+
+message RealEstateObjectInput {
+  optional string city_id = 1;
+  optional string district_id = 2;
+  optional string address = 3;
+  optional string cadastral_number = 4;
+  optional string area = 5;
+  optional RealEstateObjectType object_type = 6;
+  optional int32 rooms_count = 7;
+  optional int32 floors_total = 8;
+  optional int32 floor = 9;
+  optional RealEstateCondition condition = 10;
+  optional int32 year_built = 11;
+  optional WallMaterial wall_material = 12;
+  optional ElevatorType elevator_type = 13;
+  optional bool has_balcony_or_loggia = 14;
+  optional string land_category = 15;
+  optional string permitted_use = 16;
+  optional string utilities = 17;
+  optional string description = 18;
+}
+
 message Assessment {
   string id = 1;
   string user_id = 2;
   AssessmentStatus status = 3;
+  // Краткий адрес для обратной совместимости и отображения в списках.
   string address = 4;
   string description = 5;
   string estimated_value = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
+  optional string real_estate_object_id = 9;
+  RealEstateObject real_estate_object = 10;
 }
 
 message CreateAssessmentRequest {
   string user_id = 1;
   string address = 2;
   string description = 3;
+  RealEstateObjectInput real_estate_object = 4;
 }
 
 message GetAssessmentRequest {
@@ -53,12 +155,27 @@ message UpdateAssessmentRequest {
   string id = 1;
   string address = 2;
   string description = 3;
+  RealEstateObjectInput real_estate_object = 4;
 }
 
 message ListAssessmentsRequest {
   notary.common.v1alpha1.PaginationParams pagination = 1;
   AssessmentStatus status_filter = 2;
   string user_id = 3; // Опционально, для фильтрации админом
+}
+
+message ListCitiesRequest {}
+
+message ListCitiesResponse {
+  repeated City cities = 1;
+}
+
+message ListDistrictsRequest {
+  optional string city_id = 1;
+}
+
+message ListDistrictsResponse {
+  repeated District districts = 1;
 }
 
 message VerifyAssessmentRequest {
