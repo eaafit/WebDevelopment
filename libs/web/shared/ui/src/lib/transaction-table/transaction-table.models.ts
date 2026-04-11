@@ -2,6 +2,8 @@ export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 export type TransactionType = 'subscription' | 'assessment' | 'document_copy';
 
+export type TransactionReceiptStatus = 'pending' | 'available' | 'failed' | 'unspecified';
+
 export interface TransactionItem {
   id: string;
   userId: string;
@@ -13,6 +15,8 @@ export interface TransactionItem {
   currency: string;
   description: string;
   paymentMethod: string | null;
+  hasReceipt: boolean;
+  receiptStatus: TransactionReceiptStatus;
   attachmentFileName: string | null;
   attachmentFileUrl: string | null;
   subscriptionId: string | null;

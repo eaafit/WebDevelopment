@@ -11,16 +11,21 @@ import {
   type ValidateSubscriptionPromoRequest,
   type ValidateSubscriptionPromoResponse,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
+  PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   SubscriptionPlan as PrismaSubscriptionPlan,
   PaymentType as PrismaPaymentType,
   type Promo,
 } from '@internal/prisma-client';
-import { YooKassaClient, YooKassaClientError } from '../yookassa/yookassa.client';
+import {
+  YooKassaClient,
+  YooKassaClientError,
+  type YooKassaReceipt,
+} from '../yookassa/yookassa.client';
 import {
   SUBSCRIPTION_CURRENCY,
   getSubscriptionPlanByPrisma,
@@ -50,6 +55,8 @@ interface PromoValidationResult {
 
 @Injectable()
 export class PaymentCreateService {
+  private readonly logger = new Logger(PaymentCreateService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly yookassa: YooKassaClient,
@@ -62,6 +69,10 @@ export class PaymentCreateService {
     const prismaType = this.toPrismaType(request.type);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
+    const receipt =
+      prismaType === PrismaPaymentType.Subscription
+        ? await this.buildSubscriptionReceipt(request.userId, resolved)
+        : undefined;
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -74,6 +85,8 @@ export class PaymentCreateService {
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
         paymentMethod: 'yookassa_widget',
+        receiptStatus:
+          prismaType === PrismaPaymentType.Subscription ? PrismaPaymentReceiptStatus.Pending : null,
       },
     });
 
@@ -95,12 +108,17 @@ export class PaymentCreateService {
           target_id: request.targetId,
           ...(resolved.promo ? { promo_code: resolved.promo.code } : {}),
         },
+        ...(receipt ? { receipt } : {}),
       });
 
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { transactionId: result.id },
       });
+
+      this.logger.log(
+        `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
+      );
 
       return create(CreatePaymentResponseSchema, {
         paymentId: payment.id,
@@ -178,6 +196,53 @@ export class PaymentCreateService {
       },
       discountPercent: promoValidation.promo.discountPercent.toString(),
     });
+  }
+
+  private async loadReceiptCustomer(userId: string): Promise<{ email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+      },
+    });
+
+    if (!user?.email?.trim()) {
+      throw new ConnectError(
+        'User email is required to create receipt data',
+        Code.FailedPrecondition,
+      );
+    }
+
+    return {
+      email: user.email.trim(),
+    };
+  }
+
+  private async buildSubscriptionReceipt(
+    userId: string,
+    resolved: Pick<ResolvedPaymentContext, 'amount' | 'description'>,
+  ): Promise<YooKassaReceipt> {
+    const receiptCustomer = await this.loadReceiptCustomer(userId);
+
+    return {
+      customer: {
+        email: receiptCustomer.email,
+      },
+      items: [
+        {
+          description: resolved.description,
+          quantity: '1.000',
+          amount: {
+            value: resolved.amount,
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+          vatCode: resolveReceiptVatCode(),
+          paymentMode: 'full_prepayment',
+          paymentSubject: 'service',
+        },
+      ],
+      internet: true,
+    };
   }
 
   private async resolvePaymentContext(
@@ -383,4 +448,24 @@ function calculateDiscountAmount(baseAmountCents: number, percent: string): numb
 
 function getPaymentReturnUrlBase(): string {
   return (process.env['PAYMENT_RETURN_URL_BASE'] ?? process.env['FRONTEND_URL'] ?? '').trim();
+}
+
+function resolveReceiptVatCode(): number {
+  const rawValue = process.env['YOOKASSA_RECEIPT_VAT_CODE']?.trim();
+  if (!rawValue) {
+    throw new ConnectError(
+      'YOOKASSA_RECEIPT_VAT_CODE must be configured for subscription receipts',
+      Code.FailedPrecondition,
+    );
+  }
+
+  const value = Number(rawValue);
+  if (!Number.isInteger(value) || value < 1 || value > 12) {
+    throw new ConnectError(
+      'YOOKASSA_RECEIPT_VAT_CODE must be an integer from 1 to 12',
+      Code.FailedPrecondition,
+    );
+  }
+
+  return value;
 }

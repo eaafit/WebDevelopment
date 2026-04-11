@@ -18,6 +18,8 @@ describe('TransactionTable', () => {
     currency: 'RUB',
     description: 'Возврат по оценке квартиры',
     paymentMethod: 'sbp',
+    hasReceipt: true,
+    receiptStatus: 'available',
     attachmentFileName: 'refund-check.pdf',
     attachmentFileUrl: 'https://example.local/refund-check.pdf',
     subscriptionId: null,
@@ -28,6 +30,8 @@ describe('TransactionTable', () => {
     ...refundedTransaction,
     id: 'payment-2',
     status: 'pending',
+    hasReceipt: false,
+    receiptStatus: 'pending',
     attachmentFileUrl: 'https://example.local/pending.pdf',
   };
 
@@ -86,6 +90,14 @@ describe('TransactionTable', () => {
       label: 'Документ появится после оплаты',
       icon: '⏳',
     });
+  });
+
+  it('should emit receipt open for available documents', () => {
+    const receiptOpenSpy = jest.spyOn(component.receiptOpen, 'emit');
+
+    component.openReceipt(refundedTransaction);
+
+    expect(receiptOpenSpy).toHaveBeenCalledWith(refundedTransaction);
   });
 
   it('should keep rendering the current rows while the next page is loading', async () => {

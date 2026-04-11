@@ -151,12 +151,12 @@
             </td>
             <td class="transaction-documents-cell transaction-documents-column">
               @if (canShowDocument(transaction)) { @let document = getDocumentPresentation(transaction);
-              <a [href]="transaction.attachmentFileUrl" target="_blank" rel="noreferrer" class="document-link">
+              <button type="button" class="document-link" (click)="openReceipt(transaction)">
                 <span class="document-link__icon">{{ document.icon }}</span>
                 <span class="document-link__content">
                   <span class="document-link__title">{{ document.label }}</span>
                 </span>
-              </a>
+              </button>
               } @else { @let unavailableDocument = getUnavailableDocumentPresentation(transaction);
               <span class="document-link document-link--muted">
                 <span class="document-link__icon">{{ unavailableDocument.icon }}</span>

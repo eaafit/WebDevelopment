@@ -13,7 +13,7 @@ services:
     restart: always
 
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
+    image: prometheuscommunity/postgres-exporter:v0.18.1
     container_name: notary-postgres-exporter
     ports:
       - '9187:9187'

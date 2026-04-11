@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import type {
   TransactionItem,
   TransactionPageMeta,
+  TransactionReceiptStatus,
   TransactionStatus,
   TransactionTableFilters,
   TransactionType,
@@ -111,6 +112,7 @@ export class TransactionTable implements OnChanges {
 
   @Output() readonly filtersApply = new EventEmitter<TransactionTableFilters>();
   @Output() readonly pageChange = new EventEmitter<number>();
+  @Output() readonly receiptOpen = new EventEmitter<TransactionItem>();
 
   readonly today = getTodayInputValue();
   private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
@@ -158,6 +160,14 @@ export class TransactionTable implements OnChanges {
     }
 
     this.pageChange.emit(this.meta.currentPage + 1);
+  }
+
+  openReceipt(transaction: TransactionItem): void {
+    if (!this.canShowDocument(transaction)) {
+      return;
+    }
+
+    this.receiptOpen.emit(transaction);
   }
 
   trackByTransaction(index: number, transaction: TransactionItem): string {
@@ -311,7 +321,8 @@ export class TransactionTable implements OnChanges {
 
   canShowDocument(transaction: TransactionItem): boolean {
     return Boolean(
-      transaction.attachmentFileUrl &&
+      transaction.hasReceipt &&
+        transaction.attachmentFileUrl &&
         (transaction.status === 'completed' || transaction.status === 'refunded'),
     );
   }
@@ -319,6 +330,13 @@ export class TransactionTable implements OnChanges {
   getUnavailableDocumentPresentation(
     transaction: TransactionItem,
   ): TransactionDocumentUnavailablePresentation {
+    if (transaction.status === 'completed' && transaction.receiptStatus === 'failed') {
+      return {
+        label: 'Чек недоступен',
+        icon: '⚠️',
+      };
+    }
+
     switch (transaction.status) {
       case 'pending':
         return {
@@ -337,8 +355,8 @@ export class TransactionTable implements OnChanges {
         };
       case 'completed':
         return {
-          label: 'Документ ещё не сформирован',
-          icon: '📭',
+          label: this.getCompletedUnavailableLabel(transaction.receiptStatus),
+          icon: transaction.receiptStatus === 'failed' ? '⚠️' : '📭',
         };
     }
   }
@@ -357,6 +375,19 @@ export class TransactionTable implements OnChanges {
     }
 
     return Math.min(this.getVisibleRangeStart(meta) + itemsCount - 1, meta.totalItems);
+  }
+
+  private getCompletedUnavailableLabel(receiptStatus: TransactionReceiptStatus): string {
+    switch (receiptStatus) {
+      case 'pending':
+        return 'Чек ещё формируется';
+      case 'failed':
+        return 'Чек недоступен';
+      case 'available':
+      case 'unspecified':
+      default:
+        return 'Документ ещё не сформирован';
+    }
   }
 }
 

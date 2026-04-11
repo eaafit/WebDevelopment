@@ -46,6 +46,7 @@
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `YOOKASSA_RECEIPT_VAT_CODE` - обязательный `vat_code` для строки чека подписки, которую мы передаём в YooKassa; значение нужно задать явно по согласованию с бухгалтерией
 
 **Webhook URL для кабинета ЮKassa:**
 
