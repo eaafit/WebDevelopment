@@ -85,6 +85,19 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.document-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.document-section {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
 .required-mark {
   margin-left: 2px;
   font-weight: 700;
@@ -105,6 +118,11 @@
   padding: 0.5rem;
 }
 
+.form-file:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .form-file::file-selector-button {
   cursor: pointer;
 
@@ -119,6 +137,11 @@
   background-color: var(--bg-secondary);
 }
 
+.form-file:disabled::file-selector-button {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
 .form-help {
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -128,6 +151,10 @@
   margin: 0;
   font-size: 0.8rem;
   color: var(--failed-text);
+}
+
+.form-section-error {
+  margin-bottom: 1rem;
 }
 
 .form-check {
@@ -392,6 +419,13 @@
   line-height: 1.25;
 }
 
+.photo-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .upload-card-preview,
 .photo-card-preview,
 .photo-card-remove,
@@ -466,6 +500,21 @@
   transform: translateY(-1px);
   border-color: #fca5a5;
   color: #b91c1c;
+}
+
+.photo-card-remove:disabled,
+.upload-list-remove:disabled {
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.55;
+}
+
+.photo-card-remove:disabled:hover,
+.upload-list-remove:disabled:hover {
+  transform: none;
+  border-color: var(--border);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 
 .upload-list-remove:focus-visible,
@@ -554,7 +603,8 @@
 
 @media (width <= 760px) {
   .form-grid-2,
-  .form-grid-3 {
+  .form-grid-3,
+  .document-sections {
     grid-template-columns: 1fr;
   }
 

@@ -344,6 +344,7 @@ async function upsertDocuments(
   assessmentIds: string[],
   userIds: string[],
 ): Promise<void> {
+  const bucketName = process.env['S3_BUCKET_ASSESSMENT_FILES']?.trim() || 'assessment-files';
   const docTypes = [
     DocumentType.Passport,
     DocumentType.PropertyDeed,
@@ -366,14 +367,19 @@ async function upsertDocuments(
     const uploadedById = userIds[i % userIds.length];
     const docType = docTypes[i % 6];
     const fileName = `seed-doc-${pad(i, 3)}-${fileNames[i % 6]}`;
+    const objectPrefix = resolveSeedDocumentPrefix(docType);
+    const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
+    const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
     await prisma.document.upsert({
       where: { id },
       update: {
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
@@ -382,13 +388,27 @@ async function upsertDocuments(
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
     });
   }
+}
+
+function resolveSeedDocumentPrefix(documentType: DocumentType): string {
+  if (documentType === DocumentType.Photo) {
+    return 'photos';
+  }
+
+  if (documentType === DocumentType.Additional) {
+    return 'additional';
+  }
+
+  return 'documents';
 }
 
 async function upsertSubscriptions(count: number, userIds: string[]): Promise<string[]> {

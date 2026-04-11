@@ -3,7 +3,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { TokenStore } from '@notary-portal/ui';
 import { AssessmentApiService } from './assessment-api.service';
+import { DocumentApiService } from './document-api.service';
 import { EstimationFormLocalDraftService } from './estimation-form-local-draft.service';
+import { EstimationFormSessionService } from './estimation-form-session.service';
 import { EstimationForm } from './estimation-form';
 
 describe('EstimationForm', () => {
@@ -91,6 +93,30 @@ describe('EstimationForm', () => {
           },
         },
         {
+          provide: DocumentApiService,
+          useValue: {
+            listDocumentsByAssessment: jest.fn().mockResolvedValue([]),
+            uploadDocument: jest.fn().mockResolvedValue({
+              id: 'document-1',
+              fileName: 'document.pdf',
+              fileType: 'application/pdf',
+              fileSize: 4,
+              previewUrl: '/api/documents/document-1/content?mode=preview',
+              downloadUrl: '/api/documents/document-1/content?mode=download',
+              version: 1,
+              uploadedAt: '2026-04-04T10:00:00.000Z',
+              kind: 'document',
+            }),
+            deleteDocument: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: EstimationFormSessionService,
+          useValue: {
+            ensureUserId: jest.fn().mockResolvedValue('user-1'),
+          },
+        },
+        {
           provide: EstimationFormLocalDraftService,
           useValue: {
             load: jest.fn().mockReturnValue(null),
@@ -132,7 +158,9 @@ describe('EstimationForm', () => {
     await component.onSubmit(new Event('submit'), getFormElement(fixture));
 
     expect(createDraftMock).toHaveBeenCalled();
-    expect(navigateSpy).toHaveBeenCalledWith(['/applicant/assessment/status']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/applicant/assessment/status'], {
+      queryParams: { assessmentId: 'assessment-1' },
+    });
     expect(component.validationErrorMessage).toBe('');
   });
 

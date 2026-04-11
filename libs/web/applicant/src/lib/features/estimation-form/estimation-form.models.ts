@@ -48,6 +48,18 @@ export interface AssessmentDraftModel {
   form: EstimationFormDraftData;
 }
 
+export interface AssessmentDocumentModel {
+  id: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  previewUrl: string;
+  downloadUrl: string;
+  version: number;
+  uploadedAt: string | null;
+  kind: 'document' | 'photo' | 'additional';
+}
+
 export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormDraftData = {
   cityId: '',
   districtId: '',
