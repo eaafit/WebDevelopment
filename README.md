@@ -24,6 +24,8 @@
 
 - `docker-compose up` - запустить PostgreSQL
 - `pnpm nx prune` - очистка nx
+- `pnpm store prune` - полная очистка.
+- `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
 - `pnpm nx run prisma:deploy` - применить миграции к базе данных
 - `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
