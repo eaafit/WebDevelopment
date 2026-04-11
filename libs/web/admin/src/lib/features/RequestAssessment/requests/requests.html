@@ -32,15 +32,67 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th class="sortable" (click)="sortBy('address')">Адрес{{ getSortIndicator('address') }}</th>
-            <th class="sortable" (click)="sortBy('applicantName')">Заявитель{{ getSortIndicator('applicantName') }}</th>
-            <th class="sortable" (click)="sortBy('status')">Статус{{ getSortIndicator('status') }}</th>
-            <th class="sortable" (click)="sortBy('estimatedValue')">
-              Стоимость{{ getSortIndicator('estimatedValue') }}
+            @for (column of headerColumns; track column.key) {
+            <th class="filterable no-wrap-col">
+              <div class="header-cell">
+                <span>{{ column.label }}</span>
+                <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">▼</button>
+              </div>
+              @if (activeFilterColumn === column.key) {
+              <div
+                class="column-filter-menu"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+                tabindex="-1"
+                role="menu"
+                aria-label="Меню фильтрации">
+                <div class="menu-section">
+                  <button
+                    type="button"
+                    class="menu-btn"
+                    [class.active]="isSortDraftActive('asc')"
+                    (click)="setDraftSort('asc')">
+                    По возрастанию
+                  </button>
+                  <button
+                    type="button"
+                    class="menu-btn"
+                    [class.active]="isSortDraftActive('desc')"
+                    (click)="setDraftSort('desc')">
+                    По убыванию
+                  </button>
+                </div>
+                <div class="menu-section">
+                  <button type="button" class="menu-btn clear-btn" (click)="clearCurrentColumnFilter()">
+                    Снять фильтр с текущего столбца
+                  </button>
+                </div>
+                <div class="menu-section">
+                  <input type="text" [(ngModel)]="filterSearch" placeholder="Поиск" />
+                </div>
+                <div class="menu-section value-list">
+                  <label class="checkbox-row">
+                    <input type="checkbox" [checked]="isAllChecked" (change)="onToggleAllChange($event)" />
+                    <span>Выделить все</span>
+                  </label>
+                  @for (value of filterValues; track value) {
+                  <label class="checkbox-row">
+                    <input
+                      type="checkbox"
+                      [checked]="isValueChecked(value)"
+                      (change)="onToggleValueChange(value, $event)" />
+                    <span>{{ value }}</span>
+                  </label>
+                  }
+                </div>
+                <div class="menu-actions">
+                  <button type="button" class="btn btn-primary btn-sm" (click)="applyColumnFilter()">OK</button>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="cancelColumnFilter()">Отмена</button>
+                </div>
+              </div>
+              }
             </th>
-            <th class="sortable" (click)="sortBy('createdAt')">Дата создания{{ getSortIndicator('createdAt') }}</th>
-            <th>Действия</th>
+            }
           </tr>
         </thead>
         <tbody>

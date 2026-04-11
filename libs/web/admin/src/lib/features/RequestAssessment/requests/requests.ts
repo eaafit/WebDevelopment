@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -14,6 +14,15 @@ export interface AssessmentItem {
   updatedAt: string;
 }
 
+type RequestFilterColumn =
+  | 'id'
+  | 'address'
+  | 'applicantName'
+  | 'status'
+  | 'estimatedValue'
+  | 'createdAt'
+  | 'actions';
+
 @Component({
   selector: 'lib-requests',
   imports: [CommonModule, FormsModule],
@@ -28,8 +37,31 @@ export class RequestsComponent implements OnInit {
   searchTerm = '';
   statusFilter = '';
 
-  sortColumn = '';
-  sortDirection: 'asc' | 'desc' = 'asc';
+  readonly headerColumns: { key: RequestFilterColumn; label: string }[] = [
+    { key: 'id', label: 'ID' },
+    { key: 'address', label: 'Адрес' },
+    { key: 'applicantName', label: 'Заявитель' },
+    { key: 'status', label: 'Статус' },
+    { key: 'estimatedValue', label: 'Стоимость' },
+    { key: 'createdAt', label: 'Дата создания' },
+    { key: 'actions', label: 'Действия' },
+  ];
+
+  activeFilterColumn: RequestFilterColumn | null = null;
+  columnSelectedValues: Record<RequestFilterColumn, string[]> = {
+    id: [],
+    address: [],
+    applicantName: [],
+    status: [],
+    estimatedValue: [],
+    createdAt: [],
+    actions: [],
+  };
+  currentSortColumn: RequestFilterColumn | null = null;
+  currentSortDirection: '' | 'asc' | 'desc' = '';
+  filterSearch = '';
+  filterSortDraft: '' | 'asc' | 'desc' = '';
+  filterSelectedDraft = new Set<string>();
 
   currentPage = 1;
   itemsPerPage = 10;
@@ -188,51 +220,158 @@ export class RequestsComponent implements OnInit {
       result = result.filter((a) => a.status === this.statusFilter);
     }
 
-    if (this.sortColumn) {
-      result.sort((a, b) => {
-        let cmp = 0;
-        switch (this.sortColumn) {
-          case 'address':
-            cmp = a.address.localeCompare(b.address, 'ru');
-            break;
-          case 'applicantName':
-            cmp = a.applicantName.localeCompare(b.applicantName, 'ru');
-            break;
-          case 'status':
-            cmp = a.status.localeCompare(b.status);
-            break;
-          case 'createdAt':
-            cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-            break;
-          case 'estimatedValue': {
-            const va = parseFloat(a.estimatedValue) || 0;
-            const vb = parseFloat(b.estimatedValue) || 0;
-            cmp = va - vb;
-            break;
-          }
-        }
-        return this.sortDirection === 'asc' ? cmp : -cmp;
-      });
-    }
+    result = result.filter((a) => this.matchesColumnFilters(a));
+    result.sort((a, b) => this.compareByActiveSort(a, b));
 
     this.filteredAssessments = result;
     this.currentPage = 1;
     this.updatePagination();
   }
 
-  sortBy(column: string): void {
-    if (this.sortColumn === column) {
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortColumn = column;
-      this.sortDirection = 'asc';
+  // ========== COLUMN FILTER ==========
+
+  toggleColumnFilter(column: RequestFilterColumn, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.activeFilterColumn === column) {
+      this.activeFilterColumn = null;
+      return;
     }
+    this.activeFilterColumn = column;
+    this.filterSearch = '';
+    this.filterSortDraft = this.currentSortColumn === column ? this.currentSortDirection : '';
+    const allValues = this.getUniqueColumnValues(column);
+    const selected = this.columnSelectedValues[column];
+    this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
+  }
+
+  closeColumnFilter(): void {
+    this.activeFilterColumn = null;
+  }
+
+  setDraftSort(direction: 'asc' | 'desc'): void {
+    this.filterSortDraft = direction;
+  }
+
+  clearCurrentColumnFilter(): void {
+    if (!this.activeFilterColumn) return;
+    this.columnSelectedValues[this.activeFilterColumn] = [];
+    if (this.currentSortColumn === this.activeFilterColumn) {
+      this.currentSortColumn = null;
+      this.currentSortDirection = '';
+      this.filterSortDraft = '';
+    }
+    this.filterSearch = '';
+    this.filterSelectedDraft = new Set(this.getUniqueColumnValues(this.activeFilterColumn));
+    this.currentPage = 1;
+  }
+
+  get filterValues(): string[] {
+    if (!this.activeFilterColumn) return [];
+    const all = this.getUniqueColumnValues(this.activeFilterColumn);
+    const term = this.filterSearch.trim().toLowerCase();
+    if (!term) return all;
+    return all.filter((v) => v.toLowerCase().includes(term));
+  }
+
+  isValueChecked(value: string): boolean {
+    return this.filterSelectedDraft.has(value);
+  }
+
+  get isAllChecked(): boolean {
+    const values = this.filterValues;
+    if (!values.length) return false;
+    return values.every((v) => this.filterSelectedDraft.has(v));
+  }
+
+  onToggleAllChange(event: Event): void {
+    const checked = !!(event.target as HTMLInputElement | null)?.checked;
+    for (const v of this.filterValues) {
+      if (checked) this.filterSelectedDraft.add(v);
+      else this.filterSelectedDraft.delete(v);
+    }
+  }
+
+  onToggleValueChange(value: string, event: Event): void {
+    const checked = !!(event.target as HTMLInputElement | null)?.checked;
+    if (checked) this.filterSelectedDraft.add(value);
+    else this.filterSelectedDraft.delete(value);
+  }
+
+  applyColumnFilter(): void {
+    if (!this.activeFilterColumn) return;
+    const column = this.activeFilterColumn;
+    const allValues = this.getUniqueColumnValues(column);
+    const selected = allValues.filter((v) => this.filterSelectedDraft.has(v));
+    this.columnSelectedValues[column] = selected.length === allValues.length ? [] : selected;
+    if (this.filterSortDraft) {
+      this.currentSortColumn = column;
+      this.currentSortDirection = this.filterSortDraft;
+    } else if (this.currentSortColumn === column) {
+      this.currentSortColumn = null;
+      this.currentSortDirection = '';
+    }
+    this.closeColumnFilter();
     this.applyFilters();
   }
 
-  getSortIndicator(column: string): string {
-    if (this.sortColumn !== column) return '';
-    return this.sortDirection === 'asc' ? ' ↑' : ' ↓';
+  cancelColumnFilter(): void {
+    this.closeColumnFilter();
+  }
+
+  isSortDraftActive(direction: 'asc' | 'desc'): boolean {
+    return this.filterSortDraft === direction;
+  }
+
+  getCellValue(item: AssessmentItem, column: RequestFilterColumn): string {
+    switch (column) {
+      case 'id':
+        return this.getShortId(item.id);
+      case 'address':
+        return item.address;
+      case 'applicantName':
+        return item.applicantName;
+      case 'status':
+        return this.getStatusLabel(item.status);
+      case 'estimatedValue':
+        return this.formatValue(item.estimatedValue);
+      case 'createdAt':
+        return this.formatDate(item.createdAt);
+      case 'actions':
+        return '';
+      default:
+        return '';
+    }
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.closeColumnFilter();
+  }
+
+  private matchesColumnFilters(item: AssessmentItem): boolean {
+    for (const col of this.headerColumns.map((c) => c.key)) {
+      const selected = this.columnSelectedValues[col];
+      if (!selected.length) continue;
+      const value = this.getCellValue(item, col);
+      if (!selected.includes(value)) return false;
+    }
+    return true;
+  }
+
+  private getUniqueColumnValues(column: RequestFilterColumn): string[] {
+    const values = new Set<string>();
+    for (const item of this.assessments) {
+      values.add(this.getCellValue(item, column));
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b, 'ru'));
+  }
+
+  private compareByActiveSort(a: AssessmentItem, b: AssessmentItem): number {
+    if (!this.currentSortColumn || !this.currentSortDirection) return 0;
+    const left = this.getCellValue(a, this.currentSortColumn);
+    const right = this.getCellValue(b, this.currentSortColumn);
+    const result = left.localeCompare(right, 'ru', { numeric: true });
+    return this.currentSortDirection === 'asc' ? result : -result;
   }
 
   private updatePagination(): void {

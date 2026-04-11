@@ -300,6 +300,141 @@ input:checked + .slider {
   }
 }
 
+/* ========== COLUMN FILTER ========== */
+.data-table {
+  th.filterable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+  }
+
+  .no-wrap-col {
+    white-space: nowrap;
+  }
+
+  .header-cell {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .filter-trigger {
+    cursor: pointer;
+
+    min-width: 22px;
+    height: 22px;
+    border: 1px solid var(--admin-accent);
+    border-radius: 4px;
+
+    font-size: 0.7rem;
+    line-height: 1;
+    color: #fff;
+
+    background: var(--admin-accent);
+
+    &:hover {
+      background: var(--admin-accent-hover, var(--admin-accent));
+    }
+  }
+
+  .column-filter-menu {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    left: calc(100% + 0.35rem);
+
+    overflow: auto;
+
+    padding: 0.65rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 8px;
+
+    font-weight: 400;
+    color: var(--admin-text);
+
+    background: #fff;
+    box-shadow: 0 10px 22px rgb(0 0 0 / 16%);
+  }
+
+  .menu-section {
+    margin-bottom: 0.55rem;
+
+    input[type='text'] {
+      width: 100%;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--admin-border);
+      border-radius: 6px;
+
+      font-size: 0.85rem;
+      font-weight: 400;
+    }
+  }
+
+  .menu-btn {
+    cursor: pointer;
+
+    display: block;
+
+    width: 100%;
+    margin-bottom: 0.3rem;
+    padding: 0.4rem 0.45rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 6px;
+
+    text-align: left;
+
+    background: #fff;
+
+    &:hover {
+      border-color: var(--admin-accent);
+      background: #eef3ff;
+    }
+
+    &.active {
+      border-color: var(--admin-accent);
+      color: #fff;
+      background: var(--admin-accent);
+    }
+  }
+
+  .clear-btn {
+    color: var(--admin-accent);
+  }
+
+  .value-list {
+    overflow: auto;
+
+    max-height: 145px;
+    padding: 0.35rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 6px;
+  }
+
+  .checkbox-row {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+
+    margin-bottom: 0.25rem;
+
+    font-size: 0.85rem;
+    font-weight: 500;
+  }
+
+  .menu-actions {
+    display: flex;
+    gap: 0.45rem;
+    justify-content: flex-end;
+  }
+
+  .btn-sm {
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+}
+
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (width <= 768px) {
   .filters {
