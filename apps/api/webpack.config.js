@@ -16,7 +16,14 @@ module.exports = {
       buildLibsFromSource: true,
       main: './src/main.ts',
       tsConfig: './tsconfig.app.json',
-      assets: ['./src/assets'],
+      assets: [
+        './src/assets',
+        {
+          input: '../../libs/api/billing/src/lib/payment-receipt',
+          glob: 'payment-receipt.template.html',
+          output: './',
+        },
+      ],
       optimization: false,
       outputHashing: 'none',
       generatePackageJson: true,

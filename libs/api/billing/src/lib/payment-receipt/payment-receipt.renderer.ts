@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   PaymentType,
   SubscriptionPlan,
@@ -7,6 +9,9 @@ import {
   type User,
 } from '@internal/prisma-client';
 import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
+
+const RECEIPT_TEMPLATE_FILE_NAME = 'payment-receipt.template.html';
+const RECEIPT_TEMPLATE = loadReceiptTemplate();
 
 interface RenderReceiptPayment
   extends Pick<
@@ -50,239 +55,14 @@ export function renderStoredPaymentReceipt(input: RenderPaymentReceiptInput): Bu
     input.providerPayment.paymentMethodTitle ?? input.providerPayment.paymentMethodType,
   );
 
-  const html = `<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Чек оплаты</title>
-  <style>
-    :root {
-      color-scheme: light;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.5;
-    }
-    body {
-      margin: 0;
-      padding: 32px;
-      background: #f3f5f7;
-      color: #102030;
-    }
-    .receipt {
-      max-width: 760px;
-      margin: 0 auto;
-      background: #ffffff;
-      border-radius: 20px;
-      padding: 32px;
-      box-shadow: 0 16px 48px rgba(16, 32, 48, 0.12);
-    }
-    .header {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: start;
-      margin-bottom: 24px;
-    }
-    .title {
-      margin: 0 0 8px;
-      font-size: 28px;
-      line-height: 1.1;
-    }
-    .subtitle,
-    .note {
-      margin: 0;
-      color: #556677;
-    }
-    .header-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-    }
-    .action-button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 14px;
-      border: none;
-      border-radius: 999px;
-      color: #ffffff;
-      font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      background: #102030;
-      box-shadow: 0 10px 20px rgba(16, 32, 48, 0.18);
-    }
-    .action-button:hover {
-      background: #18324b;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-    .card {
-      padding: 16px;
-      border-radius: 16px;
-      background: #f8fafc;
-      border: 1px solid #e4ebf2;
-    }
-    .label {
-      display: block;
-      margin-bottom: 6px;
-      color: #64748b;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .value {
-      font-size: 16px;
-      font-weight: 600;
-      word-break: break-word;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      overflow: hidden;
-      border-radius: 16px;
-      border: 1px solid #e4ebf2;
-    }
-    th,
-    td {
-      padding: 14px 16px;
-      text-align: left;
-      border-bottom: 1px solid #e4ebf2;
-      vertical-align: top;
-    }
-    th {
-      background: #f8fafc;
-      color: #64748b;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    tr:last-child td {
-      border-bottom: none;
-    }
-    .summary {
-      margin-top: 20px;
-      display: flex;
-      justify-content: flex-end;
-    }
-    .summary-card {
-      min-width: 240px;
-      padding: 16px 20px;
-      border-radius: 16px;
-      background: #102030;
-      color: #ffffff;
-    }
-    .summary-card strong {
-      display: block;
-      margin-top: 6px;
-      font-size: 24px;
-    }
-    .footer {
-      margin-top: 24px;
-      padding-top: 16px;
-      border-top: 1px solid #e4ebf2;
-    }
-    @media (max-width: 720px) {
-      body {
-        padding: 16px;
-      }
-      .receipt {
-        padding: 20px;
-      }
-      .header,
-      .grid,
-      .summary {
-        display: block;
-      }
-      .grid .card,
-      .summary-card {
-        margin-bottom: 12px;
-      }
-    }
-    @media print {
-      body {
-        padding: 0;
-        background: #ffffff;
-      }
-      .receipt {
-        max-width: none;
-        border-radius: 0;
-        box-shadow: none;
-      }
-      .action-button {
-        display: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <main class="receipt">
-    <section class="header">
-      <div>
-        <h1 class="title">Чек оплаты</h1>
-        <p class="subtitle">Документ по подтвержденной оплате в системе.</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="action-button" onclick="window.print()">Сохранить в PDF</button>
-      </div>
-    </section>
-
-    <section class="grid">
-      <article class="card">
-        <span class="label">Нотариус</span>
-        <span class="value">${escapeHtml(input.user.fullName || 'Не указано')}</span>
-      </article>
-      <article class="card">
-        <span class="label">Email</span>
-        <span class="value">${escapeHtml(input.user.email || 'Не указан')}</span>
-      </article>
-      <article class="card">
-        <span class="label">Дата оплаты</span>
-        <span class="value">${escapeHtml(formatDateTime(paidAt))}</span>
-      </article>
-      <article class="card">
-        <span class="label">Способ оплаты</span>
-        <span class="value">${escapeHtml(paymentMethod)}</span>
-      </article>
-    </section>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Описание</th>
-          <th>Количество</th>
-          <th>Сумма</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>${escapeHtml(description)}</td>
-          <td>1</td>
-          <td>${escapeHtml(amount)}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <section class="summary">
-      <div class="summary-card">
-        Итого
-        <strong>${escapeHtml(amount)}</strong>
-      </div>
-    </section>
-
-    <footer class="footer">
-      <p class="note">
-        Документ сформирован автоматически после подтверждения оплаты.
-      </p>
-    </footer>
-  </main>
-</body>
-</html>`;
+  const html = renderReceiptTemplate({
+    notaryName: escapeHtml(input.user.fullName || 'Не указано'),
+    email: escapeHtml(input.user.email || 'Не указан'),
+    paidAt: escapeHtml(formatDateTime(paidAt)),
+    paymentMethod: escapeHtml(paymentMethod),
+    description: escapeHtml(description),
+    amount: escapeHtml(amount),
+  });
 
   return Buffer.from(html, 'utf8');
 }
@@ -364,4 +144,29 @@ function escapeHtml(value: string): string {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function loadReceiptTemplate(): string {
+  const candidatePaths = [
+    resolve(process.cwd(), 'libs/api/billing/src/lib/payment-receipt', RECEIPT_TEMPLATE_FILE_NAME),
+    resolve(__dirname, RECEIPT_TEMPLATE_FILE_NAME),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (existsSync(candidatePath)) {
+      return readFileSync(candidatePath, 'utf8');
+    }
+  }
+
+  throw new Error(`Payment receipt template was not found. Checked: ${candidatePaths.join(', ')}`);
+}
+
+function renderReceiptTemplate(placeholders: Record<string, string>): string {
+  let html = RECEIPT_TEMPLATE;
+
+  for (const [name, value] of Object.entries(placeholders)) {
+    html = html.replaceAll(`{{${name}}}`, value);
+  }
+
+  return html;
 }
