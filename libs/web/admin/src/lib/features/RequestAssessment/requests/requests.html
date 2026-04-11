@@ -15,7 +15,7 @@
           type="text"
           placeholder="Поиск по адресу или заявителю..."
           [(ngModel)]="searchTerm"
-          (ngModelChange)="applyFilters()" />
+          (ngModelChange)="onSearchChange($event)" />
       </div>
     </div>
 

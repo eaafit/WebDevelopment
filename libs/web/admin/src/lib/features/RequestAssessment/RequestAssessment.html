@@ -16,7 +16,7 @@
           type="text"
           placeholder="Поиск по имени или email..."
           [(ngModel)]="searchTerm"
-          (ngModelChange)="applyFilters()" />
+          (ngModelChange)="onSearchChange($event)" />
       </div>
     </div>
 

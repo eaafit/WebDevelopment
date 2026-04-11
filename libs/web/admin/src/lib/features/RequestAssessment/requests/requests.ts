@@ -1,6 +1,8 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 
 export interface AssessmentItem {
   id: string;
@@ -29,12 +31,14 @@ type RequestFilterColumn =
   templateUrl: './requests.html',
   styleUrl: './requests.scss',
 })
-export class RequestsComponent implements OnInit {
+export class RequestsComponent implements OnInit, OnDestroy {
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
   paginatedAssessments: AssessmentItem[] = [];
 
   searchTerm = '';
+  private searchSubject$ = new Subject<string>();
+  private searchSubscription?: Subscription;
 
   readonly headerColumns: { key: RequestFilterColumn; label: string }[] = [
     { key: 'id', label: 'ID' },
@@ -97,8 +101,20 @@ export class RequestsComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    this.searchSubscription = this.searchSubject$.pipe(debounceTime(300)).subscribe(() => {
+      this.applyFilters();
+    });
     this.initializeData();
     this.applyFilters();
+  }
+
+  ngOnDestroy(): void {
+    this.searchSubscription?.unsubscribe();
+  }
+
+  onSearchChange(value: string): void {
+    this.searchTerm = value;
+    this.searchSubject$.next(value);
   }
 
   private generateUUID(): string {
