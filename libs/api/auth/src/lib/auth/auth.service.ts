@@ -30,9 +30,23 @@ import { PasswordResetRepository } from './password-reset.repository';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { PASSWORD_RESET_MAILER, type PasswordResetMailer } from './password-reset-mailer.interface';
+import { TRANSACTIONAL_MAILER, type TransactionalMailer } from './transactional-mailer.interface';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
+
+function roleLabelForRpc(role: RpcUserRole): string {
+  switch (role) {
+    case RpcUserRole.APPLICANT:
+      return 'Заявитель';
+    case RpcUserRole.NOTARY:
+      return 'Нотариус';
+    case RpcUserRole.ADMIN:
+      return 'Администратор';
+    default:
+      return 'Пользователь';
+  }
+}
 
 @Injectable()
 export class AuthService {
@@ -46,6 +60,9 @@ export class AuthService {
     @Optional()
     @Inject(PASSWORD_RESET_MAILER)
     private readonly passwordResetMailer: PasswordResetMailer | null = null,
+    @Optional()
+    @Inject(TRANSACTIONAL_MAILER)
+    private readonly transactionalMailer: TransactionalMailer | null = null,
   ) {}
 
   // ─── Register ────────────────────────────────────────────────────────────
@@ -90,6 +107,21 @@ export class AuthService {
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
 
     this.metrics.recordUserRegistered();
+
+    if (this.transactionalMailer) {
+      const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
+      void this.transactionalMailer
+        .sendWelcomeAfterRegistration({
+          email: user.email,
+          fullName: user.fullName,
+          roleLabel: roleLabelForRpc(user.role),
+          loginUrl: `${base}/auth`,
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn('[Auth] welcome email failed:', msg);
+        });
+    }
 
     return create(RegisterResponseSchema, {
       result: create(AuthResultSchema, { accessToken, refreshToken, user }),
