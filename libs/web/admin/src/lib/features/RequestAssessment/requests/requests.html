@@ -115,6 +115,10 @@
                 <button class="btn-icon" (click)="openCancelModal(item)" title="Отменить">❌</button>
                 } @if (item.status === 'New') {
                 <button class="btn-icon" (click)="openVerifyModal(item)" title="Взять в работу">✅</button>
+                } @if (item.status === 'Verified') {
+                <button class="btn-icon" (click)="openStartWorkModal(item)" title="Начать работу">🔄</button>
+                } @if (item.status === 'InProgress') {
+                <button class="btn-icon" (click)="openCompleteModal(item)" title="Завершить">✔️</button>
                 }
               </div>
             </td>
@@ -196,6 +200,10 @@
       <div class="view-card-actions">
         @if (selectedAssessment.status === 'New') {
         <button class="btn btn-primary" (click)="openVerifyModal(selectedAssessment)">✅ Взять в работу</button>
+        } @if (selectedAssessment.status === 'Verified') {
+        <button class="btn btn-primary" (click)="openStartWorkModal(selectedAssessment)">🔄 Начать работу</button>
+        } @if (selectedAssessment.status === 'InProgress') {
+        <button class="btn btn-success" (click)="openCompleteModal(selectedAssessment)">✔️ Завершить</button>
         } @if (selectedAssessment.status !== 'Cancelled' && selectedAssessment.status !== 'Completed') {
         <button class="btn btn-danger" (click)="openCancelModal(selectedAssessment)">❌ Отменить</button>
         }
@@ -265,6 +273,44 @@
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeVerifyModal()">Отмена</button>
         <button class="btn btn-primary" (click)="confirmVerify()">✅ Назначить</button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- МОДАЛКА НАЧАТЬ РАБОТУ -->
+  @if (showStartWorkModal && assessmentToStartWork) {
+  <div class="modal-overlay" role="dialog" (click)="closeStartWorkModal()" (keydown.escape)="closeStartWorkModal()">
+    <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Начать работу</h3>
+        <button class="close-btn" (click)="closeStartWorkModal()">&times;</button>
+      </div>
+
+      <p>Перевести заявку <strong>{{ getShortId(assessmentToStartWork.id) }}</strong> в статус «В работе»?</p>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="closeStartWorkModal()">Отмена</button>
+        <button class="btn btn-primary" (click)="confirmStartWork()">🔄 Начать работу</button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- МОДАЛКА ЗАВЕРШИТЬ -->
+  @if (showCompleteModal && assessmentToComplete) {
+  <div class="modal-overlay" role="dialog" (click)="closeCompleteModal()" (keydown.escape)="closeCompleteModal()">
+    <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Завершение заявки</h3>
+        <button class="close-btn" (click)="closeCompleteModal()">&times;</button>
+      </div>
+
+      <p>Завершить заявку <strong>{{ getShortId(assessmentToComplete.id) }}</strong>?</p>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="closeCompleteModal()">Отмена</button>
+        <button class="btn btn-success" (click)="confirmComplete()">✔️ Завершить</button>
       </div>
     </div>
   </div>

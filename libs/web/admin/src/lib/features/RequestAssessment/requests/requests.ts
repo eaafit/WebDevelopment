@@ -84,6 +84,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
   notaryId = '';
   notaryIdError = '';
 
+  showStartWorkModal = false;
+  assessmentToStartWork: AssessmentItem | null = null;
+
+  showCompleteModal = false;
+  assessmentToComplete: AssessmentItem | null = null;
+
   readonly statusLabels: Record<string, string> = {
     New: 'Новая',
     Verified: 'Подтверждена',
@@ -533,6 +539,72 @@ export class RequestsComponent implements OnInit, OnDestroy {
     }
 
     this.closeVerifyModal();
+    this.applyFilters();
+
+    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
+      this.selectedAssessment = this.assessments[index];
+    }
+  }
+
+  // ========== НАЧАТЬ РАБОТУ (Verified → InProgress) ==========
+
+  openStartWorkModal(item: AssessmentItem): void {
+    this.assessmentToStartWork = item;
+    this.showStartWorkModal = true;
+  }
+
+  closeStartWorkModal(): void {
+    this.showStartWorkModal = false;
+    this.assessmentToStartWork = null;
+  }
+
+  confirmStartWork(): void {
+    if (!this.assessmentToStartWork) return;
+
+    const index = this.assessments.findIndex((a) => a.id === this.assessmentToStartWork?.id);
+    if (index !== -1) {
+      this.assessments[index] = {
+        ...this.assessments[index],
+        status: 'InProgress',
+        updatedAt: new Date().toISOString(),
+      };
+      this.saveToStorage();
+    }
+
+    this.closeStartWorkModal();
+    this.applyFilters();
+
+    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
+      this.selectedAssessment = this.assessments[index];
+    }
+  }
+
+  // ========== ЗАВЕРШИТЬ (InProgress → Completed) ==========
+
+  openCompleteModal(item: AssessmentItem): void {
+    this.assessmentToComplete = item;
+    this.showCompleteModal = true;
+  }
+
+  closeCompleteModal(): void {
+    this.showCompleteModal = false;
+    this.assessmentToComplete = null;
+  }
+
+  confirmComplete(): void {
+    if (!this.assessmentToComplete) return;
+
+    const index = this.assessments.findIndex((a) => a.id === this.assessmentToComplete?.id);
+    if (index !== -1) {
+      this.assessments[index] = {
+        ...this.assessments[index],
+        status: 'Completed',
+        updatedAt: new Date().toISOString(),
+      };
+      this.saveToStorage();
+    }
+
+    this.closeCompleteModal();
     this.applyFilters();
 
     if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
