@@ -111,7 +111,11 @@ export class RequestAssessment implements OnInit, OnDestroy {
 
   onSearchChange(value: string): void {
     this.searchTerm = value;
-    this.searchSubject$.next(value);
+    if (!value) {
+      this.applyFilters();
+    } else {
+      this.searchSubject$.next(value);
+    }
   }
 
   private generateUUID(): string {
