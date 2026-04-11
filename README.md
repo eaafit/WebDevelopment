@@ -69,7 +69,9 @@
 > [!WARNING]
 > Если у вас установлен PostgreSQL вне Docker, порт 5432 может быть занят, и появится необходимость поменять его на любой другой свободный порт.
 
-### Настройка портов в Windows  
- - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
- - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
- - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
+### Настройка портов в Windows
+
+- `netstat -ano | findstr :<номер_порта>` - Эта команда выводит список всех сетевых соединений, прослушиваемых портов и соответствующих им PID.
+- `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
+- `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
+- `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.

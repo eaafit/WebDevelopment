@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, HostListener, OnDestroy, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { TokenStore } from '@notary-portal/ui';
+import { applicantEmailJsClientConfig } from '../../config/applicant-emailjs.config';
 
 type UploadGroup = 'documents' | 'photos' | 'additional';
 type RequiredUploadGroup = Exclude<UploadGroup, 'additional'>;
@@ -22,6 +24,7 @@ interface ImagePreviewState {
 })
 export class EstimationForm implements OnDestroy {
   private readonly router = inject(Router);
+  private readonly tokenStore = inject(TokenStore);
   private readonly objectUrls = new Map<string, string>();
   showValidationErrors = false;
   validationErrorMessage = '';
@@ -54,7 +57,91 @@ export class EstimationForm implements OnDestroy {
       return;
     }
 
-    void this.router.navigate(['/applicant/assessment/status']);
+    void this.finalizeSubmit(form);
+  }
+
+  private async finalizeSubmit(form: HTMLFormElement): Promise<void> {
+    await this.sendApplicantRequestEmailsIfConfigured(form);
+    await this.router.navigate(['/applicant/assessment/status']);
+  }
+
+  private buildRequestSummary(form: HTMLFormElement): string {
+    const fd = new FormData(form);
+    const v = (name: string) => fd.get(name)?.toString().trim() || '—';
+    return [
+      `Город: ${v('city')}`,
+      `Район: ${v('district')}`,
+      `Адрес: ${v('address')}`,
+      `Площадь: ${v('area')} м²`,
+      `Тип объекта: ${v('objectType')}`,
+      `Комнат: ${v('rooms')}`,
+      `Этаж / этажность: ${v('floor')} / ${v('floorsTotal')}`,
+      `Состояние: ${v('condition')}`,
+      `Год постройки: ${v('yearBuilt')}`,
+      `Материал стен: ${v('wallMaterial')}`,
+      `Лифт: ${v('elevator')}`,
+      `Описание: ${v('description')}`,
+    ].join('\n');
+  }
+
+  private async sendApplicantRequestEmailsIfConfigured(form: HTMLFormElement): Promise<void> {
+    const cfg = applicantEmailJsClientConfig;
+    if (!cfg.publicKey || !cfg.serviceId) {
+      return;
+    }
+
+    const requestSummary = this.buildRequestSummary(form);
+    const submittedAt = new Date().toLocaleString('ru-RU', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const ordersUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/applicant/orders`
+        : '/applicant/orders';
+    const user = this.tokenStore.user();
+    const applicantEmail = user?.email?.trim() ?? '';
+    const fullName = user?.fullName?.trim() ?? 'Заявитель';
+
+    try {
+      const emailjs = (await import('@emailjs/browser')).default;
+      emailjs.init(cfg.publicKey);
+
+      if (cfg.templateApplicantSubmitted && applicantEmail) {
+        await emailjs.send(
+          cfg.serviceId,
+          cfg.templateApplicantSubmitted,
+          {
+            to_email: applicantEmail,
+            full_name: fullName,
+            request_summary: requestSummary,
+            submitted_at: submittedAt,
+            app_name: cfg.appName,
+            orders_url: ordersUrl,
+          },
+          cfg.publicKey,
+        );
+      }
+
+      if (cfg.templateStaffNewRequest && cfg.staffNotifyToEmail.trim() && applicantEmail) {
+        await emailjs.send(
+          cfg.serviceId,
+          cfg.templateStaffNewRequest,
+          {
+            to_email: cfg.staffNotifyToEmail.trim(),
+            applicant_email: applicantEmail,
+            full_name: fullName,
+            request_summary: requestSummary,
+            submitted_at: submittedAt,
+            app_name: cfg.appName,
+          },
+          cfg.publicKey,
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[EstimationForm] EmailJS:', msg);
+    }
   }
 
   onFilesSelected(event: Event, group: UploadGroup): void {
