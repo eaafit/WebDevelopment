@@ -16,6 +16,7 @@ import {
   SaleType,
   SubscriptionPlan,
 } from './generated/prisma/client';
+import { RUSSIA_TOP_50_GEOGRAPHY } from './data/russia-top50-geography';
 
 const connectionString = process.env['DATABASE_URL'];
 
@@ -36,6 +37,12 @@ const BCRYPT_SALT_ROUNDS = 12;
 
 function seedId(entity: string, i: number): string {
   const h = crypto.createHash('sha256').update(`seed-${entity}-${i}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
+}
+
+/** Стабильные UUID для городов/районов по строковому ключу (порядок в списке может меняться). */
+function geographySeedId(kind: 'city' | 'district', key: string): string {
+  const h = crypto.createHash('sha256').update(`seed-geo-${kind}-${key}`).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
 }
 
@@ -242,41 +249,29 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
 }
 
 async function upsertGeographyCatalog(): Promise<void> {
-  const cities = [
-    {
-      id: seedId('city', 0),
-      name: 'Екатеринбург',
-      districts: ['Ленинский', 'Октябрьский'],
-    },
-    {
-      id: seedId('city', 1),
-      name: 'Москва',
-      districts: ['Центральный', 'Пресненский'],
-    },
-    {
-      id: seedId('city', 2),
-      name: 'Санкт-Петербург',
-      districts: ['Центральный', 'Петроградский'],
-    },
-  ];
-
-  for (const city of cities) {
+  for (const entry of RUSSIA_TOP_50_GEOGRAPHY) {
+    const cityId = geographySeedId('city', entry.name);
     await prisma.city.upsert({
-      where: { id: city.id },
-      update: { name: city.name },
-      create: { id: city.id, name: city.name },
+      where: { name: entry.name },
+      create: { id: cityId, name: entry.name },
+      update: {},
     });
-
-    for (let i = 0; i < city.districts.length; i++) {
-      const districtName = city.districts[i];
+    const city = await prisma.city.findUniqueOrThrow({ where: { name: entry.name } });
+    for (const districtName of entry.districts) {
+      const districtId = geographySeedId('district', `${entry.name}|${districtName}`);
       await prisma.district.upsert({
-        where: { id: seedId(`district-${city.name}`, i) },
-        update: { cityId: city.id, name: districtName },
+        where: {
+          cityId_name: {
+            cityId: city.id,
+            name: districtName,
+          },
+        },
         create: {
-          id: seedId(`district-${city.name}`, i),
+          id: districtId,
           cityId: city.id,
           name: districtName,
         },
+        update: {},
       });
     }
   }
