@@ -17,14 +17,6 @@
           [(ngModel)]="searchTerm"
           (ngModelChange)="applyFilters()" />
       </div>
-      <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
-        <option value="">Все статусы</option>
-        <option value="New">Новая</option>
-        <option value="Verified">Подтверждена</option>
-        <option value="InProgress">В работе</option>
-        <option value="Completed">Завершена</option>
-        <option value="Cancelled">Отменена</option>
-      </select>
     </div>
 
     <!-- ТАБЛИЦА -->

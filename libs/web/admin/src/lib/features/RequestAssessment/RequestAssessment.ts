@@ -39,8 +39,6 @@ export class RequestAssessment implements OnInit {
   paginatedUsers: User[] = [];
 
   searchTerm = '';
-  roleFilter = '';
-  statusFilter = '';
 
   readonly headerColumns: { key: UserFilterColumn; label: string }[] = [
     { key: 'fullName', label: 'ФИО' },
@@ -232,15 +230,6 @@ export class RequestAssessment implements OnInit {
         (u) =>
           this.getFullName(u).toLowerCase().includes(term) || u.email.toLowerCase().includes(term),
       );
-    }
-
-    if (this.roleFilter) {
-      result = result.filter((u) => u.role === this.roleFilter);
-    }
-
-    if (this.statusFilter) {
-      const isActive = this.statusFilter === 'true';
-      result = result.filter((u) => u.isActive === isActive);
     }
 
     result = result.filter((u) => this.matchesColumnFilters(u));

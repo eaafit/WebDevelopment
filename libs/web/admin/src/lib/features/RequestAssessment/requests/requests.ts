@@ -35,7 +35,6 @@ export class RequestsComponent implements OnInit {
   paginatedAssessments: AssessmentItem[] = [];
 
   searchTerm = '';
-  statusFilter = '';
 
   readonly headerColumns: { key: RequestFilterColumn; label: string }[] = [
     { key: 'id', label: 'ID' },
@@ -214,10 +213,6 @@ export class RequestsComponent implements OnInit {
           a.applicantName.toLowerCase().includes(term) ||
           a.id.toLowerCase().includes(term),
       );
-    }
-
-    if (this.statusFilter) {
-      result = result.filter((a) => a.status === this.statusFilter);
     }
 
     result = result.filter((a) => this.matchesColumnFilters(a));

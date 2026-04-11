@@ -18,17 +18,6 @@
           [(ngModel)]="searchTerm"
           (ngModelChange)="applyFilters()" />
       </div>
-      <select class="filter-select" [(ngModel)]="roleFilter" (ngModelChange)="applyFilters()">
-        <option value="">Все роли</option>
-        <option value="Applicant">Заявитель</option>
-        <option value="Notary">Нотариус</option>
-        <option value="Admin">Администратор</option>
-      </select>
-      <select class="filter-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()">
-        <option value="">Все статусы</option>
-        <option value="true">Активен</option>
-        <option value="false">Заблокирован</option>
-      </select>
     </div>
 
     <!-- ТАБЛИЦА -->
