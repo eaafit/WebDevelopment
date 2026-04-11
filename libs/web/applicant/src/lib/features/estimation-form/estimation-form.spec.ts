@@ -127,6 +127,7 @@ describe('EstimationForm', () => {
 
   it('should submit and navigate to status when required fields are filled', async () => {
     fillRequiredFields(component);
+    attachRequiredUploads(component);
 
     await component.onSubmit(new Event('submit'), getFormElement(fixture));
 
@@ -167,6 +168,15 @@ function fillRequiredFields(component: EstimationForm): void {
   component.formControls.objectType.setValue('1');
   component.formControls.floorsTotal.setValue('9');
   component.formControls.condition.setValue('2');
+}
+
+function attachRequiredUploads(component: EstimationForm): void {
+  component.documentFiles = [createMockFile('document.pdf', 'application/pdf')];
+  component.photoFiles = [createMockFile('photo.jpg', 'image/jpeg')];
+}
+
+function createMockFile(name: string, type: string): File {
+  return new File(['mock'], name, { type });
 }
 
 function getFormElement(fixture: ComponentFixture<EstimationForm>): HTMLFormElement {
