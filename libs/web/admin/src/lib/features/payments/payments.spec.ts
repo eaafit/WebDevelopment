@@ -20,4 +20,18 @@ describe('Payments', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('should build csv content for filtered payments', () => {
+    component.searchTerm = 'txn_abc123';
+
+    const exportedText = (
+      component as Payments & {
+        buildCsvContent: (payments: Payments['filteredPayments']) => string;
+      }
+    ).buildCsvContent(component.filteredPayments);
+
+    expect(exportedText).toContain('"ID";"Дата платежа";"Плательщик"');
+    expect(exportedText).toContain('txn_abc123');
+    expect(exportedText).not.toContain('sub_xyz789');
+  });
 });
