@@ -11,10 +11,11 @@ import {
   type ValidateSubscriptionPromoRequest,
   type ValidateSubscriptionPromoResponse,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
+  PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   SubscriptionPlan as PrismaSubscriptionPlan,
   PaymentType as PrismaPaymentType,
@@ -50,6 +51,8 @@ interface PromoValidationResult {
 
 @Injectable()
 export class PaymentCreateService {
+  private readonly logger = new Logger(PaymentCreateService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly yookassa: YooKassaClient,
@@ -62,6 +65,7 @@ export class PaymentCreateService {
     const prismaType = this.toPrismaType(request.type);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
+    const receiptCustomer = await this.loadReceiptCustomer(request.userId);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -74,6 +78,8 @@ export class PaymentCreateService {
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
         paymentMethod: 'yookassa_widget',
+        receiptStatus:
+          prismaType === PrismaPaymentType.Subscription ? PrismaPaymentReceiptStatus.Pending : null,
       },
     });
 
@@ -95,12 +101,40 @@ export class PaymentCreateService {
           target_id: request.targetId,
           ...(resolved.promo ? { promo_code: resolved.promo.code } : {}),
         },
+        ...(prismaType === PrismaPaymentType.Subscription
+          ? {
+              receipt: {
+                customer: {
+                  email: receiptCustomer.email,
+                },
+                items: [
+                  {
+                    description: resolved.description,
+                    quantity: '1.000',
+                    amount: {
+                      value: resolved.amount,
+                      currency: SUBSCRIPTION_CURRENCY,
+                    },
+                    vatCode: resolveReceiptVatCode(),
+                    paymentMode: 'full_prepayment',
+                    paymentSubject: 'service',
+                  },
+                ],
+                internet: true,
+                timezone: resolveReceiptTimezone(),
+              },
+            }
+          : {}),
       });
 
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { transactionId: result.id },
       });
+
+      this.logger.log(
+        `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
+      );
 
       return create(CreatePaymentResponseSchema, {
         paymentId: payment.id,
@@ -178,6 +212,26 @@ export class PaymentCreateService {
       },
       discountPercent: promoValidation.promo.discountPercent.toString(),
     });
+  }
+
+  private async loadReceiptCustomer(userId: string): Promise<{ email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+      },
+    });
+
+    if (!user?.email?.trim()) {
+      throw new ConnectError(
+        'User email is required to create receipt data',
+        Code.FailedPrecondition,
+      );
+    }
+
+    return {
+      email: user.email.trim(),
+    };
   }
 
   private async resolvePaymentContext(
@@ -383,4 +437,26 @@ function calculateDiscountAmount(baseAmountCents: number, percent: string): numb
 
 function getPaymentReturnUrlBase(): string {
   return (process.env['PAYMENT_RETURN_URL_BASE'] ?? process.env['FRONTEND_URL'] ?? '').trim();
+}
+
+function resolveReceiptVatCode(): number {
+  const rawValue = process.env['YOOKASSA_RECEIPT_VAT_CODE']?.trim();
+  if (!rawValue) {
+    return 1;
+  }
+
+  const value = Number(rawValue);
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function resolveReceiptTimezone(): number {
+  const rawValue = process.env['YOOKASSA_RECEIPT_TIMEZONE']?.trim();
+  if (rawValue) {
+    const parsed = Number(rawValue);
+    if (Number.isInteger(parsed) && parsed >= -12 && parsed <= 14) {
+      return parsed;
+    }
+  }
+
+  return -new Date().getTimezoneOffset() / 60;
 }

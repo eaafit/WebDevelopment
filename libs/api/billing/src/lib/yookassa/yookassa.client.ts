@@ -7,6 +7,29 @@ import { Injectable } from '@nestjs/common';
 
 const YOOKASSA_API_BASE = 'https://api.yookassa.ru/v3';
 
+export interface YooKassaReceiptCustomer {
+  email: string;
+}
+
+export interface YooKassaReceiptItem {
+  description: string;
+  quantity: string;
+  amount: {
+    value: string;
+    currency: string;
+  };
+  vatCode: number;
+  paymentMode: 'full_prepayment' | 'full_payment';
+  paymentSubject: 'service';
+}
+
+export interface YooKassaReceipt {
+  customer: YooKassaReceiptCustomer;
+  items: YooKassaReceiptItem[];
+  internet: boolean;
+  timezone: number;
+}
+
 export interface YooKassaCreatePaymentParams {
   amount: string;
   currency: string;
@@ -15,6 +38,7 @@ export interface YooKassaCreatePaymentParams {
   idempotenceKey: string;
   confirmationType: 'redirect' | 'embedded';
   metadata?: Record<string, string>;
+  receipt?: YooKassaReceipt;
 }
 
 export interface YooKassaCreatePaymentResult {
@@ -22,6 +46,7 @@ export interface YooKassaCreatePaymentResult {
   confirmationUrl: string | null;
   confirmationToken: string;
   status: string;
+  receiptRegistration: string | null;
 }
 
 export interface YooKassaPaymentDetails {
@@ -31,6 +56,10 @@ export interface YooKassaPaymentDetails {
   amountValue: string;
   amountCurrency: string;
   paymentMethodType: string | null;
+  paymentMethodTitle: string | null;
+  receiptRegistration: string | null;
+  createdAt: string | null;
+  capturedAt: string | null;
   metadata: Record<string, string>;
 }
 
@@ -84,12 +113,14 @@ export class YooKassaClient {
       capture: true,
       description: params.description.slice(0, 128),
       metadata: params.metadata ?? {},
+      ...(params.receipt ? { receipt: mapReceipt(params.receipt) } : {}),
     };
 
     const text = await this.request('POST', '/payments', params.idempotenceKey, body);
     const data = JSON.parse(text) as {
       id: string;
       status: string;
+      receipt_registration?: string;
       confirmation?: {
         confirmation_url?: string;
         confirmation_token?: string;
@@ -112,6 +143,7 @@ export class YooKassaClient {
       confirmationUrl,
       confirmationToken,
       status: data.status,
+      receiptRegistration: data.receipt_registration ?? null,
     };
   }
 
@@ -131,8 +163,12 @@ export class YooKassaClient {
         value?: string;
         currency?: string;
       };
+      created_at?: string;
+      captured_at?: string;
+      receipt_registration?: string;
       payment_method?: {
         type?: string;
+        title?: string;
       };
       metadata?: Record<string, string>;
     };
@@ -144,6 +180,10 @@ export class YooKassaClient {
       amountValue: data.amount?.value ?? '0.00',
       amountCurrency: data.amount?.currency ?? 'RUB',
       paymentMethodType: data.payment_method?.type ?? null,
+      paymentMethodTitle: data.payment_method?.title ?? null,
+      receiptRegistration: data.receipt_registration ?? null,
+      createdAt: data.created_at ?? null,
+      capturedAt: data.captured_at ?? null,
       metadata: data.metadata ?? {},
     };
   }
@@ -175,4 +215,22 @@ export class YooKassaClient {
 
     return text;
   }
+}
+
+function mapReceipt(receipt: YooKassaReceipt) {
+  return {
+    customer: {
+      email: receipt.customer.email,
+    },
+    items: receipt.items.map((item) => ({
+      description: item.description.slice(0, 128),
+      quantity: item.quantity,
+      amount: item.amount,
+      vat_code: item.vatCode,
+      payment_mode: item.paymentMode,
+      payment_subject: item.paymentSubject,
+    })),
+    internet: receipt.internet,
+    timezone: receipt.timezone,
+  };
 }

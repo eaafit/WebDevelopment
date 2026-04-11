@@ -44,6 +44,8 @@
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `YOOKASSA_RECEIPT_VAT_CODE` - опциональный `vat_code` для строки чека, которую мы передаём в YooKassa при создании платежа
+- `YOOKASSA_RECEIPT_TIMEZONE` - опциональный timezone (целое число часов) для данных чека; по умолчанию вычисляется из окружения Node.js
 
 **Webhook URL для кабинета ЮKassa:**
 
@@ -69,7 +71,8 @@
 > [!WARNING]
 > Если у вас установлен PostgreSQL вне Docker, порт 5432 может быть занят, и появится необходимость поменять его на любой другой свободный порт.
 
-### Настройка портов в Windows  
- - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
- - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
- - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
+### Настройка портов в Windows
+
+- `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
+- `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
+- `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.

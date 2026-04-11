@@ -6,13 +6,18 @@ import {
   SubscriptionPlan,
   ValidateSubscriptionPromoRequestSchema,
 } from '@notary-portal/api-contracts';
-import { PaymentStatus, SubscriptionPlan as PrismaSubscriptionPlan } from '@internal/prisma-client';
+import {
+  PaymentReceiptStatus,
+  PaymentStatus,
+  SubscriptionPlan as PrismaSubscriptionPlan,
+} from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
 
 describe('PaymentCreateService', () => {
   const createPaymentRecord = jest.fn();
   const updatePaymentRecord = jest.fn();
   const findPromo = jest.fn();
+  const findUser = jest.fn();
   const metrics = {
     recordPayment: jest.fn(),
   };
@@ -30,6 +35,9 @@ describe('PaymentCreateService', () => {
     promo: {
       findFirst: findPromo,
     },
+    user: {
+      findUnique: findUser,
+    },
   };
 
   const originalReturnUrl = process.env['PAYMENT_RETURN_URL_BASE'];
@@ -40,6 +48,7 @@ describe('PaymentCreateService', () => {
     createPaymentRecord.mockReset();
     updatePaymentRecord.mockReset();
     findPromo.mockReset();
+    findUser.mockReset();
     metrics.recordPayment.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
@@ -63,6 +72,9 @@ describe('PaymentCreateService', () => {
       usedCount: 0,
       expiresAt: null,
     });
+    findUser.mockResolvedValue({
+      email: 'notary@example.com',
+    });
     createPaymentRecord.mockResolvedValue({
       id: 'payment-1',
     });
@@ -72,6 +84,7 @@ describe('PaymentCreateService', () => {
       confirmationUrl: null,
       confirmationToken: 'confirmation-token-1',
       status: 'pending',
+      receiptRegistration: 'pending',
     });
   });
 
@@ -106,12 +119,18 @@ describe('PaymentCreateService', () => {
         status: PaymentStatus.Pending,
         subscriptionId: 'subscription-1',
         paymentMethod: 'yookassa_widget',
+        receiptStatus: PaymentReceiptStatus.Pending,
       }),
     });
     expect(yookassa.createPayment).toHaveBeenCalledWith(
       expect.objectContaining({
         amount: '1350.00',
         confirmationType: 'embedded',
+        receipt: expect.objectContaining({
+          customer: {
+            email: 'notary@example.com',
+          },
+        }),
         metadata: expect.objectContaining({
           payment_id: 'payment-1',
           target_id: 'subscription-1',

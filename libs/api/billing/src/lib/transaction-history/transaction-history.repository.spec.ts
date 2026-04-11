@@ -1,8 +1,14 @@
 import {
+  PaymentReceiptStatus as RpcPaymentReceiptStatus,
   PaymentStatus as RpcPaymentStatus,
   PaymentType as RpcPaymentType,
 } from '@notary-portal/api-contracts';
-import { PaymentStatus, PaymentType, SubscriptionPlan } from '@internal/prisma-client';
+import {
+  PaymentReceiptStatus,
+  PaymentStatus,
+  PaymentType,
+  SubscriptionPlan,
+} from '@internal/prisma-client';
 import { TransactionHistoryRepository } from './transaction-history.repository';
 
 describe('TransactionHistoryRepository', () => {
@@ -38,6 +44,7 @@ describe('TransactionHistoryRepository', () => {
         paymentMethod: 'bank_card',
         attachmentFileName: 'receipt.pdf',
         attachmentFileUrl: 'https://example.local/receipt.pdf',
+        receiptStatus: PaymentReceiptStatus.Available,
         subscriptionId: 'subscription-1',
         assessmentId: null,
         subscription: {
@@ -73,6 +80,45 @@ describe('TransactionHistoryRepository', () => {
       expect.objectContaining({
         status: RpcPaymentStatus.COMPLETED,
         type: RpcPaymentType.SUBSCRIPTION,
+        hasReceipt: true,
+        receiptStatus: RpcPaymentReceiptStatus.AVAILABLE,
+      }),
+    );
+  });
+
+  it('should hide receipt availability when receipt is marked as failed', async () => {
+    findMany.mockResolvedValue([
+      {
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PaymentType.Subscription,
+        status: PaymentStatus.Completed,
+        paymentDate: new Date('2026-03-06T08:45:00.000Z'),
+        transactionId: 'TXN-1001',
+        amount: {
+          toString: () => '4990.00',
+        },
+        paymentMethod: 'bank_card',
+        attachmentFileName: 'receipt.pdf',
+        attachmentFileUrl: 'https://example.local/receipt.pdf',
+        receiptStatus: PaymentReceiptStatus.Failed,
+        subscriptionId: 'subscription-1',
+        assessmentId: null,
+        subscription: {
+          plan: SubscriptionPlan.Premium,
+          startDate: new Date('2026-02-15T00:00:00.000Z'),
+          endDate: new Date('2026-03-17T00:00:00.000Z'),
+        },
+        assessment: null,
+      },
+    ]);
+
+    const response = await repository.getTransactionHistory({ page: 1, limit: 10 });
+
+    expect(response.payments[0]).toEqual(
+      expect.objectContaining({
+        hasReceipt: false,
+        receiptStatus: RpcPaymentReceiptStatus.FAILED,
       }),
     );
   });

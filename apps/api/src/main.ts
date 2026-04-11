@@ -6,8 +6,12 @@ import cors from 'cors';
 import express from 'express';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
-import { AuthInterceptor } from '@internal/auth';
-import { PaymentWebhookError, PaymentWebhookService } from '@internal/billing';
+import { AuthInterceptor, TokenService } from '@internal/auth';
+import {
+  PaymentAttachmentService,
+  PaymentWebhookError,
+  PaymentWebhookService,
+} from '@internal/billing';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
 
@@ -45,7 +49,9 @@ async function bootstrap() {
 
   const connectRouterRegistry = app.get(ConnectRouterRegistry);
   const authInterceptor = app.get(AuthInterceptor);
+  const tokenService = app.get(TokenService);
   const paymentWebhookService = app.get(PaymentWebhookService);
+  const paymentAttachmentService = app.get(PaymentAttachmentService);
 
   expressInstance.get('/health', async (_req: express.Request, res: express.Response) => {
     try {
@@ -88,6 +94,50 @@ async function bootstrap() {
     },
   );
 
+  expressInstance.get(
+    '/api/payments/:paymentId/receipt',
+    (req: express.Request, res: express.Response) => {
+      const token = parseBearerToken(req.header('authorization'));
+      if (!token) {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+
+      let payload;
+      try {
+        payload = tokenService.verifyAccessToken(token);
+      } catch {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+
+      paymentAttachmentService
+        .getReceiptFile({
+          paymentId: req.params['paymentId'],
+          userId: payload.sub,
+          role: payload.role,
+        })
+        .then((receipt) => {
+          const dispositionType = req.query['download'] === '1' ? 'attachment' : 'inline';
+          res.setHeader('Content-Type', receipt.contentType);
+          res.setHeader(
+            'Content-Disposition',
+            `${dispositionType}; filename*=UTF-8''${encodeURIComponent(receipt.fileName)}`,
+          );
+          res.setHeader('Cache-Control', 'no-store');
+          res.status(200).send(receipt.body);
+        })
+        .catch((error: unknown) => {
+          if (isHttpError(error)) {
+            res.status(error.statusCode ?? error.status).json({ message: error.message });
+            return;
+          }
+
+          res.status(500).json({ message: 'Internal server error' });
+        });
+    },
+  );
+
   app.use(
     connectNodeAdapter({
       connect: true,
@@ -121,4 +171,18 @@ function parseBearerToken(value: string | undefined): string | undefined {
 
   const match = /^Bearer\s+(.+)$/i.exec(value);
   return match?.[1];
+}
+
+function isHttpError(
+  error: unknown,
+): error is { status?: number; statusCode?: number; message: string } {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as { status?: unknown; statusCode?: unknown; message?: unknown };
+  return (
+    typeof (candidate.statusCode ?? candidate.status) === 'number' &&
+    typeof candidate.message === 'string'
+  );
 }
