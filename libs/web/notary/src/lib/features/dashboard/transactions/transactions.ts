@@ -96,6 +96,10 @@ export class Transactions {
     }));
   }
 
+  onReceiptOpen(transaction: TransactionItem): void {
+    void this.openReceipt(transaction);
+  }
+
   private buildQuery(page: number, filters: TransactionTableFilters): TransactionsHistoryQuery {
     const status: TransactionStatus | undefined =
       filters.status === 'all' ? undefined : filters.status;
@@ -108,6 +112,17 @@ export class Transactions {
       dateFrom: filters.dateFrom || undefined,
       dateTo: filters.dateTo || undefined,
     };
+  }
+
+  private async openReceipt(transaction: TransactionItem): Promise<void> {
+    this.error.set(null);
+
+    try {
+      await this.api.openReceipt(transaction);
+    } catch (error) {
+      console.error('Failed to open payment receipt', error);
+      this.error.set(extractReceiptError(error));
+    }
   }
 }
 
@@ -149,4 +164,30 @@ function getErrorMessage(err: unknown): string | null {
   }
 
   return null;
+}
+
+function extractReceiptError(err: unknown): string {
+  const message = getErrorMessage(err);
+
+  if (!message) {
+    return 'Не удалось открыть чек. Попробуйте ещё раз.';
+  }
+
+  if (/receipt is not ready yet|ещё формируется/i.test(message)) {
+    return 'Чек ещё формируется. Попробуйте открыть его немного позже.';
+  }
+
+  if (/receipt not found|receipt file is missing|чек не найден/i.test(message)) {
+    return 'Чек пока недоступен или отсутствует в хранилище.';
+  }
+
+  if (/object storage unavailable/i.test(message)) {
+    return 'Не удалось получить чек из хранилища. Попробуйте позже.';
+  }
+
+  if (/session expired|unauthenticated|unauthorized|401/i.test(message)) {
+    return 'Сессия истекла или недействительна. Войдите снова.';
+  }
+
+  return `Не удалось открыть чек: ${message}`;
 }

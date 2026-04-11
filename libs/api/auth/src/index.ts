@@ -6,4 +6,9 @@ export {
   PASSWORD_RESET_MAILER,
   type PasswordResetMailer,
 } from './lib/auth/password-reset-mailer.interface';
+export {
+  TRANSACTIONAL_MAILER,
+  type TransactionalMailer,
+  type WelcomeMailPayload,
+} from './lib/auth/transactional-mailer.interface';
 export * from '@internal/auth-shared';

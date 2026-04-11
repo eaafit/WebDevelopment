@@ -7,6 +7,7 @@ import {
   DocumentType,
   NotificationStatus,
   NotificationType,
+  PaymentReceiptStatus,
   PaymentStatus,
   PaymentType,
   PrismaClient,
@@ -513,6 +514,7 @@ async function upsertPayments(
         transactionId: `TXN-SEED-${pad(i, 5)}`,
         attachmentFileName: `receipt-${i}.pdf`,
         attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
+        receiptStatus: PaymentReceiptStatus.Available,
       },
       create: {
         id,
@@ -529,6 +531,7 @@ async function upsertPayments(
         transactionId: `TXN-SEED-${pad(i, 5)}`,
         attachmentFileName: `receipt-${i}.pdf`,
         attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
+        receiptStatus: PaymentReceiptStatus.Available,
       },
     });
   }

@@ -1,4 +1,4 @@
-import { PaymentStatus, PaymentType } from '@internal/prisma-client';
+import { PaymentReceiptStatus, PaymentStatus, PaymentType } from '@internal/prisma-client';
 import { PaymentWebhookError, PaymentWebhookService } from './payment-webhook.service';
 
 describe('PaymentWebhookService', () => {
@@ -6,6 +6,8 @@ describe('PaymentWebhookService', () => {
   const paymentUpdateMany = jest.fn();
   const promoUpdate = jest.fn();
   const transaction = jest.fn();
+  const storeGeneratedReceipt = jest.fn();
+  const markReceiptFailed = jest.fn();
   const metrics = {
     recordPayment: jest.fn(),
     recordPaymentAmount: jest.fn(),
@@ -15,6 +17,10 @@ describe('PaymentWebhookService', () => {
   };
   const paymentSubscriptionService = {
     activateSubscription: jest.fn(),
+  };
+  const paymentAttachmentService = {
+    storeGeneratedReceipt,
+    markReceiptFailed,
   };
   const prisma = {
     payment: {
@@ -36,6 +42,8 @@ describe('PaymentWebhookService', () => {
     paymentUpdateMany.mockReset();
     promoUpdate.mockReset();
     transaction.mockReset();
+    storeGeneratedReceipt.mockReset();
+    markReceiptFailed.mockReset();
     metrics.recordPayment.mockReset();
     metrics.recordPaymentAmount.mockReset();
     yookassa.getPayment.mockReset();
@@ -53,6 +61,8 @@ describe('PaymentWebhookService', () => {
       subscriptionId: 'subscription-1',
       paymentMethod: 'yookassa_widget',
       transactionId: 'yk-payment-1',
+      attachmentFileUrl: null,
+      receiptStatus: PaymentReceiptStatus.Pending,
     });
     yookassa.getPayment.mockResolvedValue({
       id: 'yk-payment-1',
@@ -61,6 +71,10 @@ describe('PaymentWebhookService', () => {
       amountValue: '1350.00',
       amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: 'succeeded',
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: '2026-03-06T08:45:00.000Z',
       metadata: {
         payment_id: 'payment-1',
       },
@@ -78,6 +92,8 @@ describe('PaymentWebhookService', () => {
     paymentUpdateMany.mockResolvedValue({ count: 1 });
     promoUpdate.mockResolvedValue(undefined);
     paymentSubscriptionService.activateSubscription.mockResolvedValue(undefined);
+    storeGeneratedReceipt.mockResolvedValue(undefined);
+    markReceiptFailed.mockResolvedValue(undefined);
   });
 
   afterAll(() => {
@@ -90,6 +106,7 @@ describe('PaymentWebhookService', () => {
       metrics as never,
       yookassa as never,
       paymentSubscriptionService as never,
+      paymentAttachmentService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -116,6 +133,13 @@ describe('PaymentWebhookService', () => {
       },
     });
     expect(paymentSubscriptionService.activateSubscription).toHaveBeenCalled();
+    expect(storeGeneratedReceipt).toHaveBeenCalledWith(
+      'payment-1',
+      expect.objectContaining({
+        id: 'yk-payment-1',
+        receiptRegistration: 'succeeded',
+      }),
+    );
     expect(promoUpdate).toHaveBeenCalledWith({
       where: { id: 'promo-1' },
       data: {
@@ -136,6 +160,7 @@ describe('PaymentWebhookService', () => {
       metrics as never,
       yookassa as never,
       paymentSubscriptionService as never,
+      paymentAttachmentService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -153,6 +178,7 @@ describe('PaymentWebhookService', () => {
     expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
     expect(promoUpdate).not.toHaveBeenCalled();
     expect(metrics.recordPayment).not.toHaveBeenCalled();
+    expect(storeGeneratedReceipt).toHaveBeenCalled();
   });
 
   it('should reject notifications with an invalid secret', async () => {
@@ -161,6 +187,7 @@ describe('PaymentWebhookService', () => {
       metrics as never,
       yookassa as never,
       paymentSubscriptionService as never,
+      paymentAttachmentService as never,
     );
 
     await expect(
