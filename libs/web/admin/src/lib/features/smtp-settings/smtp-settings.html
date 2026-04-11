@@ -1,0 +1,200 @@
+<section class="smtp-settings-page">
+  <header class="smtp-settings-page__hero">
+    <div>
+      <p class="smtp-settings-page__eyebrow">Администратор / настройки</p>
+      <h2>SMTP сервис</h2>
+      <p class="smtp-settings-page__lead">
+        Настройте профили SMTP для отправки email-рассылок: хост, логин, пароль, тип шифрования и адрес отправителя.
+      </p>
+    </div>
+
+    <div class="smtp-settings-page__meta">
+      <span class="smtp-chip">Всего профилей: {{ smtpClients().length }}</span>
+      <span class="smtp-chip smtp-chip--active">Активных: {{ activeCount() }}</span>
+    </div>
+  </header>
+
+  <section class="smtp-settings-page__toolbar">
+    <p>Профили используются в разделе «Рассылка / Новая рассылка» при выборе SMTP клиента.</p>
+    <small>{{ statusMessage() }}</small>
+  </section>
+
+  <section class="smtp-layout">
+    <article class="smtp-card">
+      <div class="smtp-card__header">
+        <div>
+          <h3>{{ isEditing() ? 'Редактирование SMTP профиля' : 'Новый SMTP профиль' }}</h3>
+          <p>Обязательные поля: имя профиля, host, login, пароль, шифрование и email отправителя.</p>
+        </div>
+      </div>
+
+      <form class="smtp-form" (submit)="$event.preventDefault(); saveProfile()" novalidate>
+        <label class="smtp-field">
+          <span>Имя профиля</span>
+          <input
+            type="text"
+            placeholder="Например: Основной SMTP"
+            [value]="form().name"
+            (input)="updateForm('name', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-field">
+          <span>SMTP host</span>
+          <input
+            type="text"
+            placeholder="smtp.example.com"
+            [value]="form().host"
+            (input)="updateForm('host', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-field">
+          <span>Порт</span>
+          <input
+            type="number"
+            min="1"
+            max="65535"
+            [value]="form().port"
+            (input)="updateForm('port', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-field">
+          <span>Login / Username</span>
+          <input
+            type="text"
+            placeholder="mailer-user"
+            [value]="form().username"
+            (input)="updateForm('username', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-field smtp-field--password">
+          <span>Пароль</span>
+          <div class="smtp-password-row">
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              placeholder="Введите пароль или токен"
+              [value]="form().password"
+              (input)="updateForm('password', $any($event.target).value)" />
+            <button type="button" class="smtp-btn smtp-btn--ghost" (click)="togglePasswordVisibility()">
+              {{ showPassword() ? 'Скрыть' : 'Показать' }}
+            </button>
+          </div>
+          <small
+            >{{ isEditing() ? 'Оставьте пустым, чтобы не менять текущий пароль.' : 'Обязательно для нового профиля.'
+            }}</small
+          >
+        </label>
+
+        <label class="smtp-field">
+          <span>Шифрование</span>
+          <select [value]="form().encryptionType" (change)="updateForm('encryptionType', $any($event.target).value)">
+            <option value="None">None</option>
+            <option value="SSL">SSL</option>
+            <option value="TLS">TLS</option>
+            <option value="STARTTLS">STARTTLS</option>
+          </select>
+        </label>
+
+        <label class="smtp-field">
+          <span>Адрес отправителя</span>
+          <input
+            type="email"
+            placeholder="noreply@example.com"
+            [value]="form().fromEmail"
+            (input)="updateForm('fromEmail', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-field">
+          <span>Имя отправителя (опционально)</span>
+          <input
+            type="text"
+            placeholder="Notary Portal"
+            [value]="form().fromName"
+            (input)="updateForm('fromName', $any($event.target).value)" />
+        </label>
+
+        <label class="smtp-toggle">
+          <input
+            type="checkbox"
+            [checked]="form().isActive"
+            (change)="updateForm('isActive', $any($event.target).checked)" />
+          <span>Профиль активен и доступен для выбора в рассылке</span>
+        </label>
+
+        <div class="smtp-form__actions">
+          <button type="submit" class="smtp-btn smtp-btn--primary">
+            {{ isEditing() ? 'Сохранить изменения' : 'Создать профиль' }}
+          </button>
+          <button type="button" class="smtp-btn smtp-btn--secondary" (click)="startCreate()">Очистить форму</button>
+          @if (isEditing()) {
+          <button type="button" class="smtp-btn smtp-btn--ghost" (click)="cancelEdit()">Отменить</button>
+          }
+        </div>
+      </form>
+    </article>
+
+    <article class="smtp-card">
+      <div class="smtp-card__header">
+        <div>
+          <h3>SMTP профили</h3>
+          <p>Список доступных SMTP клиентов для модуля рассылок.</p>
+        </div>
+      </div>
+
+      <div class="smtp-table-wrap">
+        <table class="smtp-table">
+          <thead>
+            <tr>
+              <th>Профиль</th>
+              <th>Host</th>
+              <th>Login</th>
+              <th>Шифрование</th>
+              <th>Отправитель</th>
+              <th>Статус</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (smtpClients().length) { @for (client of smtpClients(); track client.id) {
+            <tr>
+              <td>
+                <strong>{{ client.name }}</strong>
+                <small>{{ client.port }}</small>
+              </td>
+              <td>{{ client.host }}</td>
+              <td>{{ client.username }}</td>
+              <td>{{ client.encryptionType }}</td>
+              <td>
+                <strong>{{ client.fromEmail }}</strong>
+                <small>{{ client.fromName || '—' }}</small>
+              </td>
+              <td>
+                <span class="smtp-status" [class.smtp-status--inactive]="!client.isActive">
+                  {{ client.isActive ? 'Активен' : 'Неактивен' }}
+                </span>
+              </td>
+              <td>
+                <div class="smtp-table__actions">
+                  <button type="button" class="smtp-link" (click)="startEdit(client)">Редактировать</button>
+                  <button type="button" class="smtp-link" (click)="toggleProfileActive(client)">
+                    {{ client.isActive ? 'Отключить' : 'Активировать' }}
+                  </button>
+                  <button type="button" class="smtp-link smtp-link--danger" (click)="removeProfile(client)">
+                    Удалить
+                  </button>
+                </div>
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td colspan="7" class="smtp-empty">
+                <strong>SMTP профили не добавлены.</strong>
+                <p>Создайте первый профиль, чтобы использовать его в новой рассылке.</p>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>
