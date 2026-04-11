@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import { Code } from '@connectrpc/connect';
 import {
   CreatePaymentRequestSchema,
   PaymentType,
@@ -41,9 +42,11 @@ describe('PaymentCreateService', () => {
   };
 
   const originalReturnUrl = process.env['PAYMENT_RETURN_URL_BASE'];
+  const originalReceiptVatCode = process.env['YOOKASSA_RECEIPT_VAT_CODE'];
 
   beforeEach(() => {
     process.env['PAYMENT_RETURN_URL_BASE'] = 'https://portal.example.com';
+    process.env['YOOKASSA_RECEIPT_VAT_CODE'] = '4';
 
     createPaymentRecord.mockReset();
     updatePaymentRecord.mockReset();
@@ -90,6 +93,7 @@ describe('PaymentCreateService', () => {
 
   afterAll(() => {
     process.env['PAYMENT_RETURN_URL_BASE'] = originalReturnUrl;
+    process.env['YOOKASSA_RECEIPT_VAT_CODE'] = originalReceiptVatCode;
   });
 
   it('should create a pending payment and return YooKassa widget init data', async () => {
@@ -130,6 +134,11 @@ describe('PaymentCreateService', () => {
           customer: {
             email: 'notary@example.com',
           },
+          items: [
+            expect.objectContaining({
+              vatCode: 4,
+            }),
+          ],
         }),
         metadata: expect.objectContaining({
           payment_id: 'payment-1',
@@ -158,6 +167,34 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPayment).toHaveBeenCalledWith('pending');
+    expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
+  });
+
+  it('should fail before payment creation when YOOKASSA_RECEIPT_VAT_CODE is missing', async () => {
+    delete process.env['YOOKASSA_RECEIPT_VAT_CODE'];
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '1500.00',
+      type: PaymentType.SUBSCRIPTION,
+      targetId: 'subscription-1',
+    });
+
+    await expect(service.createPayment(request)).rejects.toEqual(
+      expect.objectContaining({
+        code: Code.FailedPrecondition,
+      }),
+    );
+
+    expect(createPaymentRecord).not.toHaveBeenCalled();
+    expect(yookassa.createPayment).not.toHaveBeenCalled();
   });
 
   it('should validate a subscription promo and return discounted preview data', async () => {

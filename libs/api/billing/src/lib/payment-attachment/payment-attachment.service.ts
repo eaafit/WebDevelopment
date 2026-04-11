@@ -17,7 +17,10 @@ import {
   buildStoredPaymentReceiptObjectKey,
   renderStoredPaymentReceipt,
 } from '../payment-receipt/payment-receipt.renderer';
-import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
+import type {
+  YooKassaPaymentDetails,
+  YooKassaReceiptRegistration,
+} from '../yookassa/yookassa.client';
 
 export interface PaymentAttachmentUpload {
   paymentId: string;
@@ -156,7 +159,7 @@ export class PaymentAttachmentService {
       data: {
         attachmentFileName: fileName,
         attachmentFileUrl: objectKey,
-        receiptStatus: PaymentReceiptStatus.Available,
+        receiptStatus: mapReceiptStatus(providerPayment.receiptRegistration),
       },
     });
 
@@ -176,11 +179,15 @@ export class PaymentAttachmentService {
   async getReceiptFile(input: PaymentReceiptDownloadRequest): Promise<PaymentReceiptDownload> {
     const payment = await this.requirePaymentAccess(input.paymentId, input.userId, input.role);
 
-    if (!payment.attachmentFileUrl?.trim()) {
-      if (payment.receiptStatus === PaymentReceiptStatus.Pending) {
-        throw new ConflictException('receipt is not ready yet');
-      }
+    if (payment.receiptStatus === PaymentReceiptStatus.Pending) {
+      throw new ConflictException('receipt is not ready yet');
+    }
 
+    if (payment.receiptStatus === PaymentReceiptStatus.Failed) {
+      throw new NotFoundException('receipt not found');
+    }
+
+    if (!payment.attachmentFileUrl?.trim()) {
       throw new NotFoundException('receipt not found');
     }
 
@@ -269,4 +276,18 @@ function isMissingObjectError(error: unknown): boolean {
     candidate.Code === 'NoSuchKey' ||
     candidate.$metadata?.httpStatusCode === 404
   );
+}
+
+function mapReceiptStatus(
+  receiptRegistration: YooKassaReceiptRegistration | null,
+): PaymentReceiptStatus {
+  switch (receiptRegistration) {
+    case 'succeeded':
+      return PaymentReceiptStatus.Available;
+    case 'canceled':
+      return PaymentReceiptStatus.Failed;
+    case 'pending':
+    default:
+      return PaymentReceiptStatus.Pending;
+  }
 }

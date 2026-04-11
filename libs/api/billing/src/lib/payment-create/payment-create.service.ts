@@ -21,7 +21,11 @@ import {
   PaymentType as PrismaPaymentType,
   type Promo,
 } from '@internal/prisma-client';
-import { YooKassaClient, YooKassaClientError } from '../yookassa/yookassa.client';
+import {
+  YooKassaClient,
+  YooKassaClientError,
+  type YooKassaReceipt,
+} from '../yookassa/yookassa.client';
 import {
   SUBSCRIPTION_CURRENCY,
   getSubscriptionPlanByPrisma,
@@ -65,7 +69,10 @@ export class PaymentCreateService {
     const prismaType = this.toPrismaType(request.type);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const receiptCustomer = await this.loadReceiptCustomer(request.userId);
+    const receipt =
+      prismaType === PrismaPaymentType.Subscription
+        ? await this.buildSubscriptionReceipt(request.userId, resolved)
+        : undefined;
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -101,30 +108,7 @@ export class PaymentCreateService {
           target_id: request.targetId,
           ...(resolved.promo ? { promo_code: resolved.promo.code } : {}),
         },
-        ...(prismaType === PrismaPaymentType.Subscription
-          ? {
-              receipt: {
-                customer: {
-                  email: receiptCustomer.email,
-                },
-                items: [
-                  {
-                    description: resolved.description,
-                    quantity: '1.000',
-                    amount: {
-                      value: resolved.amount,
-                      currency: SUBSCRIPTION_CURRENCY,
-                    },
-                    vatCode: resolveReceiptVatCode(),
-                    paymentMode: 'full_prepayment',
-                    paymentSubject: 'service',
-                  },
-                ],
-                internet: true,
-                timezone: resolveReceiptTimezone(),
-              },
-            }
-          : {}),
+        ...(receipt ? { receipt } : {}),
       });
 
       await this.prisma.payment.update({
@@ -231,6 +215,33 @@ export class PaymentCreateService {
 
     return {
       email: user.email.trim(),
+    };
+  }
+
+  private async buildSubscriptionReceipt(
+    userId: string,
+    resolved: Pick<ResolvedPaymentContext, 'amount' | 'description'>,
+  ): Promise<YooKassaReceipt> {
+    const receiptCustomer = await this.loadReceiptCustomer(userId);
+
+    return {
+      customer: {
+        email: receiptCustomer.email,
+      },
+      items: [
+        {
+          description: resolved.description,
+          quantity: '1.000',
+          amount: {
+            value: resolved.amount,
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+          vatCode: resolveReceiptVatCode(),
+          paymentMode: 'full_prepayment',
+          paymentSubject: 'service',
+        },
+      ],
+      internet: true,
     };
   }
 
@@ -442,21 +453,19 @@ function getPaymentReturnUrlBase(): string {
 function resolveReceiptVatCode(): number {
   const rawValue = process.env['YOOKASSA_RECEIPT_VAT_CODE']?.trim();
   if (!rawValue) {
-    return 1;
+    throw new ConnectError(
+      'YOOKASSA_RECEIPT_VAT_CODE must be configured for subscription receipts',
+      Code.FailedPrecondition,
+    );
   }
 
   const value = Number(rawValue);
-  return Number.isInteger(value) && value > 0 ? value : 1;
-}
-
-function resolveReceiptTimezone(): number {
-  const rawValue = process.env['YOOKASSA_RECEIPT_TIMEZONE']?.trim();
-  if (rawValue) {
-    const parsed = Number(rawValue);
-    if (Number.isInteger(parsed) && parsed >= -12 && parsed <= 14) {
-      return parsed;
-    }
+  if (!Number.isInteger(value) || value < 1 || value > 12) {
+    throw new ConnectError(
+      'YOOKASSA_RECEIPT_VAT_CODE must be an integer from 1 to 12',
+      Code.FailedPrecondition,
+    );
   }
 
-  return -new Date().getTimezoneOffset() / 60;
+  return value;
 }

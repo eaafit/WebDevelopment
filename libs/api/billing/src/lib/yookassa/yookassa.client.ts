@@ -27,8 +27,9 @@ export interface YooKassaReceipt {
   customer: YooKassaReceiptCustomer;
   items: YooKassaReceiptItem[];
   internet: boolean;
-  timezone: number;
 }
+
+export type YooKassaReceiptRegistration = 'pending' | 'succeeded' | 'canceled';
 
 export interface YooKassaCreatePaymentParams {
   amount: string;
@@ -46,7 +47,7 @@ export interface YooKassaCreatePaymentResult {
   confirmationUrl: string | null;
   confirmationToken: string;
   status: string;
-  receiptRegistration: string | null;
+  receiptRegistration: YooKassaReceiptRegistration | null;
 }
 
 export interface YooKassaPaymentDetails {
@@ -57,7 +58,7 @@ export interface YooKassaPaymentDetails {
   amountCurrency: string;
   paymentMethodType: string | null;
   paymentMethodTitle: string | null;
-  receiptRegistration: string | null;
+  receiptRegistration: YooKassaReceiptRegistration | null;
   createdAt: string | null;
   capturedAt: string | null;
   metadata: Record<string, string>;
@@ -143,7 +144,7 @@ export class YooKassaClient {
       confirmationUrl,
       confirmationToken,
       status: data.status,
-      receiptRegistration: data.receipt_registration ?? null,
+      receiptRegistration: parseReceiptRegistration(data.receipt_registration),
     };
   }
 
@@ -181,7 +182,7 @@ export class YooKassaClient {
       amountCurrency: data.amount?.currency ?? 'RUB',
       paymentMethodType: data.payment_method?.type ?? null,
       paymentMethodTitle: data.payment_method?.title ?? null,
-      receiptRegistration: data.receipt_registration ?? null,
+      receiptRegistration: parseReceiptRegistration(data.receipt_registration),
       createdAt: data.created_at ?? null,
       capturedAt: data.captured_at ?? null,
       metadata: data.metadata ?? {},
@@ -231,6 +232,16 @@ function mapReceipt(receipt: YooKassaReceipt) {
       payment_subject: item.paymentSubject,
     })),
     internet: receipt.internet,
-    timezone: receipt.timezone,
   };
+}
+
+function parseReceiptRegistration(value: string | undefined): YooKassaReceiptRegistration | null {
+  switch (value) {
+    case 'pending':
+    case 'succeeded':
+    case 'canceled':
+      return value;
+    default:
+      return null;
+  }
 }
