@@ -135,6 +135,7 @@ model User {
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
+  oauthAccounts     OAuthAccount[]
 
   @@map("users")
 }
@@ -319,4 +320,36 @@ model Sale {
   promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("sales")
+}
+
+// ─── OAuth Accounts ──────────────────────────────────────────────────────────
+
+enum OAuthProvider {
+  VK     @map("vk")
+  Google @map("google")
+  Apple  @map("apple")
+  Yandex @map("yandex")
+
+  @@map("oauth_provider")
+}
+
+model OAuthAccount {
+  id            String       @id @default(uuid()) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  provider      OAuthProvider
+  providerUserId String      @map("provider_user_id") @db.VarChar // ID пользователя у провайдера
+  email         String?      @db.VarChar // Email от провайдера (может отличаться от основного)
+  fullName      String?      @map("full_name") @db.VarChar // Имя от провайдера
+  avatarUrl     String?      @map("avatar_url") @db.VarChar // Ссылка на аватар
+  accessToken   String       @map("access_token") @db.Text // Access token провайдера
+  refreshToken  String?      @map("refresh_token") @db.Text // Refresh token (если есть)
+  tokenExpiresAt DateTime?   @map("token_expires_at") @db.Timestamp()
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId]) // Один аккаунт провайдера = одна запись
+  @@index([userId])
+  @@map("oauth_accounts")
 }

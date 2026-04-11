@@ -1,8 +1,11 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { createClient } from '@connectrpc/connect';
-import { AuthService as RpcAuthService } from '@notary-portal/api-contracts';
+import { AuthService as RpcAuthService, OAuthProvider, UserRole } from '@notary-portal/api-contracts';
 import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME } from '@notary-portal/ui';
+
+export type OAuthProviderType = 'vk' | 'google' | 'apple' | 'yandex';
+export type UserRoleType = 'notary' | 'applicant';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -57,6 +60,69 @@ export class AuthService {
       await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
     } catch (err) {
       this._error.set(extractMessage(err));
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  // ─── OAuth ───────────────────────────────────────────────────────────────
+
+  async initOAuth(provider: OAuthProviderType, role: UserRoleType): Promise<{ authorizationUrl: string; state: string }> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const providerMap: Record<OAuthProviderType, OAuthProvider> = {
+        vk: OAuthProvider.VK,
+        google: OAuthProvider.GOOGLE,
+        apple: OAuthProvider.APPLE,
+        yandex: OAuthProvider.YANDEX,
+      };
+
+      const roleMap: Record<UserRoleType, UserRole> = {
+        applicant: UserRole.APPLICANT,
+        notary: UserRole.NOTARY,
+      };
+
+      const state = crypto.randomUUID();
+      const res = await this.client.oAuthInit({
+        provider: providerMap[provider],
+        role: roleMap[role],
+        state,
+      });
+
+      if (!res.authorizationUrl) throw new Error('Пустой URL авторизации');
+      return { authorizationUrl: res.authorizationUrl, state: res.state };
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      throw err;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  async handleOAuthCallback(provider: OAuthProviderType, code: string, state: string): Promise<void> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const providerMap: Record<OAuthProviderType, OAuthProvider> = {
+        vk: OAuthProvider.VK,
+        google: OAuthProvider.GOOGLE,
+        apple: OAuthProvider.APPLE,
+        yandex: OAuthProvider.YANDEX,
+      };
+
+      const res = await this.client.oAuthCallback({
+        provider: providerMap[provider],
+        code,
+        state,
+      });
+
+      if (!res.result) throw new Error('Пустой ответ сервера');
+      this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
+      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      throw err;
     } finally {
       this._loading.set(false);
     }
