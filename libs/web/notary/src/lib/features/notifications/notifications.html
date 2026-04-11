@@ -4,7 +4,7 @@
       <p class="role-notifications__eyebrow">Кабинет нотариуса</p>
       <h2>Уведомления</h2>
       <p class="role-notifications__lead">
-        Уведомления по заявкам, чату и подписке. Статусы жизненного цикла и удаление записей — как в продуктовой модели.
+        Уведомления по заявкам и подписке. Статусы в интерфейсе: только «отправлено» и «прочитано».
       </p>
     </div>
 
@@ -25,7 +25,7 @@
         (click)="restoreDemoData()">
         Вернуть демо-данные
       </button>
-      <span class="role-notifications__badge" *ngIf="inboxCount() as c"> К просмотру: {{ c }} </span>
+      <span class="role-notifications__badge" *ngIf="inboxCount() as c"> Непрочитанных: {{ c }} </span>
     </div>
   </header>
 
@@ -52,29 +52,23 @@
     </label>
 
     <label class="role-notifications__field">
-      <span>Статус уведомления</span>
+      <span>Статус</span>
       <select (change)="setFilter('lifecycle', $any($event.target).value)">
-        <option value="active">Активные (без удалённых)</option>
-        <option value="all">Все, включая удалённые</option>
-        <option value="created">Создано</option>
+        <option value="all">Все</option>
         <option value="sent">Отправлено</option>
         <option value="read">Прочитано</option>
-        <option value="deleted">Удалено</option>
       </select>
     </label>
   </section>
 
   <p class="role-notifications__hint">
-    Клик по карточке переключает прочитанность; «Удалить» переводит запись в статус «Удалено».
+    Клик по карточке переключает «прочитано» и «отправлено». «Удалить» убирает запись из списка.
   </p>
 
   <section class="role-notifications__list" *ngIf="filtered().length; else emptyState">
     <article
       class="role-notifications__card"
-      [class.role-notifications__card--attention]="
-        item.lifecycle === 'sent' || item.lifecycle === 'created'
-      "
-      [class.role-notifications__card--deleted]="item.lifecycle === 'deleted'"
+      [class.role-notifications__card--attention]="item.lifecycle === 'sent'"
       *ngFor="let item of filtered()"
       (click)="toggleReadOnCard(item.id)">
       <div class="role-notifications__card-main">
@@ -91,10 +85,8 @@
           </span>
           <span
             class="chip chip--lifecycle"
-            [class.chip--lifecycle-created]="item.lifecycle === 'created'"
             [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
-            [class.chip--lifecycle-read]="item.lifecycle === 'read'"
-            [class.chip--lifecycle-deleted]="item.lifecycle === 'deleted'">
+            [class.chip--lifecycle-read]="item.lifecycle === 'read'">
             {{ lifecycleLabel(item.lifecycle) }}
           </span>
         </div>
@@ -108,8 +100,8 @@
         <button
           type="button"
           class="role-notifications__btn-delete"
-          (click)="deleteOne(item.id, $event)"
-          title="Удалить">
+          (click)="removeOne(item.id, $event)"
+          title="Удалить из списка">
           Удалить
         </button>
       </div>

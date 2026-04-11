@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, signal } from '@angular/core';
 
-export type NotificationLifecycle = 'created' | 'sent' | 'read' | 'deleted';
+/** У заявителя в UI только «отправлено» и «прочитано» */
+export type UserNotificationLifecycle = 'sent' | 'read';
 type NotificationChannel = 'in-app' | 'email' | 'push';
 type NotificationType = 'application' | 'document' | 'payment' | 'system';
 
@@ -13,21 +14,21 @@ interface ApplicantNotification {
   relativeTime: string;
   type: NotificationType;
   channel: NotificationChannel;
-  lifecycle: NotificationLifecycle;
+  lifecycle: UserNotificationLifecycle;
 }
 
-type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
+type UserLifecycleFilter = 'all' | UserNotificationLifecycle;
 
 interface ApplicantNotificationFilters {
   type: 'all' | NotificationType;
   channel: 'all' | NotificationChannel;
-  lifecycle: LifecycleFilter;
+  lifecycle: UserLifecycleFilter;
 }
 
 const DEFAULT_FILTERS: ApplicantNotificationFilters = {
   type: 'all',
   channel: 'all',
-  lifecycle: 'active',
+  lifecycle: 'all',
 };
 
 const MOCK_NOTIFICATIONS: ApplicantNotification[] = [
@@ -99,7 +100,7 @@ const MOCK_NOTIFICATIONS: ApplicantNotification[] = [
     relativeTime: '1 ч назад',
     type: 'system',
     channel: 'push',
-    lifecycle: 'created',
+    lifecycle: 'sent',
   },
 ];
 
@@ -121,23 +122,13 @@ export class ApplicantNotifications {
     return this.notifications().filter((n) => {
       if (type !== 'all' && n.type !== type) return false;
       if (channel !== 'all' && n.channel !== channel) return false;
-
-      if (lifecycle === 'active') {
-        if (n.lifecycle === 'deleted') return false;
-      } else if (lifecycle === 'all') {
-        // pass
-      } else if (n.lifecycle !== lifecycle) {
-        return false;
-      }
-
+      if (lifecycle !== 'all' && n.lifecycle !== lifecycle) return false;
       return true;
     });
   });
 
   protected readonly inboxCount = computed(
-    () =>
-      this.notifications().filter((n) => n.lifecycle === 'sent' || n.lifecycle === 'created')
-        .length,
+    () => this.notifications().filter((n) => n.lifecycle === 'sent').length,
   );
 
   protected setFilter<K extends keyof ApplicantNotificationFilters>(
@@ -147,49 +138,31 @@ export class ApplicantNotifications {
     this.filters.update((f) => ({ ...f, [key]: value }));
   }
 
-  protected lifecycleLabel(l: NotificationLifecycle): string {
-    switch (l) {
-      case 'created':
-        return 'Создано';
-      case 'sent':
-        return 'Отправлено';
-      case 'read':
-        return 'Прочитано';
-      case 'deleted':
-        return 'Удалено';
-    }
+  protected lifecycleLabel(l: UserNotificationLifecycle): string {
+    return l === 'sent' ? 'Отправлено' : 'Прочитано';
   }
 
   protected markAllAsRead(): void {
     this.notifications.update((items) =>
-      items.map((n) =>
-        n.lifecycle === 'deleted'
-          ? n
-          : {
-              ...n,
-              lifecycle: 'read' as const,
-            },
-      ),
+      items.map((n) => ({
+        ...n,
+        lifecycle: 'read' as const,
+      })),
     );
   }
 
   protected toggleReadOnCard(id: string): void {
     this.notifications.update((items) =>
       items.map((n) => {
-        if (n.id !== id || n.lifecycle === 'deleted') return n;
-        if (n.lifecycle === 'read') {
-          return { ...n, lifecycle: 'sent' };
-        }
-        return { ...n, lifecycle: 'read' };
+        if (n.id !== id) return n;
+        return { ...n, lifecycle: n.lifecycle === 'read' ? 'sent' : 'read' };
       }),
     );
   }
 
-  protected deleteOne(id: string, event: Event): void {
+  protected removeOne(id: string, event: Event): void {
     event.stopPropagation();
-    this.notifications.update((items) =>
-      items.map((n) => (n.id === id ? { ...n, lifecycle: 'deleted' as const } : n)),
-    );
+    this.notifications.update((items) => items.filter((n) => n.id !== id));
   }
 
   protected clearAllHistory(): void {
