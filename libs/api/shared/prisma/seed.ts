@@ -46,6 +46,7 @@ function pad(i: number, len: number): string {
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
@@ -70,6 +71,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    cityCount,
+    districtCount,
   ] = await prisma.$transaction([
     prisma.user.count(),
     prisma.assessment.count(),
@@ -82,6 +85,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.city.count(),
+    prisma.district.count(),
   ]);
 
   console.info(
@@ -98,6 +103,8 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `Cities: ${cityCount}`,
+      `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
@@ -234,6 +241,47 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
   }
 }
 
+async function upsertGeographyCatalog(): Promise<void> {
+  const cities = [
+    {
+      id: seedId('city', 0),
+      name: 'Екатеринбург',
+      districts: ['Ленинский', 'Октябрьский'],
+    },
+    {
+      id: seedId('city', 1),
+      name: 'Москва',
+      districts: ['Центральный', 'Пресненский'],
+    },
+    {
+      id: seedId('city', 2),
+      name: 'Санкт-Петербург',
+      districts: ['Центральный', 'Петроградский'],
+    },
+  ];
+
+  for (const city of cities) {
+    await prisma.city.upsert({
+      where: { id: city.id },
+      update: { name: city.name },
+      create: { id: city.id, name: city.name },
+    });
+
+    for (let i = 0; i < city.districts.length; i++) {
+      const districtName = city.districts[i];
+      await prisma.district.upsert({
+        where: { id: seedId(`district-${city.name}`, i) },
+        update: { cityId: city.id, name: districtName },
+        create: {
+          id: seedId(`district-${city.name}`, i),
+          cityId: city.id,
+          name: districtName,
+        },
+      });
+    }
+  }
+}
+
 async function upsertAssessments(count: number, userIds: string[]): Promise<string[]> {
   const assessmentIds: string[] = [];
   const statuses = [
@@ -296,6 +344,7 @@ async function upsertDocuments(
   assessmentIds: string[],
   userIds: string[],
 ): Promise<void> {
+  const bucketName = process.env['S3_BUCKET_ASSESSMENT_FILES']?.trim() || 'assessment-files';
   const docTypes = [
     DocumentType.Passport,
     DocumentType.PropertyDeed,
@@ -318,14 +367,19 @@ async function upsertDocuments(
     const uploadedById = userIds[i % userIds.length];
     const docType = docTypes[i % 6];
     const fileName = `seed-doc-${pad(i, 3)}-${fileNames[i % 6]}`;
+    const objectPrefix = resolveSeedDocumentPrefix(docType);
+    const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
+    const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
     await prisma.document.upsert({
       where: { id },
       update: {
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
@@ -334,13 +388,27 @@ async function upsertDocuments(
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
     });
   }
+}
+
+function resolveSeedDocumentPrefix(documentType: DocumentType): string {
+  if (documentType === DocumentType.Photo) {
+    return 'photos';
+  }
+
+  if (documentType === DocumentType.Additional) {
+    return 'additional';
+  }
+
+  return 'documents';
 }
 
 async function upsertSubscriptions(count: number, userIds: string[]): Promise<string[]> {

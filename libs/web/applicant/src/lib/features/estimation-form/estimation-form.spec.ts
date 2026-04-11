@@ -1,5 +1,11 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { TokenStore } from '@notary-portal/ui';
+import { AssessmentApiService } from './assessment-api.service';
+import { DocumentApiService } from './document-api.service';
+import { EstimationFormLocalDraftService } from './estimation-form-local-draft.service';
+import { EstimationFormSessionService } from './estimation-form-session.service';
 import { EstimationForm } from './estimation-form';
 
 describe('EstimationForm', () => {
@@ -7,11 +13,118 @@ describe('EstimationForm', () => {
   let fixture: ComponentFixture<EstimationForm>;
   let router: Router;
   let navigateSpy: jest.SpiedFunction<Router['navigate']>;
+  let listCitiesMock: jest.Mock;
+  let listDistrictsMock: jest.Mock;
+  let findLatestDraftMock: jest.Mock;
+  let createDraftMock: jest.Mock;
+  let updateDraftMock: jest.Mock;
 
   beforeEach(async () => {
+    listCitiesMock = jest.fn().mockResolvedValue([
+      { id: 'city-1', name: 'Екатеринбург' },
+      { id: 'city-2', name: 'Москва' },
+    ]);
+    listDistrictsMock = jest
+      .fn()
+      .mockResolvedValue([{ id: 'district-1', cityId: 'city-1', name: 'Ленинский' }]);
+    findLatestDraftMock = jest.fn().mockResolvedValue(null);
+    createDraftMock = jest.fn().mockResolvedValue({
+      id: 'assessment-1',
+      status: 1,
+      updatedAt: '2026-04-04T10:00:00.000Z',
+      form: {
+        cityId: 'city-1',
+        districtId: '',
+        address: 'Екатеринбург, ул. Ленина, д. 10',
+        cadastralNumber: '',
+        area: '54.6',
+        objectType: '1',
+        rooms: '',
+        floorsTotal: '9',
+        floor: '',
+        condition: '2',
+        yearBuilt: '',
+        wallMaterial: '',
+        elevatorType: '',
+        hasBalconyOrLoggia: false,
+        landCategory: '',
+        permittedUse: '',
+        utilities: '',
+        description: '',
+      },
+    });
+    updateDraftMock = jest.fn().mockImplementation((_assessmentId, form) =>
+      Promise.resolve({
+        ...(createDraftMock.mock.results[0]?.value ?? {
+          id: 'assessment-1',
+          status: 1,
+          updatedAt: '2026-04-04T10:05:00.000Z',
+        }),
+        form,
+      }),
+    );
+
     await TestBed.configureTestingModule({
       imports: [EstimationForm],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AssessmentApiService,
+          useValue: {
+            listCities: listCitiesMock,
+            listDistricts: listDistrictsMock,
+            findLatestDraft: findLatestDraftMock,
+            getAssessment: jest.fn(),
+            createDraft: createDraftMock,
+            updateDraft: updateDraftMock,
+          },
+        },
+        {
+          provide: TokenStore,
+          useValue: {
+            user: signal({
+              id: 'user-1',
+              email: 'seed-user-000@seed.local',
+              fullName: 'Заявитель 1',
+              role: 1,
+              phoneNumber: '+79990000000',
+              isActive: true,
+            }),
+          },
+        },
+        {
+          provide: DocumentApiService,
+          useValue: {
+            listDocumentsByAssessment: jest.fn().mockResolvedValue([]),
+            uploadDocument: jest.fn().mockResolvedValue({
+              id: 'document-1',
+              fileName: 'document.pdf',
+              fileType: 'application/pdf',
+              fileSize: 4,
+              previewUrl: '/api/documents/document-1/content?mode=preview',
+              downloadUrl: '/api/documents/document-1/content?mode=download',
+              version: 1,
+              uploadedAt: '2026-04-04T10:00:00.000Z',
+              kind: 'document',
+            }),
+            deleteDocument: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: EstimationFormSessionService,
+          useValue: {
+            ensureUserId: jest.fn().mockResolvedValue('user-1'),
+          },
+        },
+        {
+          provide: EstimationFormLocalDraftService,
+          useValue: {
+            load: jest.fn().mockReturnValue(null),
+            save: jest.fn(),
+            clear: jest.fn(),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(EstimationForm);
@@ -22,152 +135,78 @@ describe('EstimationForm', () => {
     await fixture.whenStable();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should submit without additional files when required fields are filled', () => {
-    fillRequiredFields(fixture, component);
+  it('should load cities on init', () => {
+    expect(listCitiesMock).toHaveBeenCalled();
+    expect(component.cities()).toEqual([
+      { id: 'city-1', name: 'Екатеринбург' },
+      { id: 'city-2', name: 'Москва' },
+    ]);
+  });
 
-    component.onSubmit(new Event('submit'), getFormElement(fixture));
+  it('should submit and navigate to status when required fields are filled', async () => {
+    fillRequiredFields(component);
+    attachRequiredUploads(component);
 
-    expect(navigateSpy).toHaveBeenCalledWith(['/applicant/assessment/status']);
+    await component.onSubmit(new Event('submit'), getFormElement(fixture));
+
+    expect(createDraftMock).toHaveBeenCalled();
+    expect(navigateSpy).toHaveBeenCalledWith(['/applicant/assessment/status'], {
+      queryParams: { assessmentId: 'assessment-1' },
+    });
     expect(component.validationErrorMessage).toBe('');
   });
 
-  it('should block submission when required documents are missing', () => {
-    fillRequiredFields(fixture, component, { includeDocuments: false });
+  it('should autosave draft when required fields are filled', async () => {
+    fillRequiredFields(component);
 
-    component.onSubmit(new Event('submit'), getFormElement(fixture));
+    await (component as unknown as { handleAutosave(): Promise<void> }).handleAutosave();
 
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(component.validationErrorMessage).toContain('Сканы и документы');
+    expect(createDraftMock).toHaveBeenCalled();
   });
 
-  it('should block submission when a required confirmation is missing', () => {
-    fillRequiredFields(fixture, component, { confirmProcessing: false });
+  it('should make land plot specific fields optional', async () => {
+    component.formControls.objectType.setValue('5');
+    component.formControls.cityId.setValue('city-1');
+    component.formControls.address.setValue('Екатеринбург, ул. Ленина, д. 10');
+    component.formControls.area.setValue('120');
+    component.formControls.floorsTotal.setValue('');
+    component.formControls.condition.setValue('');
 
-    component.onSubmit(new Event('submit'), getFormElement(fixture));
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(component.validationErrorMessage).toContain('Согласен(на) на обработку данных');
-  });
-
-  it('should block submission when correctness confirmation is missing', () => {
-    fillRequiredFields(fixture, component, { confirmCorrect: false });
-
-    component.onSubmit(new Event('submit'), getFormElement(fixture));
-
-    expect(navigateSpy).not.toHaveBeenCalled();
-    expect(component.validationErrorMessage).toContain('Подтверждаю, что данные введены корректно');
-  });
-
-  it('should append newly selected files instead of replacing the previous ones', () => {
-    const inputElement = document.createElement('input');
-    const passportFile = createFile('passport.pdf', 'application/pdf');
-    const planFile = createFile('plan.pdf', 'application/pdf');
-
-    setInputFiles(inputElement, [passportFile]);
-    component.onFilesSelected(createFileSelectionEvent(inputElement), 'documents');
-
-    setInputFiles(inputElement, [planFile]);
-    component.onFilesSelected(createFileSelectionEvent(inputElement), 'documents');
-
-    expect(component.documentFiles).toEqual([passportFile, planFile]);
-  });
-
-  it('should open consent modal from the processing agreement link', () => {
-    const consentLink = fixture.nativeElement.querySelector(
-      '#confirmProcessingLink',
-    ) as HTMLButtonElement;
-
-    consentLink.click();
     fixture.detectChanges();
+    await fixture.whenStable();
 
-    expect(component.isConsentModalOpen).toBe(true);
-    expect(fixture.nativeElement.querySelector('#consentDocumentTitle')?.textContent).toContain(
-      'СОГЛАСИЕ НА ОБРАБОТКУ ПЕРСОНАЛЬНЫХ ДАННЫХ',
-    );
+    expect(component.isLandPlotSelected()).toBe(true);
+    expect(component.formControls.floorsTotal.valid).toBe(true);
+    expect(component.formControls.condition.valid).toBe(true);
   });
 });
 
-function fillRequiredFields(
-  fixture: ComponentFixture<EstimationForm>,
-  component: EstimationForm,
-  options: {
-    includeDocuments?: boolean;
-    includePhotos?: boolean;
-    confirmCorrect?: boolean;
-    confirmProcessing?: boolean;
-  } = {},
-): void {
-  const nativeElement = fixture.nativeElement as HTMLElement;
+function fillRequiredFields(component: EstimationForm): void {
+  component.formControls.cityId.setValue('city-1');
+  component.formControls.address.setValue('Екатеринбург, ул. Ленина, д. 10');
+  component.formControls.area.setValue('54.6');
+  component.formControls.objectType.setValue('1');
+  component.formControls.floorsTotal.setValue('9');
+  component.formControls.condition.setValue('2');
+}
 
-  setControlValue(nativeElement, '#city', 'Москва');
-  setControlValue(nativeElement, '#address', 'Москва, Тверская ул., д. 10');
-  setControlValue(nativeElement, '#area', '54.6');
-  setControlValue(nativeElement, '#objectType', 'Квартира');
-  setControlValue(nativeElement, '#floorsTotal', '9');
-  setControlValue(nativeElement, '#condition', 'Хорошее');
-  setCheckboxState(nativeElement, '#confirmCorrect', options.confirmCorrect ?? true);
-  setCheckboxState(nativeElement, '#confirmProcessing', options.confirmProcessing ?? true);
+function attachRequiredUploads(component: EstimationForm): void {
+  component.documentFiles = [createMockFile('document.pdf', 'application/pdf')];
+  component.photoFiles = [createMockFile('photo.jpg', 'image/jpeg')];
+}
 
-  component.documentFiles =
-    options.includeDocuments === false ? [] : [createFile('passport.pdf', 'application/pdf')];
-  component.photoFiles =
-    options.includePhotos === false ? [] : [createFile('front.jpg', 'image/jpeg')];
-  component.additionalFiles = [];
-
-  fixture.detectChanges();
+function createMockFile(name: string, type: string): File {
+  return new File(['mock'], name, { type });
 }
 
 function getFormElement(fixture: ComponentFixture<EstimationForm>): HTMLFormElement {
   return fixture.nativeElement.querySelector('form') as HTMLFormElement;
-}
-
-function setControlValue(root: HTMLElement, selector: string, value: string): void {
-  const control = root.querySelector(selector) as
-    | HTMLInputElement
-    | HTMLSelectElement
-    | HTMLTextAreaElement;
-
-  control.value = value;
-  control.dispatchEvent(new Event('input'));
-  control.dispatchEvent(new Event('change'));
-}
-
-function setCheckboxState(root: HTMLElement, selector: string, checked: boolean): void {
-  const control = root.querySelector(selector) as HTMLInputElement;
-
-  control.checked = checked;
-  control.dispatchEvent(new Event('input'));
-  control.dispatchEvent(new Event('change'));
-}
-
-function createFile(name: string, type: string): File {
-  return new File(['file-content'], name, { type });
-}
-
-function createFileSelectionEvent(inputElement: HTMLInputElement): Event {
-  return { target: inputElement } as Event;
-}
-
-function setInputFiles(inputElement: HTMLInputElement, files: File[]): void {
-  if (typeof DataTransfer !== 'undefined') {
-    const dataTransfer = new DataTransfer();
-    for (const file of files) {
-      dataTransfer.items.add(file);
-    }
-
-    Object.defineProperty(inputElement, 'files', {
-      configurable: true,
-      value: dataTransfer.files,
-    });
-    return;
-  }
-
-  Object.defineProperty(inputElement, 'files', {
-    configurable: true,
-    value: files,
-  });
 }
