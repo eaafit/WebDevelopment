@@ -1,4 +1,11 @@
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  HostListener,
+  inject,
+  OnDestroy,
+  OnInit,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
@@ -34,6 +41,8 @@ type UserFilterColumn =
   styleUrl: './RequestAssessment.scss',
 })
 export class RequestAssessment implements OnInit, OnDestroy {
+  private cdr = inject(ChangeDetectorRef);
+
   currentView: 'list' | 'detail' = 'list';
 
   users: User[] = [];
@@ -100,6 +109,7 @@ export class RequestAssessment implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.searchSubscription = this.searchSubject$.pipe(debounceTime(300)).subscribe(() => {
       this.applyFilters();
+      this.cdr.detectChanges();
     });
     this.initializeData();
     this.applyFilters();
