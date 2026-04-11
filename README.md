@@ -24,6 +24,8 @@
 
 - `docker-compose up` - запустить PostgreSQL
 - `pnpm nx prune` - очистка nx
+- `pnpm store prune` - полная очистка.
+- `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
 - `pnpm nx run prisma:deploy` - применить миграции к базе данных
 - `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
@@ -72,6 +74,7 @@
 
 ### Настройка портов в Windows
 
+- `netstat -ano | findstr :<номер_порта>` - Эта команда выводит список всех сетевых соединений, прослушиваемых портов и соответствующих им PID.
 - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
 - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
 - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
