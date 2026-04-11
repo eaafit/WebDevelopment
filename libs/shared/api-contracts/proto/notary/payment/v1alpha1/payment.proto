@@ -45,6 +45,13 @@ enum PromoValidationStatus {
   PROMO_VALIDATION_STATUS_USAGE_LIMIT_REACHED = 4;
 }
 
+enum PaymentReceiptStatus {
+  PAYMENT_RECEIPT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_RECEIPT_STATUS_PENDING = 1;
+  PAYMENT_RECEIPT_STATUS_AVAILABLE = 2;
+  PAYMENT_RECEIPT_STATUS_FAILED = 3;
+}
+
 message Payment {
   string id = 1;
   string user_id = 2;
@@ -59,6 +66,8 @@ message Payment {
   string attachment_file_url = 11;
   string subscription_id = 12;
   string assessment_id = 13;
+  bool has_receipt = 14;
+  PaymentReceiptStatus receipt_status = 15;
 }
 
 message Subscription {

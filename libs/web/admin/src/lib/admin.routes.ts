@@ -81,8 +81,8 @@ export const adminRoutes: Route[] = [
       } as Route,
       {
         path: 'newsletter',
-        ...placeholder('Рассылка', ['Список рассылки', 'Формирование рассылки email']),
-      } as Route,
+        loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
+      },
       {
         path: 'monitoring',
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
@@ -101,8 +101,9 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'settings',
-        ...placeholder('Настройки', ['Конфигурация системы']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
+      },
     ],
   },
 ];

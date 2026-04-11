@@ -13,7 +13,7 @@ services:
     restart: always
 
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.15.0
+    image: prometheuscommunity/postgres-exporter:v0.18.1
     container_name: notary-postgres-exporter
     ports:
       - '9187:9187'
@@ -78,8 +78,9 @@ services:
     environment:
       MC_HOST_local: http://${MINIO_ROOT_USER:-minioadmin}:${MINIO_ROOT_PASSWORD:-minioadmin}@minio:9000
       S3_BUCKET_PAYMENT_DOCUMENTS: ${S3_BUCKET_PAYMENT_DOCUMENTS:-payment-documents}
+      S3_BUCKET_ASSESSMENT_FILES: ${S3_BUCKET_ASSESSMENT_FILES:-assessment-files}
     entrypoint: /bin/sh
-    command: -c "sleep 5 && mc mb --ignore-existing local/$${S3_BUCKET_PAYMENT_DOCUMENTS}"
+    command: -c "sleep 5 && mc mb --ignore-existing local/$${S3_BUCKET_PAYMENT_DOCUMENTS} && mc mb --ignore-existing local/$${S3_BUCKET_ASSESSMENT_FILES}"
     restart: 'no'
 
 volumes:

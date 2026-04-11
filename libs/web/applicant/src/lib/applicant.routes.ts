@@ -36,6 +36,11 @@ export const applicantRoutes: Route[] = [
         ]),
       },
       {
+        path: 'assessment/new/params',
+        loadComponent: () =>
+          import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
+      } as Route,
+      {
         path: 'assessment',
         loadComponent: () =>
           import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),

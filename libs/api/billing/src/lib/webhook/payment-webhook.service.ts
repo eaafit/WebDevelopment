@@ -3,15 +3,17 @@ import {
   ProcessWebhookResponseSchema,
   type ProcessWebhookRequest,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
+  PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   PaymentType as PrismaPaymentType,
   type Prisma,
 } from '@internal/prisma-client';
 import { timingSafeEqual } from 'node:crypto';
+import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -51,16 +53,21 @@ type PaymentRecord = Prisma.PaymentGetPayload<{
     subscriptionId: true;
     paymentMethod: true;
     transactionId: true;
+    attachmentFileUrl: true;
+    receiptStatus: true;
   };
 }>;
 
 @Injectable()
 export class PaymentWebhookService {
+  private readonly logger = new Logger(PaymentWebhookService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly metrics: MetricsService,
     private readonly yookassa: YooKassaClient,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
+    private readonly paymentAttachmentService: PaymentAttachmentService,
   ) {}
 
   async processWebhook(request: ProcessWebhookRequest) {
@@ -113,7 +120,7 @@ export class PaymentWebhookService {
 
     switch (payload.event) {
       case 'payment.succeeded':
-        await this.handlePaymentSucceeded(payment, providerPayment.paymentMethodType);
+        await this.handlePaymentSucceeded(payment, providerPayment);
         return;
 
       case 'payment.canceled':
@@ -127,7 +134,7 @@ export class PaymentWebhookService {
 
   private async handlePaymentSucceeded(
     payment: PaymentRecord,
-    paymentMethodType: string | null,
+    providerPayment: Awaited<ReturnType<YooKassaClient['getPayment']>>,
   ): Promise<void> {
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.payment.updateMany({
@@ -137,7 +144,8 @@ export class PaymentWebhookService {
         },
         data: {
           status: PrismaPaymentStatus.Completed,
-          paymentMethod: paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+          paymentMethod:
+            providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
         },
       });
 
@@ -162,6 +170,26 @@ export class PaymentWebhookService {
 
       return true;
     });
+
+    const shouldStoreReceipt =
+      updated ||
+      payment.receiptStatus !== PrismaPaymentReceiptStatus.Available ||
+      !payment.attachmentFileUrl;
+
+    if (shouldStoreReceipt) {
+      try {
+        await this.paymentAttachmentService.storeGeneratedReceipt(payment.id, providerPayment);
+        this.logger.log(
+          `Stored receipt copy for payment ${payment.id}; YooKassa receipt status=${providerPayment.receiptRegistration ?? 'unknown'}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to store receipt copy for payment ${payment.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.paymentAttachmentService.markReceiptFailed(payment.id);
+      }
+    }
 
     if (!updated) {
       return;
@@ -214,6 +242,8 @@ export class PaymentWebhookService {
         subscriptionId: true,
         paymentMethod: true,
         transactionId: true,
+        attachmentFileUrl: true,
+        receiptStatus: true,
       },
     });
   }

@@ -47,6 +47,7 @@ describe('AuthService', () => {
       tokenService as never,
       metrics as never,
       null,
+      null,
     );
   });
 

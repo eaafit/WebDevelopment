@@ -40,6 +40,12 @@ type FilterColumn =
 export class Payments {
   @ViewChild('paymentForm') paymentForm?: NgForm;
 
+  private readonly csvSeparator = ';';
+  private readonly csvNumberFormatter = new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   payments: Payment[] = MOCK_PAYMENTS.map((payment) => ({ ...payment }));
 
   searchTerm = '';
@@ -233,6 +239,22 @@ export class Payments {
       ? { queryParams: { assessmentId: payment.assessmentId } }
       : undefined;
     this.router.navigate(['/admin', 'applications'], extras);
+  }
+
+  exportToCsv(): void {
+    const csvContent = this.buildCsvContent(this.filteredPayments);
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   goToApplication(assessmentId: string): void {
@@ -447,5 +469,49 @@ export class Payments {
     const right = this.getCellValue(b, this.currentSortColumn);
     const result = left.localeCompare(right, 'ru', { numeric: true });
     return this.currentSortDirection === 'asc' ? result : -result;
+  }
+
+  private escapeCsvValue(value: string): string {
+    return `"${value.replaceAll('"', '""')}"`;
+  }
+
+  private formatCsvDate(value: string): string {
+    const [year, month, day] = value.split('-');
+    if (!year || !month || !day) return value;
+    return `${day}.${month}.${year}`;
+  }
+
+  private buildCsvContent(payments: Payment[]): string {
+    const rows = payments.map((payment) => [
+      String(payment.id),
+      this.formatCsvDate(payment.paymentDate),
+      payment.payer,
+      this.getTypeLabel(payment.type),
+      this.csvNumberFormatter.format(payment.amount),
+      this.csvNumberFormatter.format(payment.fee ?? 0),
+      this.getMethodLabel(payment.paymentMethod),
+      payment.transactionId || '—',
+      payment.attachmentFileName || '—',
+      payment.assessmentId || payment.subscriptionId || '—',
+      this.getStatusLabel(payment.status),
+    ]);
+
+    const header = [
+      'ID',
+      'Дата платежа',
+      'Плательщик',
+      'Тип',
+      'Сумма',
+      'Комиссия',
+      'Метод оплаты',
+      'ID транзакции',
+      'Чек',
+      'Заявка/подписка',
+      'Статус',
+    ];
+
+    return [header, ...rows]
+      .map((row) => row.map((value) => this.escapeCsvValue(value)).join(this.csvSeparator))
+      .join('\r\n');
   }
 }

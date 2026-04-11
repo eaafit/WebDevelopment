@@ -24,6 +24,8 @@
 
 - `docker-compose up` - запустить PostgreSQL
 - `pnpm nx prune` - очистка nx
+- `pnpm store prune` - полная очистка.
+- `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
 - `pnpm nx run prisma:deploy` - применить миграции к базе данных
 - `pnpm nx run prisma:seed` - заполнить базу данных тестовыми значениями
@@ -44,6 +46,7 @@
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `YOOKASSA_RECEIPT_VAT_CODE` - обязательный `vat_code` для строки чека подписки, которую мы передаём в YooKassa; значение нужно задать явно по согласованию с бухгалтерией
 
 **Webhook URL для кабинета ЮKassa:**
 
@@ -69,7 +72,9 @@
 > [!WARNING]
 > Если у вас установлен PostgreSQL вне Docker, порт 5432 может быть занят, и появится необходимость поменять его на любой другой свободный порт.
 
-### Настройка портов в Windows  
- - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
- - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
- - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
+### Настройка портов в Windows
+
+- `netstat -ano | findstr :<номер_порта>` - Эта команда выводит список всех сетевых соединений, прослушиваемых портов и соответствующих им PID.
+- `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
+- `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
+- `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.

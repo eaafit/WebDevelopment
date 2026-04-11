@@ -25,6 +25,8 @@ describe('Transactions', () => {
             currency: 'RUB',
             description: 'Подписка Premium (30 дней)',
             paymentMethod: 'bank_card',
+            hasReceipt: true,
+            receiptStatus: 'available',
             attachmentFileName: 'receipt.pdf',
             attachmentFileUrl: 'https://example.local/receipt.pdf',
             subscriptionId: 'subscription-1',
