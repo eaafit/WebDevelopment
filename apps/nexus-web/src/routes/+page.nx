@@ -1,0 +1,70 @@
+---
+
+<section class="landing">
+  <p class="landing-kicker">Nexus</p>
+  <h1 class="landing-title">Start here</h1>
+  <p class="landing-lead">
+    This is the <strong>minimal</strong> template: one presentation page, no i18n, no example blog or islands route.
+    Edit <code class="landing-code">src/routes/+page.nx</code> and add routes under <code class="landing-code">src/routes/</code>.
+  </p>
+  <p class="landing-hint">
+    Want i18n, demos, and blog stubs? Create a new project with <code class="landing-code">--template full</code>.
+  </p>
+  <a class="landing-btn" href="https://nexusjs.dev" target="_blank" rel="noopener noreferrer">Documentation</a>
+</section>
+
+<style>
+  .landing {
+    max-width: 36rem;
+    padding: 2rem 0 3rem;
+  }
+  .landing-kicker {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--nx-accent);
+  }
+  .landing-title {
+    margin: 0 0 1rem;
+    font-family: var(--nx-display);
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .landing-lead {
+    margin: 0 0 1rem;
+    color: var(--nx-muted);
+    line-height: 1.65;
+    font-size: 1.05rem;
+  }
+  .landing-hint {
+    margin: 0 0 1.75rem;
+    font-size: 0.9rem;
+    color: var(--nx-muted);
+    line-height: 1.55;
+  }
+  .landing-code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
+    border-radius: 6px;
+    background: var(--nx-surface);
+    border: 1px solid var(--nx-border);
+    color: var(--nx-accent);
+  }
+  .landing-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.65rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--nx-accent), #6366f1);
+    color: #fff;
+    box-shadow: 0 4px 24px rgba(139, 124, 248, 0.15);
+  }
+  .landing-btn:hover { filter: brightness(1.06); }
+</style>

@@ -34,6 +34,34 @@
 
 ---
 
+### Docker: контейнеры `nexus-web`
+
+Приложение **NexusJS** (`apps/nexus-web`) собирается в образ и поднимается вместе с **PostgreSQL** и **Redis** через Docker Compose. Подробности, переменные окружения и сборка без Compose описаны в [apps/nexus-web/DOCKER.md](apps/nexus-web/DOCKER.md).
+
+1. Скопируйте [apps/nexus-web/env.example](apps/nexus-web/env.example) в `apps/nexus-web/.env` и задайте **`NEXUS_SECRET`** (обязательно для запуска compose).
+
+2. **Локально** (сайт на хосте на порту 3000, например `http://localhost:3000`):
+
+   ```bash
+   cd apps/nexus-web
+   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+   ```
+
+   Без оверлея `docker-compose.local.yml` порт 3000 на хост не открывается (только внутри сети Docker) — так задумано для продакшена за reverse-proxy.
+
+3. **На VPS за Nginx Proxy Manager** (домен → NPM на 80/443 → контейнер на 3000):
+
+   ```bash
+   docker network create proxy
+   cd apps/nexus-web
+   docker compose -f docker-compose.npm.yml up -d
+   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+   ```
+
+   В панели NPM укажите прокси на **`nexus-web`**, порт **`3000`**, SSL по необходимости. Пошагово — в [DOCKER.md](apps/nexus-web/DOCKER.md) (раздел про VPS и NPM).
+
+---
+
 ### Платежи (ЮKassa)
 
 - Основной сценарий оплаты подписки для нотариуса выполняется через **embedded Checkout Widget ЮKassa** прямо на странице `/notary/subscription/checkout`, без редиректа на отдельную страницу оплаты.

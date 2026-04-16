@@ -1,0 +1,7 @@
+# Локальная разработка: проброс 3000 на хост (без NPM).
+# docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+
+services:
+  nexus-web:
+    ports:
+      - '${PORT:-3000}:3000'
