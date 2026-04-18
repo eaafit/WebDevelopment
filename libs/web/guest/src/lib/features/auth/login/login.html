@@ -20,6 +20,8 @@
       autocomplete="current-password" />
   </div>
 
+  <a class="login__restore-link" routerLink="/password-restore">Восстановить пароль</a>
+
   <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
     {{ loading() ? 'Вход...' : 'Войти' }}
   </button>

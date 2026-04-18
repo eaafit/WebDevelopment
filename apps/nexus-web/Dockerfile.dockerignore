@@ -1,0 +1,16 @@
+# Context is the repository root. Keep the build context small while satisfying
+# pnpm workspace (root + nexus-web + workspace packages referenced in pnpm-lock).
+
+**
+!/package.json
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/apps/nexus-web
+!/apps/nexus-web/**
+!/libs/api/shared/prisma
+!/libs/api/shared/prisma/**
+!/libs/shared/api-contracts
+!/libs/shared/api-contracts/**
+
+/apps/nexus-web/node_modules
+/apps/nexus-web/.nexus

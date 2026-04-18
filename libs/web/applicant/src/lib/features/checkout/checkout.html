@@ -1,86 +1,153 @@
-<div class="container">
+<div class="container checkout-shell">
   <div class="mb-4">
-    <a href="#" class="link text-sm mb-2" style="display: inline-block">← Вернуться</a>
+    <a routerLink="/applicant/payments" class="link text-sm mb-2 back-link">← Вернуться</a>
     <h1>Оплата услуги</h1>
-    <p class="text-sm">Безопасная оплата услуг нотариуса через наш сервис.</p>
+    <p class="text-sm">
+      Оплатите выбранную услугу через официальный виджет ЮKassa. Карточные данные остаются только у платёжного
+      провайдера.
+    </p>
   </div>
 
-  <form
-    class="grid-checkout"
-    onsubmit="
-          event.preventDefault();
-          alert('Обработка платежа...');
-        ">
-    <div class="flex-col gap-4">
-      <div class="card">
-        <div class="card-title">1. Детали заказа</div>
-
-        <div class="box-summary">
-          <div class="flex justify-between items-start">
-            <div>
-              <h3>Удостоверение доверенности</h3>
-              <p class="text-sm mb-2">Категория: Физические лица</p>
-              <div class="mt-4">
-                <div class="text-xs">Дата и время</div>
-                <div class="text-bold">12 февраля • 14:00</div>
-              </div>
-            </div>
-            <div class="text-bold" style="font-size: 1.25rem">2 500 ₽</div>
-          </div>
-        </div>
-
-        <div class="mt-4">
-          <label for="emailInput" class="form-label">Email для отправки чека</label>
-          <input
-            id="emailInput"
-            type="email"
-            class="form-input"
-            placeholder="client@example.com"
-            value="client@example.com" />
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">2. Защищённая оплата</div>
-        <div class="alert-info m-0">
-          <span>🛡️</span>
-          <span>
-            Реквизиты карты, СБП или кошелька будут вводиться только в защищённом платёжном виджете ЮKassa. На нашем
-            сайте эти данные не собираются.
-          </span>
-        </div>
-      </div>
+  @if (notice() && state() === 'ready') {
+  <section class="card notice-banner" aria-live="polite">
+    <div class="notice-banner-label">Уведомление</div>
+    <p class="m-0">{{ notice() }}</p>
+  </section>
+  } @if (state() === 'success') {
+  <section class="card state-card state-card-standalone success-card">
+    <div class="card-title">Оплата прошла успешно</div>
+    <p>Услуга <strong>{{ serviceTitle() }}</strong> оплачена. {{ selectedService().successMessage }}</p>
+    <div class="summary-row total compact">
+      <span>Оплачено</span>
+      <span class="text-primary">{{ displayAmountLabel() }}</span>
     </div>
-
-    <div>
-      <div class="card">
-        <div class="mb-4">
-          <label for="promoInput" class="form-label">Промокод</label>
-          <div class="flex gap-2">
-            <input id="promoInput" type="text" class="form-input" placeholder="Winter2026" />
-            <button type="button" class="btn btn-outline btn-sm">OK</button>
-          </div>
-        </div>
-
-        <div class="summary-row total">
-          <span>Итого:</span>
-          <span class="text-primary">2 500 ₽</span>
-        </div>
-
-        <div class="alert-info mt-4">
-          <span>🛡️</span>
-          <span>Деньги будут заморожены на счете и поступят нотариусу только после оказания услуги.</span>
-        </div>
-
-        <button type="submit" class="btn btn-primary w-full mt-4">Оплатить 2 500 ₽</button>
-
-        <p class="text-sm text-center mt-4 text-xs">
-          🔒 Данные защищены по стандарту PCI DSS. Нажимая кнопку, вы соглашаетесь с
-          <a href="/terms" class="link" target="_blank">условиями сервиса</a>
-          и
-          <a href="/privacy" class="link" target="_blank">политикой конфиденциальности</a>.
+    <a [routerLink]="cabinetLink" class="btn btn-primary">Перейти к платежам</a>
+  </section>
+  } @else if (state() === 'widget' || state() === 'processing') {
+  <section class="card widget-stage" [class.is-processing]="state() === 'processing'">
+    <div class="widget-stage-intro">
+      <div class="widget-stage-copy">
+        <h2>{{ state() === 'widget' ? 'Оплата через ЮKassa' : 'Проверяем подтверждение платежа' }}</h2>
+        <p class="text-sm m-0">
+          @if (state() === 'widget') { Виджет открылся прямо на странице и занимает основную рабочую область, чтобы шаг
+          с вводом карты и подтверждением не конфликтовал с layout кабинета. } @else { Статус обновится автоматически,
+          как только ЮKassa пришлёт webhook. Если подтверждение задержалось, можно вручную запросить повторную проверку.
+          }
         </p>
       </div>
+
+      <div class="widget-stage-summary">
+        <div class="widget-stage-summary-row">
+          <span>Услуга</span>
+          <strong>{{ serviceTitle() }}</strong>
+        </div>
+        <div class="widget-stage-summary-row total">
+          <span>Итого</span>
+          <strong class="text-primary">{{ displayAmountLabel() }}</strong>
+        </div>
+      </div>
     </div>
-  </form>
+
+    @if (state() === 'widget') {
+    <div class="widget-frame">
+      <div id="yookassa-widget-host" class="widget-host"></div>
+    </div>
+    <p class="text-sm text-center text-xs widget-stage-caption">
+      Карточные данные и код подтверждения остаются только внутри защищённого интерфейса ЮKassa.
+    </p>
+    } @else {
+    <div class="widget-processing">
+      <p class="m-0">Если через несколько секунд статус всё ещё не обновился, запустите ручную проверку.</p>
+      <div class="state-actions">
+        <button type="button" class="btn btn-outline" [disabled]="loading()" (click)="retryStatusCheck()">
+          Проверить ещё раз
+        </button>
+        <a [routerLink]="cabinetLink" class="btn btn-outline">К платежам</a>
+      </div>
+    </div>
+    }
+  </section>
+  } @else {
+  <div class="grid-checkout">
+    <div class="flex-col gap-4">
+      <section class="card">
+        <div class="card-title">Услуга</div>
+        <article class="service-card">
+          <div class="service-copy">
+            <div class="service-heading">
+              <h2>{{ serviceTitle() }}</h2>
+              <span class="service-chip">{{ selectedService().badge }}</span>
+            </div>
+            <p class="text-sm service-subtitle">{{ selectedService().subtitle }}</p>
+            <p class="text-sm m-0">{{ serviceDescription() }}</p>
+          </div>
+          <div class="service-price">{{ displayAmountLabel() }}</div>
+        </article>
+      </section>
+
+      @if (!targetId()) {
+      <section class="card state-card error-card missing-context-card">
+        <div class="state-card-copy">
+          <p class="state-card-eyebrow error-card-eyebrow">Не хватает данных</p>
+          <h2>Пока нельзя открыть оплату</h2>
+          <p class="m-0">
+            Для этой услуги нужен идентификатор заказа. Откройте checkout из карточки нужной услуги, чтобы передать
+            корректный контекст оплаты.
+          </p>
+        </div>
+      </section>
+      }
+    </div>
+
+    <div class="flex-col gap-4">
+      <section class="card summary-card">
+        <div class="card-title">Сводка заказа</div>
+        <div class="summary-row total">
+          <span>Итого</span>
+          <span class="text-primary">{{ displayAmountLabel() }}</span>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary w-full mt-4"
+          [disabled]="!canStartPayment()"
+          (click)="startPayment()">
+          {{ loading() ? 'Создаём платёж...' : state() === 'processing' ? 'Проверяем статус...' : 'Оплатить через
+          ЮKassa' }}
+        </button>
+        <p class="text-sm text-center mt-4 text-xs summary-caption">
+          Нажимая кнопку, вы открываете защищённый виджет ЮKassa. Дальнейшая обработка услуги начинается после
+          подтверждения оплаты.
+        </p>
+      </section>
+
+      @if (state() === 'cancelled') {
+      <section class="card state-card cancel-card">
+        <div class="card-title">Платёж не завершён</div>
+        <p>{{ errorMessage() }}</p>
+        <div class="state-actions">
+          <button type="button" class="btn btn-primary" [disabled]="isBusy()" (click)="resetCheckout()">
+            Попробовать снова
+          </button>
+          <a [routerLink]="cabinetLink" class="btn btn-outline">К платежам</a>
+        </div>
+      </section>
+      } @if (state() === 'error') {
+      <section class="card state-card error-card">
+        <div class="state-card-copy">
+          <p class="state-card-eyebrow error-card-eyebrow">Нужна повторная попытка</p>
+          <h2>{{ errorTitle() }}</h2>
+          <p class="m-0">{{ errorMessage() }}</p>
+        </div>
+        <div class="state-actions">
+          <button type="button" class="btn btn-primary" [disabled]="isBusy()" (click)="resetCheckout()">
+            Повторить
+          </button>
+          <a [routerLink]="cabinetLink" class="btn btn-outline">К платежам</a>
+        </div>
+      </section>
+      }
+    </div>
+  </div>
+  }
 </div>

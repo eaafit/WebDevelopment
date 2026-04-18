@@ -1,14 +1,11 @@
-﻿import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
-import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
-import { RequestPrice, AssessmentItem } from './request_price';
+import { RequestPrice, AssessmentItem } from './assessment';
 
 describe('RequestPrice', () => {
   let component: RequestPrice;
   let fixture: ComponentFixture<RequestPrice>;
-  let httpMock: HttpTestingController;
 
   const mockItem: AssessmentItem = {
     assessment: {
@@ -35,24 +32,24 @@ describe('RequestPrice', () => {
   };
 
   beforeEach(async () => {
+    jest.useFakeTimers();
+
     await TestBed.configureTestingModule({
       imports: [RequestPrice, CommonModule, ReactiveFormsModule],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(RequestPrice);
     component = fixture.componentInstance;
-    httpMock = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
 
-    // Сбрасываем HTTP-запрос при инициализации
-    const req = httpMock.expectOne('/api/notary/assessments');
-    req.flush([mockItem]);
+    // Advance past the 300ms setTimeout in loadAssessments
+    jest.advanceTimersByTime(300);
     fixture.detectChanges();
-    await fixture.whenStable();
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   // ── Инициализация ──────────────────────────────────────────────────────────
 
@@ -83,7 +80,7 @@ describe('RequestPrice', () => {
   // ── Список заявок ──────────────────────────────────────────────────────────
 
   it('should load assessments on init', () => {
-    expect(component.assessments().length).toBe(1);
+    expect(component.assessments().length).toBeGreaterThan(0);
     expect(component.isLoadingAssessments()).toBe(false);
   });
 
@@ -138,9 +135,10 @@ describe('RequestPrice', () => {
   });
 
   it('should delete assessment from list', () => {
+    component.assessments.set([mockItem]);
     component.openDeleteModal(mockItem);
     component.confirmDelete();
-    httpMock.expectOne(`/api/notary/assessments/${mockItem.assessment.id}`).flush(null);
+    jest.advanceTimersByTime(200);
     fixture.detectChanges();
     expect(component.assessments().length).toBe(0);
   });

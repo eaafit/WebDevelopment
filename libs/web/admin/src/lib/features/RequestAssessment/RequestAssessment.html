@@ -1,0 +1,367 @@
+<div class="admin-page admin-crud-page request-assessment-container">
+  <h1 class="page-title">Управление пользователями</h1>
+
+  <!-- СТРАНИЦА СПИСКА -->
+  @if (currentView === 'list') {
+  <div class="list-container">
+    <div class="list-header">
+      <h2>Список пользователей</h2>
+      <button class="btn btn-primary" (click)="openCreateModal()">➕ Добавить пользователя</button>
+    </div>
+
+    <!-- ФИЛЬТРЫ -->
+    <div class="filters">
+      <div class="search-box">
+        <input
+          type="text"
+          placeholder="Поиск по имени или email..."
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onSearchChange($event)" />
+      </div>
+    </div>
+
+    <!-- ТАБЛИЦА -->
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            @for (column of headerColumns; track column.key) {
+            <th class="filterable no-wrap-col">
+              <div class="header-cell">
+                <span>{{ column.label }}</span>
+                <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">▼</button>
+              </div>
+              @if (activeFilterColumn === column.key) {
+              <div
+                class="column-filter-menu"
+                (click)="$event.stopPropagation()"
+                (keydown)="$event.stopPropagation()"
+                tabindex="-1"
+                role="menu"
+                aria-label="Меню фильтрации">
+                <div class="menu-section">
+                  <button
+                    type="button"
+                    class="menu-btn"
+                    [class.active]="isSortDraftActive('asc')"
+                    (click)="setDraftSort('asc')">
+                    По возрастанию
+                  </button>
+                  <button
+                    type="button"
+                    class="menu-btn"
+                    [class.active]="isSortDraftActive('desc')"
+                    (click)="setDraftSort('desc')">
+                    По убыванию
+                  </button>
+                </div>
+                <div class="menu-section">
+                  <button type="button" class="menu-btn clear-btn" (click)="clearCurrentColumnFilter()">
+                    Снять фильтр с текущего столбца
+                  </button>
+                </div>
+                <div class="menu-section">
+                  <input type="text" [(ngModel)]="filterSearch" placeholder="Поиск" />
+                </div>
+                <div class="menu-section value-list">
+                  <label class="checkbox-row">
+                    <input type="checkbox" [checked]="isAllChecked" (change)="onToggleAllChange($event)" />
+                    <span>Выделить все</span>
+                  </label>
+                  @for (value of filterValues; track value) {
+                  <label class="checkbox-row">
+                    <input
+                      type="checkbox"
+                      [checked]="isValueChecked(value)"
+                      (change)="onToggleValueChange(value, $event)" />
+                    <span>{{ value }}</span>
+                  </label>
+                  }
+                </div>
+                <div class="menu-actions">
+                  <button type="button" class="btn btn-primary btn-sm" (click)="applyColumnFilter()">OK</button>
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="cancelColumnFilter()">Отмена</button>
+                </div>
+              </div>
+              }
+            </th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @if (paginatedUsers.length === 0) {
+          <tr>
+            <td colspan="7">
+              <div class="empty-state">
+                <p>Пользователи не найдены</p>
+              </div>
+            </td>
+          </tr>
+          } @for (user of paginatedUsers; track user.id) {
+          <tr>
+            <td>{{ getFullName(user) }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.phoneNumber }}</td>
+            <td>
+              <span class="badge" [ngClass]="getRoleBadgeClass(user.role)"> {{ getRoleLabel(user.role) }} </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="user.isActive ? 'badge-success' : 'badge-danger'">
+                {{ user.isActive ? 'Активен' : 'Заблокирован' }}
+              </span>
+            </td>
+            <td>{{ formatDate(user.createdAt) }}</td>
+            <td>
+              <div class="actions">
+                <button class="btn-icon" (click)="viewUser(user)" title="Просмотр">👁️</button>
+                <button class="btn-icon" (click)="openEditModal(user)" title="Редактировать">✏️</button>
+                <button class="btn-icon" (click)="openDeleteModal(user)" title="Удалить">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ПАГИНАЦИЯ -->
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">‹</button>
+      @for (page of pages; track page) { @if (page === -1) {
+      <button disabled>...</button>
+      } @else {
+      <button [class.active]="page === currentPage" (click)="changePage(page)">{{ page }}</button>
+      } }
+      <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">›</button>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- СТРАНИЦА ПРОСМОТРА -->
+  @if (currentView === 'detail' && selectedUser) {
+  <div class="admin-card view-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Информация о пользователе</h3>
+      </div>
+      <button class="btn btn-secondary" (click)="backToList()">← Назад</button>
+    </div>
+
+    <div class="admin-card__body">
+      <div class="view-details">
+        <div class="detail-row">
+          <div class="detail-label">ID:</div>
+          <div class="detail-value">{{ selectedUser.id }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Фамилия:</div>
+          <div class="detail-value">{{ selectedUser.lastName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Имя:</div>
+          <div class="detail-value">{{ selectedUser.firstName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Отчество:</div>
+          <div class="detail-value">{{ selectedUser.middleName }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Подписка:</div>
+          <div class="detail-value">{{ selectedUser.subscriptionPlan }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Email:</div>
+          <div class="detail-value">{{ selectedUser.email }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Телефон:</div>
+          <div class="detail-value">{{ selectedUser.phoneNumber }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Роль:</div>
+          <div class="detail-value">
+            <span class="badge" [ngClass]="getRoleBadgeClass(selectedUser.role)">
+              {{ getRoleLabel(selectedUser.role) }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Статус:</div>
+          <div class="detail-value">
+            <span class="badge" [ngClass]="selectedUser.isActive ? 'badge-success' : 'badge-danger'">
+              {{ selectedUser.isActive ? 'Активен' : 'Заблокирован' }}
+            </span>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Дата регистрации:</div>
+          <div class="detail-value">{{ formatDate(selectedUser.createdAt) }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Последнее обновление:</div>
+          <div class="detail-value">{{ formatDate(selectedUser.updatedAt) }}</div>
+        </div>
+      </div>
+
+      <div class="view-card-actions">
+        <button class="btn btn-primary" (click)="editFromView()">✏️ Редактировать</button>
+        <button class="btn btn-danger" (click)="deleteFromView()">🗑️ Удалить</button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- ========== МОДАЛКА СОЗДАНИЯ/РЕДАКТИРОВАНИЯ ========== -->
+  @if (showUserModal) {
+  <div class="modal-overlay" role="dialog" (click)="closeUserModal()" (keydown.escape)="closeUserModal()">
+    <div
+      class="modal modal-form"
+      role="document"
+      (click)="$event.stopPropagation()"
+      (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>{{ isEditing ? 'Редактировать пользователя' : 'Добавить пользователя' }}</h3>
+        <button class="close-btn" (click)="closeUserModal()">&times;</button>
+      </div>
+
+      <form (ngSubmit)="saveUser()">
+        <div class="form-group">
+          <label class="required" for="lastName">Фамилия</label>
+          <input
+            type="text"
+            id="lastName"
+            [class.error]="formErrors['lastName']"
+            [(ngModel)]="formData.lastName"
+            name="lastName" />
+          @if (formErrors['lastName']) {
+          <div class="form-error active">{{ formErrors['lastName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="firstName">Имя</label>
+          <input
+            type="text"
+            id="firstName"
+            [class.error]="formErrors['firstName']"
+            [(ngModel)]="formData.firstName"
+            name="firstName" />
+          @if (formErrors['firstName']) {
+          <div class="form-error active">{{ formErrors['firstName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="middleName">Отчество</label>
+          <input
+            type="text"
+            id="middleName"
+            [class.error]="formErrors['middleName']"
+            [(ngModel)]="formData.middleName"
+            name="middleName" />
+          @if (formErrors['middleName']) {
+          <div class="form-error active">{{ formErrors['middleName'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="email">Email</label>
+          <input
+            type="email"
+            id="email"
+            [class.error]="formErrors['email']"
+            [(ngModel)]="formData.email"
+            name="email" />
+          @if (formErrors['email']) {
+          <div class="form-error active">{{ formErrors['email'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="phoneNumber">Телефон</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            [class.error]="formErrors['phoneNumber']"
+            placeholder="+7 (___) ___-__-__"
+            [(ngModel)]="formData.phoneNumber"
+            name="phoneNumber" />
+          @if (formErrors['phoneNumber']) {
+          <div class="form-error active">{{ formErrors['phoneNumber'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="subscriptionPlan">Подписка</label>
+          <select
+            id="subscriptionPlan"
+            [class.error]="formErrors['subscriptionPlan']"
+            [(ngModel)]="formData.subscriptionPlan"
+            name="subscriptionPlan">
+            <option value="" disabled>Выберите план</option>
+            <option value="Basic">Basic</option>
+            <option value="Premium">Premium</option>
+            <option value="Enterprise">Enterprise</option>
+          </select>
+          @if (formErrors['subscriptionPlan']) {
+          <div class="form-error active">{{ formErrors['subscriptionPlan'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label class="required" for="role">Роль</label>
+          <select id="role" [class.error]="formErrors['role']" [(ngModel)]="formData.role" name="role">
+            <option value="" disabled>Выберите роль</option>
+            <option value="Applicant">Заявитель</option>
+            <option value="Notary">Нотариус</option>
+            <option value="Admin">Администратор</option>
+          </select>
+          @if (formErrors['role']) {
+          <div class="form-error active">{{ formErrors['role'] }}</div>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="isActive">Статус</label>
+          <div class="toggle-switch">
+            <label class="switch">
+              <input type="checkbox" id="isActive" [checked]="formData.isActive" (change)="onStatusToggle()" />
+              <span class="slider"></span>
+            </label>
+            <span>{{ formData.isActive ? 'Активен' : 'Заблокирован' }}</span>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="closeUserModal()">Отмена</button>
+          <button type="submit" class="btn btn-success">{{ isEditing ? 'Сохранить' : 'Создать' }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  }
+
+  <!-- ========== МОДАЛКА УДАЛЕНИЯ ========== -->
+  @if (showDeleteModal && userToDelete) {
+  <div class="modal-overlay" role="dialog" (click)="closeDeleteModal()" (keydown.escape)="closeDeleteModal()">
+    <div class="modal" role="document" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Подтверждение удаления</h3>
+        <button class="close-btn" (click)="closeDeleteModal()">&times;</button>
+      </div>
+
+      <p>
+        Вы уверены, что хотите удалить пользователя
+        <strong>{{ getFullName(userToDelete) }}</strong>?
+      </p>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="closeDeleteModal()">Отмена</button>
+        <button class="btn btn-danger" (click)="confirmDelete()">🗑️ Удалить</button>
+      </div>
+    </div>
+  </div>
+  }
+</div>

@@ -540,29 +540,34 @@
           <div class="card-inner">
             <div class="card-title">1. Данные нотариуса</div>
             <div class="form-group">
-              <label class="form-label">Город практики <span class="req">*</span></label>
-              <select class="form-input" formControlName="notaryCity" (change)="onNotaryCityChange()">
+              <label class="form-label" for="notaryCity">Город практики <span class="req">*</span></label>
+              <select id="notaryCity" class="form-input" formControlName="notaryCity" (change)="onNotaryCityChange()">
                 <option value="" disabled>Выберите город</option>
-                <option *ngFor="let c of cities" [value]="c">{{ c }}</option>
+                @for (c of cities; track c) {
+                <option [value]="c">{{ c }}</option>
+                }
               </select>
-              <p class="error-hint" *ngIf="form.get('notaryCity')?.invalid && form.get('notaryCity')?.touched">
-                Выберите город практики
-              </p>
+              @if (form.get('notaryCity')?.invalid && form.get('notaryCity')?.touched) {
+              <p class="error-hint">Выберите город практики</p>
+              }
             </div>
             <div class="form-group">
-              <label class="form-label">ФИО нотариуса <span class="req">*</span></label>
-              <select class="form-input" formControlName="notaryFio" (change)="onNotaryFioChange()">
+              <label class="form-label" for="notaryFio">ФИО нотариуса <span class="req">*</span></label>
+              <select id="notaryFio" class="form-input" formControlName="notaryFio" (change)="onNotaryFioChange()">
                 <option value="" disabled>Выберите нотариуса</option>
-                <option *ngFor="let n of filteredNotaries" [value]="n.fio">{{ n.fio }}</option>
+                @for (n of filteredNotaries; track n.fio) {
+                <option [value]="n.fio">{{ n.fio }}</option>
+                }
               </select>
-              <p class="error-hint" *ngIf="form.get('notaryFio')?.invalid && form.get('notaryFio')?.touched">
-                Выберите нотариуса
-              </p>
+              @if (form.get('notaryFio')?.invalid && form.get('notaryFio')?.touched) {
+              <p class="error-hint">Выберите нотариуса</p>
+              }
             </div>
             <div class="flex gap-4">
               <div class="form-group w-full">
-                <label class="form-label">№ конторы</label>
+                <label class="form-label" for="notaryOfficeNumber">№ конторы</label>
                 <input
+                  id="notaryOfficeNumber"
                   class="form-input readonly"
                   type="text"
                   formControlName="notaryOfficeNumber"
@@ -570,13 +575,19 @@
                   placeholder="Автоматически" />
               </div>
               <div class="form-group w-full">
-                <label class="form-label">Исх. № и дата</label>
-                <input class="form-input readonly" type="text" [value]="outgoingDisplay()" readonly />
+                <label class="form-label" for="outgoingDisplay">Исх. № и дата</label>
+                <input
+                  id="outgoingDisplay"
+                  class="form-input readonly"
+                  type="text"
+                  [value]="outgoingDisplay()"
+                  readonly />
               </div>
             </div>
             <div class="form-group no-mb">
-              <label class="form-label">Адрес нотариальной конторы</label>
+              <label class="form-label" for="notaryOfficeAddress">Адрес нотариальной конторы</label>
               <input
+                id="notaryOfficeAddress"
                 class="form-input readonly"
                 type="text"
                 formControlName="notaryOfficeAddress"
@@ -589,18 +600,21 @@
           <div class="card-inner">
             <div class="card-title">2. Данные оценочной компании</div>
             <div class="form-group">
-              <label class="form-label">Наименование <span class="req">*</span></label>
-              <select class="form-input" formControlName="companyName" (change)="onCompanyChange()">
+              <label class="form-label" for="companyName">Наименование <span class="req">*</span></label>
+              <select id="companyName" class="form-input" formControlName="companyName" (change)="onCompanyChange()">
                 <option value="" disabled>Выберите компанию</option>
-                <option *ngFor="let c of companies" [value]="c.name">{{ c.name }}</option>
+                @for (c of companies; track c.name) {
+                <option [value]="c.name">{{ c.name }}</option>
+                }
               </select>
-              <p class="error-hint" *ngIf="form.get('companyName')?.invalid && form.get('companyName')?.touched">
-                Выберите компанию
-              </p>
+              @if (form.get('companyName')?.invalid && form.get('companyName')?.touched) {
+              <p class="error-hint">Выберите компанию</p>
+              }
             </div>
             <div class="form-group no-mb">
-              <label class="form-label">Адрес компании</label>
+              <label class="form-label" for="companyAddress">Адрес компании</label>
               <input
+                id="companyAddress"
                 class="form-input readonly"
                 type="text"
                 formControlName="companyAddress"
@@ -613,47 +627,48 @@
           <div class="card-inner">
             <div class="card-title">3. Данные об объекте</div>
             <div class="form-group">
-              <label class="form-label">Полный адрес объекта <span class="req">*</span></label>
+              <label class="form-label" for="propertyAddress">Полный адрес объекта <span class="req">*</span></label>
               <input
+                id="propertyAddress"
                 class="form-input"
                 type="text"
                 formControlName="propertyAddress"
                 placeholder="Город, улица, дом, кв." />
-              <p
-                class="error-hint"
-                *ngIf="form.get('propertyAddress')?.invalid && form.get('propertyAddress')?.touched">
-                Укажите адрес объекта
-              </p>
+              @if (form.get('propertyAddress')?.invalid && form.get('propertyAddress')?.touched) {
+              <p class="error-hint">Укажите адрес объекта</p>
+              }
             </div>
             <div class="flex gap-4">
               <div class="form-group w-full">
-                <label class="form-label">Кадастровый номер <span class="req">*</span></label>
+                <label class="form-label" for="cadastralNumber">Кадастровый номер <span class="req">*</span></label>
                 <input
+                  id="cadastralNumber"
                   class="form-input"
                   type="text"
                   formControlName="cadastralNumber"
                   placeholder="77:01:0004012:1234" />
                 <p class="help text-xs">Уникальный идентификатор в Росреестре.</p>
-                <p
-                  class="error-hint"
-                  *ngIf="form.get('cadastralNumber')?.invalid && form.get('cadastralNumber')?.touched">
-                  Укажите кадастровый номер
-                </p>
+                @if (form.get('cadastralNumber')?.invalid && form.get('cadastralNumber')?.touched) {
+                <p class="error-hint">Укажите кадастровый номер</p>
+                }
               </div>
               <div class="form-group w-full">
-                <label class="form-label">Вид объекта <span class="req">*</span></label>
-                <select class="form-input" formControlName="propertyType">
+                <label class="form-label" for="propertyType">Вид объекта <span class="req">*</span></label>
+                <select id="propertyType" class="form-input" formControlName="propertyType">
                   <option value="" disabled>Выберите тип</option>
-                  <option *ngFor="let t of propertyTypes" [value]="t">{{ t }}</option>
+                  @for (t of propertyTypes; track t) {
+                  <option [value]="t">{{ t }}</option>
+                  }
                 </select>
-                <p class="error-hint" *ngIf="form.get('propertyType')?.invalid && form.get('propertyType')?.touched">
-                  Выберите вид объекта
-                </p>
+                @if (form.get('propertyType')?.invalid && form.get('propertyType')?.touched) {
+                <p class="error-hint">Выберите вид объекта</p>
+                }
               </div>
             </div>
             <div class="form-group no-mb">
-              <label class="form-label">Особенности объекта</label>
+              <label class="form-label" for="specialConditions">Особенности объекта</label>
               <textarea
+                id="specialConditions"
                 class="form-input"
                 rows="3"
                 formControlName="specialConditions"
@@ -665,21 +680,30 @@
           <div class="card-inner">
             <div class="card-title">4. Документы на объект</div>
             <div class="form-group">
-              <label class="form-label">Документ о праве собственности (PDF)</label>
-              <input class="form-input" type="file" accept="application/pdf" (change)="onPdfSelected($event)" />
-              <p class="help text-xs" *ngIf="selectedPdfName">Выбран: <b>{{ selectedPdfName }}</b></p>
-              <p class="help text-xs" *ngIf="!selectedPdfName">Свидетельство или выписка из ЕГРН</p>
+              <label class="form-label" for="pdfDocument">Документ о праве собственности (PDF)</label>
+              <input
+                id="pdfDocument"
+                class="form-input"
+                type="file"
+                accept="application/pdf"
+                (change)="onPdfSelected($event)" />
+              @if (selectedPdfName) {
+              <p class="help text-xs">Выбран: <b>{{ selectedPdfName }}</b></p>
+              } @if (!selectedPdfName) {
+              <p class="help text-xs">Свидетельство или выписка из ЕГРН</p>
+              }
             </div>
             <div class="form-group no-mb">
-              <label class="form-label">Реквизиты документа <span class="req">*</span></label>
+              <label class="form-label" for="docRequisites">Реквизиты документа <span class="req">*</span></label>
               <textarea
+                id="docRequisites"
                 class="form-input"
                 rows="3"
                 formControlName="docRequisites"
                 placeholder="Вид, номер, дата выдачи, орган"></textarea>
-              <p class="error-hint" *ngIf="form.get('docRequisites')?.invalid && form.get('docRequisites')?.touched">
-                Укажите реквизиты
-              </p>
+              @if (form.get('docRequisites')?.invalid && form.get('docRequisites')?.touched) {
+              <p class="error-hint">Укажите реквизиты</p>
+              }
             </div>
           </div>
 
@@ -687,37 +711,39 @@
           <div class="card-inner">
             <div class="card-title">5. Цель и детали оценки</div>
             <div class="form-group">
-              <label class="form-label">Нотариальное действие <span class="req">*</span></label>
+              <label class="form-label" for="notarialAction">Нотариальное действие <span class="req">*</span></label>
               <input
+                id="notarialAction"
                 class="form-input"
                 type="text"
                 formControlName="notarialAction"
                 placeholder="Дарение / наследство / раздел имущества…" />
-              <p class="error-hint" *ngIf="form.get('notarialAction')?.invalid && form.get('notarialAction')?.touched">
-                Укажите цель
-              </p>
+              @if (form.get('notarialAction')?.invalid && form.get('notarialAction')?.touched) {
+              <p class="error-hint">Укажите цель</p>
+              }
             </div>
             <div class="flex gap-4">
               <div class="form-group w-full">
-                <label class="form-label">Дата оценки <span class="req">*</span></label>
-                <input class="form-input" type="date" formControlName="valuationDate" />
+                <label class="form-label" for="valuationDate">Дата оценки <span class="req">*</span></label>
+                <input id="valuationDate" class="form-input" type="date" formControlName="valuationDate" />
                 <p class="help text-xs">На какую дату определить стоимость</p>
-                <p class="error-hint" *ngIf="form.get('valuationDate')?.invalid && form.get('valuationDate')?.touched">
-                  Укажите дату оценки
-                </p>
+                @if (form.get('valuationDate')?.invalid && form.get('valuationDate')?.touched) {
+                <p class="error-hint">Укажите дату оценки</p>
+                }
               </div>
               <div class="form-group w-full">
-                <label class="form-label">Срок отчёта <span class="req">*</span></label>
-                <input class="form-input" type="date" formControlName="reportDueDate" />
+                <label class="form-label" for="reportDueDate">Срок отчёта <span class="req">*</span></label>
+                <input id="reportDueDate" class="form-input" type="date" formControlName="reportDueDate" />
                 <p class="help text-xs">До какой даты получить отчёт</p>
-                <p class="error-hint" *ngIf="form.get('reportDueDate')?.invalid && form.get('reportDueDate')?.touched">
-                  Укажите срок
-                </p>
+                @if (form.get('reportDueDate')?.invalid && form.get('reportDueDate')?.touched) {
+                <p class="error-hint">Укажите срок</p>
+                }
               </div>
             </div>
             <div class="form-group no-mb">
-              <label class="form-label">Дополнительные комментарии</label>
+              <label class="form-label" for="extraNotes">Дополнительные комментарии</label>
               <textarea
+                id="extraNotes"
                 class="form-input"
                 rows="3"
                 formControlName="extraNotes"
@@ -754,8 +780,13 @@
 
 <!-- ══ Модалка удаления ══════════════════════════════════════════════════════ -->
 @if (deleteTarget()) {
-<div class="modal-overlay" (click)="closeDeleteModal()">
-  <div class="modal" (click)="$event.stopPropagation()">
+<div
+  class="modal-overlay"
+  role="button"
+  tabindex="0"
+  (click)="closeDeleteModal()"
+  (keydown.escape)="closeDeleteModal()">
+  <div class="modal" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
     <header class="modal-hdr">
       <h2 class="modal-title">Удалить заявку</h2>
       <button class="modal-close" type="button" (click)="closeDeleteModal()">
