@@ -31,6 +31,9 @@ WORKDIR /repo
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV CI=true HUSKY=0
+# Do not hit registry.npmjs.org at container start (Corepack would fetch pnpm metadata;
+# fails on strict/offline DNS e.g. EAI_AGAIN registry.npmjs.org).
+ENV COREPACK_ENABLE_DOWNLOAD=0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/nexus-web ./apps/nexus-web
@@ -53,4 +56,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["pnpm", "exec", "nexus", "start"]
+# Same as `pnpm run start` but without invoking the pnpm/Corepack shim (no outbound registry at runtime).
+CMD ["sh", "-c", "node ./scripts/check-node-modules.mjs && exec node ./node_modules/@nexus_js/cli/dist/bin.js start"]

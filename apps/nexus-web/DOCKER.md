@@ -131,3 +131,7 @@ docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
 5. Включите **Block Common Exploits** при желании; на вкладке **SSL** выберите **Request a new SSL Certificate** (Let's Encrypt), согласитесь с условиями, при необходимости включите **Force SSL**.
 
 После сохранения трафик пойдёт: интернет → NPM (443) → контейнер `nexus-web` на порту 3000. Порт 3000 на хост не пробрасывается.
+
+## Запуск контейнера и сеть
+
+Образ собирается с **Corepack** и **pnpm** (нужен доступ к registry на этапе **build**). В **runtime** контейнер стартует через `node` и CLI из `node_modules`, без запросов к `registry.npmjs.org`, плюс задано `COREPACK_ENABLE_DOWNLOAD=0`. Если в логах всё же видите ошибки DNS к внешним хостам при работе самого приложения, настройте DNS для Docker на хосте (например `dns` в `/etc/docker/daemon.json`).
