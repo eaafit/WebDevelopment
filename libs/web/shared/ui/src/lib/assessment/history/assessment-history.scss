@@ -1,0 +1,67 @@
+@use 'sass:meta';
+
+.assessment-history {
+  // Все переменные и базовые стили наследуются от родительской обёртки (.applicant-wrapper или .notary-wrapper)
+  // Поэтому здесь достаточно дополнительных специфичных стилей
+
+  .filters-section {
+    margin-bottom: 2rem;
+  }
+
+  .orders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .order-item-wrapper {
+    transition: all 0.2s;
+  }
+
+  // Лёгкая адаптация для роли нотариуса (можно менять фон или отступы)
+  &.notary-role {
+    .card-header {
+      background: linear-gradient(to right, var(--bg-card), var(--bg-secondary));
+    }
+  }
+
+  .notifications-block {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+
+    .notifications-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .notification-item {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+
+      font-size: 0.9rem;
+
+      .notification-icon {
+        font-size: 1.2rem;
+      }
+
+      .notification-message {
+        flex: 1;
+      }
+
+      .notification-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+    }
+  }
+}

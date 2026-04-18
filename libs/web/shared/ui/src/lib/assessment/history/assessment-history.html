@@ -1,0 +1,72 @@
+<div class="assessment-history" [class.notary-role]="role === 'notary'">
+  <div class="card">
+    <div class="card-header">
+      <h1>История заказов оценки</h1>
+      <p class="card-subtitle">
+        {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
+      </p>
+    </div>
+    <div class="notifications-block card" *ngIf="notifications().length">
+      <div class="card-title">📢 Последние изменения</div>
+      <div class="notifications-list">
+        <div *ngFor="let n of notifications()" class="notification-item">
+          <span class="notification-icon">{{ n.icon }}</span>
+          <span class="notification-message">{{ n.message }}</span>
+          <span class="notification-time">{{ n.timeAgo }}</span>
+        </div>
+      </div>
+    </div>
+    <!-- Блок фильтров -->
+    <div class="filters-section">
+      <div class="grid-filters">
+        <div class="form-group">
+          <label class="form-label">Поиск</label>
+          <div class="input-icon-wrap">
+            <input
+              type="text"
+              class="form-input"
+              placeholder="ID или адрес"
+              [ngModel]="searchQuery()"
+              (ngModelChange)="searchQuery.set($event)" />
+            <span class="input-icon-right">🔍</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Статус</label>
+          <select class="form-input form-select" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+            <option *ngFor="let opt of statusOptions" [value]="opt.value">{{ opt.label }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Дата от</label>
+          <input type="date" class="form-input" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Дата до</label>
+          <input type="date" class="form-input" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Список заказов -->
+    <div class="orders-list">
+      <div *ngIf="filteredOrders.length === 0" class="empty-state">
+        <div class="alert-info">
+          <span>ℹ️</span>
+          <span>Заказы не найдены. Измените параметры фильтра.</span>
+        </div>
+      </div>
+
+      <div *ngFor="let order of filteredOrders" class="order-item-wrapper">
+        <lib-history-item
+          [order]="order"
+          [role]="role"
+          (repeat)="repeatOrder($event)"
+          (view)="viewOrder($event)"></lib-history-item>
+      </div>
+    </div>
+  </div>
+</div>

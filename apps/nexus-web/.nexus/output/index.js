@@ -13,9 +13,13 @@ export async function render(ctx) {
 async function renderTemplate(ctx) {
   // Primary context from nxPretext (layouts + page, parallel merge) — mirrors client $pretext()
   const pretext = ctx.pretext ?? {};
-  const $pretext = () => (ctx.pretext ?? {});
+  const $pretext = () => ctx.pretext ?? {};
   // Server-side template rendering (CSS-scoped at compile time)
-  const __ssrAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const __ssrAttr = (v) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
   return `---
 
 <section class="landing" data-nx="cd9008">

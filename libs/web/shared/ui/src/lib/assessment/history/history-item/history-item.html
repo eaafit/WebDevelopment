@@ -1,0 +1,38 @@
+<div class="history-item card">
+  <div class="item-header flex justify-between items-start">
+    <div>
+      <div class="flex items-center gap-2">
+        <h3 class="item-id">Заказ №{{ order.id }}</h3>
+        <span class="badge" [ngClass]="statusBadgeClass">{{ statusLabel }}</span>
+      </div>
+      <div class="item-address text-secondary">{{ order.objectAddress }}</div>
+    </div>
+    <div class="item-amount text-bold">{{ order.totalAmount }} ₽</div>
+  </div>
+
+  <div class="item-body">
+    <div class="item-meta flex gap-4 text-sm">
+      <span>📅 Дата заказа: {{ formatDate(order.orderDate) }}</span>
+      <span *ngIf="role === 'notary'">👤 Заявитель: Иванов И.И.</span>
+    </div>
+
+    <!-- Таймлайн статусов -->
+    <div class="timeline-wrapper">
+      <lib-status-timeline [currentStatus]="order.status" [compact]="false"></lib-status-timeline>
+    </div>
+
+    <!-- Действия -->
+    <div class="item-actions flex justify-end gap-2">
+      <button class="btn btn-outline btn-sm" (click)="onView()">Подробнее</button>
+      <button
+        *ngIf="role === 'applicant' && order.status !== 'in_progress'"
+        class="btn btn-primary btn-sm"
+        (click)="onRepeat()">
+        Повторить заказ
+      </button>
+      <button *ngIf="role === 'notary' && order.status === 'pending'" class="btn btn-primary btn-sm">
+        Взять в работу
+      </button>
+    </div>
+  </div>
+</div>

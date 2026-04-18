@@ -2,7 +2,7 @@
 // DO NOT EDIT — this file is auto-generated
 
 // ── Imports & server-only (leading + // nexus:server) ──
-const appName = "My Nexus App";
+const appName = 'My Nexus App';
 
 export async function render(ctx) {
   const __html = await renderTemplate(ctx);
@@ -16,9 +16,13 @@ export async function render(ctx) {
 async function renderTemplate(ctx) {
   // Primary context from nxPretext (layouts + page, parallel merge) — mirrors client $pretext()
   const pretext = ctx.pretext ?? {};
-  const $pretext = () => (ctx.pretext ?? {});
+  const $pretext = () => ctx.pretext ?? {};
   // Server-side template rendering (CSS-scoped at compile time)
-  const __ssrAttr = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const __ssrAttr = (v) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
   return `<html lang="en">
   <head>
     <meta charset="UTF-8">
