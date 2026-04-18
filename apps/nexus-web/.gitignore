@@ -1,0 +1,6 @@
+node_modules/
+.nexus/
+dist/
+*.js.map
+proxy-manager-data/
+proxy-manager-letsencrypt/
