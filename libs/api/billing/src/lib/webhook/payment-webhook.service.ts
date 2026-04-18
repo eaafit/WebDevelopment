@@ -51,6 +51,7 @@ type PaymentRecord = Prisma.PaymentGetPayload<{
     type: true;
     promoId: true;
     subscriptionId: true;
+    assessmentId: true;
     paymentMethod: true;
     transactionId: true;
     attachmentFileUrl: true;
@@ -153,9 +154,7 @@ export class PaymentWebhookService {
         return false;
       }
 
-      if (payment.type === PrismaPaymentType.Subscription && payment.subscriptionId) {
-        await this.paymentSubscriptionService.activateSubscription(tx, payment.subscriptionId);
-      }
+      await this.runCompletedPaymentHooks(tx, payment);
 
       if (payment.promoId) {
         await tx.promo.update({
@@ -240,12 +239,38 @@ export class PaymentWebhookService {
         type: true,
         promoId: true,
         subscriptionId: true,
+        assessmentId: true,
         paymentMethod: true,
         transactionId: true,
         attachmentFileUrl: true,
         receiptStatus: true,
       },
     });
+  }
+
+  private async runCompletedPaymentHooks(
+    tx: Prisma.TransactionClient,
+    payment: Pick<PaymentRecord, 'id' | 'type' | 'subscriptionId' | 'assessmentId'>,
+  ): Promise<void> {
+    switch (payment.type) {
+      case PrismaPaymentType.Subscription:
+        if (payment.subscriptionId) {
+          await this.paymentSubscriptionService.activateSubscription(tx, payment.subscriptionId);
+        }
+        return;
+
+      case PrismaPaymentType.Assessment:
+        this.logger.log(
+          `Assessment payment ${payment.id} completed. Placeholder post-payment hook for assessment ${payment.assessmentId ?? 'unknown'}`,
+        );
+        return;
+
+      case PrismaPaymentType.DocumentCopy:
+        this.logger.log(
+          `Document copy payment ${payment.id} completed. Placeholder post-payment hook is not implemented yet.`,
+        );
+        return;
+    }
   }
 
   private assertWebhookSecret(signature?: string): void {
