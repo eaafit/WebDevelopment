@@ -9,8 +9,12 @@ import type {
   CreateAssessmentResponse,
   GetAssessmentRequest,
   GetAssessmentResponse,
+  ListCitiesRequest,
+  ListCitiesResponse,
   ListAssessmentsRequest,
   ListAssessmentsResponse,
+  ListDistrictsRequest,
+  ListDistrictsResponse,
   UpdateAssessmentRequest,
   UpdateAssessmentResponse,
   VerifyAssessmentRequest,
@@ -20,6 +24,12 @@ import type {
 @Injectable()
 export class AssessmentRpcService {
   constructor(private readonly assessmentService: AssessmentService) {}
+
+  readonly listCities = (r: ListCitiesRequest): Promise<ListCitiesResponse> =>
+    this.assessmentService.listCities(r);
+
+  readonly listDistricts = (r: ListDistrictsRequest): Promise<ListDistrictsResponse> =>
+    this.assessmentService.listDistricts(r);
 
   readonly listAssessments = (r: ListAssessmentsRequest): Promise<ListAssessmentsResponse> =>
     this.assessmentService.listAssessments(r);
