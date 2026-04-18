@@ -112,7 +112,7 @@ jobs:
         run: pnpm exec nx build web
 
       - name: Upload Deployment Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: web-dist
           path: dist/apps/web/browser
