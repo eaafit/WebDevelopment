@@ -166,7 +166,9 @@ model Document {
   fileName     String       @map("file_name") @db.VarChar
   fileType     String       @map("file_type") @db.VarChar
   documentType DocumentType @default(Other) @map("document_type") // [FIX] добавлен enum-тип
-  filePath     String       @map("file_path") @db.VarChar
+  objectKey    String       @map("object_key") @db.VarChar
+  fileSize     Int          @map("file_size")
+  bucketName   String       @map("bucket_name") @db.VarChar
   version      Int          @default(1)
   uploadedAt   DateTime     @default(now()) @map("uploaded_at") @db.Timestamp()
   uploadedById String       @map("uploaded_by") @db.Uuid

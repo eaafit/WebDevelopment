@@ -14,6 +14,9 @@ import {
 import { DocumentType as PrismaDocumentType, type Prisma } from '@internal/prisma-client';
 import type { DocumentQuery } from './document.query';
 
+/** Wire field `file_path` maps to stored object key; bucket is required by DB when not supplied by clients yet. */
+const DEFAULT_DOCUMENT_BUCKET = 'documents';
+
 @Injectable()
 export class DocumentRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -65,7 +68,9 @@ export class DocumentRepository {
         fileName: data.fileName,
         fileType: data.fileType,
         documentType: data.documentType,
-        filePath: data.filePath,
+        objectKey: data.filePath,
+        fileSize: 0,
+        bucketName: DEFAULT_DOCUMENT_BUCKET,
         uploadedById: data.uploadedById,
         version: (lastVersion?.version ?? 0) + 1,
       },
@@ -92,7 +97,7 @@ export class DocumentRepository {
     assessmentId: string;
     fileName: string;
     fileType: string;
-    filePath: string;
+    objectKey: string;
     version: number;
     uploadedAt: Date;
     uploadedById: string;
@@ -102,7 +107,7 @@ export class DocumentRepository {
       assessmentId: d.assessmentId,
       fileName: d.fileName,
       fileType: d.fileType,
-      filePath: d.filePath,
+      filePath: d.objectKey,
       version: d.version,
       uploadedAt: timestampFromDate(d.uploadedAt),
       uploadedById: d.uploadedById,

@@ -318,6 +318,7 @@ async function upsertDocuments(
     const uploadedById = userIds[i % userIds.length];
     const docType = docTypes[i % 6];
     const fileName = `seed-doc-${pad(i, 3)}-${fileNames[i % 6]}`;
+    const objectKey = `uploads/seed/${fileName}`;
     await prisma.document.upsert({
       where: { id },
       update: {
@@ -325,7 +326,9 @@ async function upsertDocuments(
         fileName,
         fileType: 'application/pdf',
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        objectKey,
+        fileSize: 1024,
+        bucketName: 'seed-documents',
         version: (i % 3) + 1,
         uploadedById,
       },
@@ -335,7 +338,9 @@ async function upsertDocuments(
         fileName,
         fileType: 'application/pdf',
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        objectKey,
+        fileSize: 1024,
+        bucketName: 'seed-documents',
         version: (i % 3) + 1,
         uploadedById,
       },
