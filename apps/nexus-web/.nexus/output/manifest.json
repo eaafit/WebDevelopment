@@ -1,0 +1,21 @@
+{
+  "routes": [
+    {
+      "pattern": "/",
+      "filepath": "D:\\Projects\\Notarius\\WebDevelopmentNew\\WebDevelopment\\apps\\nexus-web\\src\\routes\\+layout.nx",
+      "params": [],
+      "isDynamic": false,
+      "isLayout": true,
+      "serverActions": []
+    },
+    {
+      "pattern": "/",
+      "filepath": "D:\\Projects\\Notarius\\WebDevelopmentNew\\WebDevelopment\\apps\\nexus-web\\src\\routes\\+page.nx",
+      "params": [],
+      "isDynamic": false,
+      "isLayout": false,
+      "serverActions": [],
+      "parentLayout": "D:\\Projects\\Notarius\\WebDevelopmentNew\\WebDevelopment\\apps\\nexus-web\\src\\routes\\+layout.nx"
+    }
+  ]
+}
