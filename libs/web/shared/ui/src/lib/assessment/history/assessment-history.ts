@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, signal, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HistoryItemComponent } from './history-item/history-item';
 import { AssessmentOrder, OrderStatus } from './models';
+import { ActivatedRoute } from '@angular/router';
 
 @Component({
   selector: 'lib-assessment-history',
@@ -12,8 +13,17 @@ import { AssessmentOrder, OrderStatus } from './models';
   styleUrls: ['./assessment-history.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AssessmentHistoryComponent {
+export class AssessmentHistoryComponent implements OnInit {
   @Input() role: 'applicant' | 'notary' = 'applicant';
+
+  private route = inject(ActivatedRoute);
+
+  ngOnInit(): void {
+    const routeRole = this.route.snapshot.data['role'];
+    if (routeRole) {
+      this.role = routeRole;
+    }
+  }
 
   // Фильтры
   searchQuery = signal('');

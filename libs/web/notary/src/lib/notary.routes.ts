@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -50,6 +51,11 @@ export const notaryRoutes: Route[] = [
         path: 'assessment',
         loadComponent: () =>
           import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
+      {
+        path: 'assessment/history',
+        component: AssessmentHistoryComponent,
+        data: { role: 'notary' },
       },
       {
         path: 'copies',

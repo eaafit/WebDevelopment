@@ -8,6 +8,7 @@ const NOTARY_MENU = [
   { label: 'Подписка', route: 'subscription/checkout', icon: '👑' },
   { label: 'Транзакции', route: 'transactions', icon: '💳' },
   { label: 'Модуль оценки', route: 'assessment', icon: '📐' },
+  { label: 'История заказов', route: 'assessment/history', icon: '📋' },
   { label: 'Копии документов', route: 'copies', icon: '📑' },
   { label: 'Уведомления', route: 'notifications', icon: '🔔' },
   { label: 'Поддержка', route: 'support', icon: '💬' },
