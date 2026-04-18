@@ -68,6 +68,17 @@ export class AssessmentHistoryComponent {
     },
   ]);
 
+  notifications = signal([
+    {
+      id: 1,
+      message: 'Заявка #ORD-003 перешла в статус "Ошибка"',
+      timeAgo: '2 часа назад',
+      icon: '⚡',
+    },
+    { id: 2, message: 'Заявка #ORD-001 завершена — результат готов', timeAgo: 'вчера', icon: '⚡' },
+    { id: 3, message: 'Заявка #ORD-002 взята в работу', timeAgo: '5 часов назад', icon: '⚡' },
+  ]);
+
   get filteredOrders(): AssessmentOrder[] {
     const query = this.searchQuery().toLowerCase();
     const status = this.statusFilter();

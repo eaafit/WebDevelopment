@@ -6,7 +6,16 @@
         {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
       </p>
     </div>
-
+    <div class="notifications-block card" *ngIf="notifications().length">
+      <div class="card-title">📢 Последние изменения</div>
+      <div class="notifications-list">
+        <div *ngFor="let n of notifications()" class="notification-item">
+          <span class="notification-icon">{{ n.icon }}</span>
+          <span class="notification-message">{{ n.message }}</span>
+          <span class="notification-time">{{ n.timeAgo }}</span>
+        </div>
+      </div>
+    </div>
     <!-- Блок фильтров -->
     <div class="filters-section">
       <div class="grid-filters">
