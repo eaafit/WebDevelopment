@@ -1,4 +1,5 @@
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { PasswordRestore } from './password-restore';
 import { UserRole } from '../auth/role.enum';
 
@@ -9,6 +10,7 @@ describe('PasswordRestore', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PasswordRestore],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(PasswordRestore);
@@ -20,16 +22,18 @@ describe('PasswordRestore', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should show notification after request submission with selected role', fakeAsync(() => {
+  it('should show notification after request submission with selected role', () => {
+    jest.useFakeTimers();
     component.selectRole(UserRole.Notary);
     component.contact = 'user@example.com';
 
     component.onSubmit();
-    tick(800);
+    jest.advanceTimersByTime(800);
 
-    expect(component.requestSent).toBeTrue();
+    expect(component.requestSent).toBe(true);
     expect(component.sentRole).toBe(UserRole.Notary);
     expect(component.sentTo).toBe('user@example.com');
-    expect(component.isSubmitting).toBeFalse();
-  }));
+    expect(component.isSubmitting).toBe(false);
+    jest.useRealTimers();
+  });
 });
