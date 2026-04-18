@@ -1,17 +1,7 @@
-<div class="status-timeline">
-  <div *ngFor="let entry of history; let i = index" class="timeline-node">
-    <div class="timeline-marker" [class.completed]="i < history.length - 1 ? true : false">
-      <span class="marker-dot"></span>
-      <span *ngIf="i < history.length - 1" class="marker-line"></span>
-    </div>
-    <div class="timeline-content">
-      <div class="timeline-header flex justify-between">
-        <span class="status-name">
-          <strong>{{ getStatusName(entry.status) }}</strong>
-        </span>
-        <span class="timeline-date text-xs">{{ formatDate(entry.date) }}</span>
-      </div>
-      <div *ngIf="entry.comment" class="timeline-comment text-sm">{{ entry.comment }}</div>
-    </div>
+<div class="timeline-horizontal" [class.compact]="compact">
+  <div *ngFor="let stage of stages; let i = index" class="timeline-stage">
+    <div class="stage-circle" [class.completed]="isCompleted(i)" [class.current]="isCurrent(i)"></div>
+    <span class="stage-label" *ngIf="!compact">{{ stage.label }}</span>
+    <div *ngIf="i < stages.length - 1" class="stage-line" [class.completed]="isCompleted(i) || isCurrent(i)"></div>
   </div>
 </div>

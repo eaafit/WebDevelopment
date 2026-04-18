@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StatusHistoryEntry } from '../models';
+import { OrderStatus } from '../models';
 
 @Component({
   selector: 'lib-status-timeline',
@@ -11,24 +11,37 @@ import { StatusHistoryEntry } from '../models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class StatusTimelineComponent {
-  @Input({ required: true }) history!: StatusHistoryEntry[];
+  @Input({ required: true }) currentStatus!: OrderStatus;
+  @Input() compact = false;
 
-  formatDate(date: Date): string {
-    return new Intl.DateTimeFormat('ru-RU', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+  // 5 этапов в правильном порядке
+  stages = [
+    { label: 'Создан', statusKey: 'pending' },
+    { label: 'Проверен', statusKey: 'pending' }, // промежуточный
+    { label: 'В работе', statusKey: 'in_progress' },
+    { label: 'Оценён', statusKey: 'completed' }, // промежуточный
+    { label: 'Завершён', statusKey: 'completed' },
+  ];
+
+  // Индекс текущего активного этапа (от 0 до 4)
+  get activeStageIndex(): number {
+    switch (this.currentStatus) {
+      case 'pending':
+        return 0; // Создан
+      case 'in_progress':
+        return 2; // В работе
+      case 'completed':
+        return 4; // Завершён
+      default:
+        return -1;
+    }
   }
 
-  getStatusName(status: string): string {
-    const map: Record<string, string> = {
-      pending: 'Заказ создан',
-      in_progress: 'В работе',
-      completed: 'Завершён',
-      failed: 'Отказ',
-    };
-    return map[status] || status;
+  isCompleted(index: number): boolean {
+    return index < this.activeStageIndex;
+  }
+
+  isCurrent(index: number): boolean {
+    return index === this.activeStageIndex;
   }
 }
