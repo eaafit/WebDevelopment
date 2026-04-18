@@ -6,6 +6,7 @@ import type {
   TransactionPageMeta,
   TransactionReceiptStatus,
   TransactionStatus,
+  TransactionTableCopyVariant,
   TransactionTableFilters,
   TransactionType,
 } from './transaction-table.models';
@@ -105,6 +106,7 @@ const PAYMENT_METHOD_PRESENTATIONS: Record<string, PaymentMethodPresentation> = 
 })
 export class TransactionTable implements OnChanges {
   @Input() transactions: TransactionItem[] = [];
+  @Input() copyVariant: TransactionTableCopyVariant = 'transactions';
   @Input() filters: TransactionTableFilters = DEFAULT_FILTERS;
   @Input() meta: TransactionPageMeta | null = null;
   @Input() loading = false;
@@ -126,6 +128,26 @@ export class TransactionTable implements OnChanges {
   });
 
   draftFilters: TransactionTableFilters = { ...DEFAULT_FILTERS };
+
+  get pageTitle(): string {
+    return this.copyVariant === 'payments' ? 'История платежей' : 'История транзакций';
+  }
+
+  get listTitle(): string {
+    return this.copyVariant === 'payments' ? 'Список платежей' : 'Список транзакций';
+  }
+
+  get summaryEmptyStateText(): string {
+    return this.copyVariant === 'payments'
+      ? 'По выбранным условиям платежи не найдены.'
+      : 'По выбранным условиям транзакции не найдены.';
+  }
+
+  get tableEmptyStateText(): string {
+    return this.copyVariant === 'payments'
+      ? 'Платежи по выбранным фильтрам не найдены.'
+      : 'Транзакции по выбранным фильтрам не найдены.';
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['filters']) {
