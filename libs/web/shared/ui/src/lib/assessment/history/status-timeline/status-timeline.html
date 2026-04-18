@@ -1,0 +1,17 @@
+<div class="status-timeline">
+  <div *ngFor="let entry of history; let i = index" class="timeline-node">
+    <div class="timeline-marker" [class.completed]="i < history.length - 1 ? true : false">
+      <span class="marker-dot"></span>
+      <span *ngIf="i < history.length - 1" class="marker-line"></span>
+    </div>
+    <div class="timeline-content">
+      <div class="timeline-header flex justify-between">
+        <span class="status-name">
+          <strong>{{ getStatusName(entry.status) }}</strong>
+        </span>
+        <span class="timeline-date text-xs">{{ formatDate(entry.date) }}</span>
+      </div>
+      <div *ngIf="entry.comment" class="timeline-comment text-sm">{{ entry.comment }}</div>
+    </div>
+  </div>
+</div>

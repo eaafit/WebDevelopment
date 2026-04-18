@@ -1,0 +1,66 @@
+.status-timeline {
+  display: flex;
+  flex-direction: column;
+
+  .timeline-node {
+    position: relative;
+    display: flex;
+    gap: 1rem;
+
+    &:not(:last-child) {
+      margin-bottom: 1rem;
+    }
+  }
+
+  .timeline-marker {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    align-items: center;
+
+    width: 24px;
+
+    .marker-dot {
+      z-index: 1;
+
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--bg-card);
+      border-radius: 50%;
+
+      background-color: var(--primary);
+    }
+
+    .marker-line {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+
+      width: 2px;
+      height: calc(100% + 0.5rem);
+
+      background-color: var(--border-strong);
+    }
+
+    &.completed .marker-dot {
+      background-color: var(--success-text);
+    }
+  }
+
+  .timeline-content {
+    flex: 1;
+    padding-bottom: 0.5rem;
+  }
+
+  .timeline-header {
+    margin-bottom: 0.25rem;
+  }
+
+  .timeline-comment {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+  }
+}
