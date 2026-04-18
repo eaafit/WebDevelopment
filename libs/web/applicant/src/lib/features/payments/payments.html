@@ -1,0 +1,11 @@
+<lib-transaction-table
+  copyVariant="payments"
+  [transactions]="transactions()"
+  [filters]="filters()"
+  [meta]="meta()"
+  [loading]="loading()"
+  [error]="error()"
+  (filtersApply)="onFiltersApply($event)"
+  (pageChange)="onPageChange($event)"
+  (receiptOpen)="onReceiptOpen($event)">
+</lib-transaction-table>

@@ -109,4 +109,16 @@ describe('TransactionTable', () => {
     expect(fixture.nativeElement.textContent).toContain('Возврат по оценке квартиры');
     expect(fixture.nativeElement.textContent).not.toContain('Загрузка истории транзакций...');
   });
+
+  it('should render payments copy for applicant pages', async () => {
+    fixture.componentRef.setInput('copyVariant', 'payments');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('История платежей');
+    expect(fixture.nativeElement.textContent).toContain('Список платежей и документы к ним.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Платежи по выбранным фильтрам не найдены.',
+    );
+  });
 });

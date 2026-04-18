@@ -2,8 +2,8 @@
   <div class="flex justify-between items-center mb-4">
     <div>
       <a routerLink="/notary" class="link text-sm mb-2" style="display: inline-block"> ← Вернуться </a>
-      <h1>История транзакций</h1>
-      <p class="text-sm">Список всех ваших транзакций и документы к ним.</p>
+      <h1>{{ pageTitle }}</h1>
+      <p class="text-sm">{{ listTitle }} и документы к ним.</p>
     </div>
     <div>
       <a routerLink="/notary/subscription/checkout" class="btn btn-primary">Пополнить баланс</a>
@@ -79,7 +79,7 @@
         <div class="transaction-table-summary__title">Всего найдено {{ meta.totalItems }} операций</div>
         <p class="transaction-table-summary__meta text-sm m-0">
           @if (transactions.length > 0) { Показаны {{ getVisibleRangeStart(meta) }}-{{ getVisibleRangeEnd(meta,
-          transactions.length) }} из {{ meta.totalItems }}. } @else { По выбранным условиям транзакции не найдены. }
+          transactions.length) }} из {{ meta.totalItems }}. } @else { {{ summaryEmptyStateText }} }
         </p>
       </div>
 
@@ -108,7 +108,7 @@
         <tbody>
           @if (!loading && transactions.length === 0) {
           <tr>
-            <td colspan="6" class="text-center p-6">Транзакции по выбранным фильтрам не найдены.</td>
+            <td colspan="6" class="text-center p-6">{{ tableEmptyStateText }}</td>
           </tr>
           } @else { @for (transaction of transactions; track trackByTransaction($index, transaction)) {
           <tr class="transaction-row">

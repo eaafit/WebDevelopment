@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { PaymentReceiptStatus, PaymentStatus, PaymentType } from '@internal/prisma-client';
 import { PaymentWebhookError, PaymentWebhookService } from './payment-webhook.service';
 
@@ -34,9 +35,11 @@ describe('PaymentWebhookService', () => {
   };
 
   const originalWebhookSecret = process.env['PAYMENT_WEBHOOK_SECRET'];
+  let loggerSpy: jest.SpyInstance;
 
   beforeEach(() => {
     process.env['PAYMENT_WEBHOOK_SECRET'] = 'super-secret';
+    loggerSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
     findPayment.mockReset();
     paymentUpdateMany.mockReset();
@@ -59,6 +62,7 @@ describe('PaymentWebhookService', () => {
       type: PaymentType.Subscription,
       promoId: 'promo-1',
       subscriptionId: 'subscription-1',
+      assessmentId: null,
       paymentMethod: 'yookassa_widget',
       transactionId: 'yk-payment-1',
       attachmentFileUrl: null,
@@ -94,6 +98,10 @@ describe('PaymentWebhookService', () => {
     paymentSubscriptionService.activateSubscription.mockResolvedValue(undefined);
     storeGeneratedReceipt.mockResolvedValue(undefined);
     markReceiptFailed.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    loggerSpy.mockRestore();
   });
 
   afterAll(() => {
@@ -150,6 +158,128 @@ describe('PaymentWebhookService', () => {
     });
     expect(metrics.recordPayment).toHaveBeenCalledWith('completed');
     expect(metrics.recordPaymentAmount).toHaveBeenCalledWith(1350);
+  });
+
+  it('should branch assessment payments into a placeholder post-payment hook', async () => {
+    findPayment.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      amount: {
+        toString: () => '2500.00',
+      },
+      status: PaymentStatus.Pending,
+      type: PaymentType.Assessment,
+      promoId: null,
+      subscriptionId: null,
+      assessmentId: 'assessment-1',
+      paymentMethod: 'yookassa_widget',
+      transactionId: 'yk-payment-1',
+      attachmentFileUrl: null,
+      receiptStatus: PaymentReceiptStatus.Pending,
+    });
+    yookassa.getPayment.mockResolvedValue({
+      id: 'yk-payment-1',
+      status: 'succeeded',
+      paid: true,
+      amountValue: '2500.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: 'succeeded',
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: '2026-03-06T08:45:00.000Z',
+      metadata: {
+        payment_id: 'payment-1',
+      },
+    });
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+    );
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: 'payment.succeeded',
+        object: {
+          id: 'yk-payment-1',
+          status: 'succeeded',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
+    expect(
+      loggerSpy.mock.calls.some(([message]) =>
+        String(message).includes('Assessment payment payment-1 completed'),
+      ),
+    ).toBe(true);
+  });
+
+  it('should branch document copy payments into a placeholder post-payment hook', async () => {
+    findPayment.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      amount: {
+        toString: () => '900.00',
+      },
+      status: PaymentStatus.Pending,
+      type: PaymentType.DocumentCopy,
+      promoId: null,
+      subscriptionId: null,
+      assessmentId: null,
+      paymentMethod: 'yookassa_widget',
+      transactionId: 'yk-payment-1',
+      attachmentFileUrl: null,
+      receiptStatus: PaymentReceiptStatus.Pending,
+    });
+    yookassa.getPayment.mockResolvedValue({
+      id: 'yk-payment-1',
+      status: 'succeeded',
+      paid: true,
+      amountValue: '900.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: 'succeeded',
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: '2026-03-06T08:45:00.000Z',
+      metadata: {
+        payment_id: 'payment-1',
+      },
+    });
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+    );
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: 'payment.succeeded',
+        object: {
+          id: 'yk-payment-1',
+          status: 'succeeded',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
+    expect(
+      loggerSpy.mock.calls.some(([message]) =>
+        String(message).includes('Document copy payment payment-1 completed'),
+      ),
+    ).toBe(true);
   });
 
   it('should stay idempotent for duplicate success notifications', async () => {

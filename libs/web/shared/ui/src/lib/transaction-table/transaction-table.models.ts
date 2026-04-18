@@ -35,6 +35,8 @@ export interface TransactionHistoryPage {
   meta: TransactionPageMeta | null;
 }
 
+export type TransactionTableCopyVariant = 'transactions' | 'payments';
+
 export interface TransactionTableFilters {
   searchQuery: string;
   status: TransactionStatus | 'all';
