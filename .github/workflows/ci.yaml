@@ -132,10 +132,10 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Build Backend Deployment Bundle
-        run: pnpm exec nx run api:prune
+        uses: actions/upload-artifact@v7
 
       - name: Upload Backend Deployment Artifact
-        uses: actions/upload-artifact@v3-node20
+        uses: actions/upload-artifact@v7
         with:
           name: api-dist
           path: dist/apps/api
