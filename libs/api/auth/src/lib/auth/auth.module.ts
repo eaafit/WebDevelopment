@@ -6,7 +6,6 @@ import { PasswordResetRepository } from './password-reset.repository';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { AuthService } from './auth.service';
-import { OAuthService } from './oauth.service';
 import { AuthRpcService } from './auth-rpc.service';
 import { AuthInterceptor } from './auth.interceptor';
 
@@ -19,10 +18,9 @@ import { AuthInterceptor } from './auth.interceptor';
     PasswordService,
     TokenService,
     AuthService,
-    OAuthService,
     AuthRpcService,
     AuthInterceptor,
   ],
-  exports: [AuthRpcService, TokenService, AuthInterceptor, OAuthService],
+  exports: [AuthRpcService, TokenService, AuthInterceptor],
 })
 export class AuthModule {}

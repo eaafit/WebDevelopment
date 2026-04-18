@@ -1,60 +1,74 @@
-﻿import { Component, inject } from '@angular/core';
+﻿import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { AuthService } from '@notary-portal/guest';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 
-type OAuthProviderType = 'vk' | 'google' | 'apple' | 'yandex';
-type UserRoleType = 'notary' | 'applicant';
-type UserRole = 'notary' | 'applicant';
+type AuthStep = 'contact' | 'confirm';
 
 @Component({
   selector: 'lib-auth-services',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './auth-services.html',
   styleUrl: './auth-services.scss',
 })
 export class AuthServices {
-  private readonly authService = inject(AuthService);
+  readonly step = signal<AuthStep>('contact');
 
-  selectedRole: UserRole = 'applicant';
-  isLoading = false;
-  error: string | null = null;
+  private readonly fb = inject(FormBuilder);
 
-  onRoleChange(role: UserRole): void {
-    this.selectedRole = role;
-    console.log(`[auth] Role selected: ${role}`);
+  readonly contactForm: FormGroup = this.fb.group({
+    contact: ['', [Validators.required]],
+    agreeTerms: [false, [Validators.requiredTrue]],
+  });
+
+  readonly codeForm: FormGroup = this.fb.group({
+    code: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(6)]],
+  });
+
+  signInWithVk(): void {
+    // TODO: integrate VK OAuth
+    console.log('[auth] VK sign-in clicked');
   }
 
-  async signInWithVk(): Promise<void> {
-    await this.handleOAuth('vk');
+  signInWithGoogle(): void {
+    // TODO: integrate Google OAuth
+    console.log('[auth] Google sign-in clicked');
   }
 
-  async signInWithGoogle(): Promise<void> {
-    await this.handleOAuth('google');
+  signInWithApple(): void {
+    // TODO: integrate Apple OAuth
+    console.log('[auth] Apple sign-in clicked');
   }
 
-  async signInWithApple(): Promise<void> {
-    await this.handleOAuth('apple');
+  signInWithYandex(): void {
+    // TODO: integrate Yandex OAuth
+    console.log('[auth] Yandex sign-in clicked');
   }
 
-  async signInWithYandex(): Promise<void> {
-    await this.handleOAuth('yandex');
-  }
-
-  private async handleOAuth(provider: OAuthProviderType): Promise<void> {
-    this.isLoading = true;
-    this.error = null;
-
-    try {
-      const { authorizationUrl } = await this.authService.initOAuth(provider, this.selectedRole);
-      // Редирект на провайдера для авторизации
-      window.location.href = authorizationUrl;
-    } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Ошибка авторизации';
-      console.error('[auth] OAuth error:', err);
-    } finally {
-      this.isLoading = false;
+  submitContact(): void {
+    if (this.contactForm.invalid) {
+      this.contactForm.markAllAsTouched();
+      return;
     }
+
+    console.log('[auth] contact submitted', this.contactForm.value);
+    this.step.set('confirm');
+  }
+
+  submitCode(): void {
+    if (this.codeForm.invalid) {
+      this.codeForm.markAllAsTouched();
+      return;
+    }
+
+    console.log('[auth] confirmation code submitted', this.codeForm.value);
+  }
+
+  resendCode(): void {
+    console.log('[auth] resend confirmation code requested', this.contactForm.value);
+  }
+
+  backToContact(): void {
+    this.step.set('contact');
   }
 }

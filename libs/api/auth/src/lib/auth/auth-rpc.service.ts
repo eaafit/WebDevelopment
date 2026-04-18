@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { OAuthService } from './oauth.service';
 import type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
@@ -14,18 +13,11 @@ import type {
   RegisterResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
-  OAuthInitRequest,
-  OAuthInitResponse,
-  OAuthCallbackRequest,
-  OAuthCallbackResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class AuthRpcService {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly oauthService: OAuthService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   readonly register     = (r: RegisterRequest):     Promise<RegisterResponse>     =>
     this.authService.register(r);
@@ -44,10 +36,4 @@ export class AuthRpcService {
 
   readonly resetPassword = (r: ResetPasswordRequest): Promise<ResetPasswordResponse> =>
     this.authService.resetPassword(r);
-
-  readonly oauthInit = (r: OAuthInitRequest): Promise<OAuthInitResponse> =>
-    this.oauthService.oauthInit(r);
-
-  readonly oauthCallback = (r: OAuthCallbackRequest): Promise<OAuthCallbackResponse> =>
-    this.oauthService.oauthCallback(r);
 }

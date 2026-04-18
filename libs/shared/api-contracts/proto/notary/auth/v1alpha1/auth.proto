@@ -11,8 +11,6 @@ service AuthService {
   rpc Logout (LogoutRequest) returns (LogoutResponse);
   rpc ForgotPassword (ForgotPasswordRequest) returns (ForgotPasswordResponse);
   rpc ResetPassword (ResetPasswordRequest) returns (ResetPasswordResponse);
-  rpc OAuthInit (OAuthInitRequest) returns (OAuthInitResponse);
-  rpc OAuthCallback (OAuthCallbackRequest) returns (OAuthCallbackResponse);
 }
 
 message RegisterRequest {
@@ -70,34 +68,3 @@ message ResetPasswordRequest {
 }
 
 message ResetPasswordResponse {}
-
-// ─── OAuth 2.0 ──────────────────────────────────────────────────────────────
-
-enum OAuthProvider {
-  OAUTH_PROVIDER_UNSPECIFIED = 0;
-  OAUTH_PROVIDER_VK = 1;
-  OAUTH_PROVIDER_GOOGLE = 2;
-  OAUTH_PROVIDER_APPLE = 3;
-  OAUTH_PROVIDER_YANDEX = 4;
-}
-
-message OAuthInitRequest {
-  OAuthProvider provider = 1;
-  notary.user.v1alpha1.UserRole role = 2;
-  string state = 3; // CSRF protection
-}
-
-message OAuthInitResponse {
-  string authorization_url = 1;
-  string state = 2;
-}
-
-message OAuthCallbackRequest {
-  OAuthProvider provider = 1;
-  string code = 2;
-  string state = 3;
-}
-
-message OAuthCallbackResponse {
-  AuthResult result = 1;
-}
