@@ -69,13 +69,8 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Выбор тарифа',
-          'Ввод реквизитов',
-          'Промокод',
-          'История платежей',
-        ]),
-      },
+        loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
+      } as Route,
       {
         path: 'checkout',
         loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
