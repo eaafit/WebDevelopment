@@ -1,0 +1,78 @@
+name: notary-portal
+
+# Portal stack: Angular static + nginx edge (same origin as API) + Postgres + Nest API.
+# From apps/web:
+#   docker network create proxy   # once, for NPM
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build
+#
+# NPM: Forward Hostname `portal`, Forward Port `80`.
+# Migrations (once per deploy, after Postgres is up):
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml --profile migrate run --rm migrate
+
+services:
+  portal:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    expose:
+      - '80'
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      default:
+      proxy:
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    expose:
+      - '3000'
+    env_file:
+      - .env.portal
+    environment:
+      PORT: '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: db
+    volumes:
+      - portal_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d db']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      default:
+
+  migrate:
+    image: node:22-bookworm-slim
+    profiles: ['migrate']
+    volumes:
+      - ../../libs/api/shared/prisma:/work/prisma:ro
+    env_file:
+      - .env.portal
+    command: ['sh', '-c', 'cd /work/prisma && npx --yes prisma@7.4.2 migrate deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+volumes:
+  portal_pg_data:

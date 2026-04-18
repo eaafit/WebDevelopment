@@ -105,8 +105,6 @@
 - `SignatureData` (bytea) — цифровая подпись
 - `Version` (integer) — версия отчёта
 
-# <<<<<<< HEAD
-
 ## 8. Результат оценки недвижимости (RealEstateAppraisalResult)
 
 - `Id` (UUID, PK) — уникальный идентификатор результата оценки
@@ -124,8 +122,6 @@
 - `CreatedAt` (timestamp) — дата создания записи
 - `CreatedBy` (UUID, FK) — нотариус/пользователь, выполнивший оценку
 - `AssessmentReportId` (UUID, FK, nullable) — ссылка на сгенерированный отчёт (AssessmentReport), если уже сформирован
-
-> > > > > > > main
 
 ## 9. Уведомление (Notification)
 

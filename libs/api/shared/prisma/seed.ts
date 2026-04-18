@@ -16,6 +16,7 @@ import {
   SaleType,
   SubscriptionPlan,
 } from './generated/prisma/client';
+import { RUSSIA_TOP_50_GEOGRAPHY } from './data/russia-top50-geography';
 
 const connectionString = process.env['DATABASE_URL'];
 
@@ -39,6 +40,12 @@ function seedId(entity: string, i: number): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
 }
 
+/** Стабильные UUID для городов/районов по строковому ключу (порядок в списке может меняться). */
+function geographySeedId(kind: 'city' | 'district', key: string): string {
+  const h = crypto.createHash('sha256').update(`seed-geo-${kind}-${key}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
+}
+
 function pad(i: number, len: number): string {
   return String(i).padStart(len, '0');
 }
@@ -46,6 +53,7 @@ function pad(i: number, len: number): string {
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
@@ -70,6 +78,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    cityCount,
+    districtCount,
   ] = await prisma.$transaction([
     prisma.user.count(),
     prisma.assessment.count(),
@@ -82,6 +92,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.city.count(),
+    prisma.district.count(),
   ]);
 
   console.info(
@@ -98,6 +110,8 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `Cities: ${cityCount}`,
+      `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
@@ -234,6 +248,35 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
   }
 }
 
+async function upsertGeographyCatalog(): Promise<void> {
+  for (const entry of RUSSIA_TOP_50_GEOGRAPHY) {
+    const cityId = geographySeedId('city', entry.name);
+    await prisma.city.upsert({
+      where: { name: entry.name },
+      create: { id: cityId, name: entry.name },
+      update: {},
+    });
+    const city = await prisma.city.findUniqueOrThrow({ where: { name: entry.name } });
+    for (const districtName of entry.districts) {
+      const districtId = geographySeedId('district', `${entry.name}|${districtName}`);
+      await prisma.district.upsert({
+        where: {
+          cityId_name: {
+            cityId: city.id,
+            name: districtName,
+          },
+        },
+        create: {
+          id: districtId,
+          cityId: city.id,
+          name: districtName,
+        },
+        update: {},
+      });
+    }
+  }
+}
+
 async function upsertAssessments(count: number, userIds: string[]): Promise<string[]> {
   const assessmentIds: string[] = [];
   const statuses = [
@@ -296,6 +339,7 @@ async function upsertDocuments(
   assessmentIds: string[],
   userIds: string[],
 ): Promise<void> {
+  const bucketName = process.env['S3_BUCKET_ASSESSMENT_FILES']?.trim() || 'assessment-files';
   const docTypes = [
     DocumentType.Passport,
     DocumentType.PropertyDeed,
@@ -318,14 +362,19 @@ async function upsertDocuments(
     const uploadedById = userIds[i % userIds.length];
     const docType = docTypes[i % 6];
     const fileName = `seed-doc-${pad(i, 3)}-${fileNames[i % 6]}`;
+    const objectPrefix = resolveSeedDocumentPrefix(docType);
+    const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
+    const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
     await prisma.document.upsert({
       where: { id },
       update: {
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
@@ -334,13 +383,27 @@ async function upsertDocuments(
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
     });
   }
+}
+
+function resolveSeedDocumentPrefix(documentType: DocumentType): string {
+  if (documentType === DocumentType.Photo) {
+    return 'photos';
+  }
+
+  if (documentType === DocumentType.Additional) {
+    return 'additional';
+  }
+
+  return 'documents';
 }
 
 async function upsertSubscriptions(count: number, userIds: string[]): Promise<string[]> {
