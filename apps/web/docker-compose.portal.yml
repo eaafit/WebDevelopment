@@ -51,7 +51,10 @@ services:
       test: ['CMD-SHELL', 'pg_isready -U admin -d db']
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+      # First init of an empty volume can take a long time on slow disks; without
+      # start_period, too few retries mark the DB unhealthy and dependents time out.
+      start_period: 90s
     networks:
       default:
 

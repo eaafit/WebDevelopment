@@ -8,7 +8,7 @@
 
 - **Диаграмма развертывания UML** для системы Notary с выделением внешних IdP (OAuth-провайдеры).
 - Описание развёртывания на ВМ: где хранятся секреты клиентов OAuth, как API доверяет токенам провайдеров.
-- Материалы: `README.md`, `apps/nexus-web/Dockerfile`, `apps/nexus-web/DOCKER.md`.
+- Материалы: `README.md`, `apps/web/Dockerfile`, `apps/web/DOCKER.md`.
 
 ---
 
