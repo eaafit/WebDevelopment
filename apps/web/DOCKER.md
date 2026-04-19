@@ -77,6 +77,32 @@ curl -sI -H "Host: your-domain" http://127.0.0.1/health
 
 Минимум в `.env.portal`: **`DATABASE_URL`**, **`JWT_ACCESS_SECRET`**, **`CORS_ORIGIN`**, **`FRONTEND_URL`** (публичный HTTPS URL портала). Остальное — по [`../../.env.example`](../../.env.example).
 
+### Сборка фронта: `NG_APP_SHOW_TEST_ACCOUNTS`
+
+По умолчанию подсказки **выключены** (`false`). В `.env.portal` задайте **`NG_APP_SHOW_TEST_ACCOUNTS=true`**, чтобы включить их в образе **`portal`** при `docker compose ... up --build` (build-arg). См. [`env.portal.example`](env.portal.example). Меняется только при **пересборке** образа `portal`, не при перезапуске API.
+
+Локально без Docker: `pnpm nx run web:build` — production (**выключено**); `pnpm nx serve` — development (**включено** через `define` в `project.json`).
+
 ## nginx
 
 Конфиг: [`nginx/portal.conf`](nginx/portal.conf). При добавлении новых HTTP-маршрутов в [`apps/api/src/main.ts`](../../apps/api/src/main.ts) при необходимости добавьте `location` в `portal.conf` и пересоберите образ `portal`.
+
+
+## Перезапуск API (Nest) — переменные из `.env.portal`
+
+В `docker-compose.portal.yml` у сервиса `api` указан `env_file: .env.portal`. После правок пересоздайте контейнер API:
+
+```bash
+cd apps/web
+docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --force-recreate api
+```
+
+Или перезапустите весь стек: `docker compose --env-file .env.portal -f docker-compose.portal.yml up -d`. Если `up -d` не подхватил новые переменные, используйте `--force-recreate`.
+
+## Перезапуск фронта (`portal`)
+
+Статика собирается при **сборке** образа. После смены `NG_APP_SHOW_TEST_ACCOUNTS` или других вещей, влияющих на билд Angular:
+
+```bash
+docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build portal
+```

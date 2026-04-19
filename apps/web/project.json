@@ -29,6 +29,9 @@
       },
       "configurations": {
         "production": {
+          "define": {
+            "NG_APP_SHOW_TEST_ACCOUNTS": "false"
+          },
           "budgets": [
             {
               "type": "initial",
@@ -44,6 +47,9 @@
           "outputHashing": "all"
         },
         "development": {
+          "define": {
+            "NG_APP_SHOW_TEST_ACCOUNTS": "true"
+          },
           "optimization": false,
           "extractLicenses": false,
           "sourceMap": true
