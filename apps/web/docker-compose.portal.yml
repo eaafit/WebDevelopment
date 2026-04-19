@@ -74,6 +74,9 @@ services:
       - -c
       - |
         set -e
+        apt-get update -y
+        apt-get install -y --no-install-recommends openssl ca-certificates
+        rm -rf /var/lib/apt/lists/*
         rm -rf /tmp/prisma-migrate-work
         cp -a /work/prisma /tmp/prisma-migrate-work
         cd /tmp/prisma-migrate-work

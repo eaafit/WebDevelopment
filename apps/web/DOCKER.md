@@ -136,6 +136,11 @@ docker compose --env-file .env.portal -f docker-compose.portal.yml ps -a
 docker compose --env-file .env.portal -f docker-compose.portal.yml logs api --tail 200
 docker compose --env-file .env.portal -f docker-compose.portal.yml up -d api
 ```
+### SQL запрос:
+
+```bash
+docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "SELECT email, role, is_active FROM users;"
+```
 
 ### Prisma / seed из одноразового контейнера (VPS)
 
