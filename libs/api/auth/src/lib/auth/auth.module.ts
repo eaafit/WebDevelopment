@@ -21,6 +21,6 @@ import { AuthInterceptor } from './auth.interceptor';
     AuthRpcService,
     AuthInterceptor,
   ],
-  exports: [AuthRpcService, TokenService, AuthInterceptor],
+  exports: [AuthRpcService, TokenService, AuthInterceptor, PasswordService],
 })
 export class AuthModule {}

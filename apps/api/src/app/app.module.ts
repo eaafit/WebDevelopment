@@ -11,6 +11,7 @@ import { PrismaModule } from '@internal/prisma';
 import { ConnectRouterRegistry } from './connect-router.registry';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
+import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 
 @Module({
   imports: [
@@ -26,6 +27,6 @@ import { PaymentAttachmentController } from './payment-attachment.controller';
     UserModule,
   ],
   controllers: [PaymentAttachmentController],
-  providers: [ConnectRouterRegistry],
+  providers: [ConnectRouterRegistry, PortalAdminBootstrapService],
 })
 export class AppModule {}

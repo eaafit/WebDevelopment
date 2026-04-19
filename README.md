@@ -24,6 +24,11 @@
 
 - `docker-compose up` - запустить PostgreSQL
 - `pnpm nx prune` - очистка nx
+- `docker system prune` - Глубокая чистка и освободить максимум места
+- `docker container prune` - Удаляет только остановленные контейнеры
+- `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
+- `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
+- `rm -rf node_modules` - удаление node_modules 
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
