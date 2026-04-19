@@ -96,10 +96,10 @@ flowchart TB
 
 Используются отдельный стек NPM и общая Docker-сеть `proxy` (имя фиксировано, чтобы оба compose видели один и тот же интерфейс):
 
-| Файл                                             | Назначение                                                                                                        |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| [docker-compose.npm.yml](docker-compose.npm.yml) | Nginx Proxy Manager на портах хоста **80 / 81 / 443**; тома `./proxy-manager-data`, `./proxy-manager-letsencrypt` |
-| [docker-compose.vps.yml](docker-compose.vps.yml) | Подключает `nexus-web` к внешней сети `proxy`, чтобы NPM проксировал на **`http://nexus-web:3000`**               |
+| Файл                                             | Назначение                                                                                                                                                                                |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docker-compose.npm.yml](docker-compose.npm.yml) | Nginx Proxy Manager на портах хоста **80 / 81 / 443**; тома `./proxy-manager-data`, `./proxy-manager-letsencrypt`; сеть **`proxy`** — **внешняя** (сначала `docker network create proxy`) |
+| [docker-compose.vps.yml](docker-compose.vps.yml) | Подключает `nexus-web` к внешней сети `proxy`, чтобы NPM проксировал на **`http://nexus-web:3000`**                                                                                       |
 
 **Один раз** создайте сеть (если её ещё нет):
 

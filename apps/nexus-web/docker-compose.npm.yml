@@ -1,4 +1,5 @@
-# Nginx Proxy Manager — отдельный стек. Поднимайте после создания сети `proxy`
+# Nginx Proxy Manager — отдельный стек. Сеть `proxy` должна существовать заранее:
+#   docker network create proxy
 # (см. DOCKER.md). Порты 80/81/443 на хосте; приложение доступно NPM по сети proxy.
 
 services:
@@ -18,5 +19,5 @@ services:
 
 networks:
   proxy:
+    external: true
     name: proxy
-    driver: bridge
