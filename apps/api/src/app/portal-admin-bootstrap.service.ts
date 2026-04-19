@@ -75,11 +75,28 @@ export class PortalAdminBootstrapService implements OnModuleInit {
       });
       this.logger.log(`Portal admin user created from ${ENV_EMAIL}`);
     } catch (error) {
+      // Fresh DB before `prisma migrate deploy`: schema missing — do not block API startup.
+      if (isPrismaMissingTable(error)) {
+        this.logger.warn(
+          `Portal admin bootstrap skipped: schema not ready (run migrate profile, then restart). ${ENV_EMAIL} is set.`,
+        );
+        return;
+      }
+
       this.logger.error(
-        'Portal admin bootstrap failed (run migrations if the users table is missing)',
+        'Portal admin bootstrap failed',
         error instanceof Error ? error.stack : String(error),
       );
       throw error;
     }
   }
+}
+
+function isPrismaMissingTable(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === 'P2021'
+  );
 }
