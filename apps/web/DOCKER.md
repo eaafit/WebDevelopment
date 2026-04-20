@@ -139,9 +139,14 @@ docker compose --env-file .env.portal -f docker-compose.portal.yml up -d api
 ### SQL запрос:
 
 ```bash
+$p = 'password' 
+node -e "require('bcryptjs').hash(process.argv[1], 12).then(h=>console.log(h))" $p
 docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "SELECT email, role, is_active FROM users;"
+docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "DELETE FROM users;"
+docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "INSERT INTO users (id, email, password_hash, full_name, role, phone_number, is_active, created_at, updated_at) VALUES (gen_random_uuid(), 'eaafit@gmail.com', '\$2a\$12$/ltjqJT94/tNC6a2jMtk1.y/U.K0nVBMtkLABeoRBFUhHa8myyiA6', 'admin', 'admin'::role, NULL, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);"
+docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "SELECT length(password_hash), left(password_hash, 7) FROM users WHERE email = 'eaafit@gmail.com';"
 ```
-
+docker compose --env-file .env.portal -f docker-compose.portal.yml exec postgres psql -U admin -d db -c "SELECT length(password_hash), left(password_hash, 7) FROM users WHERE email = 'ваш@email';"
 ### Prisma / seed из одноразового контейнера (VPS)
 
 В Prisma 7 строка подключения задаётся в [`libs/api/shared/prisma/prisma.config.ts`](../../libs/api/shared/prisma/prisma.config.ts), а в `schema.prisma` у `datasource` **нет** `url`. Если из **корня** репозитория вызывать только `prisma db push --schema=libs/api/shared/prisma/schema.prisma` **без** `--config`, CLI не подхватывает конфиг и падает с ошибкой: *The datasource.url property is required in your Prisma config file*.
