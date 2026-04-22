@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AdminPaymentsApiService } from './payments-api.service';
-import { MOCK_PAYMENTS } from './payments.shared';
+import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
 
 describe('Payments', () => {
@@ -35,8 +35,8 @@ describe('Payments', () => {
     component.searchTerm = 'txn_abc123';
 
     const exportedText = (
-      component as Payments & {
-        buildCsvContent: (payments: Payments['filteredPayments']) => string;
+      component as unknown as {
+        buildCsvContent: (payments: Payment[]) => string;
       }
     ).buildCsvContent(component.filteredPayments);
 
