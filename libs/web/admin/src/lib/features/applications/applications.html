@@ -24,6 +24,10 @@
     <button class="btn btn-secondary">Применить</button>
   </div>
 
+  @if (loadError) {
+  <p class="applications-status">{{ loadError }}</p>
+  }
+
   <div class="table-responsive">
     <table class="applications-table">
       <thead>
@@ -37,6 +41,7 @@
             @if (activeFilterColumn === column.key) {
             <div
               class="column-filter-menu"
+              [ngStyle]="filterMenuStyle"
               (click)="$event.stopPropagation()"
               (keydown)="$event.stopPropagation()"
               tabindex="-1"
@@ -96,7 +101,13 @@
         </tr>
       </thead>
       <tbody>
-        @for (app of paginatedApplications; track app.id) {
+        @if (loading) { @for (row of skeletonRows; track row) {
+        <tr class="skeleton-row">
+          @for (column of headerColumns; track column.key) {
+          <td><span class="skeleton-cell"></span></td>
+          }
+        </tr>
+        } } @else if (paginatedApplications.length) { @for (app of paginatedApplications; track app.id) {
         <tr>
           <td>{{ app.id }}</td>
           <td>{{ app.date | date:'dd.MM.yyyy' }}</td>
@@ -130,6 +141,12 @@
             </button>
           </td>
         </tr>
+        } } @else {
+        <tr>
+          <td class="payments-table__empty" colspan="13">
+            @if (loadError) { {{ loadError }} } @else { По текущим фильтрам заявки не найдены. }
+          </td>
+        </tr>
         }
       </tbody>
     </table>
@@ -139,9 +156,11 @@
     @if (totalPages > 1) {
     <button class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">«</button>
 
-    @for (page of pages; track page) {
+    @for (page of paginationItems; track $index) { @if (isPageItem(page)) {
     <button class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">{{ page }}</button>
-    }
+    } @else {
+    <span class="page-ellipsis">…</span>
+    } }
 
     <button class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">»</button>
     }

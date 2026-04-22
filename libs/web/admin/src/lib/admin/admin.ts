@@ -1,6 +1,8 @@
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, ViewEncapsulation, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { DashboardLayout } from '@notary-portal/ui';
+import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
+import { AdminApplicationsApiService } from '../features/applications/applications-api.service';
 
 const ADMIN_MENU = [
   { label: 'Главное меню', route: '.', icon: '☰', exact: true },
@@ -34,4 +36,12 @@ export class Admin {
   menuItems = ADMIN_MENU;
   pageTitle = 'Панель администратора';
   userLabel = 'Администратор';
+
+  private readonly paymentsApi = inject(AdminPaymentsApiService);
+  private readonly applicationsApi = inject(AdminApplicationsApiService);
+
+  constructor() {
+    this.paymentsApi.preload();
+    this.applicationsApi.preload();
+  }
 }

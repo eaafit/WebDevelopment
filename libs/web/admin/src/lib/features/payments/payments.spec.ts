@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { AdminPaymentsApiService } from './payments-api.service';
+import { MOCK_PAYMENTS } from './payments.shared';
 import { Payments } from './payments';
 
 describe('Payments', () => {
@@ -9,7 +11,15 @@ describe('Payments', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Payments],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminPaymentsApiService,
+          useValue: {
+            getAllPayments: async () => MOCK_PAYMENTS.map((payment) => ({ ...payment })),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Payments);

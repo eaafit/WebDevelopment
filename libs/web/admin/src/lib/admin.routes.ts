@@ -88,9 +88,13 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
       },
       {
-        path: 'notifications',
-        ...placeholder('Уведомления', ['Управление уведомлениями']),
-      } as Route,
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
+      },
+      {
+        path: 'promocodes',
+        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
+      },
       {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),

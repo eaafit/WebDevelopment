@@ -1,10 +1,9 @@
-import { Component, HostListener, ViewChild } from '@angular/core';
+import { Component, HostListener, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
 import { inject } from '@angular/core';
 import {
-  MOCK_PAYMENTS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_STATUS_LABELS,
@@ -15,6 +14,8 @@ import {
   PaymentStatus,
   PaymentType,
 } from './payments.shared';
+import { AdminPaymentsApiService } from './payments-api.service';
+import { PaymentDeleteModalComponent } from './payment-delete-modal.component';
 
 type FilterColumn =
   | 'id'
@@ -30,14 +31,16 @@ type FilterColumn =
   | 'status'
   | 'actions';
 
+type PaginationItem = number | 'ellipsis';
+
 @Component({
   selector: 'lib-payments',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PaymentDeleteModalComponent],
   templateUrl: './payments.html',
   styleUrl: './payments.scss',
 })
-export class Payments {
+export class Payments implements OnInit {
   @ViewChild('paymentForm') paymentForm?: NgForm;
 
   private readonly csvSeparator = ';';
@@ -46,7 +49,9 @@ export class Payments {
     maximumFractionDigits: 2,
   });
 
-  payments: Payment[] = MOCK_PAYMENTS.map((payment) => ({ ...payment }));
+  payments: Payment[] = [];
+  loading = true;
+  loadError: string | null = null;
 
   searchTerm = '';
   statusFilter: '' | PaymentStatus = '';
@@ -87,21 +92,29 @@ export class Payments {
   filterSortDraft: '' | 'asc' | 'desc' = '';
   filterSelectedDraft = new Set<string>();
 
+  filterMenuStyle: Record<string, string> = {};
+
   fee = 0;
 
   readonly today: string = new Date().toISOString().split('T')[0];
 
   pageSize = 7;
   currentPage = 1;
+  readonly skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
   isCreateEditModalOpen = false;
   isViewModalOpen = false;
-  isDeleteModalOpen = false;
   isEditMode = false;
+  paymentToDelete: Payment | null = null;
 
   currentPayment: Payment = this.resetPayment();
 
   private router = inject(Router);
+  private readonly api = inject(AdminPaymentsApiService);
+
+  async ngOnInit(): Promise<void> {
+    await this.loadPayments();
+  }
 
   get filteredPayments(): Payment[] {
     const term = this.searchTerm.trim().toLowerCase();
@@ -136,6 +149,38 @@ export class Payments {
     return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
+  get paginationItems(): PaginationItem[] {
+    const total = this.totalPages;
+    const current = this.currentPage;
+
+    if (total <= 7) {
+      return this.pages;
+    }
+
+    const items: PaginationItem[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) {
+      items.push('ellipsis');
+    }
+
+    for (let page = start; page <= end; page += 1) {
+      items.push(page);
+    }
+
+    if (end < total - 1) {
+      items.push('ellipsis');
+    }
+
+    items.push(total);
+    return items;
+  }
+
+  isPageItem(page: PaginationItem): page is number {
+    return typeof page === 'number';
+  }
+
   setPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
@@ -167,14 +212,37 @@ export class Payments {
     };
   }
 
+  private async loadPayments(): Promise<void> {
+    this.loading = true;
+    this.loadError = null;
+
+    try {
+      this.payments = await this.api.getAllPayments();
+    } catch (error) {
+      console.error('Failed to load admin payments', error);
+      this.payments = [];
+      this.loadError = 'Не удалось загрузить данные платежей с сервера';
+    } finally {
+      this.loading = false;
+    }
+  }
+
   openCreateModal(): void {
     this.closeModals();
     this.isEditMode = false;
     this.paymentForm?.resetForm();
     this.currentPayment = this.resetPayment();
-    this.currentPayment.id = Math.max(...this.payments.map((p) => p.id), 0) + 1;
+    this.currentPayment.id = this.getNextLocalId();
     this.fee = 0;
     this.isCreateEditModalOpen = true;
+  }
+
+  private getNextLocalId(): number {
+    const numericIds = this.payments
+      .map((payment) => Number(payment.id))
+      .filter((id) => Number.isFinite(id));
+
+    return Math.max(...numericIds, 0) + 1;
   }
 
   openEditModal(payment: Payment): void {
@@ -194,14 +262,26 @@ export class Payments {
 
   openDeleteModal(payment: Payment): void {
     this.closeModals();
-    this.currentPayment = { ...payment };
-    this.isDeleteModalOpen = true;
+    this.paymentToDelete = { ...payment };
+  }
+
+  onDeleteConfirmed(): void {
+    if (!this.paymentToDelete) return;
+
+    // TODO: replace mock delete with real API call after backend delete endpoint is ready
+    this.payments = this.payments.filter((p) => p.id !== this.paymentToDelete!.id);
+    this.paymentToDelete = null;
+    this.router.navigate(['/admin', 'payments']);
+  }
+
+  onDeleteCancelled(): void {
+    this.paymentToDelete = null;
   }
 
   closeModals(): void {
     this.isCreateEditModalOpen = false;
     this.isViewModalOpen = false;
-    this.isDeleteModalOpen = false;
+    this.paymentToDelete = null;
   }
 
   onModalBackdropClick(event: MouseEvent): void {
@@ -279,6 +359,7 @@ export class Payments {
     event.stopPropagation();
     if (this.activeFilterColumn === column) {
       this.activeFilterColumn = null;
+      this.filterMenuStyle = {};
       return;
     }
 
@@ -288,10 +369,42 @@ export class Payments {
     const allValues = this.getUniqueColumnValues(column);
     const selected = this.columnSelectedValues[column];
     this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
+
+    this.positionFilterMenu(event);
+  }
+
+  private positionFilterMenu(event: MouseEvent): void {
+    const trigger = event.target as HTMLElement;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 270;
+    const menuMaxHeight = 360;
+    const gap = 8;
+
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+
+    if (left < gap) {
+      left = rect.left;
+    }
+    if (left + menuWidth > window.innerWidth - gap) {
+      left = window.innerWidth - menuWidth - gap;
+    }
+    if (top + menuMaxHeight > window.innerHeight - gap) {
+      top = rect.top - menuMaxHeight - gap;
+    }
+    if (top < gap) {
+      top = gap;
+    }
+
+    this.filterMenuStyle = {
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+    };
   }
 
   closeColumnFilter(): void {
     this.activeFilterColumn = null;
+    this.filterMenuStyle = {};
   }
 
   setDraftSort(direction: 'asc' | 'desc'): void {

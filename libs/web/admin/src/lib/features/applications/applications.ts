@@ -1,4 +1,4 @@
-import { Component, HostListener } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
@@ -11,9 +11,10 @@ import {
   PaymentStatus,
   PaymentType,
 } from '../payments/payments.shared';
+import { AdminApplicationsApiService } from './applications-api.service';
 
 export interface Application {
-  id: number;
+  id: string | number;
   date: string;
   sender: string;
   recipient: string;
@@ -29,6 +30,8 @@ export interface Application {
   statusText: string;
 }
 
+type PaginationItem = number | 'ellipsis';
+
 @Component({
   selector: 'lib-applications',
   standalone: true,
@@ -36,67 +39,10 @@ export interface Application {
   templateUrl: './applications.html',
   styleUrl: './applications.scss',
 })
-export class Applications {
-  applications: Application[] = [
-    {
-      id: 5001,
-      date: '2025-03-15',
-      sender: 'ООО "Ромашка"',
-      recipient: 'ИП Иванов',
-      type: 'Assessment',
-      amount: 12500,
-      fee: 125,
-      status: 'completed',
-      statusText: 'Успешно',
-      paymentMethod: 'card',
-      transactionId: 'txn_app_5001',
-      receiptFileName: 'receipt_5001.pdf',
-      receiptFileUrl: '/receipts/receipt_5001.pdf',
-      statementId: 'stmt_5001',
-    },
-    {
-      id: 5002,
-      date: '2025-03-14',
-      sender: 'Петров В.К.',
-      recipient: 'Сидорова Е.М.',
-      type: 'Subscription',
-      amount: 5400.5,
-      fee: 54,
-      status: 'pending',
-      statusText: 'В обработке',
-      paymentMethod: 'invoice',
-      statementId: 'stmt_5002',
-    },
-    {
-      id: 5003,
-      date: '2025-03-13',
-      sender: 'ООО "ТехноСервис"',
-      recipient: 'ООО "Ромашка"',
-      type: 'DocumentCopy',
-      amount: 8700.75,
-      fee: 87,
-      status: 'failed',
-      statusText: 'Ошибка',
-      paymentMethod: 'card',
-      transactionId: 'txn_app_5003',
-    },
-    {
-      id: 5004,
-      date: '2025-03-12',
-      sender: 'ИП Иванов',
-      recipient: 'ООО "ТехноСервис"',
-      type: 'Assessment',
-      amount: 2100,
-      fee: 21,
-      status: 'refunded',
-      statusText: 'Возврат',
-      paymentMethod: 'cash',
-      transactionId: 'txn_app_5004',
-      receiptFileName: 'receipt_5004.pdf',
-      receiptFileUrl: '/receipts/receipt_5004.pdf',
-      statementId: 'stmt_5004',
-    },
-  ];
+export class Applications implements OnInit {
+  applications: Application[] = [];
+  loading = true;
+  loadError: string | null = null;
 
   searchTerm = '';
   statusFilter: '' | PaymentStatus = '';
@@ -139,10 +85,13 @@ export class Applications {
   filterSortDraft: '' | 'asc' | 'desc' = '';
   filterSelectedDraft = new Set<string>();
 
+  filterMenuStyle: Record<string, string> = {};
+
   readonly today: string = new Date().toISOString().split('T')[0];
 
   pageSize = 7;
   currentPage = 1;
+  readonly skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
   isCreateEditModalOpen = false;
   isViewModalOpen = false;
@@ -153,12 +102,17 @@ export class Applications {
 
   private router = inject(Router);
   private route = inject(ActivatedRoute);
+  private readonly api = inject(AdminApplicationsApiService);
 
   constructor() {
     this.route.queryParams.subscribe((params) => {
       const id = params['assessmentId'];
       if (id) this.searchTerm = String(id);
     });
+  }
+
+  async ngOnInit(): Promise<void> {
+    await this.loadApplications();
   }
 
   get filteredApplications(): Application[] {
@@ -197,6 +151,38 @@ export class Applications {
     return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
+  get paginationItems(): PaginationItem[] {
+    const total = this.totalPages;
+    const current = this.currentPage;
+
+    if (total <= 7) {
+      return this.pages;
+    }
+
+    const items: PaginationItem[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) {
+      items.push('ellipsis');
+    }
+
+    for (let page = start; page <= end; page += 1) {
+      items.push(page);
+    }
+
+    if (end < total - 1) {
+      items.push('ellipsis');
+    }
+
+    items.push(total);
+    return items;
+  }
+
+  isPageItem(page: PaginationItem): page is number {
+    return typeof page === 'number';
+  }
+
   setPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
@@ -229,11 +215,34 @@ export class Applications {
     };
   }
 
+  private async loadApplications(): Promise<void> {
+    this.loading = true;
+    this.loadError = null;
+
+    try {
+      this.applications = await this.api.getAllApplications();
+    } catch (error) {
+      console.error('Failed to load admin applications', error);
+      this.applications = [];
+      this.loadError = 'Не удалось загрузить данные заявок с сервера';
+    } finally {
+      this.loading = false;
+    }
+  }
+
   openCreateModal(): void {
     this.isEditMode = false;
     this.currentApplication = this.resetApplication();
-    this.currentApplication.id = Math.max(...this.applications.map((a) => a.id), 0) + 1;
+    this.currentApplication.id = this.getNextLocalId();
     this.isCreateEditModalOpen = true;
+  }
+
+  private getNextLocalId(): number {
+    const numericIds = this.applications
+      .map((application) => Number(application.id))
+      .filter((id) => Number.isFinite(id));
+
+    return Math.max(...numericIds, 0) + 1;
   }
 
   openEditModal(app: Application): void {
@@ -302,6 +311,7 @@ export class Applications {
     event.stopPropagation();
     if (this.activeFilterColumn === column) {
       this.activeFilterColumn = null;
+      this.filterMenuStyle = {};
       return;
     }
 
@@ -311,6 +321,37 @@ export class Applications {
     const allValues = this.getUniqueColumnValues(column);
     const selected = this.columnSelectedValues[column];
     this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
+
+    this.positionFilterMenu(event);
+  }
+
+  private positionFilterMenu(event: MouseEvent): void {
+    const trigger = event.target as HTMLElement;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 270;
+    const menuMaxHeight = 360;
+    const gap = 8;
+
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+
+    if (left < gap) {
+      left = rect.left;
+    }
+    if (left + menuWidth > window.innerWidth - gap) {
+      left = window.innerWidth - menuWidth - gap;
+    }
+    if (top + menuMaxHeight > window.innerHeight - gap) {
+      top = rect.top - menuMaxHeight - gap;
+    }
+    if (top < gap) {
+      top = gap;
+    }
+
+    this.filterMenuStyle = {
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+    };
   }
 
   clearCurrentColumnFilter(): void {
