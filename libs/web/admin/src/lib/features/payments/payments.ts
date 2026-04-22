@@ -269,7 +269,7 @@ export class Payments implements OnInit {
     if (!this.paymentToDelete) return;
 
     // TODO: replace mock delete with real API call after backend delete endpoint is ready
-    this.payments = this.payments.filter((p) => p.id !== this.paymentToDelete!.id);
+    this.payments = this.payments.filter((p) => p.id !== this.paymentToDelete?.id);
     this.paymentToDelete = null;
     this.router.navigate(['/admin', 'payments']);
   }

@@ -21,7 +21,11 @@ export interface PaymentItem {
       tabindex="0"
       role="button"
       aria-label="Закрыть">
-      <div class="delete-modal" (click)="$event.stopPropagation()">
+      <div
+        class="delete-modal"
+        (click)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+        tabindex="-1">
         <div class="delete-modal__header">
           <h3>Подтверждение удаления</h3>
           <button type="button" class="close-btn" (click)="cancelled.emit()">&times;</button>
