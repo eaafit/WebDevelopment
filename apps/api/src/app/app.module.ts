@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '@internal/audit';
 import { AssessmentModule } from '@internal/assessment';
 import { AuthModule } from '@internal/auth';
 import { BillingModule } from '@internal/billing';
@@ -19,6 +20,7 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
     MetricsModule,
     MailModule,
     AuthModule,
+    AuditModule,
     AssessmentModule,
     BillingModule,
     DocumentModule,

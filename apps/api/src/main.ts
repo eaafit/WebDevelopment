@@ -1,12 +1,13 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Code, ConnectError, cors as connectCors } from '@connectrpc/connect';
+import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
 import cors from 'cors';
 import express from 'express';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { AuthInterceptor, TokenService } from '@internal/auth';
+import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
   PaymentAttachmentService,
   PaymentWebhookError,
@@ -196,6 +197,11 @@ async function bootstrap() {
       grpc: false,
       grpcWeb: false,
       interceptors: [authInterceptor.build()],
+      contextValues: (req) => {
+        const values = createContextValues();
+        values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
+        return values;
+      },
       routes: (router) => connectRouterRegistry.register(router),
     }),
   );
@@ -223,6 +229,22 @@ function parseBearerToken(value: string | undefined): string | undefined {
 
   const match = /^Bearer\s+(.+)$/i.exec(value);
   return match?.[1];
+}
+
+function resolveRequestIp(req: {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string | null };
+}): string | null {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0]?.trim() || null;
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0]?.split(',')[0]?.trim() || null;
+  }
+
+  return req.socket?.remoteAddress ?? null;
 }
 
 function asString(value: unknown): string | undefined {

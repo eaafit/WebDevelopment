@@ -2,6 +2,7 @@ import { type ConnectRouter } from '@connectrpc/connect';
 import { Injectable } from '@nestjs/common';
 
 // RPC-сервисы
+import { AuditRpcService } from '@internal/audit';
 import { AuthRpcService } from '@internal/auth';
 import { AssessmentRpcService } from '@internal/assessment';
 import { PaymentRpcService } from '@internal/billing';
@@ -12,6 +13,7 @@ import { UserRpcService } from '@internal/user';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
+  AuditService,
   AuthService,
   AssessmentService,
   DocumentService,
@@ -24,6 +26,7 @@ import {
 @Injectable()
 export class ConnectRouterRegistry {
   constructor(
+    private readonly auditRpcService: AuditRpcService,
     private readonly authRpcService: AuthRpcService,
     private readonly assessmentRpcService: AssessmentRpcService,
     private readonly paymentRpcService: PaymentRpcService,
@@ -34,6 +37,12 @@ export class ConnectRouterRegistry {
   ) {}
 
   register(router: ConnectRouter): void {
+    // ─── Audit ───────────────────────────────────────────────
+    router.service(AuditService, {
+      listAuditEvents: this.auditRpcService.listAuditEvents,
+      exportAuditEvents: this.auditRpcService.exportAuditEvents,
+    });
+
     // ─── Auth ────────────────────────────────────────────────
     router.service(AuthService, {
       register: this.authRpcService.register,
