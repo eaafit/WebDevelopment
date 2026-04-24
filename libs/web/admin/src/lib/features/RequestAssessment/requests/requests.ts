@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
+import { User } from '../RequestAssessment';
 
 export interface AssessmentItem {
   id: string;
@@ -19,8 +20,14 @@ export interface AssessmentItem {
   address: string;
   description: string;
   estimatedValue: string;
+  notaryId?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface NotaryOption {
+  id: string;
+  label: string;
 }
 
 type RequestFilterColumn =
@@ -92,6 +99,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   assessmentToVerify: AssessmentItem | null = null;
   notaryId = '';
   notaryIdError = '';
+  notaryOptions: NotaryOption[] = [];
 
   showStartWorkModal = false;
   assessmentToStartWork: AssessmentItem | null = null;
@@ -121,6 +129,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.cdr.detectChanges();
     });
     this.initializeData();
+    this.loadNotaries();
     this.applyFilters();
   }
 
@@ -146,7 +155,14 @@ export class RequestsComponent implements OnInit, OnDestroy {
   }
 
   private initializeData(): void {
+    this.ensureUsersSeeded();
+
     if (!localStorage.getItem('assessments')) {
+      // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
+      const notaryIds = this.readNotaryIds();
+      const pickNotary = (i: number): string | undefined =>
+        notaryIds.length ? notaryIds[i % notaryIds.length] : undefined;
+
       const testData: AssessmentItem[] = [
         {
           id: this.generateUUID(),
@@ -167,6 +183,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
           address: 'г. Санкт-Петербург, Невский пр., д. 78, кв. 3',
           description: 'Оценка коммерческой недвижимости для продажи',
           estimatedValue: '',
+          notaryId: pickNotary(0),
           createdAt: '2024-03-05T14:30:00',
           updatedAt: '2024-03-06T09:15:00',
         },
@@ -178,6 +195,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
           address: 'г. Казань, ул. Баумана, д. 33',
           description: 'Оценка земельного участка под строительство',
           estimatedValue: '4500000',
+          notaryId: pickNotary(1),
           createdAt: '2024-02-20T11:45:00',
           updatedAt: '2024-03-10T16:20:00',
         },
@@ -222,6 +240,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
           address: 'г. Краснодар, ул. Красная, д. 55',
           description: 'Оценка гаражного помещения',
           estimatedValue: '1800000',
+          notaryId: pickNotary(0),
           createdAt: '2024-03-08T13:00:00',
           updatedAt: '2024-03-11T11:30:00',
         },
@@ -230,6 +249,82 @@ export class RequestsComponent implements OnInit, OnDestroy {
     }
 
     this.assessments = JSON.parse(localStorage.getItem('assessments') ?? '[]');
+  }
+
+  private ensureUsersSeeded(): void {
+    // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
+    // Минимальный seed активных нотариусов, чтобы dropdown в модалке Verify
+    // и фильтр по нотариусу в T-A2 имели данные при первом заходе на /admin/orders.
+    if (localStorage.getItem('users')) return;
+    const seed: User[] = [
+      {
+        id: 'seed-notary-petrova',
+        firstName: 'Мария',
+        lastName: 'Петрова',
+        middleName: 'Сергеевна',
+        email: 'petrova@example.com',
+        phoneNumber: '+7 (999) 234-56-78',
+        role: 'Notary',
+        subscriptionPlan: 'Premium',
+        isActive: true,
+        createdAt: '2024-01-20T14:20:00',
+        updatedAt: '2024-02-01T09:15:00',
+      },
+      {
+        id: 'seed-notary-novikov',
+        firstName: 'Дмитрий',
+        lastName: 'Новиков',
+        middleName: 'Александрович',
+        email: 'novikov@example.com',
+        phoneNumber: '+7 (999) 567-89-01',
+        role: 'Notary',
+        subscriptionPlan: 'Premium',
+        isActive: true,
+        createdAt: '2024-02-08T09:15:00',
+        updatedAt: '2024-02-08T09:15:00',
+      },
+      {
+        id: 'seed-notary-morozov',
+        firstName: 'Сергей',
+        lastName: 'Морозов',
+        middleName: 'Владимирович',
+        email: 'morozov@example.com',
+        phoneNumber: '+7 (999) 789-01-23',
+        role: 'Notary',
+        subscriptionPlan: 'Basic',
+        isActive: false,
+        createdAt: '2024-02-15T10:00:00',
+        updatedAt: '2024-02-20T15:20:00',
+      },
+    ];
+    localStorage.setItem('users', JSON.stringify(seed));
+  }
+
+  private readNotaryIds(): string[] {
+    return this.readUsers()
+      .filter((u) => u.role === 'Notary' && u.isActive)
+      .map((u) => u.id);
+  }
+
+  private readUsers(): User[] {
+    // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
+    const raw = localStorage.getItem('users');
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw) as User[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private loadNotaries(): void {
+    this.notaryOptions = this.readUsers()
+      .filter((u) => u.role === 'Notary' && u.isActive)
+      .map((u) => ({
+        id: u.id,
+        label: `${u.lastName} ${u.firstName} ${u.middleName} (${this.getShortId(u.id)})`,
+      }));
   }
 
   private saveToStorage(): void {
@@ -525,6 +620,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.assessmentToVerify = item;
     this.notaryId = '';
     this.notaryIdError = '';
+    this.loadNotaries();
     this.showVerifyModal = true;
   }
 
@@ -537,16 +633,18 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   confirmVerify(): void {
     if (!this.notaryId.trim()) {
-      this.notaryIdError = 'Укажите ID нотариуса';
+      this.notaryIdError = 'Выберите нотариуса';
       return;
     }
     if (!this.assessmentToVerify) return;
 
     const index = this.assessments.findIndex((a) => a.id === this.assessmentToVerify?.id);
     if (index !== -1) {
+      // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
       this.assessments[index] = {
         ...this.assessments[index],
         status: 'Verified',
+        notaryId: this.notaryId,
         updatedAt: new Date().toISOString(),
       };
       this.saveToStorage();
