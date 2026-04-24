@@ -53,6 +53,9 @@ export class RequestsComponent implements OnInit, OnDestroy {
   paginatedAssessments: AssessmentItem[] = [];
 
   searchTerm = '';
+  dateFrom = '';
+  dateTo = '';
+  notaryFilter = '';
   private searchSubject$ = new Subject<string>();
   private searchSubscription?: Subscription;
 
@@ -346,12 +349,34 @@ export class RequestsComponent implements OnInit, OnDestroy {
       );
     }
 
+    if (this.dateFrom) {
+      const from = this.dateFrom;
+      result = result.filter((a) => a.createdAt.slice(0, 10) >= from);
+    }
+
+    if (this.dateTo) {
+      const to = this.dateTo;
+      result = result.filter((a) => a.createdAt.slice(0, 10) <= to);
+    }
+
+    if (this.notaryFilter) {
+      const notary = this.notaryFilter;
+      result = result.filter((a) => a.notaryId === notary);
+    }
+
     result = result.filter((a) => this.matchesColumnFilters(a));
     result.sort((a, b) => this.compareByActiveSort(a, b));
 
     this.filteredAssessments = result;
     this.currentPage = 1;
     this.updatePagination();
+  }
+
+  resetTopFilters(): void {
+    this.dateFrom = '';
+    this.dateTo = '';
+    this.notaryFilter = '';
+    this.applyFilters();
   }
 
   // ========== COLUMN FILTER ==========

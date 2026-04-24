@@ -19,6 +19,31 @@
       </div>
     </div>
 
+    <!-- ВЕРХНИЕ ФИЛЬТРЫ: диапазон дат + нотариус -->
+    <div class="top-filters">
+      <div class="top-filters__field">
+        <label for="orders-date-from">С</label>
+        <input id="orders-date-from" type="date" [(ngModel)]="dateFrom" [max]="dateTo || null" />
+      </div>
+      <div class="top-filters__field">
+        <label for="orders-date-to">По</label>
+        <input id="orders-date-to" type="date" [(ngModel)]="dateTo" [min]="dateFrom || null" />
+      </div>
+      <div class="top-filters__field">
+        <label for="orders-notary">Нотариус</label>
+        <select id="orders-notary" [(ngModel)]="notaryFilter">
+          <option value="">Все</option>
+          @for (n of notaryOptions; track n.id) {
+          <option [value]="n.id">{{ n.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="top-filters__actions">
+        <button type="button" class="btn btn-primary" (click)="applyFilters()">Применить</button>
+        <button type="button" class="btn btn-secondary" (click)="resetTopFilters()">Сбросить</button>
+      </div>
+    </div>
+
     <!-- ТАБЛИЦА -->
     <div class="table-responsive">
       <table class="data-table">

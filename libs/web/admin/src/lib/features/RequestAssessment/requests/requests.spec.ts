@@ -57,4 +57,47 @@ describe('RequestsComponent', () => {
     expect(component.notaryIdError).toBe('Выберите нотариуса');
     expect(target.status).toBe('New');
   });
+
+  it('should narrow filteredAssessments by createdAt range', () => {
+    const total = component.assessments.length;
+    component.dateFrom = '2024-03-01';
+    component.dateTo = '2024-03-31';
+
+    component.applyFilters();
+
+    expect(component.filteredAssessments.length).toBeLessThanOrEqual(total);
+    for (const assessment of component.filteredAssessments) {
+      const day = assessment.createdAt.slice(0, 10);
+      expect(day >= '2024-03-01').toBe(true);
+      expect(day <= '2024-03-31').toBe(true);
+    }
+  });
+
+  it('should narrow filteredAssessments by selected notaryId', () => {
+    const withNotary = component.assessments.find((assessment) => !!assessment.notaryId);
+    if (!withNotary || !withNotary.notaryId) {
+      throw new Error('Expected at least one seeded assessment with a notaryId');
+    }
+
+    component.notaryFilter = withNotary.notaryId;
+    component.applyFilters();
+
+    expect(component.filteredAssessments.length).toBeGreaterThan(0);
+    for (const assessment of component.filteredAssessments) {
+      expect(assessment.notaryId).toBe(withNotary.notaryId);
+    }
+  });
+
+  it('should clear date range and notary filter on resetTopFilters', () => {
+    component.dateFrom = '2024-03-01';
+    component.dateTo = '2024-03-31';
+    component.notaryFilter = component.notaryOptions[0]?.id ?? '';
+
+    component.resetTopFilters();
+
+    expect(component.dateFrom).toBe('');
+    expect(component.dateTo).toBe('');
+    expect(component.notaryFilter).toBe('');
+    expect(component.filteredAssessments.length).toBe(component.assessments.length);
+  });
 });
