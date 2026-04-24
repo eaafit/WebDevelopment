@@ -4,7 +4,7 @@ import { of } from 'rxjs';
 import { AuditMonitoringApiService, AuditMonitoringPage } from '@notary-portal/ui';
 import { Monitoring } from './monitoring';
 
-describe('Monitoring', () => {
+describe('Notary Monitoring', () => {
   let component: Monitoring;
   let fixture: ComponentFixture<Monitoring>;
 
@@ -34,6 +34,7 @@ describe('Monitoring', () => {
 
     fixture = TestBed.createComponent(Monitoring);
     component = fixture.componentInstance;
+    fixture.detectChanges();
     await fixture.whenStable();
   });
 
@@ -41,11 +42,9 @@ describe('Monitoring', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render shared audit monitoring page in admin mode', () => {
-    fixture.detectChanges();
-
+  it('should render shared audit monitoring page in notary mode', () => {
     const sharedPage = fixture.debugElement.query(By.directive(AuditMonitoringPage));
     expect(sharedPage).not.toBeNull();
-    expect(sharedPage.componentInstance.mode).toBe('admin');
+    expect(sharedPage.componentInstance.mode).toBe('notary');
   });
 });

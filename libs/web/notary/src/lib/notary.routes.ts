@@ -52,6 +52,10 @@ export const notaryRoutes: Route[] = [
           import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
         path: 'copies',
         ...placeholder('Копии документов', [
           'Запрос, оплата и получение копий',
