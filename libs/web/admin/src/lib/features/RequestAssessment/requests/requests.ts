@@ -70,6 +70,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   ];
 
   activeFilterColumn: RequestFilterColumn | null = null;
+  filterDropdownStyle: { top: number; left: number } | null = null;
   columnSelectedValues: Record<RequestFilterColumn, string[]> = {
     id: [],
     address: [],
@@ -384,7 +385,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   toggleColumnFilter(column: RequestFilterColumn, event: MouseEvent): void {
     event.stopPropagation();
     if (this.activeFilterColumn === column) {
-      this.activeFilterColumn = null;
+      this.closeColumnFilter();
       return;
     }
     this.activeFilterColumn = column;
@@ -393,10 +394,21 @@ export class RequestsComponent implements OnInit, OnDestroy {
     const allValues = this.getUniqueColumnValues(column);
     const selected = this.columnSelectedValues[column];
     this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
+    this.updateFilterDropdownPosition(event.currentTarget as HTMLElement | null);
   }
 
   closeColumnFilter(): void {
     this.activeFilterColumn = null;
+    this.filterDropdownStyle = null;
+  }
+
+  private updateFilterDropdownPosition(trigger: HTMLElement | null): void {
+    if (!trigger) {
+      this.filterDropdownStyle = null;
+      return;
+    }
+    const rect = trigger.getBoundingClientRect();
+    this.filterDropdownStyle = { top: rect.bottom + 4, left: rect.left };
   }
 
   setDraftSort(direction: 'asc' | 'desc'): void {
@@ -496,6 +508,15 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   @HostListener('document:click')
   onDocumentClick(): void {
+    this.closeColumnFilter();
+  }
+
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    this.closeColumnFilter();
+  }
+
+  onTableScroll(): void {
     this.closeColumnFilter();
   }
 

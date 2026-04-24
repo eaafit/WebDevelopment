@@ -100,4 +100,40 @@ describe('RequestsComponent', () => {
     expect(component.notaryFilter).toBe('');
     expect(component.filteredAssessments.length).toBe(component.assessments.length);
   });
+
+  it('should anchor column filter dropdown to the trigger rect when opened', () => {
+    const trigger = document.createElement('button');
+    trigger.getBoundingClientRect = () =>
+      ({
+        top: 60,
+        bottom: 82,
+        left: 200,
+        right: 222,
+        width: 22,
+        height: 22,
+        x: 200,
+        y: 60,
+      }) as DOMRect;
+    const event = {
+      stopPropagation: () => undefined,
+      currentTarget: trigger,
+    } as unknown as MouseEvent;
+
+    component.toggleColumnFilter('status', event);
+
+    expect(component.activeFilterColumn).toBe('status');
+    expect(component.filterDropdownStyle).not.toBeNull();
+    expect(component.filterDropdownStyle?.top).toBe(86);
+    expect(component.filterDropdownStyle?.left).toBe(200);
+  });
+
+  it('should clear filterDropdownStyle when closeColumnFilter runs', () => {
+    component.activeFilterColumn = 'status';
+    component.filterDropdownStyle = { top: 50, left: 100 };
+
+    component.closeColumnFilter();
+
+    expect(component.activeFilterColumn).toBeNull();
+    expect(component.filterDropdownStyle).toBeNull();
+  });
 });

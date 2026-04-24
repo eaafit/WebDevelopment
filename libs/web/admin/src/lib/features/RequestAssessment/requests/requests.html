@@ -45,7 +45,7 @@
     </div>
 
     <!-- ТАБЛИЦА -->
-    <div class="table-responsive">
+    <div class="table-responsive" (scroll)="onTableScroll()">
       <table class="data-table">
         <thead>
           <tr>
@@ -58,6 +58,9 @@
               @if (activeFilterColumn === column.key) {
               <div
                 class="column-filter-menu"
+                [class.column-filter-menu--floating]="!!filterDropdownStyle"
+                [style.top.px]="filterDropdownStyle?.top"
+                [style.left.px]="filterDropdownStyle?.left"
                 (click)="$event.stopPropagation()"
                 (keydown)="$event.stopPropagation()"
                 tabindex="-1"
