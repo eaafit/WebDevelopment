@@ -1,11 +1,12 @@
-import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
 import cors from 'cors';
 import express from 'express';
+import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
+import { createHttpLoggingMiddleware } from './app/logging/logging.config';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -25,10 +26,13 @@ import { PrismaService } from '@internal/prisma';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
+    bufferLogs: true,
   });
+  app.useLogger(app.get(PinoNestLogger));
 
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
+  expressInstance.use(createHttpLoggingMiddleware());
 
   // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
   // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
@@ -49,8 +53,13 @@ async function bootstrap() {
               cb(null, requestOrigin ? requestOrigin : true);
             },
       methods: [...connectCors.allowedMethods],
-      allowedHeaders: [...connectCors.allowedHeaders, 'Authorization'],
-      exposedHeaders: [...connectCors.exposedHeaders],
+      allowedHeaders: [
+        ...connectCors.allowedHeaders,
+        'Authorization',
+        'X-Request-Id',
+        'traceparent',
+      ],
+      exposedHeaders: [...connectCors.exposedHeaders, 'X-Request-Id'],
     }),
   );
 
@@ -208,7 +217,7 @@ async function bootstrap() {
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);
-  Logger.log(`Connect RPC server is running on http://localhost:${port}`);
+  app.get(PinoNestLogger).log(`Connect RPC server is running on http://localhost:${port}`);
 }
 
 bootstrap();
