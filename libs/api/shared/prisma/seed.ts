@@ -59,11 +59,17 @@ async function main(): Promise<void> {
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
-  await upsertPayments(SEED_COUNT, userIds, subscriptionIds, assessmentIds, promoIds);
+  const paymentRefs = await upsertPayments(
+    SEED_COUNT,
+    userIds,
+    subscriptionIds,
+    assessmentIds,
+    promoIds,
+  );
   await upsertReports(SEED_COUNT, assessmentIds, userIds);
   await upsertNotifications(SEED_COUNT, userIds);
   await upsertRefreshTokens(SEED_COUNT, userIds);
-  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, promoIds);
+  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, paymentRefs, promoIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
   const [
@@ -446,13 +452,18 @@ async function upsertSubscriptions(count: number, userIds: string[]): Promise<st
   return subscriptionIds;
 }
 
+interface PaymentSeedRef {
+  id: string;
+  assessmentId: string | null;
+}
+
 async function upsertPayments(
   count: number,
   userIds: string[],
   subscriptionIds: string[],
   assessmentIds: string[],
   promoIds: string[],
-): Promise<void> {
+): Promise<PaymentSeedRef[]> {
   const types = [PaymentType.Subscription, PaymentType.Assessment, PaymentType.DocumentCopy];
   const statuses = [
     PaymentStatus.Pending,
@@ -464,6 +475,7 @@ async function upsertPayments(
   const totalHistoryPayments = TOTAL_SEED_USERS * PAYMENT_HISTORY_PER_USER;
   const totalPayments = Math.max(count, totalHistoryPayments);
   const baseDate = new Date('2026-01-01T10:00:00.000Z');
+  const paymentRefs: PaymentSeedRef[] = [];
 
   for (let i = 0; i < totalPayments; i++) {
     const id = seedId('payment', i);
@@ -513,6 +525,8 @@ async function upsertPayments(
       status = statuses[idx % 4];
     }
 
+    paymentRefs.push({ id, assessmentId });
+
     await prisma.payment.upsert({
       where: { id },
       update: {
@@ -550,6 +564,8 @@ async function upsertPayments(
       },
     });
   }
+
+  return paymentRefs;
 }
 
 async function upsertReports(
@@ -634,6 +650,7 @@ async function upsertAuditLogs(
   count: number,
   userIds: string[],
   assessmentIds: string[],
+  paymentRefs: PaymentSeedRef[],
   promoIds: string[],
 ): Promise<void> {
   const actions: Array<{ actionType: string; entityName: string }> = [
@@ -647,17 +664,28 @@ async function upsertAuditLogs(
     const id = seedId('auditLog', i);
     const userId = userIds[i % userIds.length];
     const action = actions[i % actions.length];
+    const relatedAssessmentId = assessmentIds[i % assessmentIds.length];
+    const paymentRef = paymentRefs.length > 0 ? paymentRefs[i % paymentRefs.length] : null;
     const entityId =
       action.entityName === 'Assessment'
-        ? assessmentIds[i % assessmentIds.length]
-        : action.entityName === 'Promo' && promoIds.length > 0
-          ? promoIds[i % promoIds.length]
-          : assessmentIds[i % assessmentIds.length];
+        ? relatedAssessmentId
+        : action.entityName === 'Payment' && paymentRef
+          ? paymentRef.id
+          : action.entityName === 'Promo' && promoIds.length > 0
+            ? promoIds[i % promoIds.length]
+            : relatedAssessmentId;
+    const assessmentId =
+      action.entityName === 'Assessment'
+        ? relatedAssessmentId
+        : action.entityName === 'Payment'
+          ? (paymentRef?.assessmentId ?? null)
+          : null;
     const details = { source: 'seed', index: i };
     await prisma.auditLog.upsert({
       where: { id },
       update: {
         userId,
+        assessmentId,
         actionType: action.actionType,
         entityName: action.entityName,
         entityId,
@@ -666,6 +694,7 @@ async function upsertAuditLogs(
       create: {
         id,
         userId,
+        assessmentId,
         actionType: action.actionType,
         entityName: action.entityName,
         entityId,
@@ -717,6 +746,7 @@ async function upsertAssessmentProcessingHistory(
         where: { id },
         update: {
           userId: eventUserId,
+          assessmentId,
           actionType: events[step],
           entityName: 'Assessment',
           entityId: assessmentId,
@@ -726,6 +756,7 @@ async function upsertAssessmentProcessingHistory(
         create: {
           id,
           userId: eventUserId,
+          assessmentId,
           actionType: events[step],
           entityName: 'Assessment',
           entityId: assessmentId,
