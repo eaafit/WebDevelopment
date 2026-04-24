@@ -3,7 +3,7 @@
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/api/audit/src",
   "projectType": "library",
-  "tags": ["scope:backend"],
+  "tags": ["scope:backend-shared"],
   "targets": {
     "test": {
       "executor": "@nx/jest:jest",
