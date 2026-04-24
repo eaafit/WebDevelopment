@@ -15,7 +15,10 @@ export const adminRoutes: Route[] = [
     path: '',
     component: Admin,
     children: [
-      { path: '', ...placeholder('Главное меню', ['Обзор панели администратора']) } as Route,
+      {
+        path: '',
+        loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.AdminDashboard),
+      } as Route,
       {
         path: 'users',
         loadComponent: () =>

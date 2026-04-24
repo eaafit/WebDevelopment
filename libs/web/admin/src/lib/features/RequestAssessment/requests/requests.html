@@ -19,8 +19,33 @@
       </div>
     </div>
 
+    <!-- ВЕРХНИЕ ФИЛЬТРЫ: диапазон дат + нотариус -->
+    <div class="top-filters">
+      <div class="top-filters__field">
+        <label for="orders-date-from">С</label>
+        <input id="orders-date-from" type="date" [(ngModel)]="dateFrom" [max]="dateTo || null" />
+      </div>
+      <div class="top-filters__field">
+        <label for="orders-date-to">По</label>
+        <input id="orders-date-to" type="date" [(ngModel)]="dateTo" [min]="dateFrom || null" />
+      </div>
+      <div class="top-filters__field">
+        <label for="orders-notary">Нотариус</label>
+        <select id="orders-notary" [(ngModel)]="notaryFilter">
+          <option value="">Все</option>
+          @for (n of notaryOptions; track n.id) {
+          <option [value]="n.id">{{ n.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="top-filters__actions">
+        <button type="button" class="btn btn-primary" (click)="applyFilters()">Применить</button>
+        <button type="button" class="btn btn-secondary" (click)="resetTopFilters()">Сбросить</button>
+      </div>
+    </div>
+
     <!-- ТАБЛИЦА -->
-    <div class="table-responsive">
+    <div class="table-responsive" (scroll)="onTableScroll()">
       <table class="data-table">
         <thead>
           <tr>
@@ -33,6 +58,9 @@
               @if (activeFilterColumn === column.key) {
               <div
                 class="column-filter-menu"
+                [class.column-filter-menu--floating]="!!filterDropdownStyle"
+                [style.top.px]="filterDropdownStyle?.top"
+                [style.left.px]="filterDropdownStyle?.left"
                 (click)="$event.stopPropagation()"
                 (keydown)="$event.stopPropagation()"
                 tabindex="-1"
@@ -258,21 +286,26 @@
       <p>Назначить нотариуса для заявки <strong>{{ getShortId(assessmentToVerify.id) }}</strong></p>
 
       <div class="form-group">
-        <label class="required" for="notaryId">ID нотариуса</label>
-        <input
-          type="text"
-          id="notaryId"
-          [class.error]="notaryIdError"
-          [(ngModel)]="notaryId"
-          placeholder="Введите ID нотариуса..." />
-        @if (notaryIdError) {
+        <label class="required" for="notaryId">Нотариус</label>
+        @if (notaryOptions.length === 0) {
+        <p class="field-note">Нет активных нотариусов. Добавьте их в разделе «Пользователи» (/admin/users).</p>
+        } @else {
+        <select id="notaryId" [class.error]="notaryIdError" [(ngModel)]="notaryId">
+          <option value="" disabled>— Выберите нотариуса —</option>
+          @for (n of notaryOptions; track n.id) {
+          <option [value]="n.id">{{ n.label }}</option>
+          }
+        </select>
+        } @if (notaryIdError) {
         <div class="form-error active">{{ notaryIdError }}</div>
         }
       </div>
 
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeVerifyModal()">Отмена</button>
-        <button class="btn btn-primary" (click)="confirmVerify()">✅ Назначить</button>
+        <button class="btn btn-primary" [disabled]="!notaryId || notaryOptions.length === 0" (click)="confirmVerify()">
+          ✅ Назначить
+        </button>
       </div>
     </div>
   </div>

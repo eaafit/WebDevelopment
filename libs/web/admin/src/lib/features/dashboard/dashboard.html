@@ -1,0 +1,77 @@
+<section class="admin-page dashboard-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Обзор</p>
+      <h2>Панель администратора</h2>
+      <p class="admin-page__lead">
+        Сводные метрики по заявкам, последние поступления и быстрый доступ к ключевым разделам.
+      </p>
+    </div>
+    <div class="admin-page__actions">
+      <button type="button" class="admin-btn admin-btn--primary" (click)="refresh()">Обновить данные</button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar">
+    <div class="admin-toolbar__copy">
+      <p>Источник данных: локальное хранилище браузера (моки)</p>
+      <small class="admin-toolbar__status">Последнее обновление: {{ updatedAtLabel() }}</small>
+    </div>
+    <span class="admin-toolbar__meta">Всего записей: {{ total() }}</span>
+  </section>
+
+  <section class="dashboard-stats">
+    @for (m of metrics(); track m.key) {
+    <article class="admin-card">
+      <div class="admin-card__body">
+        <p class="admin-page__eyebrow">{{ m.label }}</p>
+        <strong class="dashboard-stat__value">{{ m.value }}</strong>
+        <p>{{ m.hint }}</p>
+      </div>
+    </article>
+    }
+  </section>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Последние заявки</h3>
+        <p>Пять свежих записей по дате создания.</p>
+      </div>
+      <a class="admin-btn admin-btn--ghost" routerLink="/admin/orders">К списку заявок</a>
+    </div>
+    <div class="admin-card__body">
+      @if (latestFive().length === 0) {
+      <div class="admin-empty">
+        <strong>Пока нет заявок</strong>
+        <p>Как только появятся записи — они покажутся здесь.</p>
+      </div>
+      } @else {
+      <ul class="dashboard-list">
+        @for (a of latestFive(); track a.id) {
+        <li class="dashboard-list__row">
+          <div class="dashboard-list__copy">
+            <strong>{{ a.applicantName }}</strong>
+            <small>{{ a.address }}</small>
+          </div>
+          <span [class]="'admin-badge ' + statusBadgeClass[a.status]"> {{ statusLabel[a.status] }} </span>
+          <a class="admin-link" routerLink="/admin/orders">Открыть →</a>
+        </li>
+        }
+      </ul>
+      }
+    </div>
+  </article>
+
+  <section class="dashboard-links">
+    @for (link of quickLinks; track link.route) {
+    <a class="admin-card dashboard-link" [routerLink]="['/admin', link.route]">
+      <div class="admin-card__body">
+        <p class="admin-page__eyebrow">{{ link.icon }} {{ link.eyebrow }}</p>
+        <strong class="dashboard-link__title">{{ link.title }}</strong>
+        <p>{{ link.description }}</p>
+      </div>
+    </a>
+    }
+  </section>
+</section>
