@@ -77,11 +77,17 @@ export class AdminDashboard implements OnInit {
     [...this.assessments()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5),
   );
 
-  protected readonly updatedAtLabel = computed(() => {
-    const d = this.updatedAt();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  private readonly updatedAtFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
+
+  protected readonly updatedAtLabel = computed(() =>
+    this.updatedAtFormatter.format(this.updatedAt()),
+  );
 
   ngOnInit(): void {
     this.loadOrSeed();
