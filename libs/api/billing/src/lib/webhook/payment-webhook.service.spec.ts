@@ -23,6 +23,9 @@ describe('PaymentWebhookService', () => {
     storeGeneratedReceipt,
     markReceiptFailed,
   };
+  const auditService = {
+    record: jest.fn(),
+  };
   const prisma = {
     payment: {
       findFirst: findPayment,
@@ -51,6 +54,7 @@ describe('PaymentWebhookService', () => {
     metrics.recordPaymentAmount.mockReset();
     yookassa.getPayment.mockReset();
     paymentSubscriptionService.activateSubscription.mockReset();
+    auditService.record.mockReset();
 
     findPayment.mockResolvedValue({
       id: 'payment-1',
@@ -115,6 +119,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -158,6 +163,23 @@ describe('PaymentWebhookService', () => {
     });
     expect(metrics.recordPayment).toHaveBeenCalledWith('completed');
     expect(metrics.recordPaymentAmount).toHaveBeenCalledWith(1350);
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.completed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        assessmentId: null,
+        actionContext: 'Статус обновлён по YooKassa webhook',
+        after: expect.objectContaining({
+          status: PaymentStatus.Completed,
+          amount: '1350.00',
+          transactionId: 'yk-payment-1',
+          paymentMethod: 'bank_card',
+          paymentProvider: 'YooKassa',
+        }),
+      }),
+    );
   });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
@@ -199,6 +221,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -219,6 +242,14 @@ describe('PaymentWebhookService', () => {
         String(message).includes('Assessment payment payment-1 completed'),
       ),
     ).toBe(true);
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.completed',
+        targetId: 'payment-1',
+        assessmentId: 'assessment-1',
+        targetContext: 'Заявка #assessme',
+      }),
+    );
   });
 
   it('should branch document copy payments into a placeholder post-payment hook', async () => {
@@ -260,6 +291,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -291,6 +323,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -309,6 +342,117 @@ describe('PaymentWebhookService', () => {
     expect(promoUpdate).not.toHaveBeenCalled();
     expect(metrics.recordPayment).not.toHaveBeenCalled();
     expect(storeGeneratedReceipt).toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('should audit canceled payments only after a real status transition', async () => {
+    yookassa.getPayment.mockResolvedValue({
+      id: 'yk-payment-1',
+      status: 'canceled',
+      paid: false,
+      amountValue: '1350.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'sbp',
+      paymentMethodTitle: 'SBP',
+      receiptRegistration: null,
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: null,
+      metadata: {
+        payment_id: 'payment-1',
+      },
+    });
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+    );
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: 'payment.canceled',
+        object: {
+          id: 'yk-payment-1',
+          status: 'canceled',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(paymentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'payment-1',
+        status: PaymentStatus.Pending,
+      },
+      data: {
+        status: PaymentStatus.Failed,
+        paymentMethod: 'sbp',
+      },
+    });
+    expect(metrics.recordPayment).toHaveBeenCalledWith('failed');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        assessmentId: null,
+        after: expect.objectContaining({
+          status: PaymentStatus.Failed,
+          amount: '1350.00',
+          transactionId: 'yk-payment-1',
+          paymentMethod: 'sbp',
+          paymentProvider: 'YooKassa',
+        }),
+      }),
+    );
+  });
+
+  it('should not audit duplicate canceled notifications', async () => {
+    paymentUpdateMany.mockResolvedValue({ count: 0 });
+    yookassa.getPayment.mockResolvedValue({
+      id: 'yk-payment-1',
+      status: 'canceled',
+      paid: false,
+      amountValue: '1350.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'sbp',
+      paymentMethodTitle: 'SBP',
+      receiptRegistration: null,
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: null,
+      metadata: {
+        payment_id: 'payment-1',
+      },
+    });
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+    );
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: 'payment.canceled',
+        object: {
+          id: 'yk-payment-1',
+          status: 'canceled',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(metrics.recordPayment).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('should reject notifications with an invalid secret', async () => {
@@ -318,6 +462,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await expect(

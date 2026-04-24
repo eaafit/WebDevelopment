@@ -1,5 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { AuditService } from '@internal/audit';
+import { getCurrentUser } from '@internal/auth-shared';
 import {
   CreatePaymentResponseSchema,
   PromoValidationStatus,
@@ -62,6 +64,7 @@ export class PaymentCreateService {
     private readonly yookassa: YooKassaClient,
     private readonly metrics: MetricsService,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
+    private readonly auditService: AuditService,
   ) {}
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
@@ -115,6 +118,27 @@ export class PaymentCreateService {
         where: { id: payment.id },
         data: { transactionId: result.id },
       });
+
+      if (resolved.assessmentId) {
+        await this.auditService.record({
+          actorUserId: getCurrentUser()?.sub ?? request.userId,
+          eventType: 'payment.created',
+          targetType: 'Payment',
+          targetId: payment.id,
+          assessmentId: resolved.assessmentId,
+          actionTitle: 'Создан платёж по заявке',
+          actionContext: `Сумма: ${resolved.amount} ${SUBSCRIPTION_CURRENCY}`,
+          targetTitle: `Платёж ${shortId(payment.id)}`,
+          targetContext: `Заявка ${shortId(resolved.assessmentId)}`,
+          after: {
+            status: 'pending',
+            amount: resolved.amount,
+            transactionId: result.id,
+            assessmentId: resolved.assessmentId,
+            paymentMethod: 'yookassa_widget',
+          },
+        });
+      }
 
       this.logger.log(
         `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
@@ -435,6 +459,10 @@ function parseAmountToCents(value: string, fieldName: string): number {
 
 function centsToAmount(value: number): string {
   return (value / 100).toFixed(2);
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
 
 function calculateDiscountAmount(baseAmountCents: number, percent: string): number {
