@@ -100,16 +100,19 @@
 
 ## 8. Лог действий (AuditLog)
 
-| Postgres       | Proto        | Prisma       | Type       | Description                                 |
-| :------------- | :----------- | :----------- | :--------- | :------------------------------------------ |
-| **audit_logs** | **AuditLog** | **AuditLog** | **Entity** | **Логи действий (Аудит)**                   |
-| id             | id           | id           | UUID       | PK, Идентификатор лога                      |
-| user_id        | user_id      | userId       | UUID       | FK, Пользователь, инициировавший действие   |
-| action_type    | action_type  | actionType   | varchar    | Тип действия (create, update, delete и др.) |
-| entity_name    | entity_name  | entityName   | varchar    | Имя сущности (Assessment, Document и др.)   |
-| entity_id      | entity_id    | entityId     | UUID       | ID объекта действия                         |
-| timestamp      | timestamp    | timestamp    | timestamp  | Время действия                              |
-| details        | details      | details      | jsonb      | Дополнительные данные                       |
+| Postgres       | Proto         | Prisma       | Type       | Description                                 |
+| :------------- | :------------ | :----------- | :--------- | :------------------------------------------ |
+| **audit_logs** | **AuditLog**  | **AuditLog** | **Entity** | **Логи действий (Аудит)**                   |
+| id             | id            | id           | UUID       | PK, Идентификатор лога                      |
+| user_id        | user_id       | userId       | UUID       | FK, Пользователь, инициировавший действие   |
+| assessment_id  | assessment_id | assessmentId | UUID       | FK, Nullable, заявка для scope нотариуса    |
+| action_type    | action_type   | actionType   | varchar    | Тип действия (create, update, delete и др.) |
+| entity_name    | entity_name   | entityName   | varchar    | Имя сущности (Assessment, Document и др.)   |
+| entity_id      | entity_id     | entityId     | UUID       | ID объекта действия                         |
+| timestamp      | timestamp     | timestamp    | timestamp  | Время действия                              |
+| details        | details       | details      | jsonb      | Дополнительные данные                       |
+
+Индексы audit feed/export: `timestamp DESC`, `action_type`, `entity_id`, `user_id`, `assessment_id`, составной `assessment_id, timestamp DESC`.
 
 ## 9. Промокод (Promo)
 

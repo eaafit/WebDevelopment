@@ -20,6 +20,7 @@ assignees: ['SuperLuchito']
 
 - [ ] **Страница аудита** (`/admin/monitoring`) — таблица событий: иконка типа, описание действия, исполнитель (ФИО/email), целевой объект (пользователь/заказ), дата/время
 - [ ] **Панель фильтров** — по типу события, исполнителю, дате (диапазон), целевому объекту (ID)
+- [ ] **Точные фильтры** — по `actor_user_id` и `assessment_id` для интеграций и точного поиска
 - [ ] **Детали события** — раскрываемая строка или боковая панель: diff значений до/после, IP-адрес, user-agent
 - [ ] **Экспорт** — кнопка «Выгрузить CSV» по текущим фильтрам
 - [ ] **Вид для нотариуса** — лента событий только по заказам данного нотариуса
@@ -29,19 +30,31 @@ assignees: ['SuperLuchito']
 - Маршруты: `/admin/monitoring`, `/notary/monitoring` (ограниченный вид)
 - Защита: `roleGuard(UserRole.Admin)` / `roleGuard(UserRole.Notary)`
 - RPC: `AuditService` (согласовать с бэкендом — proto существует: `audit_pb.ts`)
+- Методы RPC: `ListAuditEvents`, `ExportAuditEvents`
 - Серверная пагинация, debounced-фильтры
-- Экспорт CSV: формировать на клиенте из полученных данных (`Blob`) или запрашивать у бэкенда
+- Экспорт CSV: данные запрашиваются через backend `ExportAuditEvents`, клиент формирует CSV (`Blob`)
+- `AuditLog.assessment_id` используется для scope нотариуса; `/notary/monitoring` не должен видеть события чужих заявок
+- `audit.exported` получает `assessment_id` только при экспорте конкретной заявки; notary-wide export остаётся глобальным admin-visible событием, потому что лента нотариуса намеренно ограничена владением заявками
+- Issue 22 не включает security events, страницу безопасности, техническое JSON-логирование, Pino, request-id, Loki/Grafana
 
 ## Acceptance criteria
 
 - [ ] Таблица показывает все события с пагинацией
-- [ ] Фильтры по типу, исполнителю и дате корректно ограничивают выборку
+- [ ] Фильтры по типу, исполнителю, `actor_user_id`, `target_id`, `assessment_id` и дате корректно ограничивают выборку
 - [ ] Детали события раскрываются inline без перехода на другую страницу
 - [ ] CSV-экспорт скачивается с текущими фильтрами
+- [ ] Экспорт ограничен backend cap и сам записывается в audit trail как `audit.exported`
 - [ ] Нотариус видит только события своих заказов
 
 ## Связанные файлы
 
 - `libs/web/admin/src/lib/features/monitoring/`
-- Proto: `libs/shared/api-contracts/src/` (`audit_pb.ts`)
-- Зависимость: issue-23 (Черненко Дмитрий — детальные логи)
+- `libs/web/notary/src/lib/features/monitoring/`
+- `libs/web/shared/ui/src/lib/audit-monitoring/`
+- `libs/api/audit/`
+- Proto: `libs/shared/api-contracts/proto/notary/audit/v1alpha1/audit.proto`
+
+## Не входит в issue 22
+
+- Issue 23: security events, отдельная security page, просмотр логов по пользователю/заказу вне audit trail.
+- Issue 32/33: технические process logs, Pino, request-id, Loki/Grafana.
