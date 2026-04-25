@@ -11,12 +11,15 @@
     </mat-card-header>
 
     <mat-card-content>
-      <div *ngIf="isLoading" class="loading-container">
+      @if (isLoading) {
+      <div class="loading-container">
         <mat-spinner diameter="40"></mat-spinner>
         <p>Загрузка конфигурации...</p>
       </div>
+      }
 
-      <div *ngIf="!isLoading" class="config-form">
+      @if (!isLoading) {
+      <div class="config-form">
         <form (ngSubmit)="saveConfig()" #configForm="ngForm">
           <div class="form-section">
             <h3>Параметры подключения</h3>
@@ -89,8 +92,12 @@
                 (click)="testConnection()"
                 [disabled]="isTesting || isSaving || !portalUrl || !memberId || !accessToken"
               >
-                <mat-icon *ngIf="!isTesting">wifi</mat-icon>
-                <mat-spinner *ngIf="isTesting" diameter="20"></mat-spinner>
+                @if (!isTesting) {
+                <mat-icon>wifi</mat-icon>
+                }
+                @if (isTesting) {
+                <mat-spinner diameter="20"></mat-spinner>
+                }
                 {{ isTesting ? 'Проверка...' : 'Проверить подключение' }}
               </button>
 
@@ -100,14 +107,19 @@
                 type="submit"
                 [disabled]="isSaving || isTesting || !configForm.form.valid"
               >
-                <mat-icon *ngIf="!isSaving">save</mat-icon>
-                <mat-spinner *ngIf="isSaving" diameter="20"></mat-spinner>
+                @if (!isSaving) {
+                <mat-icon>save</mat-icon>
+                }
+                @if (isSaving) {
+                <mat-spinner diameter="20"></mat-spinner>
+                }
                 {{ isSaving ? 'Сохранение...' : 'Сохранить настройки' }}
               </button>
             </div>
           </div>
         </form>
       </div>
+      }
     </mat-card-content>
 
     <mat-card-actions>

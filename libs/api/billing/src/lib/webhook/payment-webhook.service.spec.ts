@@ -206,7 +206,6 @@ describe('PaymentWebhookService', () => {
       }),
     );
   });
-  });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
     findPayment.mockResolvedValue({
@@ -545,6 +544,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(

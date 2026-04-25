@@ -105,7 +105,7 @@ const MOCK_NOTIFICATIONS: NotaryNotification[] = [
 ];
 
 @Component({
-  selector: 'notary-notifications',
+  selector: 'lib-notary-notifications',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './notifications.html',
