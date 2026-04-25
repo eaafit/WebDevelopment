@@ -14,6 +14,7 @@ describe('PaymentWebhookService', () => {
     recordPaymentAmount: jest.fn(),
     recordBillingPayment: jest.fn(),
     recordBillingPaymentAmount: jest.fn(),
+    recordPromoApplied: jest.fn(),
   };
   const yookassa = {
     getPayment: jest.fn(),
@@ -53,6 +54,7 @@ describe('PaymentWebhookService', () => {
     metrics.recordPaymentAmount.mockReset();
     metrics.recordBillingPayment.mockReset();
     metrics.recordBillingPaymentAmount.mockReset();
+    metrics.recordPromoApplied.mockReset();
     yookassa.getPayment.mockReset();
     paymentSubscriptionService.activateSubscription.mockReset();
 
@@ -65,6 +67,9 @@ describe('PaymentWebhookService', () => {
       status: PaymentStatus.Pending,
       type: PaymentType.Subscription,
       promoId: 'promo-1',
+      discountAmount: {
+        toString: () => '150.00',
+      },
       subscriptionId: 'subscription-1',
       assessmentId: null,
       paymentMethod: 'yookassa_widget',
@@ -170,6 +175,14 @@ describe('PaymentWebhookService', () => {
       actor: 'notary',
       scenario: 'subscription',
     });
+    expect(metrics.recordPromoApplied).toHaveBeenCalledWith(
+      {
+        actor: 'notary',
+        scenario: 'subscription',
+      },
+      'percent',
+      150,
+    );
   });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
@@ -182,6 +195,7 @@ describe('PaymentWebhookService', () => {
       status: PaymentStatus.Pending,
       type: PaymentType.Assessment,
       promoId: null,
+      discountAmount: null,
       subscriptionId: null,
       assessmentId: 'assessment-1',
       paymentMethod: 'yookassa_widget',
@@ -251,6 +265,7 @@ describe('PaymentWebhookService', () => {
       status: PaymentStatus.Pending,
       type: PaymentType.DocumentCopy,
       promoId: null,
+      discountAmount: null,
       subscriptionId: null,
       assessmentId: null,
       paymentMethod: 'yookassa_widget',
@@ -337,6 +352,7 @@ describe('PaymentWebhookService', () => {
     expect(promoUpdate).not.toHaveBeenCalled();
     expect(metrics.recordPayment).not.toHaveBeenCalled();
     expect(metrics.recordBillingPayment).not.toHaveBeenCalled();
+    expect(metrics.recordPromoApplied).not.toHaveBeenCalled();
     expect(storeGeneratedReceipt).toHaveBeenCalled();
   });
 
@@ -350,6 +366,7 @@ describe('PaymentWebhookService', () => {
       status: PaymentStatus.Pending,
       type: PaymentType.Assessment,
       promoId: null,
+      discountAmount: null,
       subscriptionId: null,
       assessmentId: 'assessment-1',
       paymentMethod: 'yookassa_widget',

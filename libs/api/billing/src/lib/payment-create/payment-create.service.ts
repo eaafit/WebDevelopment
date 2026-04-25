@@ -13,7 +13,7 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
-import { MetricsService } from '@internal/metrics';
+import { MetricsService, type PromoValidationMetricStatus } from '@internal/metrics';
 import {
   PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
@@ -152,6 +152,10 @@ export class PaymentCreateService {
     const plan = getSubscriptionPlanByPrisma(this.toPrismaPlan(request.plan));
     const baseAmountCents = parseAmountToCents(plan.price, 'plan.price');
     const promoValidation = await this.validatePromoCode(request.promoCode);
+    this.metrics.recordPromoValidation(
+      'preview',
+      toPromoValidationMetricStatus(promoValidation.status),
+    );
 
     if (promoValidation.status !== PromoValidationStatus.VALID || !promoValidation.promo) {
       return create(ValidateSubscriptionPromoResponseSchema, {
@@ -311,6 +315,11 @@ export class PaymentCreateService {
     }
 
     const validation = await this.validatePromoCode(rawPromoCode);
+    this.metrics.recordPromoValidation(
+      'payment_create',
+      toPromoValidationMetricStatus(validation.status),
+    );
+
     if (validation.status === PromoValidationStatus.VALID) {
       return validation.promo;
     }
@@ -468,4 +477,20 @@ function resolveReceiptVatCode(): number {
   }
 
   return value;
+}
+
+function toPromoValidationMetricStatus(status: PromoValidationStatus): PromoValidationMetricStatus {
+  switch (status) {
+    case PromoValidationStatus.VALID:
+      return 'valid';
+    case PromoValidationStatus.NOT_FOUND:
+      return 'not_found';
+    case PromoValidationStatus.EXPIRED:
+      return 'expired';
+    case PromoValidationStatus.USAGE_LIMIT_REACHED:
+      return 'usage_limit_reached';
+    case PromoValidationStatus.UNSPECIFIED:
+    default:
+      return 'unspecified';
+  }
 }

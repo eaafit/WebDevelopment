@@ -14,6 +14,14 @@ export type BillingPaymentScenario =
   | 'assessment_service'
   | 'document_copy_service';
 export type BillingPaymentStatus = 'pending' | 'completed' | 'failed';
+export type PromoValidationMetricStatus =
+  | 'valid'
+  | 'not_found'
+  | 'expired'
+  | 'usage_limit_reached'
+  | 'unspecified';
+export type PromoValidationFlow = 'preview' | 'payment_create';
+export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
 
@@ -31,6 +39,9 @@ export class MetricsService {
   private readonly paymentsAmountTotal: Counter<string>;
   private readonly billingPaymentEventsTotal: Counter<'actor' | 'scenario' | 'status'>;
   private readonly billingPaymentAmountTotal: Counter<'actor' | 'scenario'>;
+  private readonly promoValidationTotal: Counter<'flow' | 'status'>;
+  private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
+  private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
   private readonly usersRegistered: Counter<string>;
   private readonly auditEventsTotal: Counter<string>;
@@ -70,6 +81,27 @@ export class MetricsService {
       name: `${PREFIX}billing_payment_amount_total`,
       help: 'Total amount of completed billing payments in base currency units by actor and scenario',
       labelNames: ['actor', 'scenario'],
+      registers: [this.register],
+    });
+
+    this.promoValidationTotal = new Counter({
+      name: `${PREFIX}billing_promo_validation_total`,
+      help: 'Total number of promo code validation attempts by flow and result status',
+      labelNames: ['flow', 'status'],
+      registers: [this.register],
+    });
+
+    this.promoAppliedTotal = new Counter({
+      name: `${PREFIX}billing_promo_applied_total`,
+      help: 'Total number of promo codes applied to completed payments',
+      labelNames: ['scenario', 'discount_type'],
+      registers: [this.register],
+    });
+
+    this.promoDiscountAmountTotal = new Counter({
+      name: `${PREFIX}billing_promo_discount_amount_total`,
+      help: 'Total discount amount from promo codes applied to completed payments in base currency units',
+      labelNames: ['scenario', 'discount_type'],
       registers: [this.register],
     });
 
@@ -136,6 +168,27 @@ export class MetricsService {
       },
       amount,
     );
+  }
+
+  recordPromoValidation(flow: PromoValidationFlow, status: PromoValidationMetricStatus): void {
+    this.promoValidationTotal.inc({ flow, status });
+  }
+
+  recordPromoApplied(
+    context: Pick<BillingPaymentMetricContext, 'scenario'>,
+    discountType: PromoDiscountType,
+    discountAmount: number,
+  ): void {
+    const labels = {
+      scenario: context.scenario,
+      discount_type: discountType,
+    };
+
+    this.promoAppliedTotal.inc(labels);
+
+    if (discountAmount > 0) {
+      this.promoDiscountAmountTotal.inc(labels, discountAmount);
+    }
   }
 
   recordPaymentHistoryRequest(scope: PaymentHistoryScope, result: MetricsResult): void {

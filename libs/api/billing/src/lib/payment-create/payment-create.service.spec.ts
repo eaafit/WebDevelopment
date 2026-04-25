@@ -23,6 +23,7 @@ describe('PaymentCreateService', () => {
   const metrics = {
     recordPayment: jest.fn(),
     recordBillingPayment: jest.fn(),
+    recordPromoValidation: jest.fn(),
   };
   const yookassa = {
     createPayment: jest.fn(),
@@ -56,6 +57,7 @@ describe('PaymentCreateService', () => {
     findUser.mockReset();
     metrics.recordPayment.mockReset();
     metrics.recordBillingPayment.mockReset();
+    metrics.recordPromoValidation.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
 
@@ -174,6 +176,7 @@ describe('PaymentCreateService', () => {
       actor: 'notary',
       scenario: 'subscription',
     });
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('payment_create', 'valid');
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
   });
 
@@ -354,5 +357,6 @@ describe('PaymentCreateService', () => {
         discountPercent: '10.00',
       }),
     );
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('preview', 'valid');
   });
 });
