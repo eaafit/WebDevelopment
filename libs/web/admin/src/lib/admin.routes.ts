@@ -21,6 +21,13 @@ export const adminRoutes: Route[] = [
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
       },
       {
+        path: 'order-status-history',
+        loadComponent: () =>
+          import('./features/order-status-history/order-status-history').then(
+            (m) => m.OrderStatusHistory,
+          ),
+      },
+      {
         path: 'payments/new',
         component: PaymentFormComponent,
       },
@@ -63,6 +70,11 @@ export const adminRoutes: Route[] = [
       {
         path: 'promocodes',
         loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
+      },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.AdminNotifications),
       },
       {
         path: 'statistics',

@@ -11,6 +11,7 @@ const ADMIN_MENU = [
   { label: 'Управление статусами', route: 'orders/statuses', icon: '🔄' },
   { label: 'Очередь оценок', route: 'orders/queue', icon: '📝' },
   { label: 'Ручная модерация', route: 'orders/moderation', icon: '✅' },
+  { label: 'История статусов заявок', route: 'order-status-history', icon: '📜' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
   { label: 'Подписки', route: 'subscriptions', icon: '👑' },
   { label: 'Тарифные планы', route: 'plans', icon: '📋' },
