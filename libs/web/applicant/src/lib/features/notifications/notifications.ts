@@ -105,7 +105,7 @@ const MOCK_NOTIFICATIONS: ApplicantNotification[] = [
 ];
 
 @Component({
-  selector: 'applicant-notifications',
+  selector: 'lib-applicant-notifications',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './notifications.html',

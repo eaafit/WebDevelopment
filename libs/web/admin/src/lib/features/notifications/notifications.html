@@ -20,14 +20,15 @@
         <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
       @if (!notifications().length) {
-      <button
-        type="button"
-        class="admin-notifications__btn admin-notifications__btn--ghost"
-        (click)="restoreDemoData()">
-        Вернуть демо-данные
-      </button>
-      } @if (inboxCount(); as c) {
-      <span class="admin-notifications__badge"> В очереди / непрочитано: {{ c }} </span>
+        <button
+          type="button"
+          class="admin-notifications__btn admin-notifications__btn--ghost"
+          (click)="restoreDemoData()">
+          Вернуть демо-данные
+        </button>
+      }
+      @if (inboxCount(); as c) {
+        <span class="admin-notifications__badge"> В очереди / непрочитано: {{ c }} </span>
       }
     </div>
   </header>

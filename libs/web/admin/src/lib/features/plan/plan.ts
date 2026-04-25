@@ -186,10 +186,11 @@ export class PlanComponent {
 
   savePlan(): void {
     if (this.isEditMode && this.selectedPlan) {
-      const index = this.allPlans.findIndex((p) => p.id === this.selectedPlan?.id);
+      const selected = this.selectedPlan;
+      const index = this.allPlans.findIndex((p) => p.id === selected.id);
       if (index !== -1) {
         this.allPlans[index] = {
-          ...this.selectedPlan,
+          ...selected,
           name: this.formData.name,
           price: this.formData.price,
           description: this.formData.description,
@@ -224,9 +225,10 @@ export class PlanComponent {
   }
 
   deletePlan(): void {
-    if (this.planToDelete) {
-      this.allPlans = this.allPlans.filter((p) => p.id !== this.planToDelete?.id);
-      console.log('Удален тариф:', this.planToDelete);
+    const toDelete = this.planToDelete;
+    if (toDelete) {
+      this.allPlans = this.allPlans.filter((p) => p.id !== toDelete.id);
+      console.log('Удален тариф:', toDelete);
       this.showDeleteModal = false;
       this.planToDelete = null;
     }

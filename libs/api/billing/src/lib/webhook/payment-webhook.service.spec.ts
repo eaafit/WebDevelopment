@@ -206,7 +206,6 @@ describe('PaymentWebhookService', () => {
       }),
     );
   });
-  });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
     findPayment.mockResolvedValue({
