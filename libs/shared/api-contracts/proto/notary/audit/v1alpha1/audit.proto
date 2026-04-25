@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package notary.audit.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+import "notary/user/v1alpha1/user.proto";
+
+service AuditService {
+  rpc ListAuditEvents(ListAuditEventsRequest) returns (ListAuditEventsResponse);
+  rpc ExportAuditEvents(ExportAuditEventsRequest) returns (ExportAuditEventsResponse);
+}
+
+message AuditEventFilters {
+  reserved 6;
+
+  string event_type = 1;
+  string actor_query = 2;
+  string target_id = 3;
+  notary.common.v1alpha1.DateRange date_range = 4;
+  string actor_user_id = 5;
+}
+
+message AuditEvent {
+  string id = 1;
+  google.protobuf.Timestamp occurred_at = 2;
+  string event_type = 3;
+  string action_title = 4;
+  string action_context = 5;
+  string actor_user_id = 6;
+  string actor_name = 7;
+  string actor_email = 8;
+  notary.user.v1alpha1.UserRole actor_role = 9;
+  string target_type = 10;
+  string target_id = 11;
+  string target_title = 12;
+  string target_context = 13;
+  string ip = 14;
+  string user_agent = 15;
+  string before_json = 16;
+  string after_json = 17;
+}
+
+message ListAuditEventsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1;
+  AuditEventFilters filters = 2;
+}
+
+message ListAuditEventsResponse {
+  repeated AuditEvent events = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message ExportAuditEventsRequest {
+  AuditEventFilters filters = 1;
+}
+
+message ExportAuditEventsResponse {
+  repeated AuditEvent events = 1;
+}

@@ -388,6 +388,12 @@ model AuditLog {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([timestamp(sort: Desc)])
+  @@index([actionType])
+  @@index([entityId])
+  @@index([userId])
+  @@index([entityName, entityId])
+  @@index([entityName, entityId, timestamp(sort: Desc)])
   @@map("audit_logs")
 }
 

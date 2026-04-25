@@ -142,6 +142,8 @@
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
+Сервис доступа: `AuditService.ListAuditEvents` и `AuditService.ExportAuditEvents`. Фильтры: тип события, имя/email исполнителя, точный `actor_user_id`, `target_id`, диапазон дат. Для событий заявки используется `EntityName = Assessment`, `EntityId = id заявки`; UI-фильтр «ID заявки» отправляет `target_id`. `/admin/monitoring` использует полный scope, `/notary/monitoring` ограничен заявками текущего нотариуса через список его assessments и `EntityId`.
+
 ## 11. Промокод (Promo)
 
 - `Id` (UUID, PK) — идентификатор промокода

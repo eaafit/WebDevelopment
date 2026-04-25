@@ -15,6 +15,7 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@internal/audit": ["libs/api/audit/src/index.ts"],
       "@internal/assessment": ["libs/api/assessment/src/index.ts"],
       "@internal/auth": ["libs/api/auth/src/index.ts"],
       "@internal/auth-shared": ["libs/api/shared/auth/src/index.ts"],

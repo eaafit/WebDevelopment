@@ -1,3 +1,4 @@
+export * from './generated/notary/audit/v1alpha1/audit_pb';
 export * from './generated/notary/assessment/v1alpha1/assessment_pb';
 export * from './generated/notary/auth/v1alpha1/auth_pb';
 export * from './generated/notary/common/v1alpha1/common_pb';

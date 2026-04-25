@@ -1,0 +1,270 @@
+<section class="audit-page" [attr.data-mode]="mode" [attr.aria-busy]="loading()">
+  <header class="audit-page__hero">
+    <div class="audit-page__hero-copy">
+      <p class="audit-page__eyebrow">{{ eyebrow }}</p>
+      <h2>{{ title }}</h2>
+      <p class="audit-page__lead">{{ lead }}</p>
+    </div>
+
+    <div class="audit-page__actions">
+      <button type="button" class="audit-btn audit-btn--ghost" [disabled]="disableActions()" (click)="resetFilters()">
+        <span class="audit-btn__content">
+          <span class="audit-btn__marker" aria-hidden="true"></span>
+          <span class="audit-btn__label">Сбросить фильтры</span>
+          <span class="audit-btn__spinner" aria-hidden="true"></span>
+        </span>
+      </button>
+      <button type="button" class="audit-btn audit-btn--secondary" [disabled]="disableActions()" (click)="refresh()">
+        <span class="audit-btn__content">
+          <span class="audit-btn__marker" aria-hidden="true"></span>
+          <span class="audit-btn__label">Обновить</span>
+          <span class="audit-btn__spinner" aria-hidden="true"></span>
+        </span>
+      </button>
+      <button type="button" class="audit-btn audit-btn--primary" [disabled]="disableActions()" (click)="exportCsv()">
+        <span class="audit-btn__content">
+          <span class="audit-btn__marker" aria-hidden="true"></span>
+          <span class="audit-btn__label">Экспорт CSV</span>
+          <span
+            class="audit-btn__spinner audit-btn__spinner--light"
+            [class.audit-btn__spinner--visible]="exporting()"
+            aria-hidden="true"></span>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <article class="audit-card audit-card--filters">
+    <div class="audit-card__header">
+      <div>
+        <h3>Фильтры</h3>
+        <p>{{ filtersSummary }}</p>
+      </div>
+    </div>
+
+    <div class="audit-filters">
+      <label class="audit-field">
+        <span>Тип события</span>
+        <input
+          type="text"
+          placeholder="assessment.created"
+          [value]="draftFilters().eventType"
+          (input)="updateFilter('eventType', $any($event.target).value)" />
+      </label>
+
+      <label class="audit-field">
+        <span>Исполнитель</span>
+        <input
+          type="text"
+          placeholder="Имя или email"
+          [value]="draftFilters().actorQuery"
+          (input)="updateFilter('actorQuery', $any($event.target).value)" />
+      </label>
+
+      <label class="audit-field">
+        <span>ID исполнителя</span>
+        <input
+          type="text"
+          placeholder="UUID пользователя"
+          [value]="draftFilters().actorUserId"
+          (input)="updateFilter('actorUserId', $any($event.target).value)" />
+      </label>
+
+      <label class="audit-field">
+        <span>ID заявки</span>
+        <input
+          type="text"
+          placeholder="UUID заявки"
+          [value]="draftFilters().targetId"
+          (input)="updateFilter('targetId', $any($event.target).value)" />
+      </label>
+
+      <label class="audit-field">
+        <span>Дата от</span>
+        <input
+          type="date"
+          [value]="draftFilters().dateFrom"
+          (change)="updateFilter('dateFrom', $any($event.target).value)" />
+      </label>
+
+      <label class="audit-field">
+        <span>Дата до</span>
+        <input
+          type="date"
+          [value]="draftFilters().dateTo"
+          (change)="updateFilter('dateTo', $any($event.target).value)" />
+      </label>
+    </div>
+  </article>
+
+  <section class="audit-layout">
+    <article class="audit-card audit-card--feed">
+      <div class="audit-card__header">
+        <div>
+          <h3>Лента событий</h3>
+          <p>Реальные события продуктового аудита с backend-пагинацией.</p>
+        </div>
+      </div>
+
+      @if (showFatalError()) {
+      <div class="audit-state audit-state--error">
+        <strong>Не удалось загрузить события.</strong>
+        <p>{{ error() }}</p>
+      </div>
+      } @else { @if (showInlineError()) {
+      <div class="audit-inline-error" role="status">
+        <strong>Не удалось обновить ленту.</strong>
+        <p>{{ error() }} Показана последняя успешная выдача.</p>
+      </div>
+      }
+
+      <div class="audit-feed">
+        @if (isInitialLoading()) {
+        <div class="audit-state audit-state--loading">
+          <span class="audit-spinner" aria-hidden="true"></span>
+          <div>
+            <strong>Загрузка событий...</strong>
+            <p>Получаем записи аудита с backend.</p>
+          </div>
+        </div>
+        } @else if (!events().length) {
+        <div class="audit-state">
+          <strong>По текущим фильтрам событий не найдено.</strong>
+          <p>Очистите фильтры или проверьте ID объекта и диапазон дат.</p>
+        </div>
+        } @else {
+        <div class="audit-list">
+          @for (event of events(); track trackEvent($index, event)) {
+          <button
+            type="button"
+            class="audit-row"
+            [class.audit-row--active]="selectedEvent()?.id === event.id"
+            (click)="selectEvent(event.id)">
+            <div class="audit-row__top">
+              <div>
+                <strong>{{ event.actionTitle }}</strong>
+                <p>{{ event.actionContext || event.eventType }}</p>
+              </div>
+
+              <div class="audit-row__time">
+                <span>{{ formatDate(event.occurredAt) }}</span>
+                <strong>{{ formatTime(event.occurredAt) }}</strong>
+              </div>
+            </div>
+
+            <div class="audit-row__grid">
+              <div>
+                <span>Исполнитель</span>
+                <strong>{{ event.actorName }}</strong>
+                <small>{{ event.actorEmail }} · {{ event.actorRoleLabel }}</small>
+              </div>
+
+              <div>
+                <span>Объект</span>
+                <strong>{{ event.targetTitle }}</strong>
+                <small>{{ event.targetType }} · {{ event.targetId }}</small>
+              </div>
+
+              <div>
+                <span>Тип события</span>
+                <strong>{{ event.eventType }}</strong>
+                <small>{{ event.targetContext || 'Контекст объекта не указан' }}</small>
+              </div>
+            </div>
+          </button>
+          }
+        </div>
+        }
+      </div>
+
+      @if (meta()) {
+      <div class="audit-pagination">
+        <button
+          type="button"
+          class="audit-btn audit-btn--ghost"
+          [disabled]="loading() || !hasPreviousPage()"
+          (click)="goToPreviousPage()">
+          Назад
+        </button>
+        <span>Страница {{ meta()?.currentPage ?? 1 }} из {{ meta()?.totalPages ?? 1 }}</span>
+        <button
+          type="button"
+          class="audit-btn audit-btn--ghost"
+          [disabled]="loading() || !hasNextPage()"
+          (click)="goToNextPage()">
+          Далее
+        </button>
+      </div>
+      } }
+    </article>
+
+    <aside class="audit-card audit-card--details">
+      <div class="audit-card__header">
+        <div>
+          <h3>Детали события</h3>
+          <p>Контекст действия, объект, IP, user-agent и diff значений.</p>
+        </div>
+      </div>
+
+      @if (selectedEvent(); as current) {
+      <div class="audit-details">
+        <div class="audit-details__headline">
+          <strong>{{ current.actionTitle }}</strong>
+          <span>{{ current.eventType }}</span>
+        </div>
+
+        <dl class="audit-meta">
+          <div>
+            <dt>Контекст действия</dt>
+            <dd>{{ current.actionContext || '—' }}</dd>
+          </div>
+          <div>
+            <dt>Исполнитель</dt>
+            <dd>{{ current.actorName }} · {{ current.actorRoleLabel }}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>{{ current.actorEmail }}</dd>
+          </div>
+          <div>
+            <dt>Объект</dt>
+            <dd>{{ current.targetTitle }}</dd>
+          </div>
+          <div>
+            <dt>ID объекта</dt>
+            <dd>{{ current.targetId }}</dd>
+          </div>
+          <div>
+            <dt>Контекст объекта</dt>
+            <dd>{{ current.targetContext || '—' }}</dd>
+          </div>
+          <div>
+            <dt>IP</dt>
+            <dd>{{ current.ip || '—' }}</dd>
+          </div>
+          <div>
+            <dt>User-Agent</dt>
+            <dd>{{ current.userAgent || '—' }}</dd>
+          </div>
+        </dl>
+
+        <div class="audit-diff">
+          <div>
+            <span>Before</span>
+            <pre>{{ current.beforeJson || '—' }}</pre>
+          </div>
+          <div>
+            <span>After</span>
+            <pre>{{ current.afterJson || '—' }}</pre>
+          </div>
+        </div>
+      </div>
+      } @else {
+      <div class="audit-state">
+        <strong>Событие не выбрано.</strong>
+        <p>Выберите запись из ленты, чтобы посмотреть детали.</p>
+      </div>
+      }
+    </aside>
+  </section>
+</section>

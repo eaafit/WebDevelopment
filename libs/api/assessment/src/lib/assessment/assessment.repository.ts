@@ -71,6 +71,17 @@ export interface UpdateAssessmentData {
   realEstateObject?: AssessmentRealEstateObjectData;
 }
 
+export interface AssessmentAuditSnapshot {
+  id: string;
+  userId: string;
+  notaryId: string | null;
+  status: PrismaAssessmentStatus;
+  address: string;
+  description: string | null;
+  estimatedValue: string | null;
+  cancelReason: string | null;
+}
+
 type PrismaCityRow = {
   id: string;
   name: string;
@@ -177,6 +188,33 @@ export class AssessmentRepository {
     });
 
     return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
+  }
+
+  async getAssessmentSnapshot(id: string): Promise<AssessmentAuditSnapshot> {
+    const assessment = await this.prisma.assessment.findUniqueOrThrow({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        notaryId: true,
+        status: true,
+        address: true,
+        description: true,
+        estimatedValue: true,
+        cancelReason: true,
+      },
+    });
+
+    return {
+      id: assessment.id,
+      userId: assessment.userId,
+      notaryId: assessment.notaryId,
+      status: assessment.status,
+      address: assessment.address,
+      description: assessment.description,
+      estimatedValue: assessment.estimatedValue?.toString() ?? null,
+      cancelReason: assessment.cancelReason,
+    };
   }
 
   async createAssessment(data: CreateAssessmentData): Promise<RpcAssessment> {
