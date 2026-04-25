@@ -18,7 +18,6 @@ const DEFAULT_FILTERS: AuditMonitoringFilters = {
   actorQuery: '',
   actorUserId: '',
   targetId: '',
-  assessmentId: '',
   dateFrom: '',
   dateTo: '',
 };
@@ -265,7 +264,6 @@ function normalizeFilters(filters: AuditMonitoringFilters): AuditMonitoringFilte
     actorQuery: filters.actorQuery.trim(),
     actorUserId: filters.actorUserId.trim(),
     targetId: filters.targetId.trim(),
-    assessmentId: filters.assessmentId.trim(),
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
   };
@@ -277,7 +275,6 @@ function areFiltersEqual(a: AuditMonitoringFilters, b: AuditMonitoringFilters): 
     a.actorQuery === b.actorQuery &&
     a.actorUserId === b.actorUserId &&
     a.targetId === b.targetId &&
-    a.assessmentId === b.assessmentId &&
     a.dateFrom === b.dateFrom &&
     a.dateTo === b.dateTo
   );

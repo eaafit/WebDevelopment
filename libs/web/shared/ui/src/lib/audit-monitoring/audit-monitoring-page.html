@@ -71,21 +71,12 @@
       </label>
 
       <label class="audit-field">
-        <span>Целевой объект ID</span>
-        <input
-          type="text"
-          placeholder="UUID объекта"
-          [value]="draftFilters().targetId"
-          (input)="updateFilter('targetId', $any($event.target).value)" />
-      </label>
-
-      <label class="audit-field">
         <span>ID заявки</span>
         <input
           type="text"
           placeholder="UUID заявки"
-          [value]="draftFilters().assessmentId"
-          (input)="updateFilter('assessmentId', $any($event.target).value)" />
+          [value]="draftFilters().targetId"
+          (input)="updateFilter('targetId', $any($event.target).value)" />
       </label>
 
       <label class="audit-field">

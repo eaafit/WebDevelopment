@@ -98,7 +98,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: '',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
@@ -129,7 +128,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: 'admin',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
@@ -143,7 +141,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: '',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
@@ -163,7 +160,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: '',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
@@ -284,8 +280,7 @@ describe('AuditMonitoringPage', () => {
       eventType: 'assessment.created',
       actorQuery: 'admin',
       actorUserId: '22222222-2222-4222-8222-222222222222',
-      targetId: '11111111-1111-4111-8111-111111111111',
-      assessmentId: '33333333-3333-4333-8333-333333333333',
+      targetId: '33333333-3333-4333-8333-333333333333',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-07',
     });
@@ -293,8 +288,7 @@ describe('AuditMonitoringPage', () => {
       eventType: 'assessment.created',
       actorQuery: 'admin',
       actorUserId: '22222222-2222-4222-8222-222222222222',
-      targetId: '11111111-1111-4111-8111-111111111111',
-      assessmentId: '33333333-3333-4333-8333-333333333333',
+      targetId: '33333333-3333-4333-8333-333333333333',
       dateFrom: '2026-03-01',
       dateTo: '2026-03-07',
     });
@@ -318,7 +312,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: '',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
@@ -333,7 +326,6 @@ describe('AuditMonitoringPage', () => {
       actorQuery: '',
       actorUserId: '',
       targetId: '',
-      assessmentId: '',
       dateFrom: '',
       dateTo: '',
     });
