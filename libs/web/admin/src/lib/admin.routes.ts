@@ -78,7 +78,7 @@ export const adminRoutes: Route[] = [
       // ===== ИСПРАВЛЕННЫЙ МАРШРУТ ДЛЯ ТАРИФНЫХ ПЛАНОВ =====
       {
         path: 'plans',
-        loadComponent: () => import('./plan/plan').then((m) => m.PlanComponent),
+        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
       } as Route,
       // =================================================
       {
