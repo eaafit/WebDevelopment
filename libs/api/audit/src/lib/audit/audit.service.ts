@@ -23,7 +23,6 @@ export interface RecordAuditEventInput {
   eventType: string;
   targetType: string;
   targetId: string;
-  assessmentId?: string | null;
   actionTitle: string;
   actionContext?: string;
   targetTitle?: string;
@@ -69,19 +68,17 @@ export class AuditService {
     const actorUserId = getCurrentUser()?.sub ?? null;
 
     if (actorUserId) {
+      const exportTarget = buildExportAuditTarget(query, actorUserId);
+
       await this.record({
         actorUserId,
         eventType: 'audit.exported',
-        targetType: 'AuditLog',
-        targetId: actorUserId,
-        // Bind audit.exported to assessment scope only for a single-assessment export.
-        // Notary-wide export remains admin-visible because notary feed is intentionally assessment-scoped.
-        assessmentId: query.filters.assessmentId,
+        targetType: exportTarget.targetType,
+        targetId: exportTarget.targetId,
         actionTitle: 'Экспорт аудита',
         actionContext: `Экспортировано строк: ${response.events.length}`,
-        targetTitle: 'CSV экспорт аудита',
-        targetContext:
-          query.scope.kind === 'notary' ? 'События по заявкам нотариуса' : 'Все события аудита',
+        targetTitle: exportTarget.targetTitle,
+        targetContext: exportTarget.targetContext,
         after: {
           filters: serializeFilters(query.filters),
           exportedRows: response.events.length,
@@ -115,8 +112,6 @@ export class AuditService {
     try {
       await this.auditRepository.createAuditLog({
         userId: actorUserId,
-        assessmentId:
-          input.assessmentId ?? (input.targetType === 'Assessment' ? input.targetId : null),
         actionType: input.eventType,
         entityName: input.targetType,
         entityId: input.targetId,
@@ -174,7 +169,6 @@ export class AuditService {
     const actorQuery = normalizeOptionalString(filters?.actorQuery);
     const actorUserId = normalizeOptionalUuid(filters?.actorUserId, 'filters.actorUserId');
     const targetId = normalizeOptionalUuid(filters?.targetId, 'filters.targetId');
-    const assessmentId = normalizeOptionalUuid(filters?.assessmentId, 'filters.assessmentId');
     const dateFrom = filters?.dateRange?.startDate
       ? timestampDate(filters.dateRange.startDate)
       : undefined;
@@ -194,7 +188,6 @@ export class AuditService {
       actorQuery,
       actorUserId,
       targetId,
-      assessmentId,
       dateFrom,
       dateTo,
     };
@@ -266,8 +259,34 @@ function serializeFilters(filters: AuditFiltersQuery): Prisma.JsonObject {
     actorQuery: filters.actorQuery,
     actorUserId: filters.actorUserId,
     targetId: filters.targetId,
-    assessmentId: filters.assessmentId,
     dateFrom: filters.dateFrom?.toISOString(),
     dateTo: filters.dateTo?.toISOString(),
   }) as Prisma.JsonObject;
+}
+
+function buildExportAuditTarget(
+  query: AuditExportQuery,
+  actorUserId: string,
+): {
+  targetType: string;
+  targetId: string;
+  targetTitle: string;
+  targetContext: string;
+} {
+  if (query.filters.targetId) {
+    return {
+      targetType: 'Assessment',
+      targetId: query.filters.targetId,
+      targetTitle: `Заявка #${query.filters.targetId.slice(0, 8)}`,
+      targetContext: 'CSV экспорт аудита по заявке',
+    };
+  }
+
+  return {
+    targetType: 'AuditLog',
+    targetId: actorUserId,
+    targetTitle: 'CSV экспорт аудита',
+    targetContext:
+      query.scope.kind === 'notary' ? 'События по заявкам нотариуса' : 'Все события аудита',
+  };
 }

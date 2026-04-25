@@ -3,7 +3,6 @@ export interface AuditFiltersQuery {
   actorQuery?: string;
   actorUserId?: string;
   targetId?: string;
-  assessmentId?: string;
   dateFrom?: Date;
   dateTo?: Date;
 }

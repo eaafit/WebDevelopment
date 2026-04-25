@@ -5,10 +5,16 @@ import { AuditRepository } from './audit.repository';
 describe('AuditRepository', () => {
   const count = jest.fn();
   const findMany = jest.fn();
+  const createAuditLog = jest.fn();
+  const findAssessments = jest.fn();
   const prisma = {
     auditLog: {
       count,
       findMany,
+      create: createAuditLog,
+    },
+    assessment: {
+      findMany: findAssessments,
     },
     $transaction: jest.fn((operations: Array<Promise<unknown>>) => Promise.all(operations)),
   };
@@ -18,10 +24,34 @@ describe('AuditRepository', () => {
   beforeEach(() => {
     count.mockReset();
     findMany.mockReset();
+    createAuditLog.mockReset();
+    findAssessments.mockReset();
     prisma.$transaction.mockClear();
 
     count.mockResolvedValue(3);
     findMany.mockResolvedValue([]);
+    createAuditLog.mockResolvedValue({ id: 'audit-1' });
+    findAssessments.mockResolvedValue([]);
+  });
+
+  it('should create audit logs without a separate assessment scope column', async () => {
+    await repository.createAuditLog({
+      userId: 'user-1',
+      actionType: 'assessment.updated',
+      entityName: 'Assessment',
+      entityId: '11111111-1111-4111-8111-111111111111',
+      details: { after: { status: 'InProgress' } },
+    });
+
+    expect(createAuditLog).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-1',
+        actionType: 'assessment.updated',
+        entityName: 'Assessment',
+        entityId: '11111111-1111-4111-8111-111111111111',
+        details: { after: { status: 'InProgress' } },
+      },
+    });
   });
 
   it('should apply event type, actor query, target id and inclusive date range filters', async () => {
@@ -36,7 +66,6 @@ describe('AuditRepository', () => {
         actorQuery: 'seed-user-020@seed.local',
         actorUserId: '22222222-2222-4222-8222-222222222222',
         targetId: '11111111-1111-4111-8111-111111111111',
-        assessmentId: '33333333-3333-4333-8333-333333333333',
         dateFrom,
         dateTo,
       },
@@ -47,7 +76,6 @@ describe('AuditRepository', () => {
       expect.objectContaining({
         where: {
           actionType: 'assessment.updated',
-          assessmentId: '33333333-3333-4333-8333-333333333333',
           entityId: '11111111-1111-4111-8111-111111111111',
           userId: '22222222-2222-4222-8222-222222222222',
           timestamp: {
@@ -79,7 +107,93 @@ describe('AuditRepository', () => {
     );
   });
 
-  it('should limit notary queries to assessments assigned to the current notary', async () => {
+  it('should limit notary queries to assessment entities assigned to the current notary', async () => {
+    findAssessments.mockResolvedValue([
+      { id: '11111111-1111-4111-8111-111111111111' },
+      { id: '22222222-2222-4222-8222-222222222222' },
+    ]);
+
+    await repository.listAuditEvents({
+      page: 1,
+      limit: 20,
+      filters: {},
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(findAssessments).toHaveBeenCalledWith({
+      where: {
+        notaryId: 'notary-1',
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          entityName: 'Assessment',
+          entityId: {
+            in: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'],
+          },
+        },
+      }),
+    );
+  });
+
+  it('should intersect notary target id filter with assigned assessments', async () => {
+    findAssessments.mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }]);
+
+    await repository.listAuditEvents({
+      page: 1,
+      limit: 20,
+      filters: {
+        targetId: '11111111-1111-4111-8111-111111111111',
+      },
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          entityName: 'Assessment',
+          entityId: '11111111-1111-4111-8111-111111111111',
+        },
+      }),
+    );
+
+    findMany.mockClear();
+
+    await repository.listAuditEvents({
+      page: 1,
+      limit: 20,
+      filters: {
+        targetId: '22222222-2222-4222-8222-222222222222',
+      },
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          entityName: 'Assessment',
+          entityId: {
+            in: [],
+          },
+        },
+      }),
+    );
+  });
+
+  it('should return an empty notary feed when the notary has no assessments', async () => {
     await repository.listAuditEvents({
       page: 1,
       limit: 20,
@@ -93,10 +207,37 @@ describe('AuditRepository', () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          assessment: {
-            is: {
-              notaryId: 'notary-1',
-            },
+          entityName: 'Assessment',
+          entityId: {
+            in: [],
+          },
+        },
+      }),
+    );
+  });
+
+  it('should not expose payment-target audit events through notary scope', async () => {
+    findAssessments.mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }]);
+
+    await repository.listAuditEvents({
+      page: 1,
+      limit: 20,
+      filters: {
+        eventType: 'payment.completed',
+      },
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          actionType: 'payment.completed',
+          entityName: 'Assessment',
+          entityId: {
+            in: ['11111111-1111-4111-8111-111111111111'],
           },
         },
       }),
@@ -127,11 +268,6 @@ describe('AuditRepository', () => {
           fullName: 'Администратор 1',
           email: 'seed-user-020@seed.local',
           role: PrismaRole.Admin,
-        },
-        assessment: {
-          id: '11111111-1111-4111-8111-111111111111',
-          address: 'г. Екатеринбург, ул. Малышева, 18',
-          notaryId: 'notary-1',
         },
       },
     ]);
