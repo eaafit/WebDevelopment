@@ -71,10 +71,7 @@ export class PaymentCreateService {
     const metricContext = resolveBillingPaymentMetricContext(prismaType);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const receipt =
-      prismaType === PrismaPaymentType.Subscription
-        ? await this.buildSubscriptionReceipt(request.userId, resolved)
-        : undefined;
+    const receipt = await this.buildPaymentReceipt(request.userId, resolved);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -87,8 +84,7 @@ export class PaymentCreateService {
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
         paymentMethod: 'yookassa_widget',
-        receiptStatus:
-          prismaType === PrismaPaymentType.Subscription ? PrismaPaymentReceiptStatus.Pending : null,
+        receiptStatus: PrismaPaymentReceiptStatus.Pending,
       },
     });
 
@@ -222,7 +218,7 @@ export class PaymentCreateService {
     };
   }
 
-  private async buildSubscriptionReceipt(
+  private async buildPaymentReceipt(
     userId: string,
     resolved: Pick<ResolvedPaymentContext, 'amount' | 'description'>,
   ): Promise<YooKassaReceipt> {
