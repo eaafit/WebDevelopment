@@ -230,6 +230,54 @@ describe('PaymentAttachmentService', () => {
     });
   });
 
+  it('marks a stored local receipt as available when a paid payment has no YooKassa receipt registration', async () => {
+    findUnique.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1500.00',
+      },
+      paymentDate: new Date('2026-04-25T05:53:54.785Z'),
+      paymentMethod: 'bank_card',
+      transactionId: 'yk-payment-1',
+      user: {
+        email: 'notary@example.com',
+        fullName: 'Иван Иванов',
+      },
+      subscription: {
+        plan: SubscriptionPlan.Basic,
+      },
+      assessment: null,
+    });
+    putObject.mockResolvedValue(undefined);
+    update.mockResolvedValue(undefined);
+
+    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const result = await service.storeGeneratedReceipt('payment-1', {
+      id: 'yk-payment-1',
+      status: 'succeeded',
+      paid: true,
+      amountValue: '1500.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: null,
+      createdAt: '2026-04-25T05:52:31.611Z',
+      capturedAt: '2026-04-25T05:53:54.785Z',
+      metadata: { payment_id: 'payment-1' },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: {
+        attachmentFileName: 'receipt-yk-payment-1.html',
+        attachmentFileUrl: result.objectKey,
+        receiptStatus: PaymentReceiptStatus.Available,
+      },
+    });
+  });
+
   it('downloads a stored receipt for the payment owner', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
