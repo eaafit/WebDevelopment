@@ -10,6 +10,7 @@ import {
 import {
   PaymentReceiptStatus,
   PaymentStatus,
+  PaymentType as PrismaPaymentType,
   SubscriptionPlan as PrismaSubscriptionPlan,
 } from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
@@ -21,6 +22,7 @@ describe('PaymentCreateService', () => {
   const findUser = jest.fn();
   const metrics = {
     recordPayment: jest.fn(),
+    recordBillingPayment: jest.fn(),
   };
   const yookassa = {
     createPayment: jest.fn(),
@@ -53,6 +55,7 @@ describe('PaymentCreateService', () => {
     findPromo.mockReset();
     findUser.mockReset();
     metrics.recordPayment.mockReset();
+    metrics.recordBillingPayment.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
 
@@ -167,7 +170,44 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPayment).toHaveBeenCalledWith('pending');
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'notary',
+      scenario: 'subscription',
+    });
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
+  });
+
+  it('should mark assessment service payments as applicant billing metrics', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(paymentSubscriptionService.resolveSubscriptionForPayment).not.toHaveBeenCalled();
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.Assessment,
+        amount: '2500.00',
+        status: PaymentStatus.Pending,
+        assessmentId: 'assessment-1',
+        receiptStatus: null,
+      }),
+    });
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
   });
 
   it('should fail before payment creation when YOOKASSA_RECEIPT_VAT_CODE is missing', async () => {

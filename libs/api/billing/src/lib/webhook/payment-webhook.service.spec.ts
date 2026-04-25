@@ -12,6 +12,8 @@ describe('PaymentWebhookService', () => {
   const metrics = {
     recordPayment: jest.fn(),
     recordPaymentAmount: jest.fn(),
+    recordBillingPayment: jest.fn(),
+    recordBillingPaymentAmount: jest.fn(),
   };
   const yookassa = {
     getPayment: jest.fn(),
@@ -49,6 +51,8 @@ describe('PaymentWebhookService', () => {
     markReceiptFailed.mockReset();
     metrics.recordPayment.mockReset();
     metrics.recordPaymentAmount.mockReset();
+    metrics.recordBillingPayment.mockReset();
+    metrics.recordBillingPaymentAmount.mockReset();
     yookassa.getPayment.mockReset();
     paymentSubscriptionService.activateSubscription.mockReset();
 
@@ -158,6 +162,14 @@ describe('PaymentWebhookService', () => {
     });
     expect(metrics.recordPayment).toHaveBeenCalledWith('completed');
     expect(metrics.recordPaymentAmount).toHaveBeenCalledWith(1350);
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('completed', {
+      actor: 'notary',
+      scenario: 'subscription',
+    });
+    expect(metrics.recordBillingPaymentAmount).toHaveBeenCalledWith(1350, {
+      actor: 'notary',
+      scenario: 'subscription',
+    });
   });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
@@ -219,6 +231,14 @@ describe('PaymentWebhookService', () => {
         String(message).includes('Assessment payment payment-1 completed'),
       ),
     ).toBe(true);
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('completed', {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
+    expect(metrics.recordBillingPaymentAmount).toHaveBeenCalledWith(2500, {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
   });
 
   it('should branch document copy payments into a placeholder post-payment hook', async () => {
@@ -280,6 +300,14 @@ describe('PaymentWebhookService', () => {
         String(message).includes('Document copy payment payment-1 completed'),
       ),
     ).toBe(true);
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('completed', {
+      actor: 'applicant',
+      scenario: 'document_copy_service',
+    });
+    expect(metrics.recordBillingPaymentAmount).toHaveBeenCalledWith(900, {
+      actor: 'applicant',
+      scenario: 'document_copy_service',
+    });
   });
 
   it('should stay idempotent for duplicate success notifications', async () => {
@@ -308,7 +336,78 @@ describe('PaymentWebhookService', () => {
     expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
     expect(promoUpdate).not.toHaveBeenCalled();
     expect(metrics.recordPayment).not.toHaveBeenCalled();
+    expect(metrics.recordBillingPayment).not.toHaveBeenCalled();
     expect(storeGeneratedReceipt).toHaveBeenCalled();
+  });
+
+  it('should mark canceled applicant service payments as failed billing metrics', async () => {
+    findPayment.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      amount: {
+        toString: () => '2500.00',
+      },
+      status: PaymentStatus.Pending,
+      type: PaymentType.Assessment,
+      promoId: null,
+      subscriptionId: null,
+      assessmentId: 'assessment-1',
+      paymentMethod: 'yookassa_widget',
+      transactionId: 'yk-payment-1',
+      attachmentFileUrl: null,
+      receiptStatus: PaymentReceiptStatus.Pending,
+    });
+    yookassa.getPayment.mockResolvedValue({
+      id: 'yk-payment-1',
+      status: 'canceled',
+      paid: false,
+      amountValue: '2500.00',
+      amountCurrency: 'RUB',
+      paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: null,
+      createdAt: '2026-03-06T08:40:00.000Z',
+      capturedAt: null,
+      metadata: {
+        payment_id: 'payment-1',
+      },
+    });
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+    );
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: 'payment.canceled',
+        object: {
+          id: 'yk-payment-1',
+          status: 'canceled',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(paymentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'payment-1',
+        status: PaymentStatus.Pending,
+      },
+      data: {
+        status: PaymentStatus.Failed,
+        paymentMethod: 'bank_card',
+      },
+    });
+    expect(metrics.recordPayment).toHaveBeenCalledWith('failed');
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('failed', {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
   });
 
   it('should reject notifications with an invalid secret', async () => {

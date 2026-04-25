@@ -31,6 +31,7 @@ import {
   getSubscriptionPlanByPrisma,
 } from '../subscription/subscription-plan.catalog';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
+import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 
 const PAYMENT_RETURN_PATH_BY_TYPE: Record<PrismaPaymentType, string> = {
   [PrismaPaymentType.Subscription]: '/notary/subscription/checkout/success',
@@ -67,6 +68,7 @@ export class PaymentCreateService {
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
     const requestAmount = parseAmountToCents(request.amount, 'amount');
     const prismaType = this.toPrismaType(request.type);
+    const metricContext = resolveBillingPaymentMetricContext(prismaType);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
     const receipt =
@@ -92,6 +94,7 @@ export class PaymentCreateService {
 
     const returnUrl = this.buildReturnUrl(prismaType, payment.id);
     this.metrics.recordPayment('pending');
+    this.metrics.recordBillingPayment('pending', metricContext);
 
     try {
       const result = await this.yookassa.createPayment({
@@ -136,6 +139,7 @@ export class PaymentCreateService {
     } catch (err) {
       if (err instanceof YooKassaClientError) {
         this.metrics.recordPayment('failed');
+        this.metrics.recordBillingPayment('failed', metricContext);
         await this.prisma.payment.update({
           where: { id: payment.id },
           data: { status: PrismaPaymentStatus.Failed },
