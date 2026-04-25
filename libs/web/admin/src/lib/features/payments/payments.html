@@ -182,9 +182,18 @@
               <td>{{ payment.transactionId || '—' }}</td>
               <td>
                 @if (payment.attachmentFileName && payment.attachmentFileUrl) {
-                <a [href]="payment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
-                  {{ payment.attachmentFileName }}
-                </a>
+                <div class="receipt-actions">
+                  <button type="button" class="icon-btn receipt" (click)="openReceipt(payment.id)" title="Открыть чек">
+                    <i class="las la-file-pdf"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn download"
+                    (click)="downloadReceipt(payment.id, payment.attachmentFileName)"
+                    title="Скачать чек">
+                    <i class="las la-download"></i>
+                  </button>
+                </div>
                 } @else { — }
               </td>
               <td>
@@ -253,9 +262,9 @@
   </article>
 </section>
 
+@if (isCreateEditModalOpen) {
 <div
-  class="modal"
-  [ngClass]="{ 'show': isCreateEditModalOpen }"
+  class="modal show"
   (click)="onModalBackdropClick($event)"
   (keydown)="onBackdropKeyDown($event)"
   role="button"
@@ -369,16 +378,15 @@
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" (click)="closeModals()">Отмена</button>
-      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm.form.valid">
+      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm?.form?.valid">
         {{ isEditMode ? 'Сохранить изменения' : 'Сохранить' }}
       </button>
     </div>
   </div>
 </div>
-
+} @if (isViewModalOpen) {
 <div
-  class="modal"
-  [ngClass]="{ 'show': isViewModalOpen }"
+  class="modal show"
   (click)="onModalBackdropClick($event)"
   (keydown)="onBackdropKeyDown($event)"
   role="button"
@@ -402,9 +410,16 @@
       @if (currentPayment.attachmentFileName && currentPayment.attachmentFileUrl) {
       <p>
         <strong>Чек:</strong>
-        <a [href]="currentPayment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
-          {{ currentPayment.attachmentFileName }}
-        </a>
+        <button type="button" class="receipt-link" (click)="openReceipt(currentPayment.id)">
+          <i class="las la-file-pdf"></i> {{ currentPayment.attachmentFileName }}
+        </button>
+        <button
+          type="button"
+          class="receipt-download"
+          (click)="downloadReceipt(currentPayment.id, currentPayment.attachmentFileName)"
+          title="Скачать">
+          <i class="las la-download"></i>
+        </button>
       </p>
       }
       <p>
@@ -419,8 +434,7 @@
     </div>
   </div>
 </div>
-
-@if (paymentToDelete) {
+} @if (paymentToDelete) {
 <lib-payment-delete-modal
   [payment]="paymentToDelete"
   (confirmed)="onDeleteConfirmed()"

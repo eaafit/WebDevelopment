@@ -1,8 +1,10 @@
-import { Component, HostListener, OnInit, ViewChild } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule, NgForm } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { inject } from '@angular/core';
+import { buildRpcBaseUrl, TokenStore } from '@notary-portal/ui';
+import { Subscription } from 'rxjs';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
@@ -40,9 +42,7 @@ type PaginationItem = number | 'ellipsis';
   templateUrl: './payments.html',
   styleUrl: './payments.scss',
 })
-export class Payments implements OnInit {
-  @ViewChild('paymentForm') paymentForm?: NgForm;
-
+export class Payments implements OnInit, OnDestroy {
   private readonly csvSeparator = ';';
   private readonly csvNumberFormatter = new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: 2,
@@ -111,9 +111,74 @@ export class Payments implements OnInit {
 
   private router = inject(Router);
   private readonly api = inject(AdminPaymentsApiService);
+  private readonly tokenStore = inject(TokenStore);
+  private dataSub?: Subscription;
 
-  async ngOnInit(): Promise<void> {
-    await this.loadPayments();
+  async openReceipt(paymentId: string | number): Promise<void> {
+    const token = this.tokenStore.getAccessToken();
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      // ignore
+    }
+  }
+
+  async downloadReceipt(paymentId: string | number, fileName?: string): Promise<void> {
+    const token = this.tokenStore.getAccessToken();
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = fileName || `receipt-${paymentId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      // ignore
+    }
+  }
+
+  ngOnInit(): void {
+    this.loading = true;
+    this.loadError = null;
+    this.api.preload();
+    this.dataSub = this.api.payments$.subscribe({
+      next: (data) => {
+        if (data !== null) {
+          this.payments = data;
+          this.loading = false;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to load admin payments', err);
+        this.payments = [];
+        this.loadError = 'Не удалось загрузить данные платежей с сервера';
+        this.loading = false;
+      },
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.dataSub?.unsubscribe();
   }
 
   get filteredPayments(): Payment[] {
@@ -212,25 +277,9 @@ export class Payments implements OnInit {
     };
   }
 
-  private async loadPayments(): Promise<void> {
-    this.loading = true;
-    this.loadError = null;
-
-    try {
-      this.payments = await this.api.getAllPayments();
-    } catch (error) {
-      console.error('Failed to load admin payments', error);
-      this.payments = [];
-      this.loadError = 'Не удалось загрузить данные платежей с сервера';
-    } finally {
-      this.loading = false;
-    }
-  }
-
   openCreateModal(): void {
     this.closeModals();
     this.isEditMode = false;
-    this.paymentForm?.resetForm();
     this.currentPayment = this.resetPayment();
     this.currentPayment.id = this.getNextLocalId();
     this.fee = 0;
@@ -248,7 +297,6 @@ export class Payments implements OnInit {
   openEditModal(payment: Payment): void {
     this.closeModals();
     this.isEditMode = true;
-    this.paymentForm?.resetForm();
     this.currentPayment = { ...payment };
     this.fee = payment.fee ?? 0;
     this.isCreateEditModalOpen = true;

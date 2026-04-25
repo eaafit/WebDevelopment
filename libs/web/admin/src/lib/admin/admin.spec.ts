@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Admin } from './admin';
 import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
-import { AdminApplicationsApiService } from '../features/applications/applications-api.service';
+import { AdminApplicationsApiService } from '../features/RequestAssessment/applications-api.service';
 
 describe('Admin', () => {
   let component: Admin;

@@ -7,12 +7,13 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { BehaviorSubject } from 'rxjs';
 import {
   PAYMENT_STATUS_LABELS,
   type PaymentStatus,
   type PaymentType,
 } from '../payments/payments.shared';
-import type { Application } from './applications';
+import type { Application } from './RequestAssessment';
 
 const PAGE_LIMIT = 100;
 
@@ -20,16 +21,20 @@ const PAGE_LIMIT = 100;
 export class AdminApplicationsApiService {
   private readonly client = createClient(AssessmentService, inject(RPC_TRANSPORT));
   private cache: Promise<Application[]> | null = null;
+  private readonly applicationsSubject = new BehaviorSubject<Application[] | null>(null);
+  readonly applications$ = this.applicationsSubject.asObservable();
 
   preload(): void {
     if (!this.cache) {
       this.cache = this.fetchAllApplications();
+      this.cache.then((data) => this.applicationsSubject.next(data));
     }
   }
 
   async getAllApplications(): Promise<Application[]> {
     if (!this.cache) {
       this.cache = this.fetchAllApplications();
+      this.cache.then((data) => this.applicationsSubject.next(data));
     }
     return this.cache;
   }

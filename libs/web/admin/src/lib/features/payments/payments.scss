@@ -46,6 +46,21 @@ td.actions {
   justify-content: flex-end;
 }
 
+.receipt-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.receipt-download {
+  margin-left: 0.5rem;
+  color: var(--admin-primary, #4f46e5);
+  text-decoration: none;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .payments-table-shell {
   padding: 0 1.15rem 1.15rem;
 }

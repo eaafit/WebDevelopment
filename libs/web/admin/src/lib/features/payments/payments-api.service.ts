@@ -8,6 +8,7 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { BehaviorSubject } from 'rxjs';
 import {
   PAYMENT_STATUS_LABELS,
   type Payment,
@@ -22,16 +23,20 @@ const PAGE_LIMIT = 100;
 export class AdminPaymentsApiService {
   private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
   private cache: Promise<Payment[]> | null = null;
+  private readonly paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
+  readonly payments$ = this.paymentsSubject.asObservable();
 
   preload(): void {
     if (!this.cache) {
       this.cache = this.fetchAllPayments();
+      this.cache.then((data) => this.paymentsSubject.next(data));
     }
   }
 
   async getAllPayments(): Promise<Payment[]> {
     if (!this.cache) {
       this.cache = this.fetchAllPayments();
+      this.cache.then((data) => this.paymentsSubject.next(data));
     }
     return this.cache;
   }
@@ -63,6 +68,7 @@ export class AdminPaymentsApiService {
       promoCode: '',
     });
     this.invalidateCache();
+    await this.getAllPayments();
     return { paymentId: response.paymentId };
   }
 
