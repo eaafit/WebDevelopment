@@ -75,10 +75,12 @@ export const adminRoutes: Route[] = [
         path: 'subscriptions',
         ...placeholder('Подписки', ['Просмотр списка подписок']),
       } as Route,
+      // ===== ИСПРАВЛЕННЫЙ МАРШРУТ ДЛЯ ТАРИФНЫХ ПЛАНОВ =====
       {
         path: 'plans',
-        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
+        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
       } as Route,
+      // =================================================
       {
         path: 'files',
         ...placeholder('Модерация файлов', [

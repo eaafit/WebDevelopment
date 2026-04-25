@@ -96,7 +96,8 @@ async function bootstrap() {
   expressInstance.get(
     '/api/documents/:documentId/content',
     async (req: express.Request, res: express.Response) => {
-      const documentId = req.params['documentId'] ?? '';
+      const stringValue = req.params['documentId'] ?? '';
+      const documentId = Array.isArray(stringValue) ? stringValue[0] : stringValue;
       const accessGrant = documentFileUrlService.validateAccess({
         documentId,
         mode: asString(req.query['mode']),
@@ -173,9 +174,11 @@ async function bootstrap() {
         return;
       }
 
+      const rawPaymentId = req.params['paymentId'];
+      const paymentId = Array.isArray(rawPaymentId) ? rawPaymentId[0] : (rawPaymentId ?? '');
       paymentAttachmentService
         .getReceiptFile({
-          paymentId: req.params['paymentId'],
+          paymentId: paymentId,
           userId: payload.sub,
           role: payload.role,
         })
@@ -191,7 +194,9 @@ async function bootstrap() {
         })
         .catch((error: unknown) => {
           if (isHttpError(error)) {
-            res.status(error.statusCode ?? error.status).json({ message: error.message });
+            res
+              .status((error.statusCode ?? error.status) as number)
+              .json({ message: error.message as string });
             return;
           }
 

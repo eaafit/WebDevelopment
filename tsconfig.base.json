@@ -37,7 +37,11 @@
       "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
       "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
       "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"],
-      "@notary-portal/billing": ["libs/api/billing/src/index.ts"]
+      "@notary-portal/billing": ["libs/api/billing/src/index.ts"],
+      "@notary-portal/tariff-plan": ["api/src/index.ts"],
+      "@notary-portal/discount": ["api/discount/src/index.ts"],
+      "@notary-portal/promocode": ["api/promocode/src/index.ts"],
+      "@notary-portal/tariffs-plan": ["api/tariffs-plan/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
