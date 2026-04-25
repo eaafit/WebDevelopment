@@ -69,6 +69,8 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@angular/cdk": "~21.1.5",
+    "@angular/material": "~21.1.5",
     "@angular/common": "~21.1.5",
     "@angular/compiler": "~21.1.5",
     "@angular/core": "~21.1.5",
@@ -89,6 +91,7 @@
     "@nestjs/platform-express": "^11.1.14",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.1",
+    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "express": "^4.21.2",
