@@ -41,11 +41,41 @@ describe('Monitoring', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should render shared audit monitoring page in admin mode', () => {
+  it('should default to "all-events" tab', () => {
+    expect(component.activeTab()).toBe('all-events');
+  });
+
+  it('should render shared audit monitoring page in admin mode on "all-events" tab', () => {
     fixture.detectChanges();
 
     const sharedPage = fixture.debugElement.query(By.directive(AuditMonitoringPage));
     expect(sharedPage).not.toBeNull();
     expect(sharedPage.componentInstance.mode).toBe('admin');
+  });
+
+  it('should switch to "by-user-order" tab and render AuditByEntity component', () => {
+    component.setActiveTab('by-user-order');
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('by-user-order');
+
+    const auditByEntity = fixture.debugElement.query(By.css('lib-audit-by-entity'));
+    expect(auditByEntity).not.toBeNull();
+
+    const sharedPage = fixture.debugElement.query(By.directive(AuditMonitoringPage));
+    expect(sharedPage).toBeNull();
+  });
+
+  it('should switch to "security-events" tab and render SecurityEvents component', () => {
+    component.setActiveTab('security-events');
+    fixture.detectChanges();
+
+    expect(component.activeTab()).toBe('security-events');
+
+    const securityEvents = fixture.debugElement.query(By.css('lib-security-events'));
+    expect(securityEvents).not.toBeNull();
+
+    const sharedPage = fixture.debugElement.query(By.directive(AuditMonitoringPage));
+    expect(sharedPage).toBeNull();
   });
 });
