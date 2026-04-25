@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { AdminPaymentsApiService } from './payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
@@ -16,6 +17,9 @@ describe('Payments', () => {
         {
           provide: AdminPaymentsApiService,
           useValue: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            preload: () => {},
+            payments$: of(MOCK_PAYMENTS.map((payment) => ({ ...payment }))),
             getAllPayments: async () => MOCK_PAYMENTS.map((payment) => ({ ...payment })),
           },
         },
