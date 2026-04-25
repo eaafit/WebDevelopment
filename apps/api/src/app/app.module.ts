@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@internal/audit';
-import { TariffPlanModule } from '@internal/api/tariff-plan';
-import { DiscountModule } from '@internal/api/discount';
-import { PromocodeModule } from '@internal/api/promocode';
+import { TariffPlanModule } from '@internal/tariff-plan';
+import { DiscountModule } from '@internal/discount';
+import { PromocodeModule } from '@internal/promocode';
 import { AssessmentModule } from '@internal/assessment';
 import { AuthModule } from '@internal/auth';
 import { BillingModule } from '@internal/billing';

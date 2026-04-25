@@ -1,1 +1,2 @@
-export * from './src';
+export * from './lib/discount/discount';
+export * from './lib/discount/discount-rpc.service';
