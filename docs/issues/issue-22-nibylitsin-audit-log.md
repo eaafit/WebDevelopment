@@ -20,7 +20,7 @@ assignees: ['SuperLuchito']
 
 - [ ] **Страница аудита** (`/admin/monitoring`) — таблица событий: иконка типа, описание действия, исполнитель (ФИО/email), целевой объект (пользователь/заказ), дата/время
 - [ ] **Панель фильтров** — по типу события, исполнителю, дате (диапазон), целевому объекту (ID)
-- [ ] **Точные фильтры** — по `actor_user_id` и `assessment_id` для интеграций и точного поиска
+- [ ] **Точные фильтры** — по `actor_user_id` и `target_id`; для заявки `target_id` равен `assessment.id`
 - [ ] **Детали события** — раскрываемая строка или боковая панель: diff значений до/после, IP-адрес, user-agent
 - [ ] **Экспорт** — кнопка «Выгрузить CSV» по текущим фильтрам
 - [ ] **Вид для нотариуса** — лента событий только по заказам данного нотариуса
@@ -33,14 +33,16 @@ assignees: ['SuperLuchito']
 - Методы RPC: `ListAuditEvents`, `ExportAuditEvents`
 - Серверная пагинация, debounced-фильтры
 - Экспорт CSV: данные запрашиваются через backend `ExportAuditEvents`, клиент формирует CSV (`Blob`)
-- `AuditLog.assessment_id` используется для scope нотариуса; `/notary/monitoring` не должен видеть события чужих заявок
-- `audit.exported` получает `assessment_id` только при экспорте конкретной заявки; notary-wide export остаётся глобальным admin-visible событием, потому что лента нотариуса намеренно ограничена владением заявками
+- AuditLog использует универсальные `entity_name` + `entity_id`; для событий заявки: `entity_name = Assessment`, `entity_id = id заявки`
+- `/notary/monitoring` ограничивает выборку заявками текущего нотариуса через список его assessments и `entity_id`; события с `entity_name = Payment` остаются admin-only
+- Payment audit по заявке пишет target `Assessment`, а настоящий `paymentId` хранит в `details`
+- `audit.exported` по конкретной заявке пишет target `Assessment`/`target_id`; общий notary-wide export остаётся admin-visible global event, потому что лента нотариуса намеренно ограничена владением заявками
 - Issue 22 не включает security events, страницу безопасности, техническое JSON-логирование, Pino, request-id, Loki/Grafana
 
 ## Acceptance criteria
 
 - [ ] Таблица показывает все события с пагинацией
-- [ ] Фильтры по типу, исполнителю, `actor_user_id`, `target_id`, `assessment_id` и дате корректно ограничивают выборку
+- [ ] Фильтры по типу, исполнителю, `actor_user_id`, `target_id` и дате корректно ограничивают выборку
 - [ ] Детали события раскрываются inline без перехода на другую страницу
 - [ ] CSV-экспорт скачивается с текущими фильтрами
 - [ ] Экспорт ограничен backend cap и сам записывается в audit trail как `audit.exported`
