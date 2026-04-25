@@ -125,7 +125,8 @@ export class Payments implements OnInit, OnDestroy {
       if (!response.ok) return;
 
       const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
+      const htmlBlob = blob.type === 'application/octet-stream' ? new Blob([blob], { type: 'text/html' }) : blob;
+      const objectUrl = URL.createObjectURL(htmlBlob);
       window.open(objectUrl, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
     } catch {
@@ -147,7 +148,7 @@ export class Payments implements OnInit, OnDestroy {
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = objectUrl;
-      a.download = fileName || `receipt-${paymentId}.pdf`;
+      a.download = fileName || `receipt-${paymentId}.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

@@ -184,7 +184,7 @@
                 @if (payment.attachmentFileName && payment.attachmentFileUrl) {
                 <div class="receipt-actions">
                   <button type="button" class="icon-btn receipt" (click)="openReceipt(payment.id)" title="Открыть чек">
-                    <i class="las la-file-pdf"></i>
+                    <i class="las la-file-alt"></i>
                   </button>
                   <button
                     type="button"
@@ -411,7 +411,7 @@
       <p>
         <strong>Чек:</strong>
         <button type="button" class="receipt-link" (click)="openReceipt(currentPayment.id)">
-          <i class="las la-file-pdf"></i> {{ currentPayment.attachmentFileName }}
+          <i class="las la-file-alt"></i> {{ currentPayment.attachmentFileName }}
         </button>
         <button
           type="button"
