@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { TariffPlanModule } from '@internal/api/tariff-plan';
+import { DiscountModule } from '@internal/api/discount';
+import { PromocodeModule } from '@internal/api/promocode';
 import { AssessmentModule } from '@internal/assessment';
 import { AuthModule } from '@internal/auth';
 import { BillingModule } from '@internal/billing';
@@ -16,6 +19,9 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 @Module({
   imports: [
     PrismaModule,
+    TariffPlanModule,
+    DiscountModule,
+    PromocodeModule,
     MetricsModule,
     MailModule,
     AuthModule,

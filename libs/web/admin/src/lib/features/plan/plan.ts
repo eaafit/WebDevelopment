@@ -1,17 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface TariffPlan {
-  id: number;
-  name: string;
-  price: number;
-  description: string;
-  isActive: boolean;
-  validFrom: Date;
-  validTo: Date;
-  createdAt: Date;
-}
+import { TariffPlanService } from '../../services/tariff-plan.service';
+import { TariffPlan } from '@internal/api/tariff-plan';
 
 @Component({
   selector: 'lib-plan',
@@ -20,41 +11,12 @@ interface TariffPlan {
   templateUrl: './plan.html',
   styleUrls: ['./plan.scss'],
 })
-export class PlanComponent {
-  allPlans: TariffPlan[] = [
-    {
-      id: 1,
-      name: 'Базовый',
-      price: 1000,
-      description: 'Для физических лиц',
-      isActive: true,
-      validFrom: new Date(2024, 0, 1),
-      validTo: new Date(2024, 11, 31),
-      createdAt: new Date(),
-    },
-    {
-      id: 2,
-      name: 'Стандарт',
-      price: 2500,
-      description: 'Для малого бизнеса',
-      isActive: true,
-      validFrom: new Date(2024, 0, 1),
-      validTo: new Date(2024, 11, 31),
-      createdAt: new Date(),
-    },
-    {
-      id: 3,
-      name: 'Премиум',
-      price: 5000,
-      description: 'Полный функционал',
-      isActive: false,
-      validFrom: new Date(2024, 0, 1),
-      validTo: new Date(2024, 11, 31),
-      createdAt: new Date(),
-    },
-  ];
+export class PlanComponent implements OnInit {
+  private tariffPlanService = inject(TariffPlanService);
 
-  // Состояния
+  allPlans: TariffPlan[] = [];
+  loading = false;
+
   showDeleteModal = false;
   planToDelete: TariffPlan | null = null;
   showForm = false;
@@ -62,64 +24,76 @@ export class PlanComponent {
   selectedPlan: TariffPlan | null = null;
   isEditMode = false;
 
-  // Пагинация
   currentPage = 1;
   pageSize = 5;
+  totalItems = 0;
 
-  // Сортировка
   sortField: keyof TariffPlan = 'id';
   sortDirection: 'asc' | 'desc' = 'asc';
 
-  // Фильтры
   filterName = '';
   filterStatus: 'all' | 'active' | 'inactive' = 'all';
   filterDateFrom = '';
   filterDateTo = '';
 
-  get filteredAndSortedPlans(): TariffPlan[] {
-    let result = [...this.allPlans];
+  formData = {
+    name: '',
+    price: 0,
+    description: '',
+    isActive: true,
+    validFrom: new Date().toISOString().split('T')[0],
+    validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+  };
 
-    if (this.filterName) {
-      result = result.filter((p) => p.name.toLowerCase().includes(this.filterName.toLowerCase()));
-    }
-    if (this.filterStatus !== 'all') {
-      const active = this.filterStatus === 'active';
-      result = result.filter((p) => p.isActive === active);
-    }
-    if (this.filterDateFrom) {
-      const from = new Date(this.filterDateFrom);
-      result = result.filter((p) => p.validFrom >= from);
-    }
-    if (this.filterDateTo) {
-      const to = new Date(this.filterDateTo);
-      result = result.filter((p) => p.validTo <= to);
-    }
+  ngOnInit(): void {
+    this.loadPlans();
+  }
 
-    result.sort((a, b) => {
-      const aVal = a[this.sortField];
-      const bVal = b[this.sortField];
-      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-      return 0;
+  loadPlans(): void {
+    this.loading = true;
+    const params = {
+      filterName: this.filterName || undefined,
+      filterStatus: this.filterStatus !== 'all' ? this.filterStatus : undefined,
+      filterDateFrom: this.filterDateFrom || undefined,
+      filterDateTo: this.filterDateTo || undefined,
+      sortField: this.sortField,
+      sortDirection: this.sortDirection,
+      skip: (this.currentPage - 1) * this.pageSize,
+      take: this.pageSize,
+    };
+    this.tariffPlanService.getAll(params).subscribe({
+      next: (data) => {
+        this.allPlans = data;
+        this.totalItems = data.length;
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Ошибка загрузки тарифов:', err);
+        this.loading = false;
+      },
     });
-    return result;
   }
 
   get paginatedPlans(): TariffPlan[] {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.filteredAndSortedPlans.slice(start, start + this.pageSize);
+    return this.allPlans;
   }
 
   get totalPages(): number {
-    return Math.ceil(this.filteredAndSortedPlans.length / this.pageSize);
+    return Math.ceil(this.totalItems / this.pageSize);
   }
 
   prevPage(): void {
-    if (this.currentPage > 1) this.currentPage--;
+    if (this.currentPage > 1) {
+      this.currentPage--;
+      this.loadPlans();
+    }
   }
 
   nextPage(): void {
-    if (this.currentPage < this.totalPages) this.currentPage++;
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+      this.loadPlans();
+    }
   }
 
   sortBy(field: keyof TariffPlan): void {
@@ -130,6 +104,7 @@ export class PlanComponent {
       this.sortDirection = 'asc';
     }
     this.currentPage = 1;
+    this.loadPlans();
   }
 
   resetFilters(): void {
@@ -138,16 +113,8 @@ export class PlanComponent {
     this.filterDateFrom = '';
     this.filterDateTo = '';
     this.currentPage = 1;
+    this.loadPlans();
   }
-
-  formData = {
-    name: '',
-    price: 0,
-    description: '',
-    isActive: true,
-    validFrom: new Date().toISOString().split('T')[0],
-    validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-  };
 
   createPlan(): void {
     this.isEditMode = false;
@@ -169,7 +136,7 @@ export class PlanComponent {
     this.formData = {
       name: plan.name,
       price: plan.price,
-      description: plan.description,
+      description: plan.description || '',
       isActive: plan.isActive,
       validFrom: new Date(plan.validFrom).toISOString().split('T')[0],
       validTo: new Date(plan.validTo).toISOString().split('T')[0],
@@ -185,37 +152,32 @@ export class PlanComponent {
   }
 
   savePlan(): void {
+    const data = {
+      name: this.formData.name,
+      price: this.formData.price,
+      description: this.formData.description,
+      isActive: this.formData.isActive,
+      validFrom: this.formData.validFrom,
+      validTo: this.formData.validTo,
+    };
     if (this.isEditMode && this.selectedPlan) {
-      const index = this.allPlans.findIndex((p) => p.id === this.selectedPlan!.id);
-      if (index !== -1) {
-        this.allPlans[index] = {
-          ...this.selectedPlan,
-          name: this.formData.name,
-          price: this.formData.price,
-          description: this.formData.description,
-          isActive: this.formData.isActive,
-          validFrom: new Date(this.formData.validFrom),
-          validTo: new Date(this.formData.validTo),
-        };
-      }
-      console.log('Обновлен тариф:', this.formData);
+      this.tariffPlanService.update(this.selectedPlan.id, data).subscribe({
+        next: () => {
+          this.showForm = false;
+          this.selectedPlan = null;
+          this.loadPlans();
+        },
+        error: (err) => console.error('Ошибка обновления:', err),
+      });
     } else {
-      const newPlan: TariffPlan = {
-        id: Math.max(...this.allPlans.map((p) => p.id), 0) + 1,
-        name: this.formData.name,
-        price: this.formData.price,
-        description: this.formData.description,
-        isActive: this.formData.isActive,
-        validFrom: new Date(this.formData.validFrom),
-        validTo: new Date(this.formData.validTo),
-        createdAt: new Date(),
-      };
-      this.allPlans.push(newPlan);
-      console.log('Создан тариф:', newPlan);
+      this.tariffPlanService.create(data).subscribe({
+        next: () => {
+          this.showForm = false;
+          this.loadPlans();
+        },
+        error: (err) => console.error('Ошибка создания:', err),
+      });
     }
-    this.showForm = false;
-    this.selectedPlan = null;
-    this.currentPage = 1;
   }
 
   confirmDelete(plan: TariffPlan): void {
@@ -225,10 +187,14 @@ export class PlanComponent {
 
   deletePlan(): void {
     if (this.planToDelete) {
-      this.allPlans = this.allPlans.filter((p) => p.id !== this.planToDelete!.id);
-      console.log('Удален тариф:', this.planToDelete);
-      this.showDeleteModal = false;
-      this.planToDelete = null;
+      this.tariffPlanService.delete(this.planToDelete.id).subscribe({
+        next: () => {
+          this.showDeleteModal = false;
+          this.planToDelete = null;
+          this.loadPlans();
+        },
+        error: (err) => console.error('Ошибка удаления:', err),
+      });
     }
   }
 

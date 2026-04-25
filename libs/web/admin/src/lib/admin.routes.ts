@@ -75,12 +75,18 @@ export const adminRoutes: Route[] = [
         path: 'subscriptions',
         ...placeholder('Подписки', ['Просмотр списка подписок']),
       } as Route,
-      // ===== ИСПРАВЛЕННЫЙ МАРШРУТ ДЛЯ ТАРИФНЫХ ПЛАНОВ =====
       {
         path: 'plans',
-        loadComponent: () => import('./plan/plan').then((m) => m.PlanComponent),
+        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
       } as Route,
-      // =================================================
+      {
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
+      } as Route,
+      {
+        path: 'promocodes',
+        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
+      } as Route,
       {
         path: 'files',
         ...placeholder('Модерация файлов', [

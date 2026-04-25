@@ -1,18 +1,19 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
+import { PromocodeService } from '../../services/promocode.service';
+import { Promocode } from '@internal/api/promocode';
 
-interface Promocode {
-  id: number;
-  code: string;
-  discountType: 'percentage' | 'fixed';
-  discountValue: number;
-  validFrom: Date;
-  validTo: Date;
-  maxUses: number;
-  usedCount: number;
-  isActive: boolean;
-  description: string;
+interface PromocodeQueryParams {
+  filterName?: string;
+  filterStatus?: 'active' | 'inactive';
+  filterDateFrom?: string;
+  filterDateTo?: string;
+  sortField?: keyof Promocode;
+  sortDirection?: 'asc' | 'desc';
+  skip?: number;
+  take?: number;
 }
 
 @Component({
@@ -22,48 +23,12 @@ interface Promocode {
   templateUrl: './promo.html',
   styleUrls: ['./promo.scss'],
 })
-export class PromoComponent {
-  // Исходные данные
-  allPromocodes: Promocode[] = [
-    {
-      id: 1,
-      code: 'WELCOME10',
-      discountType: 'percentage',
-      discountValue: 10,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)),
-      maxUses: 100,
-      usedCount: 23,
-      isActive: true,
-      description: 'Приветственная скидка 10%',
-    },
-    {
-      id: 2,
-      code: 'SUMMER500',
-      discountType: 'fixed',
-      discountValue: 500,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setMonth(new Date().getMonth() + 3)),
-      maxUses: 50,
-      usedCount: 12,
-      isActive: true,
-      description: 'Летняя скидка 500₽',
-    },
-    {
-      id: 3,
-      code: 'VIP20',
-      discountType: 'percentage',
-      discountValue: 20,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setDate(new Date().getDate() + 15)),
-      maxUses: 200,
-      usedCount: 45,
-      isActive: false,
-      description: 'VIP-скидка 20%',
-    },
-  ];
+export class PromoComponent implements OnInit {
+  private promocodeService = inject(PromocodeService) as PromocodeService;
 
-  // Состояния
+  allPromocodes: Promocode[] = [];
+  loading = false;
+
   showDeleteModal = false;
   promoToDelete: Promocode | null = null;
   showForm = false;
@@ -71,77 +36,81 @@ export class PromoComponent {
   selectedPromo: Promocode | null = null;
   isEditMode = false;
 
-  // Пагинация
   currentPage = 1;
   pageSize = 5;
+  totalItems = 0;
 
-  // Сортировка
   sortField: keyof Promocode = 'id';
   sortDirection: 'asc' | 'desc' = 'asc';
 
-  // Фильтры
   filterName = '';
   filterStatus: 'all' | 'active' | 'inactive' = 'all';
   filterDateFrom = '';
   filterDateTo = '';
 
-  // Геттер для отфильтрованных и отсортированных промокодов
-  get filteredAndSortedPromocodes(): Promocode[] {
-    let result = [...this.allPromocodes];
+  formData = {
+    code: '',
+    discountType: 'percentage' as 'percentage' | 'fixed',
+    discountValue: 0,
+    description: '',
+    isActive: true,
+    validFrom: new Date().toISOString().split('T')[0],
+    validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+    maxUses: 100,
+    usedCount: 0,
+  };
 
-    // Фильтр по коду
-    if (this.filterName) {
-      result = result.filter((p) => p.code.toLowerCase().includes(this.filterName.toLowerCase()));
-    }
-    // Фильтр по статусу
-    if (this.filterStatus !== 'all') {
-      const active = this.filterStatus === 'active';
-      result = result.filter((p) => p.isActive === active);
-    }
-    // Фильтр по дате начала
-    if (this.filterDateFrom) {
-      const from = new Date(this.filterDateFrom);
-      result = result.filter((p) => p.validFrom >= from);
-    }
-    // Фильтр по дате окончания
-    if (this.filterDateTo) {
-      const to = new Date(this.filterDateTo);
-      result = result.filter((p) => p.validTo <= to);
-    }
+  ngOnInit(): void {
+    this.loadPromocodes();
+  }
 
-    // Сортировка
-    result.sort((a, b) => {
-      const aVal = a[this.sortField];
-      const bVal = b[this.sortField];
-      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-      return 0;
+  loadPromocodes(): void {
+    this.loading = true;
+    const params: PromocodeQueryParams = {
+      filterName: this.filterName || undefined,
+      filterStatus: this.filterStatus !== 'all' ? this.filterStatus : undefined,
+      filterDateFrom: this.filterDateFrom || undefined,
+      filterDateTo: this.filterDateTo || undefined,
+      sortField: this.sortField,
+      sortDirection: this.sortDirection,
+      skip: (this.currentPage - 1) * this.pageSize,
+      take: this.pageSize,
+    };
+    this.promocodeService.getAll(params).subscribe({
+      next: (data) => {
+        this.allPromocodes = data;
+        this.totalItems = data.length;
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error('Ошибка загрузки промокодов:', err);
+        this.loading = false;
+      },
     });
-    return result;
   }
 
-  // Отображаемые на текущей странице записи
   get paginatedPromocodes(): Promocode[] {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.filteredAndSortedPromocodes.slice(start, start + this.pageSize);
+    return this.allPromocodes;
   }
 
-  // Общее количество страниц
   get totalPages(): number {
-    return Math.ceil(this.filteredAndSortedPromocodes.length / this.pageSize);
+    return Math.ceil(this.totalItems / this.pageSize);
   }
 
-  // Переход на предыдущую страницу
   prevPage(): void {
-    if (this.currentPage > 1) this.currentPage--;
+    if (this.currentPage > 1) {
+      this.currentPage--;
+      this.loadPromocodes();
+    }
   }
 
-  // Переход на следующую страницу
   nextPage(): void {
-    if (this.currentPage < this.totalPages) this.currentPage++;
+    if (this.currentPage < this.totalPages) {
+      this.currentPage++;
+      this.loadPromocodes();
+    }
   }
 
-  // Сортировка по полю
   sortBy(field: keyof Promocode): void {
     if (this.sortField === field) {
       this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -149,50 +118,36 @@ export class PromoComponent {
       this.sortField = field;
       this.sortDirection = 'asc';
     }
-    this.currentPage = 1; // при изменении сортировки сбрасываем на первую страницу
+    this.currentPage = 1;
+    this.loadPromocodes();
   }
 
-  // Сброс всех фильтров
   resetFilters(): void {
     this.filterName = '';
     this.filterStatus = 'all';
     this.filterDateFrom = '';
     this.filterDateTo = '';
     this.currentPage = 1;
+    this.loadPromocodes();
   }
 
-  // Данные формы (для создания/редактирования)
-  formData = {
-    code: '',
-    discountType: 'percentage' as 'percentage' | 'fixed',
-    discountValue: 0,
-    validFrom: new Date().toISOString().split('T')[0],
-    validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-    maxUses: 100,
-    usedCount: 0,
-    isActive: true,
-    description: '',
-  };
-
-  // Создание нового промокода
   createPromo(): void {
     this.isEditMode = false;
     this.formData = {
       code: '',
       discountType: 'percentage',
       discountValue: 0,
+      description: '',
+      isActive: true,
       validFrom: new Date().toISOString().split('T')[0],
       validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
       maxUses: 100,
       usedCount: 0,
-      isActive: true,
-      description: '',
     };
     this.showForm = true;
     this.showView = false;
   }
 
-  // Редактирование промокода
   editPromo(promo: Promocode): void {
     this.isEditMode = true;
     this.selectedPromo = promo;
@@ -200,101 +155,88 @@ export class PromoComponent {
       code: promo.code,
       discountType: promo.discountType,
       discountValue: promo.discountValue,
+      description: promo.description || '',
+      isActive: promo.isActive,
       validFrom: new Date(promo.validFrom).toISOString().split('T')[0],
       validTo: new Date(promo.validTo).toISOString().split('T')[0],
       maxUses: promo.maxUses,
       usedCount: promo.usedCount,
-      isActive: promo.isActive,
-      description: promo.description,
     };
     this.showForm = true;
     this.showView = false;
   }
 
-  // Просмотр промокода
   viewPromo(promo: Promocode): void {
     this.selectedPromo = promo;
     this.showView = true;
     this.showForm = false;
   }
 
-  // Сохранение (создание или обновление)
   savePromo(): void {
+    const data = {
+      code: this.formData.code,
+      discountType: this.formData.discountType,
+      discountValue: this.formData.discountValue,
+      description: this.formData.description,
+      isActive: this.formData.isActive,
+      validFrom: this.formData.validFrom,
+      validTo: this.formData.validTo,
+      maxUses: this.formData.maxUses,
+    };
     if (this.isEditMode && this.selectedPromo) {
-      // Обновление
-      const index = this.allPromocodes.findIndex((p) => p.id === this.selectedPromo!.id);
-      if (index !== -1) {
-        this.allPromocodes[index] = {
-          ...this.selectedPromo,
-          code: this.formData.code,
-          discountType: this.formData.discountType,
-          discountValue: this.formData.discountValue,
-          validFrom: new Date(this.formData.validFrom),
-          validTo: new Date(this.formData.validTo),
-          maxUses: this.formData.maxUses,
-          usedCount: this.formData.usedCount,
-          isActive: this.formData.isActive,
-          description: this.formData.description,
-        };
-      }
-      console.log('Обновлен промокод:', this.formData);
+      this.promocodeService.update(this.selectedPromo.id, data).subscribe({
+        next: () => {
+          this.showForm = false;
+          this.selectedPromo = null;
+          this.loadPromocodes();
+        },
+        error: (err) => console.error('Ошибка обновления промокода:', err),
+      });
     } else {
-      // Создание
-      const newPromo: Promocode = {
-        id: Math.max(...this.allPromocodes.map((p) => p.id), 0) + 1,
-        code: this.formData.code,
-        discountType: this.formData.discountType,
-        discountValue: this.formData.discountValue,
-        validFrom: new Date(this.formData.validFrom),
-        validTo: new Date(this.formData.validTo),
-        maxUses: this.formData.maxUses,
-        usedCount: 0,
-        isActive: this.formData.isActive,
-        description: this.formData.description,
-      };
-      this.allPromocodes.push(newPromo);
-      console.log('Создан промокод:', newPromo);
+      (data as any).usedCount = 0;
+      this.promocodeService.create(data).subscribe({
+        next: () => {
+          this.showForm = false;
+          this.loadPromocodes();
+        },
+        error: (err) => console.error('Ошибка создания промокода:', err),
+      });
     }
-    this.showForm = false;
-    this.selectedPromo = null;
-    this.currentPage = 1; // после сохранения возвращаемся на первую страницу
   }
 
-  // Подтверждение удаления
   confirmDelete(promo: Promocode): void {
     this.promoToDelete = promo;
     this.showDeleteModal = true;
   }
 
-  // Удаление
   deletePromo(): void {
     if (this.promoToDelete) {
-      this.allPromocodes = this.allPromocodes.filter((p) => p.id !== this.promoToDelete!.id);
-      console.log('Удален промокод:', this.promoToDelete);
-      this.showDeleteModal = false;
-      this.promoToDelete = null;
+      this.promocodeService.delete(this.promoToDelete.id).subscribe({
+        next: () => {
+          this.showDeleteModal = false;
+          this.promoToDelete = null;
+          this.loadPromocodes();
+        },
+        error: (err) => console.error('Ошибка удаления промокода:', err),
+      });
     }
   }
 
-  // Отмена удаления
   cancelDelete(): void {
     this.showDeleteModal = false;
     this.promoToDelete = null;
   }
 
-  // Отмена формы
   cancelForm(): void {
     this.showForm = false;
     this.selectedPromo = null;
   }
 
-  // Закрыть просмотр
   closeView(): void {
     this.showView = false;
     this.selectedPromo = null;
   }
 
-  // Вспомогательные методы
   getDiscountTypeLabel(type: 'percentage' | 'fixed'): string {
     return type === 'percentage' ? '%' : '₽';
   }
