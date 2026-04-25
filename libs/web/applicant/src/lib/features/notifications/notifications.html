@@ -19,14 +19,17 @@
         </button>
         <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
-      <button
-        type="button"
-        class="role-notifications__btn role-notifications__btn--ghost"
-        *ngIf="!notifications().length"
-        (click)="restoreDemoData()">
-        Вернуть демо-данные
-      </button>
-      <span class="role-notifications__badge" *ngIf="inboxCount() as c"> Непрочитанных: {{ c }} </span>
+      @if (!notifications().length) {
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--ghost"
+          (click)="restoreDemoData()">
+          Вернуть демо-данные
+        </button>
+      }
+      @if (inboxCount(); as c) {
+        <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
+      }
     </div>
   </header>
 
@@ -66,12 +69,17 @@
     Клик по карточке переключает «прочитано» и «отправлено». Кнопка «Удалить» убирает запись из списка.
   </p>
 
-  <section class="role-notifications__list" *ngIf="filtered().length; else emptyState">
+  @if (filtered().length) {
+  <section class="role-notifications__list">
+    @for (item of filtered(); track item.id) {
     <article
       class="role-notifications__card"
       [class.role-notifications__card--attention]="item.lifecycle === 'sent'"
-      *ngFor="let item of filtered()"
-      (click)="toggleReadOnCard(item.id)">
+      tabindex="0"
+      role="button"
+      (click)="toggleReadOnCard(item.id)"
+      (keydown.enter)="toggleReadOnCard(item.id)"
+      (keydown.space)="toggleReadOnCard(item.id)">
       <div class="role-notifications__card-main">
         <h3>{{ item.title }}</h3>
         <p>{{ item.description }}</p>
@@ -107,12 +115,12 @@
         </button>
       </div>
     </article>
+    }
   </section>
-
-  <ng-template #emptyState>
-    <div class="role-notifications__empty">
-      <strong>Уведомлений нет.</strong>
-      <p>История пуста или фильтры ничего не показывают.</p>
-    </div>
-  </ng-template>
+  } @else {
+  <div class="role-notifications__empty">
+    <strong>Уведомлений нет.</strong>
+    <p>История пуста или фильтры ничего не показывают.</p>
+  </div>
+  }
 </section>

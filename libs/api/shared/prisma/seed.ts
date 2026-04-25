@@ -635,7 +635,6 @@ async function upsertPayments(
         : status === PaymentStatus.Failed
           ? PaymentReceiptStatus.Failed
           : PaymentReceiptStatus.Pending;
-
     // Upload a receipt HTML with real payment data to MinIO for completed payments
     if (receiptStatus === PaymentReceiptStatus.Available) {
       try {
