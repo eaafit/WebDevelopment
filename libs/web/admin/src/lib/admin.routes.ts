@@ -89,6 +89,16 @@ export const adminRoutes: Route[] = [
         loadComponent: () =>
           import('./features/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
       },
+      {
+        path: 'bitrix/config',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-config.component').then((m) => m.BitrixConfigComponent),
+      },
+      {
+        path: 'bitrix/sync',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-sync.component').then((m) => m.BitrixSyncComponent),
+      },
     ],
   },
 ];

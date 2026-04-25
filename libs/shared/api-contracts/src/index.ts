@@ -1,5 +1,7 @@
+export * from './generated/notary/audit/v1alpha1/audit_pb';
 export * from './generated/notary/assessment/v1alpha1/assessment_pb';
 export * from './generated/notary/auth/v1alpha1/auth_pb';
+export * from './generated/notary/bitrix/v1alpha1/bitrix_pb';
 export * from './generated/notary/common/v1alpha1/common_pb';
 export * from './generated/notary/document/v1alpha1/document_pb';
 export * from './generated/notary/forms/v1alpha1/forms_pb';
