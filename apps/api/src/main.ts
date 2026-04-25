@@ -1,12 +1,14 @@
-import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { Code, ConnectError, cors as connectCors } from '@connectrpc/connect';
+import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
 import cors from 'cors';
 import express from 'express';
+import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
+import { createHttpLoggingMiddleware } from './app/logging/logging.config';
 import { AuthInterceptor, TokenService } from '@internal/auth';
+import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
   PaymentAttachmentService,
   PaymentWebhookError,
@@ -24,10 +26,13 @@ import { PrismaService } from '@internal/prisma';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
+    bufferLogs: true,
   });
+  app.useLogger(app.get(PinoNestLogger));
 
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
+  expressInstance.use(createHttpLoggingMiddleware());
 
   // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
   // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
@@ -48,8 +53,13 @@ async function bootstrap() {
               cb(null, requestOrigin ? requestOrigin : true);
             },
       methods: [...connectCors.allowedMethods],
-      allowedHeaders: [...connectCors.allowedHeaders, 'Authorization'],
-      exposedHeaders: [...connectCors.exposedHeaders],
+      allowedHeaders: [
+        ...connectCors.allowedHeaders,
+        'Authorization',
+        'X-Request-Id',
+        'traceparent',
+      ],
+      exposedHeaders: [...connectCors.exposedHeaders, 'X-Request-Id'],
     }),
   );
 
@@ -201,13 +211,18 @@ async function bootstrap() {
       grpc: false,
       grpcWeb: false,
       interceptors: [authInterceptor.build()],
+      contextValues: (req) => {
+        const values = createContextValues();
+        values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
+        return values;
+      },
       routes: (router) => connectRouterRegistry.register(router),
     }),
   );
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);
-  Logger.log(`Connect RPC server is running on http://localhost:${port}`);
+  app.get(PinoNestLogger).log(`Connect RPC server is running on http://localhost:${port}`);
 }
 
 bootstrap();
@@ -228,6 +243,22 @@ function parseBearerToken(value: string | undefined): string | undefined {
 
   const match = /^Bearer\s+(.+)$/i.exec(value);
   return match?.[1];
+}
+
+function resolveRequestIp(req: {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string | null };
+}): string | null {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0]?.trim() || null;
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0]?.split(',')[0]?.trim() || null;
+  }
+
+  return req.socket?.remoteAddress ?? null;
 }
 
 function asString(value: unknown): string | undefined {

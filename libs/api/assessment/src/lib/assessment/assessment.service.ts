@@ -1,5 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { AuditService } from '@internal/audit';
+import { Role, getCurrentUser } from '@internal/auth-shared';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -33,7 +35,12 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentRepository, type AssessmentRealEstateObjectData } from './assessment.repository';
+import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentRepository,
+  type AssessmentAuditSnapshot,
+  type AssessmentRealEstateObjectData,
+} from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
 
 const DEFAULT_PAGE = 1;
@@ -45,6 +52,7 @@ const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
 export class AssessmentService {
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
+    private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -80,14 +88,27 @@ export class AssessmentService {
       description: normalizeOptionalText(request.description),
       realEstateObject,
     });
+    const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
 
     this.metrics.recordAssessmentCreated('new');
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub ?? request.userId,
+      eventType: 'assessment.created',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Создана заявка',
+      actionContext: 'Создание новой заявки на оценку',
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: snapshot.address,
+      after: toAuditSnapshot(snapshot),
+    });
 
     return create(CreateAssessmentResponseSchema, { assessment });
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
     const assessment = await this.assessmentRepository.updateAssessment(request.id, {
@@ -95,14 +116,45 @@ export class AssessmentService {
       description: request.description.trim(),
       realEstateObject,
     });
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub,
+      eventType: 'assessment.updated',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Обновлена заявка',
+      actionContext: 'Изменены данные заявки на оценку',
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(UpdateAssessmentResponseSchema, { assessment });
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-    const assessment = await this.assessmentRepository.verifyAssessment(request.id);
+    const assessment = await this.assessmentRepository.verifyAssessment(
+      request.id,
+      isNotaryRole(actor?.role) ? actor?.sub : undefined,
+    );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.verified',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка взята в работу',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(VerifyAssessmentResponseSchema, { assessment });
   }
@@ -111,6 +163,8 @@ export class AssessmentService {
     request: CompleteAssessmentRequest,
   ): Promise<CompleteAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
       throw new ConnectError(
@@ -123,17 +177,45 @@ export class AssessmentService {
       request.id,
       request.finalEstimatedValue,
     );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.completed',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка завершена',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(CompleteAssessmentResponseSchema, { assessment });
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     const assessment = await this.assessmentRepository.cancelAssessment(
       request.id,
       request.reason?.trim() || undefined,
     );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.cancelled',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка отменена',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(CancelAssessmentResponseSchema, { assessment });
   }
@@ -392,4 +474,38 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
     );
   }
   return value;
+}
+
+function isNotaryRole(role: string | undefined): boolean {
+  return role === '2' || role === Role.Notary;
+}
+
+function statusLabel(status: PrismaAssessmentStatus): string {
+  switch (status) {
+    case PrismaAssessmentStatus.New:
+      return 'new';
+    case PrismaAssessmentStatus.Verified:
+      return 'verified';
+    case PrismaAssessmentStatus.InProgress:
+      return 'in_progress';
+    case PrismaAssessmentStatus.Completed:
+      return 'completed';
+    case PrismaAssessmentStatus.Cancelled:
+      return 'cancelled';
+  }
+}
+
+function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
+  return {
+    status: statusLabel(snapshot.status),
+    address: snapshot.address,
+    description: snapshot.description,
+    estimatedValue: snapshot.estimatedValue,
+    notaryId: snapshot.notaryId,
+    cancelReason: snapshot.cancelReason,
+  };
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
