@@ -1,0 +1,127 @@
+<section class="admin-notifications">
+  <header class="admin-notifications__hero">
+    <div>
+      <p class="admin-notifications__eyebrow">Панель администратора</p>
+      <h2>Уведомления</h2>
+      <p class="admin-notifications__lead">
+        In-app уведомления по событиям системы. Статусы жизненного цикла: создано → отправлено → прочитано → удалено.
+        Можно удалить запись или очистить всю историю.
+      </p>
+    </div>
+
+    <div class="admin-notifications__actions">
+      <div class="admin-notifications__action-row">
+        <button
+          type="button"
+          class="admin-notifications__btn admin-notifications__btn--secondary"
+          (click)="markAllAsRead()">
+          Отметить все прочитанными
+        </button>
+        <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
+      </div>
+      <button
+        type="button"
+        class="admin-notifications__btn admin-notifications__btn--ghost"
+        *ngIf="!notifications().length"
+        (click)="restoreDemoData()">
+        Вернуть демо-данные
+      </button>
+      <span class="admin-notifications__badge" *ngIf="inboxCount() as c"> В очереди / непрочитано: {{ c }} </span>
+    </div>
+  </header>
+
+  <section class="admin-notifications__filters">
+    <label class="admin-notifications__field">
+      <span>Тип</span>
+      <select (change)="setFilter('type', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="application">Заявки</option>
+        <option value="document">Документы</option>
+        <option value="payment">Платежи</option>
+        <option value="system">Системные</option>
+      </select>
+    </label>
+
+    <label class="admin-notifications__field">
+      <span>Канал</span>
+      <select (change)="setFilter('channel', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="in-app">In-app</option>
+        <option value="email">Email</option>
+        <option value="push">Push</option>
+      </select>
+    </label>
+
+    <label class="admin-notifications__field">
+      <span>Статус уведомления</span>
+      <select (change)="setFilter('lifecycle', $any($event.target).value)">
+        <option value="active">Все активные (без удалённых)</option>
+        <option value="all">Все, включая удалённые</option>
+        <option value="created">Создано</option>
+        <option value="sent">Отправлено</option>
+        <option value="read">Прочитано</option>
+        <option value="deleted">Удалено</option>
+      </select>
+    </label>
+  </section>
+
+  <p class="admin-notifications__hint">
+    Клик по карточке переключает «прочитано / отправлено». Кнопка «Удалить» помечает запись статусом «Удалено» (скрыта
+    при фильтре «активные»). «Очистить историю» убирает все строки.
+  </p>
+
+  <section class="admin-notifications__list" *ngIf="filtered().length; else emptyState">
+    <article
+      class="admin-notifications__card"
+      [class.admin-notifications__card--attention]="
+        item.lifecycle === 'sent' || item.lifecycle === 'created'
+      "
+      [class.admin-notifications__card--deleted]="item.lifecycle === 'deleted'"
+      *ngFor="let item of filtered()"
+      (click)="toggleReadOnCard(item.id)">
+      <div class="admin-notifications__card-main">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.description }}</p>
+
+        <div class="admin-notifications__chips">
+          <span class="chip chip--type">
+            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
+            ? 'Платежи' : 'Система' }}
+          </span>
+          <span class="chip chip--channel">
+            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+          </span>
+          <span
+            class="chip chip--lifecycle"
+            [class.chip--lifecycle-created]="item.lifecycle === 'created'"
+            [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
+            [class.chip--lifecycle-read]="item.lifecycle === 'read'"
+            [class.chip--lifecycle-deleted]="item.lifecycle === 'deleted'">
+            {{ lifecycleLabel(item.lifecycle) }}
+          </span>
+        </div>
+      </div>
+
+      <div class="admin-notifications__card-aside">
+        <div class="admin-notifications__datetime">
+          <span class="admin-notifications__time">{{ item.relativeTime }}</span>
+          <span class="admin-notifications__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
+        </div>
+        <button
+          type="button"
+          class="admin-notifications__btn-delete"
+          (click)="deleteOne(item.id, $event)"
+          title="Удалить уведомление">
+          Удалить
+        </button>
+      </div>
+    </article>
+  </section>
+
+  <ng-template #emptyState>
+    <div class="admin-notifications__empty">
+      <strong>Уведомлений нет.</strong>
+      <p>История пуста или по фильтрам ничего не найдено. Можно вернуть демо-данные кнопкой выше.</p>
+    </div>
+  </ng-template>
+</section>

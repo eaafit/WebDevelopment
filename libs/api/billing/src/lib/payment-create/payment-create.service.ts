@@ -15,7 +15,7 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
-import { MetricsService } from '@internal/metrics';
+import { MetricsService, type PromoValidationMetricStatus } from '@internal/metrics';
 import {
   PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
@@ -33,6 +33,7 @@ import {
   getSubscriptionPlanByPrisma,
 } from '../subscription/subscription-plan.catalog';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
+import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 
 const PAYMENT_RETURN_PATH_BY_TYPE: Record<PrismaPaymentType, string> = {
   [PrismaPaymentType.Subscription]: '/notary/subscription/checkout/success',
@@ -70,12 +71,10 @@ export class PaymentCreateService {
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
     const requestAmount = parseAmountToCents(request.amount, 'amount');
     const prismaType = this.toPrismaType(request.type);
+    const metricContext = resolveBillingPaymentMetricContext(prismaType);
     this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const receipt =
-      prismaType === PrismaPaymentType.Subscription
-        ? await this.buildSubscriptionReceipt(request.userId, resolved)
-        : undefined;
+    const receipt = await this.buildPaymentReceipt(request.userId, resolved);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -88,13 +87,13 @@ export class PaymentCreateService {
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
         paymentMethod: 'yookassa_widget',
-        receiptStatus:
-          prismaType === PrismaPaymentType.Subscription ? PrismaPaymentReceiptStatus.Pending : null,
+        receiptStatus: PrismaPaymentReceiptStatus.Pending,
       },
     });
 
     const returnUrl = this.buildReturnUrl(prismaType, payment.id);
     this.metrics.recordPayment('pending');
+    this.metrics.recordBillingPayment('pending', metricContext);
 
     try {
       const result = await this.yookassa.createPayment({
@@ -160,6 +159,7 @@ export class PaymentCreateService {
     } catch (err) {
       if (err instanceof YooKassaClientError) {
         this.metrics.recordPayment('failed');
+        this.metrics.recordBillingPayment('failed', metricContext);
         await this.prisma.payment.update({
           where: { id: payment.id },
           data: { status: PrismaPaymentStatus.Failed },
@@ -176,6 +176,10 @@ export class PaymentCreateService {
     const plan = getSubscriptionPlanByPrisma(this.toPrismaPlan(request.plan));
     const baseAmountCents = parseAmountToCents(plan.price, 'plan.price');
     const promoValidation = await this.validatePromoCode(request.promoCode);
+    this.metrics.recordPromoValidation(
+      'preview',
+      toPromoValidationMetricStatus(promoValidation.status),
+    );
 
     if (promoValidation.status !== PromoValidationStatus.VALID || !promoValidation.promo) {
       return create(ValidateSubscriptionPromoResponseSchema, {
@@ -242,7 +246,7 @@ export class PaymentCreateService {
     };
   }
 
-  private async buildSubscriptionReceipt(
+  private async buildPaymentReceipt(
     userId: string,
     resolved: Pick<ResolvedPaymentContext, 'amount' | 'description'>,
   ): Promise<YooKassaReceipt> {
@@ -335,6 +339,11 @@ export class PaymentCreateService {
     }
 
     const validation = await this.validatePromoCode(rawPromoCode);
+    this.metrics.recordPromoValidation(
+      'payment_create',
+      toPromoValidationMetricStatus(validation.status),
+    );
+
     if (validation.status === PromoValidationStatus.VALID) {
       return validation.promo;
     }
@@ -496,4 +505,20 @@ function resolveReceiptVatCode(): number {
   }
 
   return value;
+}
+
+function toPromoValidationMetricStatus(status: PromoValidationStatus): PromoValidationMetricStatus {
+  switch (status) {
+    case PromoValidationStatus.VALID:
+      return 'valid';
+    case PromoValidationStatus.NOT_FOUND:
+      return 'not_found';
+    case PromoValidationStatus.EXPIRED:
+      return 'expired';
+    case PromoValidationStatus.USAGE_LIMIT_REACHED:
+      return 'usage_limit_reached';
+    case PromoValidationStatus.UNSPECIFIED:
+    default:
+      return 'unspecified';
+  }
 }

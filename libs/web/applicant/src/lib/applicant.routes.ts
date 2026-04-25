@@ -94,13 +94,9 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'In-app уведомления',
-          'Фильтры',
-          'Прочитано/не прочитано',
-          'История событий',
-        ]),
-      },
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.ApplicantNotifications),
+      } as Route,
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения', 'SLA-статусы']),

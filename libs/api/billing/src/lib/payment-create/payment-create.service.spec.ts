@@ -10,6 +10,7 @@ import {
 import {
   PaymentReceiptStatus,
   PaymentStatus,
+  PaymentType as PrismaPaymentType,
   SubscriptionPlan as PrismaSubscriptionPlan,
 } from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
@@ -21,6 +22,8 @@ describe('PaymentCreateService', () => {
   const findUser = jest.fn();
   const metrics = {
     recordPayment: jest.fn(),
+    recordBillingPayment: jest.fn(),
+    recordPromoValidation: jest.fn(),
   };
   const yookassa = {
     createPayment: jest.fn(),
@@ -56,6 +59,8 @@ describe('PaymentCreateService', () => {
     findPromo.mockReset();
     findUser.mockReset();
     metrics.recordPayment.mockReset();
+    metrics.recordBillingPayment.mockReset();
+    metrics.recordPromoValidation.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
     auditService.record.mockReset();
@@ -172,8 +177,129 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPayment).toHaveBeenCalledWith('pending');
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'notary',
+      scenario: 'subscription',
+    });
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('payment_create', 'valid');
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
     expect(auditService.record).not.toHaveBeenCalled();
+  });
+
+  it('should mark assessment service payments as applicant billing metrics', async () => {
+    findUser.mockResolvedValueOnce({
+      email: 'applicant@example.com',
+    });
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(paymentSubscriptionService.resolveSubscriptionForPayment).not.toHaveBeenCalled();
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.Assessment,
+        amount: '2500.00',
+        status: PaymentStatus.Pending,
+        assessmentId: 'assessment-1',
+        receiptStatus: PaymentReceiptStatus.Pending,
+      }),
+    });
+    expect(yookassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: {
+            email: 'applicant@example.com',
+          },
+          items: [
+            expect.objectContaining({
+              description: 'Оплата оценки имущества',
+              amount: {
+                value: '2500.00',
+                currency: 'RUB',
+              },
+              vatCode: 4,
+              paymentMode: 'full_prepayment',
+              paymentSubject: 'service',
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
+  });
+
+  it('should send receipt data for document copy payments', async () => {
+    findUser.mockResolvedValueOnce({
+      email: 'applicant@example.com',
+    });
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '900.00',
+      type: PaymentType.DOCUMENT_COPY,
+      targetId: 'document-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.DocumentCopy,
+        amount: '900.00',
+        status: PaymentStatus.Pending,
+        subscriptionId: null,
+        assessmentId: null,
+        receiptStatus: PaymentReceiptStatus.Pending,
+      }),
+    });
+    expect(yookassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: {
+            email: 'applicant@example.com',
+          },
+          items: [
+            expect.objectContaining({
+              description: 'Оплата копии нотариального документа',
+              amount: {
+                value: '900.00',
+                currency: 'RUB',
+              },
+              vatCode: 4,
+              paymentMode: 'full_prepayment',
+              paymentSubject: 'service',
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'applicant',
+      scenario: 'document_copy_service',
+    });
   });
 
   it('should fail before payment creation when YOOKASSA_RECEIPT_VAT_CODE is missing', async () => {
@@ -240,6 +366,7 @@ describe('PaymentCreateService', () => {
         discountPercent: '10.00',
       }),
     );
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('preview', 'valid');
   });
 
   it('should record audit event for assessment payment creation', async () => {
