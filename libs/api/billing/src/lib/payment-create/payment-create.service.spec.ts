@@ -31,6 +31,9 @@ describe('PaymentCreateService', () => {
   const paymentSubscriptionService = {
     resolveSubscriptionForPayment: jest.fn(),
   };
+  const auditService = {
+    record: jest.fn(),
+  };
   const prisma = {
     payment: {
       create: createPaymentRecord,
@@ -60,6 +63,7 @@ describe('PaymentCreateService', () => {
     metrics.recordPromoValidation.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
+    auditService.record.mockReset();
 
     paymentSubscriptionService.resolveSubscriptionForPayment.mockResolvedValue({
       id: 'subscription-1',
@@ -107,6 +111,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -178,6 +183,7 @@ describe('PaymentCreateService', () => {
     });
     expect(metrics.recordPromoValidation).toHaveBeenCalledWith('payment_create', 'valid');
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('should mark assessment service payments as applicant billing metrics', async () => {
@@ -304,6 +310,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -321,6 +328,7 @@ describe('PaymentCreateService', () => {
 
     expect(createPaymentRecord).not.toHaveBeenCalled();
     expect(yookassa.createPayment).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('should validate a subscription promo and return discounted preview data', async () => {
@@ -329,6 +337,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(ValidateSubscriptionPromoRequestSchema, {
@@ -358,5 +367,36 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPromoValidation).toHaveBeenCalledWith('preview', 'valid');
+  });
+
+  it('should record audit event for assessment payment creation', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.created',
+        targetType: 'Assessment',
+        targetId: 'assessment-1',
+        targetContext: 'Платёж #payment-',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+        }),
+      }),
+    );
   });
 });

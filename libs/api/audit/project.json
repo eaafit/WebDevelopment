@@ -1,0 +1,18 @@
+{
+  "name": "audit",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/audit/src",
+  "projectType": "library",
+  "tags": ["scope:backend-shared"],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "dependsOn": ["prisma:generate"],
+      "options": {
+        "jestConfig": "libs/api/audit/jest.config.cts",
+        "tsConfig": "libs/api/audit/tsconfig.spec.json"
+      }
+    }
+  }
+}
