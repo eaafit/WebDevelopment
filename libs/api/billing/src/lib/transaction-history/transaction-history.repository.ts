@@ -4,6 +4,7 @@ import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
 import {
   GetPaymentHistoryResponseSchema,
+  PaymentReceiptStatus as RpcPaymentReceiptStatus,
   PaginationMetaSchema,
   PaymentSchema,
   PaymentStatus as RpcPaymentStatus,
@@ -12,6 +13,7 @@ import {
   type Payment,
 } from '@notary-portal/api-contracts';
 import {
+  PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   PaymentType as PrismaPaymentType,
   SubscriptionPlan,
@@ -128,6 +130,8 @@ export class TransactionHistoryRepository {
       attachmentFileUrl: transaction.attachmentFileUrl ?? '',
       subscriptionId: transaction.subscriptionId ?? '',
       assessmentId: transaction.assessmentId ?? '',
+      hasReceipt: this.hasReceipt(transaction.attachmentFileUrl, transaction.receiptStatus),
+      receiptStatus: this.fromPrismaReceiptStatus(transaction.receiptStatus),
     });
   }
 
@@ -202,6 +206,36 @@ export class TransactionHistoryRepository {
     }
 
     return searchFilters;
+  }
+
+  private fromPrismaReceiptStatus(
+    status: PrismaPaymentReceiptStatus | null,
+  ): RpcPaymentReceiptStatus {
+    switch (status) {
+      case PrismaPaymentReceiptStatus.Pending:
+        return RpcPaymentReceiptStatus.PENDING;
+      case PrismaPaymentReceiptStatus.Available:
+        return RpcPaymentReceiptStatus.AVAILABLE;
+      case PrismaPaymentReceiptStatus.Failed:
+        return RpcPaymentReceiptStatus.FAILED;
+      case null:
+      default:
+        return RpcPaymentReceiptStatus.UNSPECIFIED;
+    }
+  }
+
+  private hasReceipt(
+    attachmentFileUrl: string | null,
+    receiptStatus: PrismaPaymentReceiptStatus | null,
+  ): boolean {
+    if (!attachmentFileUrl?.trim()) {
+      return false;
+    }
+
+    return (
+      receiptStatus !== PrismaPaymentReceiptStatus.Pending &&
+      receiptStatus !== PrismaPaymentReceiptStatus.Failed
+    );
   }
 
   private getTypeSearchFilters(searchQuery: string): Prisma.PaymentWhereInput[] {

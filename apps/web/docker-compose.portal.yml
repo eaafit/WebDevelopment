@@ -1,0 +1,97 @@
+name: notary-portal
+
+# Portal stack: Angular static + nginx edge (same origin as API) + Postgres + Nest API.
+# From apps/web:
+#   docker network create proxy   # once, for NPM
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build
+#
+# NPM: Forward Hostname `portal`, Forward Port `80`.
+# Migrations (once per deploy, after Postgres is up):
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml --profile migrate run --rm migrate
+
+services:
+  portal:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NG_APP_SHOW_TEST_ACCOUNTS: ${NG_APP_SHOW_TEST_ACCOUNTS:-false}
+    expose:
+      - '80'
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      default:
+      proxy:
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    expose:
+      - '3000'
+    env_file:
+      - .env.portal
+    environment:
+      PORT: '3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: db
+    volumes:
+      - portal_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d db']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      # First init of an empty volume can take a long time on slow disks; without
+      # start_period, too few retries mark the DB unhealthy and dependents time out.
+      start_period: 90s
+    networks:
+      default:
+
+  migrate:
+    image: node:22-bookworm-slim
+    profiles: ['migrate']
+    volumes:
+      # Read-only mount has no node_modules — prisma.config.ts imports `prisma/config`, so we
+      # copy to /tmp, `npm install` from libs/api/shared/prisma/package.json, then migrate deploy.
+      - ../../libs/api/shared/prisma:/work/prisma:ro
+    env_file:
+      - .env.portal
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        apt-get update -y
+        apt-get install -y --no-install-recommends openssl ca-certificates
+        rm -rf /var/lib/apt/lists/*
+        rm -rf /tmp/prisma-migrate-work
+        cp -a /work/prisma /tmp/prisma-migrate-work
+        cd /tmp/prisma-migrate-work
+        npm install --no-audit --no-fund
+        npx prisma migrate deploy
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+volumes:
+  portal_pg_data:

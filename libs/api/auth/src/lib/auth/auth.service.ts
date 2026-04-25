@@ -1,13 +1,18 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { MetricsService } from '@internal/metrics';
 import {
   AuthResultSchema,
+  ForgotPasswordResponseSchema,
   LoginResponseSchema,
   LogoutResponseSchema,
   RegisterResponseSchema,
   RefreshTokenResponseSchema,
+  ResetPasswordResponseSchema,
   UserRole as RpcUserRole,
+  type ForgotPasswordRequest,
+  type ForgotPasswordResponse,
   type LoginRequest,
   type LoginResponse,
   type LogoutRequest,
@@ -16,22 +21,48 @@ import {
   type RefreshTokenResponse,
   type RegisterRequest,
   type RegisterResponse,
+  type ResetPasswordRequest,
+  type ResetPasswordResponse,
 } from '@notary-portal/api-contracts';
 import { AuthRepository } from './auth.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
+import { PasswordResetRepository } from './password-reset.repository';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { PASSWORD_RESET_MAILER, type PasswordResetMailer } from './password-reset-mailer.interface';
+import { TRANSACTIONAL_MAILER, type TransactionalMailer } from './transactional-mailer.interface';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
+
+function roleLabelForRpc(role: RpcUserRole): string {
+  switch (role) {
+    case RpcUserRole.APPLICANT:
+      return 'Заявитель';
+    case RpcUserRole.NOTARY:
+      return 'Нотариус';
+    case RpcUserRole.ADMIN:
+      return 'Администратор';
+    default:
+      return 'Пользователь';
+  }
+}
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly passwordResetRepository: PasswordResetRepository,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
+    private readonly metrics: MetricsService,
+    @Optional()
+    @Inject(PASSWORD_RESET_MAILER)
+    private readonly passwordResetMailer: PasswordResetMailer | null = null,
+    @Optional()
+    @Inject(TRANSACTIONAL_MAILER)
+    private readonly transactionalMailer: TransactionalMailer | null = null,
   ) {}
 
   // ─── Register ────────────────────────────────────────────────────────────
@@ -60,21 +91,37 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hash(request.password);
     const user = await this.authRepository.createUser({
-      email:        request.email.toLowerCase(),
+      email: request.email.toLowerCase(),
       passwordHash,
-      fullName:     request.fullName.trim(),
-      phoneNumber:  request.phoneNumber?.trim() || undefined,
-      role:         this.authRepository.toPrismaRole(request.role),
+      fullName: request.fullName.trim(),
+      phoneNumber: request.phoneNumber?.trim() || undefined,
+      role: this.authRepository.toPrismaRole(request.role),
     });
 
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   user.id,
-        email: user.email,
-        role:  user.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: user.id,
+      email: user.email,
+      role: user.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
+
+    this.metrics.recordUserRegistered();
+
+    if (this.transactionalMailer) {
+      const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
+      void this.transactionalMailer
+        .sendWelcomeAfterRegistration({
+          email: user.email,
+          fullName: user.fullName,
+          roleLabel: roleLabelForRpc(user.role),
+          loginUrl: `${base}/auth`,
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn('[Auth] welcome email failed:', msg);
+        });
+    }
 
     return create(RegisterResponseSchema, {
       result: create(AuthResultSchema, { accessToken, refreshToken, user }),
@@ -96,21 +143,17 @@ export class AuthService {
       throw new ConnectError('account is deactivated', Code.PermissionDenied);
     }
 
-    const passwordValid = await this.passwordService.compare(
-      request.password,
-      record.passwordHash,
-    );
+    const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
     if (!passwordValid) {
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }
 
     const user = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   user.id,
-        email: user.email,
-        role:  user.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: user.id,
+      email: user.email,
+      role: user.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
 
@@ -139,12 +182,11 @@ export class AuthService {
     }
 
     const rpcUser = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } =
-      this.tokenService.generateTokenPair({
-        sub:   rpcUser.id,
-        email: rpcUser.email,
-        role:  rpcUser.role.toString(),
-      });
+    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
+      sub: rpcUser.id,
+      email: rpcUser.email,
+      role: rpcUser.role.toString(),
+    });
 
     await this.refreshTokenRepository.save(userId, refreshToken, refreshExpiresAt);
 
@@ -163,5 +205,65 @@ export class AuthService {
     // Идемпотентный logout — не бросаем ошибку если токен уже отозван
     const revoked = await this.refreshTokenRepository.revoke(request.refreshToken);
     return create(LogoutResponseSchema, { success: revoked });
+  }
+
+  // ─── Forgot password (email link) ───────────────────────────────────────
+
+  /** Не раскрывает, существует ли email: при отсутствии пользователя — тихий успех. */
+  async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+    const email = request.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      return create(ForgotPasswordResponseSchema, {});
+    }
+
+    const record = await this.authRepository.findByEmail(email);
+    if (!record?.isActive) {
+      return create(ForgotPasswordResponseSchema, {});
+    }
+
+    const rawToken = this.tokenService.generatePasswordResetToken();
+    const ttlSec = Number(process.env['PASSWORD_RESET_TTL_SEC'] ?? 3600);
+    const expiresAt = new Date(Date.now() + ttlSec * 1000);
+    await this.passwordResetRepository.create(record.id, rawToken, expiresAt);
+
+    const base = (
+      process.env['PASSWORD_RESET_BASE_URL'] ??
+      process.env['FRONTEND_URL'] ??
+      'http://localhost:4200'
+    ).replace(/\/$/, '');
+    const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
+
+    if (this.passwordResetMailer) {
+      await this.passwordResetMailer.sendResetLink(record.email, resetUrl);
+    } else {
+      console.warn('[Auth] PASSWORD_RESET_MAILER не настроен — ссылка сброса пароля:', resetUrl);
+    }
+
+    return create(ForgotPasswordResponseSchema, {});
+  }
+
+  async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    const token = request.token?.trim();
+    if (!token) {
+      throw new ConnectError('token is required', Code.InvalidArgument);
+    }
+    if (request.newPassword.length < MIN_PASSWORD_LEN) {
+      throw new ConnectError(
+        `password must be at least ${MIN_PASSWORD_LEN} characters`,
+        Code.InvalidArgument,
+      );
+    }
+
+    const stored = await this.passwordResetRepository.findValid(token);
+    if (!stored) {
+      throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
+    }
+
+    const passwordHash = await this.passwordService.hash(request.newPassword);
+    await this.authRepository.updatePasswordHash(stored.userId, passwordHash);
+    await this.passwordResetRepository.markUsed(stored.id);
+    await this.refreshTokenRepository.revokeAll(stored.userId);
+
+    return create(ResetPasswordResponseSchema, {});
   }
 }

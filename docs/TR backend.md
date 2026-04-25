@@ -60,7 +60,7 @@
 
 - **Функции:** Средства защиты от CSRF, XSS, DDOS с использованием встроенных возможностей ASP.NET Core
 - **Логирование:** Централизованное в PostgreSQL и внешние системы, интеграция с Elastic Stack
-- **Мониторинг:** Health checks и метрики с помощью Prometheus и Grafana
+- **Мониторинг:** Health checks и метрики с помощью Prometheus и Grafana. В текущей реализации (NestJS API): эндпоинты `/health` и `/metrics`, сбор метрик Prometheus и дашборды в Grafana (см. `docker-compose.yaml`, каталог `monitoring/`).
 
 ## 9. Интеграционный сервис
 
@@ -71,7 +71,7 @@
 ## 10. Сервис логирования и мониторинга
 
 - **Стек:** Serilog для логирования в PostgreSQL и Elasticsearch
-- **Мониторинг:** Интеграция с Prometheus и Grafana
+- **Мониторинг:** Интеграция с Prometheus и Grafana. Реализовано: эндпоинт `/metrics` (prom-client), системные и бизнес-метрики (оценки, платежи, пользователи, аудит, отчёты), дашборды «System metrics» и «Business metrics» в Grafana (provisioning в `monitoring/grafana/provisioning/`).
 - **Особенности:** Настраиваемые алерты на аномалии, удобные дашборды для админов
 
 ## 11. Сервис поддержки пользователей

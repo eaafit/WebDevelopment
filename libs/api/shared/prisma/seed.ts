@@ -7,6 +7,7 @@ import {
   DocumentType,
   NotificationStatus,
   NotificationType,
+  PaymentReceiptStatus,
   PaymentStatus,
   PaymentType,
   PrismaClient,
@@ -15,6 +16,7 @@ import {
   SaleType,
   SubscriptionPlan,
 } from './generated/prisma/client';
+import { RUSSIA_TOP_50_GEOGRAPHY } from './data/russia-top50-geography';
 
 const connectionString = process.env['DATABASE_URL'];
 
@@ -27,11 +29,20 @@ const prisma = new PrismaClient({
 });
 
 const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 100);
+const SEED_USERS_PER_ROLE = 10;
+const TOTAL_SEED_USERS = SEED_USERS_PER_ROLE * 3; // 10 Applicant, 10 Notary, 10 Admin
+const PAYMENT_HISTORY_PER_USER = 10;
 const SEED_USER_PASSWORD = process.env['SEED_USER_PASSWORD'] ?? 'SeedPass123!';
 const BCRYPT_SALT_ROUNDS = 12;
 
 function seedId(entity: string, i: number): string {
   const h = crypto.createHash('sha256').update(`seed-${entity}-${i}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
+}
+
+/** Стабильные UUID для городов/районов по строковому ключу (порядок в списке может меняться). */
+function geographySeedId(kind: 'city' | 'district', key: string): string {
+  const h = crypto.createHash('sha256').update(`seed-geo-${kind}-${key}`).digest('hex');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
 }
 
@@ -41,7 +52,8 @@ function pad(i: number, len: number): string {
 
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
-  const userIds = await upsertUsers(SEED_COUNT, seedPasswordHash);
+  const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
@@ -52,6 +64,7 @@ async function main(): Promise<void> {
   await upsertNotifications(SEED_COUNT, userIds);
   await upsertRefreshTokens(SEED_COUNT, userIds);
   await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, promoIds);
+  await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
   const [
     userCount,
@@ -65,6 +78,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    cityCount,
+    districtCount,
   ] = await prisma.$transaction([
     prisma.user.count(),
     prisma.assessment.count(),
@@ -77,6 +92,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.city.count(),
+    prisma.district.count(),
   ]);
 
   console.info(
@@ -93,8 +110,10 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `Cities: ${cityCount}`,
+      `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
-      ...buildSeedCredentialHints(SEED_COUNT),
+      ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
   );
 }
@@ -102,7 +121,7 @@ async function main(): Promise<void> {
 async function upsertUsers(count: number, passwordHash: string): Promise<string[]> {
   const userIds: string[] = [];
   const roles: Role[] = [Role.Applicant, Role.Notary, Role.Admin];
-  const roleCounts = [50, 30, 20];
+  const roleCounts = [SEED_USERS_PER_ROLE, SEED_USERS_PER_ROLE, SEED_USERS_PER_ROLE];
   let roleIndex = 0;
   let roleOffset = 0;
   for (let i = 0; i < count; i++) {
@@ -146,11 +165,11 @@ function buildSeedCredentialHints(count: number): string[] {
   if (count > 0) {
     hints.push(`Applicant login: ${seedUserEmail(0)}`);
   }
-  if (count > 50) {
-    hints.push(`Notary login: ${seedUserEmail(50)}`);
+  if (count > SEED_USERS_PER_ROLE) {
+    hints.push(`Notary login: ${seedUserEmail(SEED_USERS_PER_ROLE)}`);
   }
-  if (count > 80) {
-    hints.push(`Admin login: ${seedUserEmail(80)}`);
+  if (count > SEED_USERS_PER_ROLE * 2) {
+    hints.push(`Admin login: ${seedUserEmail(SEED_USERS_PER_ROLE * 2)}`);
   }
 
   return hints;
@@ -229,6 +248,35 @@ async function upsertSales(count: number, promoIds: string[]): Promise<void> {
   }
 }
 
+async function upsertGeographyCatalog(): Promise<void> {
+  for (const entry of RUSSIA_TOP_50_GEOGRAPHY) {
+    const cityId = geographySeedId('city', entry.name);
+    await prisma.city.upsert({
+      where: { name: entry.name },
+      create: { id: cityId, name: entry.name },
+      update: {},
+    });
+    const city = await prisma.city.findUniqueOrThrow({ where: { name: entry.name } });
+    for (const districtName of entry.districts) {
+      const districtId = geographySeedId('district', `${entry.name}|${districtName}`);
+      await prisma.district.upsert({
+        where: {
+          cityId_name: {
+            cityId: city.id,
+            name: districtName,
+          },
+        },
+        create: {
+          id: districtId,
+          cityId: city.id,
+          name: districtName,
+        },
+        update: {},
+      });
+    }
+  }
+}
+
 async function upsertAssessments(count: number, userIds: string[]): Promise<string[]> {
   const assessmentIds: string[] = [];
   const statuses = [
@@ -238,9 +286,12 @@ async function upsertAssessments(count: number, userIds: string[]): Promise<stri
     AssessmentStatus.Verified,
     AssessmentStatus.Cancelled,
   ];
-  const applicantCount = Math.min(50, userIds.length);
-  const notaryStart = 50;
-  const notaryCount = Math.min(30, Math.max(0, userIds.length - 50));
+  const applicantCount = Math.min(SEED_USERS_PER_ROLE, userIds.length);
+  const notaryStart = SEED_USERS_PER_ROLE;
+  const notaryCount = Math.min(
+    SEED_USERS_PER_ROLE,
+    Math.max(0, userIds.length - SEED_USERS_PER_ROLE),
+  );
   const addresses = [
     'г. Екатеринбург, ул. Малышева, 18',
     'Свердловская обл., п. Балтым, ул. Сосновая, 7',
@@ -288,6 +339,7 @@ async function upsertDocuments(
   assessmentIds: string[],
   userIds: string[],
 ): Promise<void> {
+  const bucketName = process.env['S3_BUCKET_ASSESSMENT_FILES']?.trim() || 'assessment-files';
   const docTypes = [
     DocumentType.Passport,
     DocumentType.PropertyDeed,
@@ -310,14 +362,19 @@ async function upsertDocuments(
     const uploadedById = userIds[i % userIds.length];
     const docType = docTypes[i % 6];
     const fileName = `seed-doc-${pad(i, 3)}-${fileNames[i % 6]}`;
+    const objectPrefix = resolveSeedDocumentPrefix(docType);
+    const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
+    const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
     await prisma.document.upsert({
       where: { id },
       update: {
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
@@ -326,13 +383,27 @@ async function upsertDocuments(
         assessmentId,
         fileName,
         fileType: 'application/pdf',
+        fileSize: 0,
         documentType: docType,
-        filePath: `/uploads/seed/${fileName}`,
+        bucketName,
+        objectKey,
         version: (i % 3) + 1,
         uploadedById,
       },
     });
   }
+}
+
+function resolveSeedDocumentPrefix(documentType: DocumentType): string {
+  if (documentType === DocumentType.Photo) {
+    return 'photos';
+  }
+
+  if (documentType === DocumentType.Additional) {
+    return 'additional';
+  }
+
+  return 'documents';
 }
 
 async function upsertSubscriptions(count: number, userIds: string[]): Promise<string[]> {
@@ -390,21 +461,58 @@ async function upsertPayments(
     PaymentStatus.Refunded,
   ];
   const methods = ['bank_card', 'sbp', 'invoice'];
-  const baseDate = new Date('2026-02-01T10:00:00.000Z');
-  for (let i = 0; i < count; i++) {
+  const totalHistoryPayments = TOTAL_SEED_USERS * PAYMENT_HISTORY_PER_USER;
+  const totalPayments = Math.max(count, totalHistoryPayments);
+  const baseDate = new Date('2026-01-01T10:00:00.000Z');
+
+  for (let i = 0; i < totalPayments; i++) {
     const id = seedId('payment', i);
-    const type = types[i % 3];
-    const userId = userIds[i % userIds.length];
-    const subscriptionId =
-      type === PaymentType.Subscription ? subscriptionIds[i % subscriptionIds.length] : null;
-    const assessmentId =
-      type !== PaymentType.Subscription ? assessmentIds[i % assessmentIds.length] : null;
-    const amount = String(1000 + (i % 50) * 200) + '.00';
-    const discountAmount = i % 10 === 0 ? String(Math.floor(Number(amount) * 0.1)) + '.00' : null;
-    const promoId = i % 10 === 0 && i < promoIds.length ? promoIds[i % promoIds.length] : null;
-    const paymentDate = new Date(baseDate);
-    paymentDate.setDate(paymentDate.getDate() + (i % 30));
-    const status = statuses[i % 4];
+    const isHistoryPayment = i < totalHistoryPayments;
+    let userId: string;
+    let paymentDate: Date;
+    let type: PaymentType;
+    let subscriptionId: string | null;
+    let assessmentId: string | null;
+    let amount: string;
+    let discountAmount: string | null;
+    let promoId: string | null;
+    let status: PaymentStatus;
+
+    if (isHistoryPayment) {
+      const userIndex = Math.floor(i / PAYMENT_HISTORY_PER_USER);
+      const j = i % PAYMENT_HISTORY_PER_USER;
+      userId = userIds[userIndex];
+      paymentDate = new Date(baseDate);
+      paymentDate.setDate(paymentDate.getDate() - (totalHistoryPayments - i) * 2);
+      type = types[j % 3];
+      subscriptionId =
+        type === PaymentType.Subscription
+          ? subscriptionIds[userIndex % subscriptionIds.length]
+          : null;
+      assessmentId =
+        type !== PaymentType.Subscription
+          ? assessmentIds[(userIndex * PAYMENT_HISTORY_PER_USER + j) % assessmentIds.length]
+          : null;
+      amount = String(1000 + (j % 50) * 200) + '.00';
+      discountAmount = j % 10 === 0 ? String(Math.floor(Number(amount) * 0.1)) + '.00' : null;
+      promoId = j % 10 === 0 && promoIds.length > 0 ? promoIds[userIndex % promoIds.length] : null;
+      status = statuses[j % 4];
+    } else {
+      const idx = i - totalHistoryPayments;
+      userId = userIds[idx % userIds.length];
+      type = types[idx % 3];
+      subscriptionId =
+        type === PaymentType.Subscription ? subscriptionIds[idx % subscriptionIds.length] : null;
+      assessmentId =
+        type !== PaymentType.Subscription ? assessmentIds[idx % assessmentIds.length] : null;
+      amount = String(1000 + (idx % 50) * 200) + '.00';
+      discountAmount = idx % 10 === 0 ? String(Math.floor(Number(amount) * 0.1)) + '.00' : null;
+      promoId = idx % 10 === 0 && idx < promoIds.length ? promoIds[idx % promoIds.length] : null;
+      paymentDate = new Date(baseDate);
+      paymentDate.setDate(paymentDate.getDate() + (idx % 30));
+      status = statuses[idx % 4];
+    }
+
     await prisma.payment.upsert({
       where: { id },
       update: {
@@ -421,6 +529,7 @@ async function upsertPayments(
         transactionId: `TXN-SEED-${pad(i, 5)}`,
         attachmentFileName: `receipt-${i}.pdf`,
         attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
+        receiptStatus: PaymentReceiptStatus.Available,
       },
       create: {
         id,
@@ -437,6 +546,7 @@ async function upsertPayments(
         transactionId: `TXN-SEED-${pad(i, 5)}`,
         attachmentFileName: `receipt-${i}.pdf`,
         attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
+        receiptStatus: PaymentReceiptStatus.Available,
       },
     });
   }
@@ -447,7 +557,7 @@ async function upsertReports(
   assessmentIds: string[],
   userIds: string[],
 ): Promise<void> {
-  const notaryAdminStart = Math.min(50, userIds.length);
+  const notaryAdminStart = Math.min(SEED_USERS_PER_ROLE, userIds.length);
   const signedByIdCandidates = userIds.slice(notaryAdminStart);
   const signerCount = signedByIdCandidates.length || 1;
   for (let i = 0; i < count; i++) {
@@ -562,6 +672,68 @@ async function upsertAuditLogs(
         details,
       },
     });
+  }
+}
+
+const ASSESSMENT_PROCESSING_EVENTS = [
+  'assessment.created',
+  'assessment.assigned_to_notary',
+  'assessment.status_in_progress',
+  'assessment.completed',
+] as const;
+const ASSESSMENT_PROCESSING_EVENT_CANCELLED = 'assessment.cancelled';
+
+async function upsertAssessmentProcessingHistory(
+  assessmentIds: string[],
+  userIds: string[],
+): Promise<void> {
+  const applicantCount = Math.min(SEED_USERS_PER_ROLE, userIds.length);
+  const notaryStart = SEED_USERS_PER_ROLE;
+  const notaryCount = Math.min(
+    SEED_USERS_PER_ROLE,
+    Math.max(0, userIds.length - SEED_USERS_PER_ROLE),
+  );
+  const baseTimestamp = new Date('2026-02-01T08:00:00.000Z');
+  const countToProcess = Math.min(assessmentIds.length, 100);
+
+  for (let a = 0; a < countToProcess; a++) {
+    const assessmentId = assessmentIds[a];
+    const isCancelled = a % 5 === 4;
+    const events = isCancelled
+      ? [...ASSESSMENT_PROCESSING_EVENTS.slice(0, -1), ASSESSMENT_PROCESSING_EVENT_CANCELLED]
+      : [...ASSESSMENT_PROCESSING_EVENTS];
+    const applicantId = userIds[a % applicantCount];
+    const notaryId = notaryCount > 0 ? userIds[notaryStart + (a % notaryCount)] : userIds[0];
+
+    for (let step = 0; step < events.length; step++) {
+      const globalIndex = SEED_COUNT + a * 10 + step;
+      const id = seedId('auditLog', globalIndex);
+      const eventUserId = step === 0 ? applicantId : notaryId;
+      const timestamp = new Date(baseTimestamp);
+      timestamp.setDate(timestamp.getDate() + a);
+      timestamp.setHours(timestamp.getHours() + step * 4);
+
+      await prisma.auditLog.upsert({
+        where: { id },
+        update: {
+          userId: eventUserId,
+          actionType: events[step],
+          entityName: 'Assessment',
+          entityId: assessmentId,
+          timestamp,
+          details: { source: 'seed', assessmentIndex: a, step, cancelled: isCancelled },
+        },
+        create: {
+          id,
+          userId: eventUserId,
+          actionType: events[step],
+          entityName: 'Assessment',
+          entityId: assessmentId,
+          timestamp,
+          details: { source: 'seed', assessmentIndex: a, step, cancelled: isCancelled },
+        },
+      });
+    }
   }
 }
 

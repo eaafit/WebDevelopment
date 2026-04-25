@@ -8,6 +8,7 @@ import "notary/common/v1alpha1/common.proto";
 
 service PaymentService {
   rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc ValidateSubscriptionPromo(ValidateSubscriptionPromoRequest) returns (ValidateSubscriptionPromoResponse);
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
   rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
   rpc GetSubscription(GetSubscriptionRequest) returns (GetSubscriptionResponse);
@@ -36,6 +37,21 @@ enum PaymentType {
   PAYMENT_TYPE_DOCUMENT_COPY = 3;
 }
 
+enum PromoValidationStatus {
+  PROMO_VALIDATION_STATUS_UNSPECIFIED = 0;
+  PROMO_VALIDATION_STATUS_VALID = 1;
+  PROMO_VALIDATION_STATUS_NOT_FOUND = 2;
+  PROMO_VALIDATION_STATUS_EXPIRED = 3;
+  PROMO_VALIDATION_STATUS_USAGE_LIMIT_REACHED = 4;
+}
+
+enum PaymentReceiptStatus {
+  PAYMENT_RECEIPT_STATUS_UNSPECIFIED = 0;
+  PAYMENT_RECEIPT_STATUS_PENDING = 1;
+  PAYMENT_RECEIPT_STATUS_AVAILABLE = 2;
+  PAYMENT_RECEIPT_STATUS_FAILED = 3;
+}
+
 message Payment {
   string id = 1;
   string user_id = 2;
@@ -50,6 +66,8 @@ message Payment {
   string attachment_file_url = 11;
   string subscription_id = 12;
   string assessment_id = 13;
+  bool has_receipt = 14;
+  PaymentReceiptStatus receipt_status = 15;
 }
 
 message Subscription {
@@ -78,9 +96,43 @@ message CreatePaymentRequest {
   string promo_code = 5 [(buf.validate.field).string.max_len = 20];
 }
 
+message PaymentWidgetInit {
+  string provider = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 32
+  }];
+  string confirmation_token = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 2048
+  }];
+  string return_url = 3 [(buf.validate.field).string.uri = true];
+}
+
 message CreatePaymentResponse {
-  string payment_url = 1 [(buf.validate.field).string.uri = true];
+  optional string payment_url = 1 [(buf.validate.field).string.uri = true];
   string payment_id = 2 [(buf.validate.field).string.uuid = true];
+  PaymentWidgetInit widget = 3;
+  notary.common.v1alpha1.Money amount = 4;
+}
+
+message ValidateSubscriptionPromoRequest {
+  SubscriptionPlan plan = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  string promo_code = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 20
+  }];
+}
+
+message ValidateSubscriptionPromoResponse {
+  PromoValidationStatus status = 1;
+  string promo_code = 2 [(buf.validate.field).string.max_len = 20];
+  notary.common.v1alpha1.Money base_amount = 3;
+  notary.common.v1alpha1.Money final_amount = 4;
+  notary.common.v1alpha1.Money discount_amount = 5;
+  string discount_percent = 6 [(buf.validate.field).string.max_len = 16];
 }
 
 message ProcessWebhookRequest {

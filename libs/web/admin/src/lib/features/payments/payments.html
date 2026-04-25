@@ -1,0 +1,434 @@
+<link
+  rel="stylesheet"
+  href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+
+<section class="admin-page payments-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Платежи</p>
+      <h2>Управление платежами</h2>
+      <p class="admin-page__lead">
+        Отслеживайте поступления, быстро находите нужные операции и выгружайте текущую выборку в CSV в том же
+        интерфейсе.
+      </p>
+    </div>
+
+    <div class="admin-page__actions">
+      <button
+        type="button"
+        class="admin-btn admin-btn--primary"
+        (click)="exportToCsv()"
+        [disabled]="!filteredPayments.length">
+        Экспорт CSV
+      </button>
+      <button type="button" class="admin-btn admin-btn--secondary" (click)="goToCreateForm()">+ Создать платёж</button>
+      <button type="button" class="admin-btn admin-btn--ghost" (click)="goToApplications()">Перейти к заявкам</button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar">
+    <div class="admin-toolbar__copy">
+      <p>
+        Экспорт выгружает только текущую отфильтрованную выборку. Пагинация, фильтры по колонкам и действия в таблице
+        работают как прежде.
+      </p>
+      <small class="admin-toolbar__status">
+        Найдено: {{ filteredPayments.length }} · Страница {{ currentPage }} из {{ totalPages }}
+      </small>
+    </div>
+    <span class="admin-toolbar__meta">Всего платежей: {{ payments.length }}</span>
+  </section>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Фильтры и поиск</h3>
+        <p>Быстрый поиск по плательщику, ID платежа и ID транзакции с дополнительным отбором по статусу.</p>
+      </div>
+    </div>
+
+    <div class="payments-filters">
+      <label class="admin-field payments-field payments-field--search">
+        <span>Поиск</span>
+        <input
+          type="text"
+          placeholder="Плательщик, ID платежа или ID транзакции"
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onFiltersChanged()" />
+      </label>
+
+      <label class="admin-field payments-field payments-field--status">
+        <span>Статус</span>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
+          <option value="">Все статусы</option>
+          <option value="completed">Завершён</option>
+          <option value="pending">В обработке</option>
+          <option value="failed">Ошибка</option>
+          <option value="refunded">Возврат</option>
+        </select>
+      </label>
+
+      <div class="payments-filters__actions">
+        <button type="button" class="admin-btn admin-btn--secondary">Применить</button>
+      </div>
+    </div>
+  </article>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Список платежей</h3>
+        <p>Просмотр, редактирование, удаление и переход к связанной заявке доступны прямо из строки таблицы.</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">На странице: {{ paginatedPayments.length }}</span>
+    </div>
+
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        <table class="payments-table">
+          <thead>
+            <tr>
+              @for (column of headerColumns; track column.key) {
+              <th class="filterable no-wrap-col">
+                <div class="header-cell">
+                  <span>{{ column.label }}</span>
+                  <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
+                    ▼
+                  </button>
+                </div>
+                @if (activeFilterColumn === column.key) {
+                <div
+                  class="column-filter-menu"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                  tabindex="-1"
+                  role="menu"
+                  aria-label="Меню фильтрации">
+                  <div class="menu-section">
+                    <button
+                      type="button"
+                      class="menu-btn"
+                      [class.active]="isSortDraftActive('asc')"
+                      (click)="setDraftSort('asc')">
+                      По возрастанию
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-btn"
+                      [class.active]="isSortDraftActive('desc')"
+                      (click)="setDraftSort('desc')">
+                      По убыванию
+                    </button>
+                  </div>
+
+                  <div class="menu-section">
+                    <button type="button" class="menu-btn clear-btn" (click)="clearCurrentColumnFilter()">
+                      Снять фильтр с текущего столбца
+                    </button>
+                  </div>
+
+                  <div class="menu-section">
+                    <input type="text" [(ngModel)]="filterSearch" placeholder="Поиск" />
+                  </div>
+
+                  <div class="menu-section value-list">
+                    <label class="checkbox-row">
+                      <input type="checkbox" [checked]="isAllChecked" (change)="onToggleAllChange($event)" />
+                      <span>Выделить все</span>
+                    </label>
+                    @for (value of filterValues; track value) {
+                    <label class="checkbox-row">
+                      <input
+                        type="checkbox"
+                        [checked]="isValueChecked(value)"
+                        (change)="onToggleValueChange(value, $event)" />
+                      <span>{{ value }}</span>
+                    </label>
+                    }
+                  </div>
+
+                  <div class="menu-actions">
+                    <button type="button" class="btn btn-primary btn-sm" (click)="applyColumnFilter()">OK</button>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="cancelColumnFilter()">
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+                }
+              </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
+            <tr>
+              <td>{{ payment.id }}</td>
+              <td>{{ payment.paymentDate | date:'dd.MM.yyyy' }}</td>
+              <td>{{ payment.payer }}</td>
+              <td>{{ getTypeLabel(payment.type) }}</td>
+              <td>{{ payment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
+              <td>{{ payment.fee | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
+              <td>{{ getMethodLabel(payment.paymentMethod) }}</td>
+              <td>{{ payment.transactionId || '—' }}</td>
+              <td>
+                @if (payment.attachmentFileName && payment.attachmentFileUrl) {
+                <a [href]="payment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
+                  {{ payment.attachmentFileName }}
+                </a>
+                } @else { — }
+              </td>
+              <td>
+                @if (payment.assessmentId) {
+                <button
+                  type="button"
+                  class="link-btn"
+                  (click)="goToApplication(payment.assessmentId!)"
+                  title="Перейти к заявке">
+                  {{ payment.assessmentId }}
+                </button>
+                } @else { — }
+              </td>
+              <td>
+                <span class="status-badge" [ngClass]="'status-' + payment.status">
+                  {{ getStatusLabel(payment.status) }}
+                </span>
+              </td>
+              <td class="actions">
+                <button type="button" class="icon-btn view" (click)="openViewModal(payment)" title="Просмотр">
+                  <i class="las la-eye"></i>
+                </button>
+                <button type="button" class="icon-btn edit" (click)="openEditModal(payment)" title="Редактировать">
+                  <i class="las la-pencil-alt"></i>
+                </button>
+                <button type="button" class="icon-btn delete" (click)="openDeleteModal(payment)" title="Удалить">
+                  <i class="las la-trash"></i>
+                </button>
+                @if (payment.assessmentId) {
+                <button
+                  type="button"
+                  class="icon-btn applications"
+                  (click)="goToApplication(payment.assessmentId!)"
+                  title="Перейти к заявке">
+                  <i class="las la-list"></i>
+                </button>
+                }
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td class="payments-table__empty" colspan="12">
+                По текущим фильтрам платежи не найдены. Попробуйте изменить параметры поиска.
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">«</button>
+      @for (page of pages; track page) {
+      <button type="button" class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">
+        {{ page }}
+      </button>
+      }
+      <button type="button" class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">»</button>
+    </div>
+    }
+  </article>
+</section>
+
+<div
+  class="modal"
+  [ngClass]="{ 'show': isCreateEditModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? 'Редактировать платёж' : 'Создать платёж' }}</h3>
+      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form #paymentForm="ngForm">
+        <div class="form-group">
+          <label for="payer">Плательщик</label>
+          <input type="text" id="payer" [(ngModel)]="currentPayment.payer" name="payer" required />
+        </div>
+        <div class="form-group">
+          <label for="amount">Сумма (RUB)</label>
+          <input
+            type="number"
+            id="amount"
+            [(ngModel)]="currentPayment.amount"
+            name="amount"
+            required
+            min="0"
+            step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="fee">Комиссия (RUB)</label>
+          <input type="number" id="fee" name="fee" min="0" step="0.01" [(ngModel)]="fee" />
+        </div>
+        <div class="form-group">
+          <label for="type">Тип</label>
+          <select id="type" [(ngModel)]="currentPayment.type" name="type" required>
+            @for (type of typeOptions; track type) {
+            <option [value]="type">{{ getTypeLabel(type) }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="subscriptionId">ID подписки</label>
+          <select id="subscriptionId" [(ngModel)]="currentPayment.subscriptionId" name="subscriptionId">
+            <option [ngValue]="null">Не выбрано</option>
+            @for (subscriptionId of subscriptionIdOptions; track subscriptionId) {
+            <option [ngValue]="subscriptionId">{{ subscriptionId }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="assessmentId">ID заявки</label>
+          <select id="assessmentId" [(ngModel)]="currentPayment.assessmentId" name="assessmentId">
+            <option [ngValue]="null">Не выбрано</option>
+            @for (assessmentId of assessmentIdOptions; track assessmentId) {
+            <option [ngValue]="assessmentId">{{ assessmentId }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="paymentMethod">Метод оплаты</label>
+          <select id="paymentMethod" [(ngModel)]="currentPayment.paymentMethod" name="paymentMethod" required>
+            @for (method of paymentMethodOptions; track method) {
+            <option [value]="method">{{ getMethodLabel(method) }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="transactionId">ID транзакции</label>
+          <input
+            type="text"
+            id="transactionId"
+            [(ngModel)]="currentPayment.transactionId"
+            name="transactionId"
+            placeholder="Внешний ID от платёжного шлюза" />
+        </div>
+        <div class="form-group">
+          <label for="attachmentFileName">Название файла чека</label>
+          <input
+            type="text"
+            id="attachmentFileName"
+            [(ngModel)]="currentPayment.attachmentFileName"
+            name="attachmentFileName" />
+        </div>
+        <div class="form-group">
+          <label for="attachmentFileUrl">Ссылка на чек</label>
+          <input
+            type="text"
+            id="attachmentFileUrl"
+            [(ngModel)]="currentPayment.attachmentFileUrl"
+            name="attachmentFileUrl"
+            placeholder="https://..." />
+        </div>
+        <div class="form-group">
+          <label for="paymentDate">Дата платежа</label>
+          <input
+            type="date"
+            id="paymentDate"
+            [(ngModel)]="currentPayment.paymentDate"
+            name="paymentDate"
+            [max]="today"
+            required />
+        </div>
+        <div class="form-group">
+          <label for="status">Статус</label>
+          <select id="status" [(ngModel)]="currentPayment.status" name="status">
+            @for (status of statusOptions; track status) {
+            <option [value]="status">{{ getStatusLabel(status) }}</option>
+            }
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm.form.valid">
+        {{ isEditMode ? 'Сохранить изменения' : 'Сохранить' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<div
+  class="modal"
+  [ngClass]="{ 'show': isViewModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content view-modal">
+    <div class="modal-header">
+      <h3>Детали платежа #{{ currentPayment.id }}</h3>
+      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body view-details">
+      <p><strong>ID:</strong> {{ currentPayment.id }}</p>
+      <p><strong>Плательщик:</strong> {{ currentPayment.payer }}</p>
+      <p><strong>Тип:</strong> {{ getTypeLabel(currentPayment.type) }}</p>
+      <p><strong>Сумма:</strong> {{ currentPayment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</p>
+      <p><strong>Дата платежа:</strong> {{ currentPayment.paymentDate | date:'dd.MM.yyyy' }}</p>
+      <p><strong>Метод оплаты:</strong> {{ getMethodLabel(currentPayment.paymentMethod) }}</p>
+      <p><strong>ID транзакции:</strong> {{ currentPayment.transactionId || '—' }}</p>
+      <p><strong>ID подписки:</strong> {{ currentPayment.subscriptionId || '—' }}</p>
+      <p><strong>ID заявки:</strong> {{ currentPayment.assessmentId || '—' }}</p>
+      @if (currentPayment.attachmentFileName && currentPayment.attachmentFileUrl) {
+      <p>
+        <strong>Чек:</strong>
+        <a [href]="currentPayment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
+          {{ currentPayment.attachmentFileName }}
+        </a>
+      </p>
+      }
+      <p>
+        <strong>Статус:</strong>
+        <span class="status-badge" [ngClass]="'status-' + currentPayment.status">
+          {{ getStatusLabel(currentPayment.status) }}
+        </span>
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" (click)="closeModals()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div
+  class="modal"
+  [ngClass]="{ 'show': isDeleteModalOpen }"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть модальное окно">
+  <div class="modal-content delete-modal">
+    <div class="modal-header">
+      <h3>Подтверждение удаления</h3>
+      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>
+        Вы уверены, что хотите удалить платёж <strong>{{ currentPayment.payer }}</strong> на сумму
+        <strong>{{ currentPayment.amount | currency:'RUB':'symbol-narrow' }}</strong>?
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button type="button" class="btn btn-danger" (click)="deletePayment()">Удалить</button>
+    </div>
+  </div>
+</div>

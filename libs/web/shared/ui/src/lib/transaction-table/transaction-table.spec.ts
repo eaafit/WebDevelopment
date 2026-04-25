@@ -18,6 +18,8 @@ describe('TransactionTable', () => {
     currency: 'RUB',
     description: 'Возврат по оценке квартиры',
     paymentMethod: 'sbp',
+    hasReceipt: true,
+    receiptStatus: 'available',
     attachmentFileName: 'refund-check.pdf',
     attachmentFileUrl: 'https://example.local/refund-check.pdf',
     subscriptionId: null,
@@ -28,6 +30,8 @@ describe('TransactionTable', () => {
     ...refundedTransaction,
     id: 'payment-2',
     status: 'pending',
+    hasReceipt: false,
+    receiptStatus: 'pending',
     attachmentFileUrl: 'https://example.local/pending.pdf',
   };
 
@@ -62,6 +66,15 @@ describe('TransactionTable', () => {
     });
 
     expect(component.getPaymentMethodPresentation('bank_card').label).toBe('Банковская карта');
+    expect(component.getPaymentMethodPresentation('yookassa_widget')).toEqual({
+      label: 'ЮKassa',
+      caption: 'Способ оплаты отобразится после подтверждения',
+      icon: '💠',
+      iconType: 'emoji',
+    });
+    expect(component.getPaymentMethodPresentation('custom_gateway').caption).toBe(
+      'Подробности способа оплаты недоступны',
+    );
   });
 
   it('should provide a dedicated refund document label', () => {
@@ -79,6 +92,14 @@ describe('TransactionTable', () => {
     });
   });
 
+  it('should emit receipt open for available documents', () => {
+    const receiptOpenSpy = jest.spyOn(component.receiptOpen, 'emit');
+
+    component.openReceipt(refundedTransaction);
+
+    expect(receiptOpenSpy).toHaveBeenCalledWith(refundedTransaction);
+  });
+
   it('should keep rendering the current rows while the next page is loading', async () => {
     fixture.componentRef.setInput('transactions', [refundedTransaction]);
     fixture.componentRef.setInput('loading', true);
@@ -87,5 +108,17 @@ describe('TransactionTable', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Возврат по оценке квартиры');
     expect(fixture.nativeElement.textContent).not.toContain('Загрузка истории транзакций...');
+  });
+
+  it('should render payments copy for applicant pages', async () => {
+    fixture.componentRef.setInput('copyVariant', 'payments');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('История платежей');
+    expect(fixture.nativeElement.textContent).toContain('Список платежей и документы к ним.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Платежи по выбранным фильтрам не найдены.',
+    );
   });
 });

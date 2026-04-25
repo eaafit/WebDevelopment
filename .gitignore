@@ -12,6 +12,7 @@ node_modules
 .classpath
 .c9/
 *.launch
+*.pub
 .settings/
 *.sublime-workspace
 
@@ -54,6 +55,11 @@ yarn.lock
 # Prisma
 *.db
 *.db-journal
+
+# Environment files and local secrets
+.env
+.env.portal
+!libs/api/shared/prisma/.env
 
 # Tests and logs
 test-results/

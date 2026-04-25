@@ -11,6 +11,7 @@ const APPLICANT_MENU = [
   { label: 'Результаты оценки', route: 'assessment/results', icon: '📊' },
   { label: 'История заказов', route: 'assessment/history', icon: '📋' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
+  { label: 'Оплата услуги', route: 'checkout', icon: '🧾' },
   { label: 'Копии документов', route: 'copies', icon: '📑' },
   { label: 'Уведомления', route: 'notifications', icon: '🔔' },
   { label: 'Поддержка', route: 'support', icon: '💬' },

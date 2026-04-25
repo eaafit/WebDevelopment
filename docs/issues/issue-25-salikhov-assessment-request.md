@@ -28,6 +28,10 @@ UI для отправки объекта на оценку: выбор моде
 - Маршрут: `/applicant/assessment/request/:assessmentId`, `/notary/assessment/request/:assessmentId`
 - Защита по роли
 - RPC: `AssessmentService.Update` (передать параметры модели/срочности), `AssessmentService.Get` (polling статуса)
+  - DELETE - Удаление
+  - PUT - Создание/Изменения
+  - POST - Для извлечения списка Assessments по параметрам фильтра
+  - GET - Для извлечения одного Assessment по Id
 - Polling статуса: каждые 10–30 с пока оценка не завершена
 - Шкала этапов: компонент-степпер (`StepperComponent` или кастомный)
 

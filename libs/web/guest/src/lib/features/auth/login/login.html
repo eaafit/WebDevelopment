@@ -20,10 +20,17 @@
       autocomplete="current-password" />
   </div>
 
+  <a class="login__restore-link" routerLink="/password-restore">Восстановить пароль</a>
+
   <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
     {{ loading() ? 'Вход...' : 'Войти' }}
   </button>
 
+  <p class="login__footer-link">
+    <a routerLink="/auth/forgot-password">Забыли пароль?</a>
+  </p>
+
+  @if (showTestAccountHints) {
   <section class="login__test-accounts" aria-label="Тестовые аккаунты">
     <h2>Тестовые аккаунты</h2>
     <ul>
@@ -46,4 +53,5 @@
       }
     </ul>
   </section>
+  }
 </main>

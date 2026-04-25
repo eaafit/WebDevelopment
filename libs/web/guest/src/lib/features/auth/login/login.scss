@@ -9,6 +9,37 @@
   padding: 2rem;
 }
 
+.login__error {
+  width: min(100%, 24rem);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  color: #8b1538;
+  background: #fdecef;
+}
+
+.login__hint {
+  width: min(100%, 24rem);
+  margin: 0;
+  line-height: 1.5;
+  color: #243447;
+  text-align: center;
+}
+
+.login__footer-link {
+  width: min(100%, 24rem);
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.login__footer-link a {
+  color: #06c;
+  text-decoration: none;
+}
+
+.login__footer-link a:hover {
+  text-decoration: underline;
+}
+
 .login__field {
   width: min(100%, 24rem);
 }
@@ -24,6 +55,21 @@
   padding: 0.75rem 0.9rem;
   border: 1px solid #c9d3df;
   border-radius: 0.75rem;
+}
+
+.login__restore-link {
+  width: min(100%, 24rem);
+  margin-top: -0.25rem;
+
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #295a8a;
+  text-align: right;
+  text-decoration: none;
+}
+
+.login__restore-link:hover {
+  text-decoration: underline;
 }
 
 .role-list {

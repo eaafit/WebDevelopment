@@ -1,0 +1,819 @@
+﻿<div class="rp-page">
+  <main class="container page">
+    <!-- ════════════════════════════════════════════════════════════════════
+         ВИД: СПИСОК ЗАЯВОК
+    ═════════════════════════════════════════════════════════════════════ -->
+    @if (view() === 'list') {
+    <section class="card">
+      <header class="card-header">
+        <div>
+          <h1>Заявки на оценку</h1>
+          <p class="card-subtitle m-0">Выберите заявку для редактирования или формирования запроса на оценку.</p>
+        </div>
+        <div class="hdr-actions">
+          <button class="btn btn-outline btn-sm" type="button" (click)="loadAssessments()">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
+            </svg>
+            Обновить
+          </button>
+          <button class="btn btn-primary btn-sm" type="button" (click)="openAddForm()">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Добавить заявку
+          </button>
+        </div>
+      </header>
+
+      <!-- Фильтры -->
+      <div class="toolbar">
+        <div class="toolbar-search">
+          <svg
+            class="search-ico"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            class="form-input search-input"
+            type="search"
+            placeholder="Поиск по адресу, городу, району…"
+            [value]="searchQuery()"
+            (input)="onSearchInput($event)" />
+        </div>
+        <div class="toolbar-filters">
+          <select class="form-input form-select" [value]="statusFilter()" (change)="onStatusFilterChange($event)">
+            <option value="">Все статусы</option>
+            @for (k of statusKeys; track k) {
+            <option [value]="k">{{ statusLabels[k] }}</option>
+            }
+          </select>
+          <select class="form-input form-select" [value]="typeFilter()" (change)="onTypeFilterChange($event)">
+            <option value="">Все типы</option>
+            @for (k of typeKeys; track k) {
+            <option [value]="k">{{ typeLabels[k] }}</option>
+            }
+          </select>
+          @if (hasActiveFilters()) {
+          <button class="btn btn-ghost btn-sm" type="button" (click)="clearFilters()">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Сбросить
+          </button>
+          }
+        </div>
+      </div>
+
+      <!-- Таблица -->
+      @if (isLoadingAssessments()) {
+      <div class="state-box">
+        <div class="state-ico">⏳</div>
+        <p class="state-txt">Загрузка заявок…</p>
+      </div>
+      } @else if (filteredAssessments().length === 0) {
+      <div class="state-box">
+        <div class="state-ico">📋</div>
+        <p class="state-txt">Заявки не найдены</p>
+        <p class="state-sub">
+          @if (hasActiveFilters()) { Попробуйте изменить фильтры. } @else { Нажмите «Добавить заявку». }
+        </p>
+      </div>
+      } @else {
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th class="th-n">#</th>
+              <th class="th-s" [class.th-active]="isSortActive('address')" (click)="sortBy('address')">
+                Адрес <span class="sort-ic">{{ sortIcon('address') }}</span>
+              </th>
+              <th class="th-s" [class.th-active]="isSortActive('objectType')" (click)="sortBy('objectType')">
+                Тип <span class="sort-ic">{{ sortIcon('objectType') }}</span>
+              </th>
+              <th class="th-s" [class.th-active]="isSortActive('area')" (click)="sortBy('area')">
+                Площадь <span class="sort-ic">{{ sortIcon('area') }}</span>
+              </th>
+              <th class="th-s" [class.th-active]="isSortActive('status')" (click)="sortBy('status')">
+                Статус <span class="sort-ic">{{ sortIcon('status') }}</span>
+              </th>
+              <th class="th-s" [class.th-active]="isSortActive('createdAt')" (click)="sortBy('createdAt')">
+                Дата <span class="sort-ic">{{ sortIcon('createdAt') }}</span>
+              </th>
+              <th class="th-s" [class.th-active]="isSortActive('estimatedValue')" (click)="sortBy('estimatedValue')">
+                Стоимость <span class="sort-ic">{{ sortIcon('estimatedValue') }}</span>
+              </th>
+              <th class="th-act">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of filteredAssessments(); track item.assessment.id; let i = $index) {
+            <tr class="tbl-row">
+              <td class="td td-n text-secondary">{{ i + 1 }}</td>
+              <td class="td td-addr">
+                <span class="addr-main">{{ item.assessment.address }}</span>
+                <span class="addr-sub text-secondary"
+                  >{{ item.realEstate.city }}@if (item.realEstate.district) {, {{ item.realEstate.district }}}</span
+                >
+              </td>
+              <td class="td"><span class="type-chip">{{ getTypeLabel(item.realEstate.objectType) }}</span></td>
+              <td class="td text-secondary">{{ item.realEstate.area }} м²</td>
+              <td class="td">
+                <span [class]="getStatusClass(item.assessment.status)"
+                  >{{ getStatusLabel(item.assessment.status) }}</span
+                >
+              </td>
+              <td class="td text-secondary">{{ formatAssessmentDate(item.assessment.createdAt) }}</td>
+              <td class="td">
+                @if (item.assessment.estimatedValue) {
+                <span class="val-txt">{{ formatCurrency(item.assessment.estimatedValue) }}</span>
+                } @else { <span class="text-secondary">—</span> }
+              </td>
+              <td class="td td-act">
+                <div class="row-acts">
+                  <!-- Редактировать -->
+                  <button
+                    class="act-btn act-btn--edit"
+                    type="button"
+                    title="Редактировать"
+                    (click)="openEditForm(item)">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                  </button>
+                  <!-- PDF-запрос -->
+                  <button
+                    class="act-btn act-btn--pdf"
+                    type="button"
+                    title="Сформировать запрос на оценку"
+                    [disabled]="item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'"
+                    (click)="openPdfForm(item)">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                    </svg>
+                  </button>
+                  <!-- Удалить -->
+                  <button class="act-btn act-btn--del" type="button" title="Удалить" (click)="openDeleteModal(item)">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="tbl-footer">
+        <span class="text-secondary text-xs"
+          >Показано {{ filteredAssessments().length }} из {{ assessments().length }} заявок</span
+        >
+      </div>
+      }
+    </section>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         ВИД: ФОРМА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ
+    ═════════════════════════════════════════════════════════════════════ -->
+    @if (view() === 'edit') {
+    <section class="card">
+      <header class="card-header">
+        <div>
+          <h1>{{ editTitle }}</h1>
+          <p class="card-subtitle m-0">
+            @if (isEditMode) { Измените данные и нажмите «Сохранить». } @else { Заполните параметры объекта для создания
+            заявки. }
+          </p>
+        </div>
+        <button class="btn btn-ghost" type="button" (click)="view.set('list')">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+          Закрыть
+        </button>
+      </header>
+
+      <form
+        class="ef-layout"
+        [formGroup]="editForm"
+        (ngSubmit)="onSaveEdit()"
+        novalidate
+        [class.form--submitted]="showEditErrors()">
+        <!-- Статус (только при редактировании) -->
+        @if (isEditMode) {
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Статус заявки</legend>
+          <div class="fg fg-2">
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-status">Статус <span class="req">*</span></label>
+              <select
+                class="form-input form-select"
+                id="ef-status"
+                formControlName="status"
+                [class.form-input-invalid]="isEditInvalid('status')">
+                @for (k of statusKeys; track k) {
+                <option [value]="k">{{ statusLabels[k] }}</option>
+                }
+              </select>
+              @if (isEditInvalid('status')) {
+              <p class="field-error">Выберите статус.</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-ev">Оценочная стоимость (руб.)</label>
+              <input
+                class="form-input"
+                id="ef-ev"
+                type="number"
+                min="0"
+                step="1000"
+                formControlName="estimatedValue"
+                placeholder="Введите стоимость" />
+            </div>
+          </div>
+        </fieldset>
+        }
+
+        <!-- Адрес -->
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Адрес</legend>
+          <div class="fg fg-2">
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-city">Город <span class="req">*</span></label>
+              <select
+                class="form-input form-select"
+                id="ef-city"
+                formControlName="city"
+                [class.form-input-invalid]="isEditInvalid('city')">
+                <option value="" disabled>Выберите город</option>
+                @for (c of cities; track c) {
+                <option [value]="c">{{ c }}</option>
+                }
+              </select>
+              @if (isEditInvalid('city')) {
+              <p class="field-error">Выберите город.</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-dist">Район / округ</label>
+              <select class="form-input form-select" id="ef-dist" formControlName="district">
+                <option value="">Не выбрано</option>
+                @for (d of districts; track d) {
+                <option [value]="d">{{ d }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="form-group no-mb mt-6">
+            <label class="form-label" for="ef-addr">Полный адрес <span class="req">*</span></label>
+            <input
+              class="form-input"
+              id="ef-addr"
+              type="text"
+              formControlName="address"
+              placeholder="Улица, дом, квартира"
+              minlength="8"
+              maxlength="180"
+              [class.form-input-invalid]="isEditInvalid('address')" />
+            @if (isEditInvalid('address')) {
+            <p class="field-error">Введите адрес (минимум 8 символов).</p>
+            }
+          </div>
+        </fieldset>
+
+        <!-- Основные параметры -->
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Основные параметры</legend>
+          <div class="fg fg-3">
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-area">Площадь, м² <span class="req">*</span></label>
+              <input
+                class="form-input"
+                id="ef-area"
+                type="number"
+                min="1"
+                max="100000"
+                step="0.1"
+                formControlName="area"
+                placeholder="54.6"
+                [class.form-input-invalid]="isEditInvalid('area')" />
+              @if (isEditInvalid('area')) {
+              <p class="field-error">Укажите площадь (1–100000 м²).</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-type">Тип объекта <span class="req">*</span></label>
+              <select
+                class="form-input form-select"
+                id="ef-type"
+                formControlName="objectType"
+                [class.form-input-invalid]="isEditInvalid('objectType')">
+                <option value="" disabled>Выберите тип</option>
+                @for (k of typeKeys; track k) {
+                <option [value]="k">{{ typeLabels[k] }}</option>
+                }
+              </select>
+              @if (isEditInvalid('objectType')) {
+              <p class="field-error">Выберите тип объекта.</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-rooms">Кол-во комнат</label>
+              <input
+                class="form-input"
+                id="ef-rooms"
+                type="number"
+                min="0"
+                max="50"
+                formControlName="roomsCount"
+                placeholder="2" />
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Характеристики -->
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Характеристики здания</legend>
+          <div class="fg fg-3">
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-floors">Этажность <span class="req">*</span></label>
+              <input
+                class="form-input"
+                id="ef-floors"
+                type="number"
+                min="1"
+                max="200"
+                formControlName="floorsTotal"
+                placeholder="9"
+                [class.form-input-invalid]="isEditInvalid('floorsTotal')" />
+              @if (isEditInvalid('floorsTotal')) {
+              <p class="field-error">Укажите этажность.</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-floor">Этаж объекта</label>
+              <input
+                class="form-input"
+                id="ef-floor"
+                type="number"
+                min="0"
+                max="200"
+                formControlName="floor"
+                placeholder="5" />
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-year">Год постройки</label>
+              <input
+                class="form-input"
+                id="ef-year"
+                type="number"
+                min="1700"
+                max="2100"
+                formControlName="yearBuilt"
+                placeholder="1985" />
+            </div>
+          </div>
+          <div class="fg fg-3 mt-6">
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-cond">Состояние <span class="req">*</span></label>
+              <select
+                class="form-input form-select"
+                id="ef-cond"
+                formControlName="condition"
+                [class.form-input-invalid]="isEditInvalid('condition')">
+                <option value="" disabled>Выберите состояние</option>
+                @for (k of conditionKeys; track k) {
+                <option [value]="k">{{ conditionLabels[k] }}</option>
+                }
+              </select>
+              @if (isEditInvalid('condition')) {
+              <p class="field-error">Выберите состояние.</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-wall">Материал стен</label>
+              <select class="form-input form-select" id="ef-wall" formControlName="wallMaterial">
+                <option value="">Не указано</option>
+                @for (k of wallKeys; track k) {
+                <option [value]="k">{{ wallLabels[k] }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="ef-elev">Лифт</label>
+              <select class="form-input form-select" id="ef-elev" formControlName="elevatorType">
+                <option value="">Не указано</option>
+                @for (k of elevatorKeys; track k) {
+                <option [value]="k">{{ elevatorLabels[k] }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="form-group no-mb mt-6">
+            <label class="form-label" for="ef-desc">Описание объекта</label>
+            <textarea
+              class="form-input form-textarea"
+              id="ef-desc"
+              rows="3"
+              formControlName="description"
+              placeholder="Дополнительные сведения об объекте"></textarea>
+          </div>
+        </fieldset>
+
+        <div class="form-actions">
+          <button class="btn btn-outline" type="button" (click)="view.set('list')">Отмена</button>
+          <button class="btn btn-primary" type="submit" [disabled]="isSaving()">
+            @if (isSaving()) { Сохранение… } @else if (isEditMode) { Сохранить изменения } @else { Создать заявку }
+          </button>
+        </div>
+      </form>
+    </section>
+    }
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         ВИД: PDF-ЗАПРОС НА ОЦЕНКУ
+    ═════════════════════════════════════════════════════════════════════ -->
+    @if (view() === 'pdf') {
+    <section class="card">
+      <header class="card-header">
+        <div>
+          <h1>Запрос на оценку</h1>
+          @if (pdfItem()) {
+          <p class="card-subtitle m-0">Объект: <strong>{{ pdfItem()!.assessment.address }}</strong></p>
+          } @else {
+          <p class="card-subtitle m-0">Заполните параметры — система сформирует текст нотариального запроса.</p>
+          }
+        </div>
+        <button class="btn btn-ghost" type="button" (click)="view.set('list')">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+          Назад к списку
+        </button>
+      </header>
+
+      <form class="pdf-grid" [formGroup]="form" (ngSubmit)="onSubmit()">
+        <div class="flex-col gap-4">
+          <!-- 1. Данные нотариуса -->
+          <div class="card-inner">
+            <div class="card-title">1. Данные нотариуса</div>
+            <div class="form-group">
+              <label class="form-label" for="notaryCity">Город практики <span class="req">*</span></label>
+              <select id="notaryCity" class="form-input" formControlName="notaryCity" (change)="onNotaryCityChange()">
+                <option value="" disabled>Выберите город</option>
+                @for (c of cities; track c) {
+                <option [value]="c">{{ c }}</option>
+                }
+              </select>
+              @if (form.get('notaryCity')?.invalid && form.get('notaryCity')?.touched) {
+              <p class="error-hint">Выберите город практики</p>
+              }
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="notaryFio">ФИО нотариуса <span class="req">*</span></label>
+              <select id="notaryFio" class="form-input" formControlName="notaryFio" (change)="onNotaryFioChange()">
+                <option value="" disabled>Выберите нотариуса</option>
+                @for (n of filteredNotaries; track n.fio) {
+                <option [value]="n.fio">{{ n.fio }}</option>
+                }
+              </select>
+              @if (form.get('notaryFio')?.invalid && form.get('notaryFio')?.touched) {
+              <p class="error-hint">Выберите нотариуса</p>
+              }
+            </div>
+            <div class="flex gap-4">
+              <div class="form-group w-full">
+                <label class="form-label" for="notaryOfficeNumber">№ конторы</label>
+                <input
+                  id="notaryOfficeNumber"
+                  class="form-input readonly"
+                  type="text"
+                  formControlName="notaryOfficeNumber"
+                  readonly
+                  placeholder="Автоматически" />
+              </div>
+              <div class="form-group w-full">
+                <label class="form-label" for="outgoingDisplay">Исх. № и дата</label>
+                <input
+                  id="outgoingDisplay"
+                  class="form-input readonly"
+                  type="text"
+                  [value]="outgoingDisplay()"
+                  readonly />
+              </div>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="notaryOfficeAddress">Адрес нотариальной конторы</label>
+              <input
+                id="notaryOfficeAddress"
+                class="form-input readonly"
+                type="text"
+                formControlName="notaryOfficeAddress"
+                readonly
+                placeholder="Автоматически" />
+            </div>
+          </div>
+
+          <!-- 2. Оценочная компания -->
+          <div class="card-inner">
+            <div class="card-title">2. Данные оценочной компании</div>
+            <div class="form-group">
+              <label class="form-label" for="companyName">Наименование <span class="req">*</span></label>
+              <select id="companyName" class="form-input" formControlName="companyName" (change)="onCompanyChange()">
+                <option value="" disabled>Выберите компанию</option>
+                @for (c of companies; track c.name) {
+                <option [value]="c.name">{{ c.name }}</option>
+                }
+              </select>
+              @if (form.get('companyName')?.invalid && form.get('companyName')?.touched) {
+              <p class="error-hint">Выберите компанию</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="companyAddress">Адрес компании</label>
+              <input
+                id="companyAddress"
+                class="form-input readonly"
+                type="text"
+                formControlName="companyAddress"
+                readonly
+                placeholder="Автоматически" />
+            </div>
+          </div>
+
+          <!-- 3. Объект -->
+          <div class="card-inner">
+            <div class="card-title">3. Данные об объекте</div>
+            <div class="form-group">
+              <label class="form-label" for="propertyAddress">Полный адрес объекта <span class="req">*</span></label>
+              <input
+                id="propertyAddress"
+                class="form-input"
+                type="text"
+                formControlName="propertyAddress"
+                placeholder="Город, улица, дом, кв." />
+              @if (form.get('propertyAddress')?.invalid && form.get('propertyAddress')?.touched) {
+              <p class="error-hint">Укажите адрес объекта</p>
+              }
+            </div>
+            <div class="flex gap-4">
+              <div class="form-group w-full">
+                <label class="form-label" for="cadastralNumber">Кадастровый номер <span class="req">*</span></label>
+                <input
+                  id="cadastralNumber"
+                  class="form-input"
+                  type="text"
+                  formControlName="cadastralNumber"
+                  placeholder="77:01:0004012:1234" />
+                <p class="help text-xs">Уникальный идентификатор в Росреестре.</p>
+                @if (form.get('cadastralNumber')?.invalid && form.get('cadastralNumber')?.touched) {
+                <p class="error-hint">Укажите кадастровый номер</p>
+                }
+              </div>
+              <div class="form-group w-full">
+                <label class="form-label" for="propertyType">Вид объекта <span class="req">*</span></label>
+                <select id="propertyType" class="form-input" formControlName="propertyType">
+                  <option value="" disabled>Выберите тип</option>
+                  @for (t of propertyTypes; track t) {
+                  <option [value]="t">{{ t }}</option>
+                  }
+                </select>
+                @if (form.get('propertyType')?.invalid && form.get('propertyType')?.touched) {
+                <p class="error-hint">Выберите вид объекта</p>
+                }
+              </div>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="specialConditions">Особенности объекта</label>
+              <textarea
+                id="specialConditions"
+                class="form-input"
+                rows="3"
+                formControlName="specialConditions"
+                placeholder="Площадь, этаж, состояние, обременения…"></textarea>
+            </div>
+          </div>
+
+          <!-- 4. Документы -->
+          <div class="card-inner">
+            <div class="card-title">4. Документы на объект</div>
+            <div class="form-group">
+              <label class="form-label" for="pdfDocument">Документ о праве собственности (PDF)</label>
+              <input
+                id="pdfDocument"
+                class="form-input"
+                type="file"
+                accept="application/pdf"
+                (change)="onPdfSelected($event)" />
+              @if (selectedPdfName) {
+              <p class="help text-xs">Выбран: <b>{{ selectedPdfName }}</b></p>
+              } @if (!selectedPdfName) {
+              <p class="help text-xs">Свидетельство или выписка из ЕГРН</p>
+              }
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="docRequisites">Реквизиты документа <span class="req">*</span></label>
+              <textarea
+                id="docRequisites"
+                class="form-input"
+                rows="3"
+                formControlName="docRequisites"
+                placeholder="Вид, номер, дата выдачи, орган"></textarea>
+              @if (form.get('docRequisites')?.invalid && form.get('docRequisites')?.touched) {
+              <p class="error-hint">Укажите реквизиты</p>
+              }
+            </div>
+          </div>
+
+          <!-- 5. Цель и детали -->
+          <div class="card-inner">
+            <div class="card-title">5. Цель и детали оценки</div>
+            <div class="form-group">
+              <label class="form-label" for="notarialAction">Нотариальное действие <span class="req">*</span></label>
+              <input
+                id="notarialAction"
+                class="form-input"
+                type="text"
+                formControlName="notarialAction"
+                placeholder="Дарение / наследство / раздел имущества…" />
+              @if (form.get('notarialAction')?.invalid && form.get('notarialAction')?.touched) {
+              <p class="error-hint">Укажите цель</p>
+              }
+            </div>
+            <div class="flex gap-4">
+              <div class="form-group w-full">
+                <label class="form-label" for="valuationDate">Дата оценки <span class="req">*</span></label>
+                <input id="valuationDate" class="form-input" type="date" formControlName="valuationDate" />
+                <p class="help text-xs">На какую дату определить стоимость</p>
+                @if (form.get('valuationDate')?.invalid && form.get('valuationDate')?.touched) {
+                <p class="error-hint">Укажите дату оценки</p>
+                }
+              </div>
+              <div class="form-group w-full">
+                <label class="form-label" for="reportDueDate">Срок отчёта <span class="req">*</span></label>
+                <input id="reportDueDate" class="form-input" type="date" formControlName="reportDueDate" />
+                <p class="help text-xs">До какой даты получить отчёт</p>
+                @if (form.get('reportDueDate')?.invalid && form.get('reportDueDate')?.touched) {
+                <p class="error-hint">Укажите срок</p>
+                }
+              </div>
+            </div>
+            <div class="form-group no-mb">
+              <label class="form-label" for="extraNotes">Дополнительные комментарии</label>
+              <textarea
+                id="extraNotes"
+                class="form-input"
+                rows="3"
+                formControlName="extraNotes"
+                placeholder="Любые уточнения"></textarea>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" class="btn btn-outline" (click)="regenerateOutgoing()">↻ Новый исх. №</button>
+            <button type="submit" class="btn btn-primary" [disabled]="isGenerating()">
+              @if (isGenerating()) { ⏳ Формирование… } @else { Сформировать запрос }
+            </button>
+          </div>
+        </div>
+
+        <!-- Правая колонка: превью -->
+        <div>
+          <div class="card-inner sticky">
+            <div class="card-title">Предпросмотр нотариального запроса</div>
+            <pre class="preview">{{ requestText }}</pre>
+            <div class="mt-4">
+              <button type="button" class="btn btn-outline w-full" (click)="copyToClipboard()">
+                Скопировать текст
+              </button>
+            </div>
+            <p class="text-xs text-secondary mt-3">PDF-файл хранится локально и не отправляется автоматически.</p>
+          </div>
+        </div>
+      </form>
+    </section>
+    }
+  </main>
+</div>
+
+<!-- ══ Модалка удаления ══════════════════════════════════════════════════════ -->
+@if (deleteTarget()) {
+<div
+  class="modal-overlay"
+  role="button"
+  tabindex="0"
+  (click)="closeDeleteModal()"
+  (keydown.escape)="closeDeleteModal()">
+  <div class="modal" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+    <header class="modal-hdr">
+      <h2 class="modal-title">Удалить заявку</h2>
+      <button class="modal-close" type="button" (click)="closeDeleteModal()">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+    <div class="modal-body">
+      <p>Вы уверены, что хотите удалить заявку по адресу:</p>
+      <p><strong>{{ deleteTarget()!.assessment.address }}</strong></p>
+      <p class="warn-txt">Это действие необратимо — все данные заявки будут удалены.</p>
+    </div>
+    <footer class="modal-ftr">
+      <button class="btn btn-outline" type="button" (click)="closeDeleteModal()">Отмена</button>
+      <button class="btn btn-danger" type="button" [disabled]="isDeleting()" (click)="confirmDelete()">
+        @if (isDeleting()) { Удаление… } @else { Удалить }
+      </button>
+    </footer>
+  </div>
+</div>
+}

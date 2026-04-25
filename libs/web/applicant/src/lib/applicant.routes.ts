@@ -36,6 +36,11 @@ export const applicantRoutes: Route[] = [
         ]),
       },
       {
+        path: 'assessment/new/params',
+        loadComponent: () =>
+          import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
+      } as Route,
+      {
         path: 'assessment',
         loadComponent: () =>
           import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
@@ -64,13 +69,16 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Выбор тарифа',
-          'Ввод реквизитов',
-          'Промокод',
-          'История платежей',
-        ]),
-      },
+        loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
+      } as Route,
+      {
+        path: 'checkout/success',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
+      {
+        path: 'checkout/cancel',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
       {
         path: 'checkout',
         loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),

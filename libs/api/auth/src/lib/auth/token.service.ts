@@ -34,6 +34,11 @@ export class TokenService {
     return { accessToken, refreshToken, refreshExpiresAt };
   }
 
+  /** Одноразовый токен для ссылки «забыли пароль» (хранится в БД как SHA-256). */
+  generatePasswordResetToken(): string {
+    return randomBytes(48).toString('hex');
+  }
+
   // ─── Верификация access token ────────────────────────────────────────────
 
   verifyAccessToken(token: string): AccessTokenPayload {

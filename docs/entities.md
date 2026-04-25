@@ -68,7 +68,19 @@
 - `EndDate` (date) — дата окончания
 - `IsActive` (boolean) — активность подписки
 
-## 6. Платёж (Payment)
+## 6. План (TariffPlan)
+
+- `Id` (UUID, PK) — уникальный идентификатор тарифного плана
+- `Name` (varchar) — название тарифного плана
+- `Price` (numeric) — стоимость в рублях
+- `Description` (text) — описание
+- `IsActive` (boolean) — активен ли план
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `CreatedAt` (timestamp) — дата создания записи
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 7. Платёж (Payment)
 
 - `Id` (UUID, PK) — идентификатор платежа
 - `UserId` (UUID, FK) — пользователь
@@ -83,7 +95,7 @@
 - `AttachmentFileName` (varchar) — название чека
 - `AttachmentFileUrl` (varchar) — ссылка на чек
 
-## 7. Отчёт об оценке (AssessmentReport)
+## 8. Отчёт об оценке (AssessmentReport)
 
 - `Id` (UUID, PK) — идентификатор отчёта
 - `AssessmentId` (UUID, FK) — заявка
@@ -93,9 +105,7 @@
 - `SignatureData` (bytea) — цифровая подпись
 - `Version` (integer) — версия отчёта
 
-# <<<<<<< HEAD
-
-## 7. Результат оценки недвижимости (RealEstateAppraisalResult)
+## 8. Результат оценки недвижимости (RealEstateAppraisalResult)
 
 - `Id` (UUID, PK) — уникальный идентификатор результата оценки
 - `AssessmentId` (UUID, FK) — заявка на оценку
@@ -113,9 +123,7 @@
 - `CreatedBy` (UUID, FK) — нотариус/пользователь, выполнивший оценку
 - `AssessmentReportId` (UUID, FK, nullable) — ссылка на сгенерированный отчёт (AssessmentReport), если уже сформирован
 
-> > > > > > > main
-
-## 8. Уведомление (Notification)
+## 9. Уведомление (Notification)
 
 - `Id` (UUID, PK) — идентификатор уведомления
 - `UserId` (UUID, FK) — получатель
@@ -124,7 +132,7 @@
 - `SentAt` (timestamp) — время отправки
 - `Status` (enum: Pending, Sent, Failed) — статус доставки
 
-## 9. Лог действий (AuditLog)
+## 10. Лог действий (AuditLog)
 
 - `Id` (UUID, PK) — идентификатор лога
 - `UserId` (UUID, FK) — пользователь, инициировавший действие
@@ -134,20 +142,75 @@
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
-## 10. Промокод (Promo)
+## 11. Промокод (Promo)
 
 - `Id` (UUID, PK) — идентификатор промокода
-- `Code` (varchar) - код
-- `Description` (text) - описание промокода
+- `Code` (varchar) — код
+- `Description` (text) — описание промокода
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `DiscountType` (enum: percentage, fixed) — тип скидки (процент или фиксированная)
+- `DiscountValue` (numeric) — значение скидки
+- `MaxUses` (integer) — максимальное количество использований
+- `UsedCount` (integer) — количество уже использованных
+- `IsActive` (boolean) — активен ли промокод
 
-## 11. Скидка (Sale)
+## 12. Скидка (Sale)
 
 - `Id` (UUID, PK) — идентификатор скидки
-- `SourceId` (UUID, FK) - ID промокода или товара, если есть
-- `StartDate` (date) — дата начала
-- `EndDate` (date) — дата окончания
-- `Percent` (numeric) - процент скидки
-- `Type` (enum: Permanent, Subscription, Product, Promo) - тип скидки
+- `Name` (varchar) — название скидки
+- `Percentage` (numeric) — процент скидки
+- `Description` (text) — описание
+- `ValidFrom` (date) — дата начала действия
+- `ValidTo` (date) — дата окончания действия
+- `IsActive` (boolean) — активна ли скидка
+- `MinOrderAmount` (numeric, nullable) — минимальная сумма заказа
+- `MaxDiscountAmount` (numeric, nullable) — максимальная сумма скидки
+- `Type` (enum: Permanent, Subscription, Product, Promo) — тип скидки
+
+## 12. Рассылка (Mailing)
+
+- `Id` (UUID, PK) — идентификатор рассылки
+- `Name` (varchar) — название рассылки
+- `Subject` (varchar) — тема письма
+- `Body` (text) — содержимое письма/шаблона
+- `Status` (enum: Draft, Scheduled, Sending, Completed, Failed, Cancelled) — статус рассылки
+- `ScheduledAt` (timestamp, nullable) — дата и время запланированной отправки
+- `StartedAt` (timestamp, nullable) — дата и время начала отправки
+- `FinishedAt` (timestamp, nullable) — дата и время завершения отправки
+- `SubscriberGroupId` (UUID, FK) — группа подписчиков-получателей
+- `SmtpClientId` (UUID, FK) — SMTP-клиент, через который выполняется отправка
+- `CreatedBy` (UUID, FK) — пользователь, создавший рассылку
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 13. SMTP клиент (SmtpClient)
+
+- `Id` (UUID, PK) — идентификатор SMTP-клиента
+- `Name` (varchar) — наименование SMTP-профиля
+- `Host` (varchar) — SMTP-сервер
+- `Port` (integer) — SMTP-порт
+- `Username` (varchar) — логин для аутентификации
+- `PasswordEncrypted` (varchar) — зашифрованный пароль/токен
+- `EncryptionType` (enum: None, SSL, TLS, STARTTLS) — тип шифрования соединения
+- `FromEmail` (varchar) — email отправителя
+- `FromName` (varchar, nullable) — отображаемое имя отправителя
+- `IsActive` (boolean) — активность профиля
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 14. Группа подписчиков (SubscriberGroup)
+
+- `Id` (UUID, PK) — идентификатор группы подписчиков
+- `Name` (varchar) — название группы
+- `Description` (text, nullable) — описание группы
+- `Type` (enum: Static, Dynamic) — тип группы (фиксированный список или по фильтру)
+- `FilterCriteria` (jsonb, nullable) — критерии отбора получателей для динамической группы
+- `SubscribersCount` (integer, nullable) — количество подписчиков на момент формирования
+- `IsActive` (boolean) — активность группы
+- `CreatedBy` (UUID, FK) — пользователь, создавший группу
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
 
 ---
 

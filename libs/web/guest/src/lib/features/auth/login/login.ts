@@ -1,6 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
+import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
 interface TestAccount {
   role: string;
@@ -11,7 +13,7 @@ interface TestAccount {
 @Component({
   selector: 'lib-login',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
@@ -19,13 +21,16 @@ export class Login {
   private readonly authService = inject(AuthService);
   private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Off by default; set `NG_APP_SHOW_TEST_ACCOUNTS=true` at web image build (or `nx serve` dev config) to show test-account UI. */
+  protected readonly showTestAccountHints = isNgAppShowTestAccountsEnabled();
+
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;
   readonly copiedAccount = signal<string | null>(null);
   readonly testAccounts: TestAccount[] = [
     { role: 'Applicant', email: 'seed-user-000@seed.local', password: 'SeedPass123!' },
-    { role: 'Notary', email: 'seed-user-050@seed.local', password: 'SeedPass123!' },
-    { role: 'Admin', email: 'seed-user-080@seed.local', password: 'SeedPass123!' },
+    { role: 'Notary', email: 'seed-user-010@seed.local', password: 'SeedPass123!' },
+    { role: 'Admin', email: 'seed-user-020@seed.local', password: 'SeedPass123!' },
   ];
 
   email = '';

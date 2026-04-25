@@ -27,6 +27,16 @@ export const notaryRoutes: Route[] = [
         ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
       } as Route,
       {
+        path: 'subscription/checkout/success',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
+        path: 'subscription/checkout/cancel',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
         path: 'subscription/checkout',
         loadComponent: () =>
           import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
@@ -38,12 +48,9 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'assessment',
-        ...placeholder('Модуль оценки', [
-          'Запрос оценки с параметрами',
-          'Ввод параметров объекта',
-          'Результаты и отчёты',
-        ]),
-      } as Route,
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
       {
         path: 'copies',
         ...placeholder('Копии документов', [

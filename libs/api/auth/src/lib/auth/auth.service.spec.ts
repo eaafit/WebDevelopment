@@ -15,6 +15,12 @@ describe('AuthService', () => {
     save: jest.fn(),
     rotate: jest.fn(),
     revoke: jest.fn(),
+    revokeAll: jest.fn(),
+  };
+  const passwordResetRepository = {
+    create: jest.fn(),
+    findValid: jest.fn(),
+    markUsed: jest.fn(),
   };
   const passwordService = {
     hash: jest.fn(),
@@ -23,6 +29,10 @@ describe('AuthService', () => {
   const tokenService = {
     generateTokenPair: jest.fn(),
     verifyAccessToken: jest.fn(),
+    generatePasswordResetToken: jest.fn(),
+  };
+  const metrics = {
+    recordUserRegistered: jest.fn(),
   };
 
   let service: AuthService;
@@ -32,8 +42,12 @@ describe('AuthService', () => {
     service = new AuthService(
       authRepository as never,
       refreshTokenRepository as never,
+      passwordResetRepository as never,
       passwordService as never,
       tokenService as never,
+      metrics as never,
+      null,
+      null,
     );
   });
 
