@@ -155,7 +155,7 @@ describe('WebLoggerService', () => {
 describe('WebErrorHandler', () => {
   it('sends unhandled errors to the logger', () => {
     const logger = { error: jest.fn() } as unknown as WebLoggerService;
-    const handler = new WebErrorHandler(logger);
+    const handler = createErrorHandler(logger);
     const error = new Error('boom');
 
     handler.handleError(error);
@@ -165,7 +165,7 @@ describe('WebErrorHandler', () => {
 
   it('does not throw for weird unknown error input', () => {
     const logger = { error: jest.fn() } as unknown as WebLoggerService;
-    const handler = new WebErrorHandler(logger);
+    const handler = createErrorHandler(logger);
 
     expect(() => handler.handleError(Object.create(null))).not.toThrow();
   });
@@ -176,7 +176,7 @@ describe('WebErrorHandler', () => {
         throw new Error('logger failed');
       }),
     } as unknown as WebLoggerService;
-    const handler = new WebErrorHandler(logger);
+    const handler = createErrorHandler(logger);
 
     expect(() => handler.handleError(new Error('boom'))).not.toThrow();
   });
@@ -194,4 +194,18 @@ function createLogger(options: { env: string; production: boolean }): WebLoggerS
   });
 
   return TestBed.inject(WebLoggerService);
+}
+
+function createErrorHandler(logger: WebLoggerService): WebErrorHandler {
+  TestBed.configureTestingModule({
+    providers: [
+      WebErrorHandler,
+      {
+        provide: WebLoggerService,
+        useValue: logger,
+      },
+    ],
+  });
+
+  return TestBed.inject(WebErrorHandler);
 }
