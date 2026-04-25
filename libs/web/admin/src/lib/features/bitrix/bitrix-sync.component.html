@@ -1,0 +1,188 @@
+<div class="bitrix-sync-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>sync</mat-icon>
+        Синхронизация пользователей с Bitrix24
+      </mat-card-title>
+      <mat-card-subtitle>
+        Синхронизируйте пользователей нотариальной системы с CRM Bitrix24
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="sync-controls">
+        <h3>Управление синхронизацией</h3>
+
+        <div class="action-buttons">
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="startSync(false)"
+            [disabled]="isStartingSync || isPolling"
+          >
+            <mat-icon *ngIf="!isStartingSync">sync</mat-icon>
+            <mat-spinner *ngIf="isStartingSync" diameter="20"></mat-spinner>
+            {{ isStartingSync ? 'Запуск...' : 'Синхронизировать пользователей' }}
+          </button>
+
+          <button
+            mat-stroked-button
+            color="accent"
+            (click)="startSync(true)"
+            [disabled]="isStartingSync || isPolling"
+          >
+            <mat-icon>refresh</mat-icon>
+            Принудительная пересинхронизация
+          </button>
+        </div>
+
+        <div class="sync-info">
+          <p>
+            <mat-icon>info</mat-icon>
+            Синхронизация создаст или обновит контакты в Bitrix24 для всех активных пользователей системы.
+            Принудительная пересинхронизация обновит все контакты, даже если данные не изменились.
+          </p>
+        </div>
+      </div>
+
+      <div class="sync-status" *ngIf="currentSyncStatus">
+        <h3>Статус синхронизации</h3>
+
+        <div class="status-card" [class]="currentSyncStatus.status">
+          <div class="status-header">
+            <mat-icon [color]="getStatusColor()">{{ getStatusIcon() }}</mat-icon>
+            <div class="status-title">
+              <strong>{{ getStatusText() }}</strong>
+              <span class="job-id">ID: {{ currentSyncStatus.jobId }}</span>
+            </div>
+          </div>
+
+          <div class="status-details" *ngIf="currentSyncStatus.status === 'running'">
+            <mat-progress-bar
+              mode="determinate"
+              [value]="getProgressPercentage()"
+              color="primary"
+            ></mat-progress-bar>
+
+            <div class="progress-info">
+              <span>{{ currentSyncStatus.processedUsers }} из {{ currentSyncStatus.totalUsers }} пользователей</span>
+              <span>{{ getProgressPercentage() | number:'1.0-0' }}%</span>
+            </div>
+          </div>
+
+          <div class="status-stats" *ngIf="currentSyncStatus.status === 'completed' || currentSyncStatus.status === 'failed'">
+            <div class="stat-item">
+              <mat-icon>check_circle</mat-icon>
+              <span>Успешно: {{ currentSyncStatus.successfulSyncs }}</span>
+            </div>
+            <div class="stat-item" *ngIf="currentSyncStatus.failedSyncs > 0">
+              <mat-icon>error</mat-icon>
+              <span>С ошибками: {{ currentSyncStatus.failedSyncs }}</span>
+            </div>
+            <div class="stat-item">
+              <mat-icon>schedule</mat-icon>
+              <span>Начало: {{ formatDate(currentSyncStatus.startedAt) }}</span>
+            </div>
+            <div class="stat-item" *ngIf="currentSyncStatus.completedAt">
+              <mat-icon>timer</mat-icon>
+              <span>Завершение: {{ formatDate(currentSyncStatus.completedAt) }}</span>
+            </div>
+          </div>
+
+          <div class="error-message" *ngIf="currentSyncStatus.errorMessage">
+            <mat-icon>warning</mat-icon>
+            <span>{{ currentSyncStatus.errorMessage }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sync-logs">
+        <h3>История синхронизации</h3>
+
+        <div *ngIf="isLoadingLogs" class="loading-logs">
+          <mat-spinner diameter="30"></mat-spinner>
+          <span>Загрузка логов...</span>
+        </div>
+
+        <div *ngIf="!isLoadingLogs">
+          <table mat-table [dataSource]="syncLogs" class="mat-elevation-z1">
+            <!-- Дата и время -->
+            <ng-container matColumnDef="timestamp">
+              <th mat-header-cell *matHeaderCellDef>Дата и время</th>
+              <td mat-cell *matCellDef="let log">
+                {{ formatDate(log.timestamp) }}
+              </td>
+            </ng-container>
+
+            <!-- ID пользователя -->
+            <ng-container matColumnDef="userId">
+              <th mat-header-cell *matHeaderCellDef>Пользователь</th>
+              <td mat-cell *matCellDef="let log">
+                <span class="user-id">{{ log.userId | slice:0:8 }}...</span>
+              </td>
+            </ng-container>
+
+            <!-- Действие -->
+            <ng-container matColumnDef="action">
+              <th mat-header-cell *matHeaderCellDef>Действие</th>
+              <td mat-cell *matCellDef="let log">
+                <span class="action-badge" [class]="log.action">
+                  {{ formatAction(log.action) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Статус -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Статус</th>
+              <td mat-cell *matCellDef="let log">
+                <span class="status-badge" [class]="log.status">
+                  <mat-icon *ngIf="log.status === 'success'">check_circle</mat-icon>
+                  <mat-icon *ngIf="log.status === 'error'">error</mat-icon>
+                  {{ formatStatus(log.status) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Сообщение -->
+            <ng-container matColumnDef="message">
+              <th mat-header-cell *matHeaderCellDef>Сообщение</th>
+              <td mat-cell *matCellDef="let log">
+                <span class="log-message" [title]="log.message">
+                  {{ log.message || '-' }}
+                </span>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+
+          <mat-paginator
+            [length]="totalLogs"
+            [pageSize]="pageSize"
+            [pageIndex]="currentPage"
+            [pageSizeOptions]="[5, 10, 25, 50]"
+            (page)="onPageChange($event)"
+            showFirstLastButtons
+          >
+          </mat-paginator>
+        </div>
+      </div>
+    </mat-card-content>
+
+    <mat-card-actions>
+      <div class="help-section">
+        <h4>Что происходит при синхронизации:</h4>
+        <ul>
+          <li>Система получает список всех активных пользователей</li>
+          <li>Для каждого пользователя ищется существующий контакт в Bitrix24 по телефону или email</li>
+          <li>Если контакт найден - он обновляется, если нет - создается новый</li>
+          <li>Создаются контакты с полями: ФИО, телефон, email, ID пользователя в системе</li>
+          <li>Все действия логируются для отслеживания</li>
+        </ul>
+      </div>
+    </mat-card-actions>
+  </mat-card>
+</div>

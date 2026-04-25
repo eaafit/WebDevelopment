@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AssessmentModule } from '@internal/assessment';
 import { AuthModule } from '@internal/auth';
 import { BillingModule } from '@internal/billing';
+import { BitrixModule } from '@internal/bitrix';
 import { DocumentModule } from '@internal/document';
 import { MetricsModule } from '@internal/metrics';
 import { NotificationModule } from '@internal/notification';
@@ -21,6 +22,7 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
     AuthModule,
     AssessmentModule,
     BillingModule,
+    BitrixModule,
     DocumentModule,
     NotificationModule,
     ReportModule,
