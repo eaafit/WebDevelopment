@@ -27,6 +27,13 @@ export const adminRoutes: Route[] = [
           import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
       } as Route,
       {
+        path: 'order-status-history',
+        loadComponent: () =>
+          import('./features/order-status-history/order-status-history').then(
+            (m) => m.OrderStatusHistory,
+          ),
+      },
+      {
         path: 'orders/statuses',
         ...placeholder('Управление статусами', [
           'Изменение статусов заказов',
@@ -89,8 +96,9 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['Управление уведомлениями']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.AdminNotifications),
+      },
       {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),

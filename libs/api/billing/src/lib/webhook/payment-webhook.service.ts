@@ -14,6 +14,7 @@ import {
 } from '@internal/prisma-client';
 import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
+import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -50,6 +51,7 @@ type PaymentRecord = Prisma.PaymentGetPayload<{
     status: true;
     type: true;
     promoId: true;
+    discountAmount: true;
     subscriptionId: true;
     assessmentId: true;
     paymentMethod: true;
@@ -196,6 +198,17 @@ export class PaymentWebhookService {
 
     this.metrics.recordPayment('completed');
     this.metrics.recordPaymentAmount(Number(payment.amount));
+    const metricContext = resolveBillingPaymentMetricContext(payment.type);
+    this.metrics.recordBillingPayment('completed', metricContext);
+    this.metrics.recordBillingPaymentAmount(Number(payment.amount), metricContext);
+
+    if (payment.promoId) {
+      this.metrics.recordPromoApplied(
+        metricContext,
+        'percent',
+        Number(payment.discountAmount ?? 0),
+      );
+    }
   }
 
   private async handlePaymentCanceled(
@@ -218,6 +231,7 @@ export class PaymentWebhookService {
     }
 
     this.metrics.recordPayment('failed');
+    this.metrics.recordBillingPayment('failed', resolveBillingPaymentMetricContext(payment.type));
   }
 
   private async findPayment(
@@ -238,6 +252,7 @@ export class PaymentWebhookService {
         status: true,
         type: true,
         promoId: true,
+        discountAmount: true,
         subscriptionId: true,
         assessmentId: true,
         paymentMethod: true,
