@@ -44,7 +44,7 @@ export class BitrixConfigComponent implements OnInit {
   connectionStatus: 'unknown' | 'success' | 'error' = 'unknown';
   connectionMessage = '';
 
-  constructor(private readonly snackBar: MatSnackBar) {}
+  private readonly snackBar = inject(MatSnackBar);
 
   async ngOnInit(): Promise<void> {
     await this.loadConfig();

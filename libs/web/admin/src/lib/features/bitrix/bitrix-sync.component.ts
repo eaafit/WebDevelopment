@@ -68,7 +68,7 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
 
   displayedColumns: string[] = ['timestamp', 'userId', 'action', 'status', 'message'];
 
-  constructor(private readonly snackBar: MatSnackBar) {}
+  private readonly snackBar = inject(MatSnackBar);
 
   async ngOnInit(): Promise<void> {
     await this.loadRecentLogs();
