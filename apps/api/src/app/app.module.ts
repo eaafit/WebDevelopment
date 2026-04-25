@@ -10,12 +10,14 @@ import { ReportModule } from '@internal/report';
 import { UserModule } from '@internal/user';
 import { PrismaModule } from '@internal/prisma';
 import { ConnectRouterRegistry } from './connect-router.registry';
+import { LoggingModule } from './logging/logging.module';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 
 @Module({
   imports: [
+    LoggingModule,
     PrismaModule,
     MetricsModule,
     MailModule,
