@@ -252,24 +252,26 @@ export class PaymentWebhookService {
       receiptRegistration?: string | null;
     },
   ): Promise<void> {
+    const assessmentId = payment.assessmentId;
+
     await this.auditService.record({
       actorUserId: payment.userId,
       eventType,
-      targetType: 'Payment',
-      targetId: payment.id,
-      assessmentId: payment.assessmentId,
+      targetType: assessmentId ? 'Assessment' : 'Payment',
+      targetId: assessmentId ?? payment.id,
       actionTitle: status === PrismaPaymentStatus.Completed ? 'Платёж завершён' : 'Платёж отклонён',
       actionContext: 'Статус обновлён по YooKassa webhook',
-      targetTitle: `Платёж ${shortId(payment.id)}`,
-      targetContext: payment.assessmentId
-        ? `Заявка ${shortId(payment.assessmentId)}`
-        : 'Без заявки',
+      targetTitle: assessmentId
+        ? `Заявка ${shortId(assessmentId)}`
+        : `Платёж ${shortId(payment.id)}`,
+      targetContext: assessmentId ? `Платёж ${shortId(payment.id)}` : 'Без заявки',
       after: {
+        paymentId: payment.id,
         status,
         amount: payment.amount.toString(),
         transactionId: payment.transactionId,
         type: payment.type,
-        assessmentId: payment.assessmentId,
+        assessmentId,
         ...providerDetails,
       },
     });

@@ -169,9 +169,9 @@ describe('PaymentWebhookService', () => {
         eventType: 'payment.completed',
         targetType: 'Payment',
         targetId: 'payment-1',
-        assessmentId: null,
         actionContext: 'Статус обновлён по YooKassa webhook',
         after: expect.objectContaining({
+          paymentId: 'payment-1',
           status: PaymentStatus.Completed,
           amount: '1350.00',
           transactionId: 'yk-payment-1',
@@ -245,9 +245,13 @@ describe('PaymentWebhookService', () => {
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'payment.completed',
-        targetId: 'payment-1',
-        assessmentId: 'assessment-1',
-        targetContext: 'Заявка #assessme',
+        targetType: 'Assessment',
+        targetId: 'assessment-1',
+        targetContext: 'Платёж #payment-',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          assessmentId: 'assessment-1',
+        }),
       }),
     );
   });
@@ -400,8 +404,8 @@ describe('PaymentWebhookService', () => {
         eventType: 'payment.failed',
         targetType: 'Payment',
         targetId: 'payment-1',
-        assessmentId: null,
         after: expect.objectContaining({
+          paymentId: 'payment-1',
           status: PaymentStatus.Failed,
           amount: '1350.00',
           transactionId: 'yk-payment-1',

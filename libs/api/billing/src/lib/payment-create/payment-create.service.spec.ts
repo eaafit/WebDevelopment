@@ -263,9 +263,12 @@ describe('PaymentCreateService', () => {
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'payment.created',
-        targetType: 'Payment',
-        targetId: 'payment-1',
-        assessmentId: 'assessment-1',
+        targetType: 'Assessment',
+        targetId: 'assessment-1',
+        targetContext: 'Платёж #payment-',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+        }),
       }),
     );
   });
