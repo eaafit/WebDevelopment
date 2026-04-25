@@ -196,6 +196,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -254,6 +255,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {

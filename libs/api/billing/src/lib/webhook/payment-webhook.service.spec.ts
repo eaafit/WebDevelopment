@@ -544,6 +544,7 @@ describe('PaymentWebhookService', () => {
       yookassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
+      auditService as never,
     );
 
     await service.handleYooKassaNotification(
