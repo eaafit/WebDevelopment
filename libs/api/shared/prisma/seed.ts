@@ -666,37 +666,46 @@ async function upsertAuditLogs(
     const action = actions[i % actions.length];
     const relatedAssessmentId = assessmentIds[i % assessmentIds.length];
     const paymentRef = paymentRefs.length > 0 ? paymentRefs[i % paymentRefs.length] : null;
+    const entityName =
+      action.entityName === 'Payment' && paymentRef?.assessmentId
+        ? 'Assessment'
+        : action.entityName === 'AssessmentReport'
+          ? 'Assessment'
+          : action.entityName;
     const entityId =
-      action.entityName === 'Assessment'
-        ? relatedAssessmentId
-        : action.entityName === 'Payment' && paymentRef
+      entityName === 'Assessment'
+        ? (paymentRef?.assessmentId ?? relatedAssessmentId)
+        : entityName === 'Payment' && paymentRef
           ? paymentRef.id
-          : action.entityName === 'Promo' && promoIds.length > 0
+          : entityName === 'Promo' && promoIds.length > 0
             ? promoIds[i % promoIds.length]
-            : relatedAssessmentId;
-    const assessmentId =
-      action.entityName === 'Assessment'
-        ? relatedAssessmentId
-        : action.entityName === 'Payment'
-          ? (paymentRef?.assessmentId ?? null)
-          : null;
-    const details = { source: 'seed', index: i };
+            : entityName === 'User'
+              ? userId
+              : relatedAssessmentId;
+    const details = {
+      source: 'seed',
+      index: i,
+      ...(action.entityName === 'Payment' && paymentRef
+        ? { paymentId: paymentRef.id, assessmentId: paymentRef.assessmentId }
+        : {}),
+      ...(action.entityName === 'AssessmentReport'
+        ? { relatedEntityName: 'AssessmentReport' }
+        : {}),
+    };
     await prisma.auditLog.upsert({
       where: { id },
       update: {
         userId,
-        assessmentId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
       },
       create: {
         id,
         userId,
-        assessmentId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
       },
@@ -746,7 +755,6 @@ async function upsertAssessmentProcessingHistory(
         where: { id },
         update: {
           userId: eventUserId,
-          assessmentId,
           actionType: events[step],
           entityName: 'Assessment',
           entityId: assessmentId,
@@ -756,7 +764,6 @@ async function upsertAssessmentProcessingHistory(
         create: {
           id,
           userId: eventUserId,
-          assessmentId,
           actionType: events[step],
           entityName: 'Assessment',
           entityId: assessmentId,
