@@ -7,6 +7,7 @@ import {
   type GetPaymentHistoryResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { MetricsService } from '@internal/metrics';
 import { TransactionHistoryRepository } from './transaction-history.repository';
 import type { TransactionHistoryQuery } from './transaction-history.query';
 
@@ -27,10 +28,24 @@ const SUPPORTED_PAYMENT_TYPES = [
 
 @Injectable()
 export class TransactionHistoryService {
-  constructor(private readonly transactionHistoryRepository: TransactionHistoryRepository) {}
+  constructor(
+    private readonly transactionHistoryRepository: TransactionHistoryRepository,
+    private readonly metrics: MetricsService,
+  ) {}
 
-  getPaymentHistory(request: GetPaymentHistoryRequest): Promise<GetPaymentHistoryResponse> {
-    return this.transactionHistoryRepository.getTransactionHistory(this.normalizeRequest(request));
+  async getPaymentHistory(request: GetPaymentHistoryRequest): Promise<GetPaymentHistoryResponse> {
+    const scope = request.userId?.trim() ? 'user' : 'all';
+
+    try {
+      const response = await this.transactionHistoryRepository.getTransactionHistory(
+        this.normalizeRequest(request),
+      );
+      this.metrics.recordPaymentHistoryRequest(scope, 'success');
+      return response;
+    } catch (error) {
+      this.metrics.recordPaymentHistoryRequest(scope, 'failed');
+      throw error;
+    }
   }
 
   private normalizeRequest(request: GetPaymentHistoryRequest): TransactionHistoryQuery {
