@@ -48,6 +48,7 @@ describe('RequestPrice', () => {
   });
 
   afterEach(() => {
+    jest.runOnlyPendingTimers();
     jest.useRealTimers();
   });
 
@@ -80,7 +81,7 @@ describe('RequestPrice', () => {
   // ── Список заявок ──────────────────────────────────────────────────────────
 
   it('should load assessments on init', () => {
-    expect(component.assessments().length).toBeGreaterThan(0);
+    expect(component.assessments().length).toBe(6);
     expect(component.isLoadingAssessments()).toBe(false);
   });
 
