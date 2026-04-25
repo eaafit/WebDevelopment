@@ -204,30 +204,30 @@ model District {
 }
 
 model RealEstateObject {
-  id                  String                @id @default(uuid()) @db.Uuid
-  cityId              String                @map("city_id") @db.Uuid
-  districtId          String?               @map("district_id") @db.Uuid
-  address             String                @db.VarChar
-  cadastralNumber     String?               @map("cadastral_number") @db.VarChar
-  area                Decimal               @db.Decimal(10, 2)
-  objectType          RealEstateObjectType  @map("object_type")
-  roomsCount          Int?                  @map("rooms_count")
-  floorsTotal         Int?                  @map("floors_total")
-  floor               Int?
-  condition           RealEstateCondition?  @map("condition")
-  yearBuilt           Int?                  @map("year_built")
-  wallMaterial        WallMaterial?         @map("wall_material")
-  elevatorType        ElevatorType?         @map("elevator_type")
-  hasBalconyOrLoggia  Boolean?              @map("has_balcony_or_loggia")
-  landCategory        String?               @map("land_category") @db.VarChar
-  permittedUse        String?               @map("permitted_use") @db.VarChar
-  utilities           String?               @db.Text
-  description         String?               @db.Text
-  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamp()
-  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamp()
+  id                 String               @id @default(uuid()) @db.Uuid
+  cityId             String               @map("city_id") @db.Uuid
+  districtId         String?              @map("district_id") @db.Uuid
+  address            String               @db.VarChar
+  cadastralNumber    String?              @map("cadastral_number") @db.VarChar
+  area               Decimal              @db.Decimal(10, 2)
+  objectType         RealEstateObjectType @map("object_type")
+  roomsCount         Int?                 @map("rooms_count")
+  floorsTotal        Int?                 @map("floors_total")
+  floor              Int?
+  condition          RealEstateCondition? @map("condition")
+  yearBuilt          Int?                 @map("year_built")
+  wallMaterial       WallMaterial?        @map("wall_material")
+  elevatorType       ElevatorType?        @map("elevator_type")
+  hasBalconyOrLoggia Boolean?             @map("has_balcony_or_loggia")
+  landCategory       String?              @map("land_category") @db.VarChar
+  permittedUse       String?              @map("permitted_use") @db.VarChar
+  utilities          String?              @db.Text
+  description        String?              @db.Text
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamp()
 
-  city       City       @relation(fields: [cityId], references: [id])
-  district   District?  @relation(fields: [districtId], references: [id])
+  city       City        @relation(fields: [cityId], references: [id])
+  district   District?   @relation(fields: [districtId], references: [id])
   assessment Assessment?
 
   @@index([cityId])
@@ -239,19 +239,19 @@ model RealEstateObject {
 model Assessment {
   id                 String           @id @default(uuid()) @db.Uuid
   userId             String           @map("user_id") @db.Uuid
-  notaryId           String?          @map("notary_id") @db.Uuid               // [FIX] назначенный нотариус
+  notaryId           String?          @map("notary_id") @db.Uuid // [FIX] назначенный нотариус
   realEstateObjectId String?          @unique @map("real_estate_object_id") @db.Uuid
   status             AssessmentStatus @default(New)
-  cancelReason       String?          @map("cancel_reason") @db.Text           // [FIX] причина отмены
+  cancelReason       String?          @map("cancel_reason") @db.Text // [FIX] причина отмены
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamp()
   updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamp()
   address            String           @db.VarChar
   description        String?          @db.Text
   estimatedValue     Decimal?         @map("estimated_value") @db.Decimal(15, 2)
 
-  user             User              @relation("ApplicantAssessments", fields: [userId], references: [id])
-  notary           User?             @relation("NotaryAssessments", fields: [notaryId], references: [id])
-  realEstateObject RealEstateObject? @relation(fields: [realEstateObjectId], references: [id])
+  user             User               @relation("ApplicantAssessments", fields: [userId], references: [id])
+  notary           User?              @relation("NotaryAssessments", fields: [notaryId], references: [id])
+  realEstateObject RealEstateObject?  @relation(fields: [realEstateObjectId], references: [id])
   documents        Document[]
   reports          AssessmentReport[]
   payments         Payment[]
@@ -426,4 +426,45 @@ model Sale {
   promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("sales")
+}
+
+model TariffPlan {
+  id          Int      @id @default(autoincrement())
+  name        String
+  price       Float
+  description String?
+  isActive    Boolean  @default(true)
+  validFrom   DateTime
+  validTo     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Discount {
+  id                Int      @id @default(autoincrement())
+  name              String
+  percentage        Float
+  description       String?
+  isActive          Boolean  @default(true)
+  validFrom         DateTime
+  validTo           DateTime
+  minOrderAmount    Float?
+  maxDiscountAmount Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Promocode {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  discountType  String // "percentage" or "fixed"
+  discountValue Float
+  description   String?
+  isActive      Boolean  @default(true)
+  validFrom     DateTime
+  validTo       DateTime
+  maxUses       Int
+  usedCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
