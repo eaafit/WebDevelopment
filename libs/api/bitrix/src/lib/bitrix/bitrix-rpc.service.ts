@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Injectable } from '@nestjs/common';
 import {
-  BitrixService,
   type GetBitrixConfigRequest,
   type GetBitrixConfigResponse,
   type UpdateBitrixConfigRequest,
@@ -20,6 +20,9 @@ import {
   SyncUsersWithBitrixResponseSchema,
   GetSyncStatusResponseSchema,
   GetSyncLogsResponseSchema,
+  PaginationMetaSchema,
+  SyncLogEntrySchema,
+  SyncStatusSchema,
 } from '@notary-portal/api-contracts';
 import { requireRole, Role } from '@internal/auth-shared';
 import { BitrixConfigService } from './bitrix-config.service';
@@ -27,7 +30,7 @@ import { BitrixApiService } from './bitrix-api.service';
 import { BitrixSyncService } from './bitrix-sync.service';
 
 @Injectable()
-export class BitrixRpcService implements BitrixService {
+export class BitrixRpcService {
   constructor(
     private readonly configService: BitrixConfigService,
     private readonly apiService: BitrixApiService,
@@ -45,14 +48,16 @@ export class BitrixRpcService implements BitrixService {
 
   // ─── UpdateBitrixConfig ───────────────────────────────────────────────────────
   // Admin-only
-  async updateBitrixConfig(request: UpdateBitrixConfigRequest): Promise<UpdateBitrixConfigResponse> {
+  async updateBitrixConfig(
+    request: UpdateBitrixConfigRequest,
+  ): Promise<UpdateBitrixConfigResponse> {
     requireRole(Role.Admin);
 
     const config = await this.configService.updateConfig({
-      portalUrl: request.portal_url,
-      memberId: request.member_id,
-      accessToken: request.access_token,
-      isActive: request.is_active,
+      portalUrl: request.portalUrl,
+      memberId: request.memberId,
+      accessToken: request.accessToken,
+      isActive: request.isActive,
     });
 
     return create(UpdateBitrixConfigResponseSchema, { config });
@@ -60,7 +65,9 @@ export class BitrixRpcService implements BitrixService {
 
   // ─── TestBitrixConnection ─────────────────────────────────────────────────────
   // Admin-only
-  async testBitrixConnection(request: TestBitrixConnectionRequest): Promise<TestBitrixConnectionResponse> {
+  async testBitrixConnection(
+    request: TestBitrixConnectionRequest,
+  ): Promise<TestBitrixConnectionResponse> {
     requireRole(Role.Admin);
 
     try {
@@ -68,26 +75,28 @@ export class BitrixRpcService implements BitrixService {
       return create(TestBitrixConnectionResponseSchema, {
         success: result.success,
         message: result.message,
-        tested_at: result.testedAt,
+        testedAt: timestampFromDate(result.testedAt),
       });
     } catch (error) {
       return create(TestBitrixConnectionResponseSchema, {
         success: false,
         message: error instanceof Error ? error.message : 'Unknown error',
-        tested_at: new Date(),
+        testedAt: timestampFromDate(new Date()),
       });
     }
   }
 
   // ─── SyncUsersWithBitrix ──────────────────────────────────────────────────────
   // Admin-only
-  async syncUsersWithBitrix(request: SyncUsersWithBitrixRequest): Promise<SyncUsersWithBitrixResponse> {
+  async syncUsersWithBitrix(
+    request: SyncUsersWithBitrixRequest,
+  ): Promise<SyncUsersWithBitrixResponse> {
     requireRole(Role.Admin);
 
-    const result = await this.syncService.startSync(request.force_resync || false);
+    const result = await this.syncService.startSync(request.forceResync ?? false);
 
     return create(SyncUsersWithBitrixResponseSchema, {
-      job_id: result.jobId,
+      jobId: result.jobId,
       status: result.status,
       message: result.message,
     });
@@ -98,8 +107,20 @@ export class BitrixRpcService implements BitrixService {
   async getSyncStatus(request: GetSyncStatusRequest): Promise<GetSyncStatusResponse> {
     requireRole(Role.Admin);
 
-    const status = await this.syncService.getStatus(request.job_id);
-    return create(GetSyncStatusResponseSchema, { status });
+    const s = await this.syncService.getStatus(request.jobId);
+    return create(GetSyncStatusResponseSchema, {
+      status: create(SyncStatusSchema, {
+        jobId: s.jobId,
+        status: s.status,
+        totalUsers: s.totalUsers,
+        processedUsers: s.processedUsers,
+        successfulSyncs: s.successfulSyncs,
+        failedSyncs: s.failedSyncs,
+        startedAt: timestampFromDate(s.startedAt),
+        completedAt: s.completedAt ? timestampFromDate(s.completedAt) : undefined,
+        errorMessage: s.errorMessage ?? '',
+      }),
+    });
   }
 
   // ─── GetSyncLogs ──────────────────────────────────────────────────────────────
@@ -110,13 +131,30 @@ export class BitrixRpcService implements BitrixService {
     const result = await this.syncService.getLogs({
       page: request.pagination?.page || 1,
       limit: request.pagination?.limit || 20,
-      jobId: request.job_id,
-      userId: request.user_id,
+      jobId: request.jobId,
+      userId: request.userId,
     });
 
+    const { total, page, limit } = result.meta;
+    const totalPages = limit > 0 ? Math.max(1, Math.ceil(total / limit)) : 0;
+
     return create(GetSyncLogsResponseSchema, {
-      logs: result.logs,
-      meta: result.meta,
+      logs: result.logs.map((log) =>
+        create(SyncLogEntrySchema, {
+          userId: log.userId,
+          bitrixContactId: log.bitrixContactId ?? '',
+          action: log.action,
+          status: log.status,
+          message: log.message ?? '',
+          timestamp: timestampFromDate(log.timestamp),
+        }),
+      ),
+      meta: create(PaginationMetaSchema, {
+        totalItems: total,
+        totalPages,
+        currentPage: page,
+        perPage: limit,
+      }),
     });
   }
 }

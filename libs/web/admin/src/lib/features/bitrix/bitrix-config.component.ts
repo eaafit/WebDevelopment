@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -8,9 +8,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { BitrixServiceClient } from '@notary-portal/api-contracts';
-import { createConnectTransport, createPromiseClient } from '@connectrpc/connect';
-import { environment } from '@notary-portal/environment';
+import { BitrixService } from '@notary-portal/api-contracts';
+import { createClient } from '@connectrpc/connect';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
 
 @Component({
   selector: 'lib-bitrix-config',
@@ -30,7 +30,7 @@ import { environment } from '@notary-portal/environment';
   styleUrl: './bitrix-config.component.scss',
 })
 export class BitrixConfigComponent implements OnInit {
-  private client: BitrixServiceClient;
+  private readonly client = createClient(BitrixService, inject(RPC_TRANSPORT));
 
   portalUrl = '';
   memberId = '';
@@ -44,13 +44,7 @@ export class BitrixConfigComponent implements OnInit {
   connectionStatus: 'unknown' | 'success' | 'error' = 'unknown';
   connectionMessage = '';
 
-  constructor(private snackBar: MatSnackBar) {
-    const transport = createConnectTransport({
-      baseUrl: environment.apiUrl,
-      credentials: 'include',
-    });
-    this.client = createPromiseClient(BitrixServiceClient, transport);
-  }
+  constructor(private readonly snackBar: MatSnackBar) {}
 
   async ngOnInit(): Promise<void> {
     await this.loadConfig();
@@ -61,6 +55,10 @@ export class BitrixConfigComponent implements OnInit {
     try {
       const response = await this.client.getBitrixConfig({});
       const config = response.config;
+      if (!config) {
+        this.showError('Конфигурация Bitrix не найдена');
+        return;
+      }
 
       this.portalUrl = config.portalUrl || '';
       this.memberId = config.memberId || '';
@@ -155,17 +153,23 @@ export class BitrixConfigComponent implements OnInit {
 
   getConnectionStatusClass(): string {
     switch (this.connectionStatus) {
-      case 'success': return 'status-success';
-      case 'error': return 'status-error';
-      default: return 'status-unknown';
+      case 'success':
+        return 'status-success';
+      case 'error':
+        return 'status-error';
+      default:
+        return 'status-unknown';
     }
   }
 
   getConnectionStatusIcon(): string {
     switch (this.connectionStatus) {
-      case 'success': return 'check_circle';
-      case 'error': return 'error';
-      default: return 'help';
+      case 'success':
+        return 'check_circle';
+      case 'error':
+        return 'error';
+      default:
+        return 'help';
     }
   }
 }

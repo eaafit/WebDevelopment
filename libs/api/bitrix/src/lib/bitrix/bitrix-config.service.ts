@@ -1,6 +1,8 @@
+import { create } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
-import { BitrixConfig } from '@notary-portal/api-contracts';
+import { BitrixConfigSchema, type BitrixConfig } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class BitrixConfigService {
@@ -15,14 +17,14 @@ export class BitrixConfigService {
       return this.getDefaultConfig();
     }
 
-    return {
-      portal_url: config.portalUrl,
-      member_id: config.memberId,
-      access_token: config.accessToken,
-      is_active: config.isActive,
-      created_at: config.createdAt,
-      updated_at: config.updatedAt,
-    };
+    return create(BitrixConfigSchema, {
+      portalUrl: config.portalUrl,
+      memberId: config.memberId,
+      accessToken: config.accessToken,
+      isActive: config.isActive,
+      createdAt: timestampFromDate(config.createdAt),
+      updatedAt: timestampFromDate(config.updatedAt),
+    });
   }
 
   async updateConfig(data: {
@@ -49,14 +51,14 @@ export class BitrixConfigService {
         },
       });
 
-      return {
-        portal_url: updated.portalUrl,
-        member_id: updated.memberId,
-        access_token: updated.accessToken,
-        is_active: updated.isActive,
-        created_at: updated.createdAt,
-        updated_at: updated.updatedAt,
-      };
+      return create(BitrixConfigSchema, {
+        portalUrl: updated.portalUrl,
+        memberId: updated.memberId,
+        accessToken: updated.accessToken,
+        isActive: updated.isActive,
+        createdAt: timestampFromDate(updated.createdAt),
+        updatedAt: timestampFromDate(updated.updatedAt),
+      });
     } else {
       const created = await this.prisma.bitrixConfig.create({
         data: {
@@ -69,18 +71,22 @@ export class BitrixConfigService {
         },
       });
 
-      return {
-        portal_url: created.portalUrl,
-        member_id: created.memberId,
-        access_token: created.accessToken,
-        is_active: created.isActive,
-        created_at: created.createdAt,
-        updated_at: created.updatedAt,
-      };
+      return create(BitrixConfigSchema, {
+        portalUrl: created.portalUrl,
+        memberId: created.memberId,
+        accessToken: created.accessToken,
+        isActive: created.isActive,
+        createdAt: timestampFromDate(created.createdAt),
+        updatedAt: timestampFromDate(created.updatedAt),
+      });
     }
   }
 
-  async getActiveConfig(): Promise<{ portalUrl: string; memberId: string; accessToken: string } | null> {
+  async getActiveConfig(): Promise<{
+    portalUrl: string;
+    memberId: string;
+    accessToken: string;
+  } | null> {
     const config = await this.prisma.bitrixConfig.findFirst({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' },
@@ -99,13 +105,13 @@ export class BitrixConfigService {
 
   private getDefaultConfig(): BitrixConfig {
     const now = new Date();
-    return {
-      portal_url: '',
-      member_id: '',
-      access_token: '',
-      is_active: false,
-      created_at: now,
-      updated_at: now,
-    };
+    return create(BitrixConfigSchema, {
+      portalUrl: '',
+      memberId: '',
+      accessToken: '',
+      isActive: false,
+      createdAt: timestampFromDate(now),
+      updatedAt: timestampFromDate(now),
+    });
   }
 }

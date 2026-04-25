@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,10 +7,11 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { BitrixServiceClient } from '@notary-portal/api-contracts';
-import { createConnectTransport, createPromiseClient } from '@connectrpc/connect';
-import { environment } from '@notary-portal/environment';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { BitrixService, type SyncLogEntry } from '@notary-portal/api-contracts';
+import { createClient } from '@connectrpc/connect';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { interval, Subscription } from 'rxjs';
 
 interface SyncStatus {
@@ -52,7 +53,7 @@ interface SyncLog {
   styleUrl: './bitrix-sync.component.scss',
 })
 export class BitrixSyncComponent implements OnInit, OnDestroy {
-  private client: BitrixServiceClient;
+  private readonly client = createClient(BitrixService, inject(RPC_TRANSPORT));
   private statusPollingSubscription?: Subscription;
 
   currentSyncStatus?: SyncStatus;
@@ -67,13 +68,7 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
 
   displayedColumns: string[] = ['timestamp', 'userId', 'action', 'status', 'message'];
 
-  constructor(private snackBar: MatSnackBar) {
-    const transport = createConnectTransport({
-      baseUrl: environment.apiUrl,
-      credentials: 'include',
-    });
-    this.client = createPromiseClient(BitrixServiceClient, transport);
-  }
+  constructor(private readonly snackBar: MatSnackBar) {}
 
   async ngOnInit(): Promise<void> {
     await this.loadRecentLogs();
@@ -92,11 +87,11 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
 
       if (response.status === 'started') {
         this.showSuccess('Синхронизация запущена');
-        this.startPolling(response.job_id);
+        this.startPolling(response.jobId);
       } else if (response.status === 'already_running') {
         this.showInfo('Синхронизация уже выполняется');
         // Если уже выполняется, начинаем опрос
-        this.startPolling(response.job_id);
+        this.startPolling(response.jobId);
       } else {
         this.showError(`Ошибка: ${response.message}`);
       }
@@ -111,21 +106,27 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
   async loadSyncStatus(jobId: string): Promise<void> {
     try {
       const response = await this.client.getSyncStatus({ jobId });
+      const s = response.status;
+      if (!s) {
+        return;
+      }
       this.currentSyncStatus = {
-        jobId: response.status.jobId,
-        status: response.status.status as any,
-        totalUsers: response.status.totalUsers,
-        processedUsers: response.status.processedUsers,
-        successfulSyncs: response.status.successfulSyncs,
-        failedSyncs: response.status.failedSyncs,
-        startedAt: response.status.startedAt as Date,
-        completedAt: response.status.completedAt as Date,
-        errorMessage: response.status.errorMessage,
+        jobId: s.jobId,
+        status: s.status as SyncStatus['status'],
+        totalUsers: s.totalUsers,
+        processedUsers: s.processedUsers,
+        successfulSyncs: s.successfulSyncs,
+        failedSyncs: s.failedSyncs,
+        startedAt: s.startedAt ? timestampDate(s.startedAt) : new Date(0),
+        completedAt: s.completedAt ? timestampDate(s.completedAt) : undefined,
+        errorMessage: s.errorMessage,
       };
 
       // Если синхронизация завершена, останавливаем опрос
-      if (this.currentSyncStatus.status === 'completed' ||
-          this.currentSyncStatus.status === 'failed') {
+      if (
+        this.currentSyncStatus.status === 'completed' ||
+        this.currentSyncStatus.status === 'failed'
+      ) {
         this.stopPolling();
         await this.loadRecentLogs();
       }
@@ -145,15 +146,15 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
         },
       });
 
-      this.syncLogs = response.logs.map(log => ({
+      this.syncLogs = response.logs.map((log: SyncLogEntry) => ({
         userId: log.userId,
         bitrixContactId: log.bitrixContactId,
-        action: log.action as any,
-        status: log.status as any,
+        action: log.action as SyncLog['action'],
+        status: log.status as SyncLog['status'],
         message: log.message,
-        timestamp: log.timestamp as Date,
+        timestamp: log.timestamp ? timestampDate(log.timestamp) : new Date(0),
       }));
-      this.totalLogs = response.meta?.total || 0;
+      this.totalLogs = response.meta?.totalItems ?? 0;
     } catch (error) {
       console.error('Failed to load sync logs:', error);
       this.showError('Не удалось загрузить логи синхронизации');
@@ -162,7 +163,7 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
     }
   }
 
-  onPageChange(event: any): void {
+  onPageChange(event: PageEvent): void {
     this.currentPage = event.pageIndex;
     this.pageSize = event.pageSize;
     this.loadRecentLogs();
@@ -238,18 +239,18 @@ export class BitrixSyncComponent implements OnInit, OnDestroy {
 
   formatAction(action: string): string {
     const actions: Record<string, string> = {
-      'created': 'Создан',
-      'updated': 'Обновлён',
-      'skipped': 'Пропущен',
-      'error': 'Ошибка',
+      created: 'Создан',
+      updated: 'Обновлён',
+      skipped: 'Пропущен',
+      error: 'Ошибка',
     };
     return actions[action] || action;
   }
 
   formatStatus(status: string): string {
     const statuses: Record<string, string> = {
-      'success': 'Успешно',
-      'error': 'Ошибка',
+      success: 'Успешно',
+      error: 'Ошибка',
     };
     return statuses[status] || status;
   }

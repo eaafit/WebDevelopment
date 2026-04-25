@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { BitrixApiService } from './bitrix-api.service';
 import { BitrixConfigService } from './bitrix-config.service';
-import { UserService } from '@internal/user';
 import { createHash } from 'crypto';
 
 interface SyncOptions {
@@ -45,7 +44,6 @@ export class BitrixSyncService {
     private readonly prisma: PrismaService,
     private readonly apiService: BitrixApiService,
     private readonly configService: BitrixConfigService,
-    private readonly userService: UserService,
   ) {}
 
   async startSync(forceResync = false): Promise<SyncResult> {
@@ -60,7 +58,7 @@ export class BitrixSyncService {
     const jobId = `sync_${Date.now()}`;
 
     // Запускаем синхронизацию в фоне
-    this.runSyncInBackground(jobId, forceResync).catch(error => {
+    this.runSyncInBackground(jobId, forceResync).catch((error) => {
       console.error('Sync failed:', error);
     });
 
@@ -72,7 +70,7 @@ export class BitrixSyncService {
   }
 
   async getStatus(jobId: string): Promise<SyncStatus> {
-    const sync = await this.prisma.bitrixSync.findUnique({
+    const sync = await this.prisma.bitrixSync.findFirst({
       where: { jobId },
     });
 
@@ -101,7 +99,7 @@ export class BitrixSyncService {
   }): Promise<{ logs: SyncLogEntry[]; meta: { total: number; page: number; limit: number } }> {
     const where: any = {};
     if (options.jobId) {
-      const sync = await this.prisma.bitrixSync.findUnique({
+      const sync = await this.prisma.bitrixSync.findFirst({
         where: { jobId: options.jobId },
       });
       if (sync) {
@@ -128,7 +126,7 @@ export class BitrixSyncService {
     ]);
 
     return {
-      logs: logs.map(log => ({
+      logs: logs.map((log) => ({
         userId: log.userId,
         bitrixContactId: log.bitrixContactId || undefined,
         action: log.action as any,
@@ -226,7 +224,6 @@ export class BitrixSyncService {
           completedAt: new Date(),
         },
       });
-
     } catch (error) {
       console.error('Sync job failed:', error);
 
@@ -379,17 +376,21 @@ export class BitrixSyncService {
     };
 
     if (user.phoneNumber) {
-      contact.PHONE = [{
-        VALUE: user.phoneNumber,
-        VALUE_TYPE: 'WORK',
-      }];
+      contact.PHONE = [
+        {
+          VALUE: user.phoneNumber,
+          VALUE_TYPE: 'WORK',
+        },
+      ];
     }
 
     if (user.email) {
-      contact.EMAIL = [{
-        VALUE: user.email,
-        VALUE_TYPE: 'WORK',
-      }];
+      contact.EMAIL = [
+        {
+          VALUE: user.email,
+          VALUE_TYPE: 'WORK',
+        },
+      ];
     }
 
     return contact;
@@ -404,8 +405,6 @@ export class BitrixSyncService {
       updatedAt: user.updatedAt.toISOString(),
     };
 
-    return createHash('sha256')
-      .update(JSON.stringify(data))
-      .digest('hex');
+    return createHash('sha256').update(JSON.stringify(data)).digest('hex');
   }
 }
