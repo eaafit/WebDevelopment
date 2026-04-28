@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - Центр поддержки</title>
+    <link rel="stylesheet" href="css/faq.css">
+</head>
+<body>
+    <div class="header">
+        <h1>❓ Часто задаваемые вопросы</h1>
+        <p>Найдите ответы на популярные вопросы</p>
+    </div>
+    
+    <div class="faq-container">
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleAnswer(1)">
+                <span class="question-text">Как зарегистрироваться на сайте?</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="faq-answer" id="answer1">
+                Для регистрации нажмите кнопку "Войти" в правом верхнем углу, затем выберите "Создать аккаунт". Заполните форму и подтвердите email.
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleAnswer(2)">
+                <span class="question-text">Как восстановить пароль?</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="faq-answer" id="answer2">
+                На странице входа нажмите "Забыли пароль?", введите email и следуйте инструкциям в письме. Новый пароль придет на вашу почту.
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleAnswer(3)">
+                <span class="question-text">Как изменить тарифный план?</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="faq-answer" id="answer3">
+                Зайдите в Личный кабинет → раздел "Тарифы" → выберите подходящий план → подтвердите изменения.
+            </div>
+        </div>
+        
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleAnswer(4)">
+                <span class="question-text">Как связаться с поддержкой?</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="faq-answer" id="answer4">
+                Вы можете написать нам в чат (кнопка в правом нижнем углу) или отправить email на support@example.com
+            </div>
+        </div>
+    </div>
+    
+    <!-- Кнопка чата -->
+    <button class="chat-button" onclick="toggleChat()">💬</button>
+    
+    <!-- Окно чата -->
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <span>🤖 Чат поддержки</span>
+            <span class="close-chat" onclick="toggleChat()">✕</span>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot-message">
+                Здравствуйте! Я бот-помощник. Задайте свой вопрос.
+                <div class="timestamp">только что</div>
+            </div>
+        </div>
+        
+        <div class="chat-input-area">
+            <input type="text" class="chat-input" id="messageInput" placeholder="Введите сообщение..." onkeypress="handleKeyPress(event)">
+            <button class="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+        
+        <div class="chat-footer">
+            <button class="operator-btn" onclick="connectToOperator()">
+                👨‍💼 Связаться с оператором
+            </button>
+        </div>
+    </div>
+
+    <script src="js/faq.js"></script>
+</body>
+</html>
