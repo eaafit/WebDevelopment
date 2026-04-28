@@ -28,19 +28,11 @@ import type {
 type AuditLogRecord = PrismaTypes.AuditLogGetPayload<{
   include: {
     user: true;
-    assessment: {
-      select: {
-        id: true;
-        address: true;
-        notaryId: true;
-      };
-    };
   };
 }>;
 
 export interface CreateAuditLogInput {
   userId: string;
-  assessmentId?: string | null;
   actionType: string;
   entityName: string;
   entityId: string;
@@ -53,20 +45,13 @@ export class AuditRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async listAuditEvents(query: AuditListQuery): Promise<ListAuditEventsResponse> {
-    const where = this.buildWhere(query.filters, query.scope);
+    const where = await this.buildWhere(query.filters, query.scope);
     const [totalItems, rows] = await this.prisma.$transaction([
       this.prisma.auditLog.count({ where }),
       this.prisma.auditLog.findMany({
         where,
         include: {
           user: true,
-          assessment: {
-            select: {
-              id: true,
-              address: true,
-              notaryId: true,
-            },
-          },
         },
         orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
         skip: (query.page - 1) * query.limit,
@@ -86,17 +71,11 @@ export class AuditRepository {
   }
 
   async exportAuditEvents(query: AuditExportQuery): Promise<ExportAuditEventsResponse> {
+    const where = await this.buildWhere(query.filters, query.scope);
     const rows = await this.prisma.auditLog.findMany({
-      where: this.buildWhere(query.filters, query.scope),
+      where,
       include: {
         user: true,
-        assessment: {
-          select: {
-            id: true,
-            address: true,
-            notaryId: true,
-          },
-        },
       },
       orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
       ...(query.limit ? { take: query.limit } : {}),
@@ -107,9 +86,11 @@ export class AuditRepository {
     });
   }
 
-  countAuditEvents(query: AuditExportQuery): Promise<number> {
+  async countAuditEvents(query: AuditExportQuery): Promise<number> {
+    const where = await this.buildWhere(query.filters, query.scope);
+
     return this.prisma.auditLog.count({
-      where: this.buildWhere(query.filters, query.scope),
+      where,
     });
   }
 
@@ -117,7 +98,6 @@ export class AuditRepository {
     return this.prisma.auditLog.create({
       data: {
         userId: input.userId,
-        assessmentId: input.assessmentId ?? null,
         actionType: input.actionType,
         entityName: input.entityName,
         entityId: input.entityId,
@@ -127,7 +107,10 @@ export class AuditRepository {
     });
   }
 
-  private buildWhere(filters: AuditFiltersQuery, scope: AuditScope): Prisma.AuditLogWhereInput {
+  private async buildWhere(
+    filters: AuditFiltersQuery,
+    scope: AuditScope,
+  ): Promise<Prisma.AuditLogWhereInput> {
     const where: Prisma.AuditLogWhereInput = {};
 
     if (filters.eventType) {
@@ -140,10 +123,6 @@ export class AuditRepository {
 
     if (filters.actorUserId) {
       where.userId = filters.actorUserId;
-    }
-
-    if (filters.assessmentId) {
-      where.assessmentId = filters.assessmentId;
     }
 
     if (filters.dateFrom || filters.dateTo) {
@@ -175,14 +154,28 @@ export class AuditRepository {
     }
 
     if (scope.kind === 'notary') {
-      where.assessment = {
-        is: {
-          notaryId: scope.notaryId,
-        },
-      };
+      const assessmentIds = await this.findNotaryAssessmentIds(scope.notaryId);
+      where.entityName = 'Assessment';
+      where.entityId =
+        filters.targetId && assessmentIds.includes(filters.targetId)
+          ? filters.targetId
+          : { in: filters.targetId ? [] : assessmentIds };
     }
 
     return where;
+  }
+
+  private async findNotaryAssessmentIds(notaryId: string): Promise<string[]> {
+    const assessments = await this.prisma.assessment.findMany({
+      where: {
+        notaryId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return assessments.map((assessment) => assessment.id);
   }
 
   private toAuditEvent(row: AuditLogRecord): AuditEvent {
@@ -242,10 +235,6 @@ function buildTargetTitle(row: AuditLogRecord): string {
 }
 
 function buildTargetContext(row: AuditLogRecord): string {
-  if (row.entityName === 'Assessment') {
-    return row.assessment?.address ?? '';
-  }
-
   return '';
 }
 

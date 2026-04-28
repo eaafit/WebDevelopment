@@ -5,7 +5,6 @@ export interface AuditMonitoringFilters {
   actorQuery: string;
   actorUserId: string;
   targetId: string;
-  assessmentId: string;
   dateFrom: string;
   dateTo: string;
 }

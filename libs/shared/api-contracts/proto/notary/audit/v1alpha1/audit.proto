@@ -12,12 +12,13 @@ service AuditService {
 }
 
 message AuditEventFilters {
+  reserved 6;
+
   string event_type = 1;
   string actor_query = 2;
   string target_id = 3;
   notary.common.v1alpha1.DateRange date_range = 4;
   string actor_user_id = 5;
-  string assessment_id = 6;
 }
 
 message AuditEvent {

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { MASKED_LOG_VALUE, WEB_LOGGING_OPTIONS } from './web-logging.models';
+import { WebErrorHandler } from './web-error-handler';
 import { sanitizeLogValue } from './web-logger.service';
 import { WebLoggerService } from './web-logger.service';
 
@@ -151,6 +152,36 @@ describe('WebLoggerService', () => {
   });
 });
 
+describe('WebErrorHandler', () => {
+  it('sends unhandled errors to the logger', () => {
+    const logger = { error: jest.fn() } as unknown as WebLoggerService;
+    const handler = createErrorHandler(logger);
+    const error = new Error('boom');
+
+    handler.handleError(error);
+
+    expect(logger.error).toHaveBeenCalledWith('Unhandled application error', { error });
+  });
+
+  it('does not throw for weird unknown error input', () => {
+    const logger = { error: jest.fn() } as unknown as WebLoggerService;
+    const handler = createErrorHandler(logger);
+
+    expect(() => handler.handleError(Object.create(null))).not.toThrow();
+  });
+
+  it('does not throw if logging itself fails', () => {
+    const logger = {
+      error: jest.fn(() => {
+        throw new Error('logger failed');
+      }),
+    } as unknown as WebLoggerService;
+    const handler = createErrorHandler(logger);
+
+    expect(() => handler.handleError(new Error('boom'))).not.toThrow();
+  });
+});
+
 function createLogger(options: { env: string; production: boolean }): WebLoggerService {
   TestBed.configureTestingModule({
     providers: [
@@ -163,4 +194,18 @@ function createLogger(options: { env: string; production: boolean }): WebLoggerS
   });
 
   return TestBed.inject(WebLoggerService);
+}
+
+function createErrorHandler(logger: WebLoggerService): WebErrorHandler {
+  TestBed.configureTestingModule({
+    providers: [
+      WebErrorHandler,
+      {
+        provide: WebLoggerService,
+        useValue: logger,
+      },
+    ],
+  });
+
+  return TestBed.inject(WebErrorHandler);
 }

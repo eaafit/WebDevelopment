@@ -1,0 +1,143 @@
+<div class="bitrix-config-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>settings</mat-icon>
+        Настройки интеграции с Bitrix24
+      </mat-card-title>
+      <mat-card-subtitle>
+        Настройте подключение к CRM Bitrix24 для синхронизации пользователей
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (isLoading) {
+      <div class="loading-container">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Загрузка конфигурации...</p>
+      </div>
+      }
+
+      @if (!isLoading) {
+      <div class="config-form">
+        <form (ngSubmit)="saveConfig()" #configForm="ngForm">
+          <div class="form-section">
+            <h3>Параметры подключения</h3>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>URL портала Bitrix24</mat-label>
+              <input
+                matInput
+                [(ngModel)]="portalUrl"
+                name="portalUrl"
+                placeholder="example.bitrix24.ru"
+                required
+                [disabled]="isSaving"
+              />
+              <mat-hint>Без https://, только домен (например: portal.bitrix24.ru)</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Member ID</mat-label>
+              <input
+                matInput
+                [(ngModel)]="memberId"
+                name="memberId"
+                placeholder="xxxxxxxxxx"
+                required
+                [disabled]="isSaving"
+              />
+              <mat-hint>Идентификатор пользователя в Bitrix24</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Access Token</mat-label>
+              <textarea
+                matInput
+                [(ngModel)]="accessToken"
+                name="accessToken"
+                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                required
+                rows="3"
+                [disabled]="isSaving"
+              ></textarea>
+              <mat-hint>Токен доступа для REST API Bitrix24</mat-hint>
+            </mat-form-field>
+
+            <mat-checkbox
+              [(ngModel)]="isActive"
+              name="isActive"
+              [disabled]="isSaving"
+            >
+              Интеграция активна
+            </mat-checkbox>
+          </div>
+
+          <div class="form-section">
+            <h3>Статус подключения</h3>
+
+            <div class="connection-status" [class]="getConnectionStatusClass()">
+              <mat-icon>{{ getConnectionStatusIcon() }}</mat-icon>
+              <div class="status-content">
+                <strong>Статус:</strong>
+                <span>{{ connectionMessage || 'Не проверено' }}</span>
+              </div>
+            </div>
+
+            <div class="action-buttons">
+              <button
+                mat-raised-button
+                color="primary"
+                type="button"
+                (click)="testConnection()"
+                [disabled]="isTesting || isSaving || !portalUrl || !memberId || !accessToken"
+              >
+                @if (!isTesting) {
+                <mat-icon>wifi</mat-icon>
+                }
+                @if (isTesting) {
+                <mat-spinner diameter="20"></mat-spinner>
+                }
+                {{ isTesting ? 'Проверка...' : 'Проверить подключение' }}
+              </button>
+
+              <button
+                mat-raised-button
+                color="accent"
+                type="submit"
+                [disabled]="isSaving || isTesting || !configForm.form.valid"
+              >
+                @if (!isSaving) {
+                <mat-icon>save</mat-icon>
+                }
+                @if (isSaving) {
+                <mat-spinner diameter="20"></mat-spinner>
+                }
+                {{ isSaving ? 'Сохранение...' : 'Сохранить настройки' }}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+      }
+    </mat-card-content>
+
+    <mat-card-actions>
+      <div class="help-section">
+        <h4>Как получить доступ к Bitrix24 API:</h4>
+        <ol>
+          <li>Войдите в ваш Bitrix24 портал</li>
+          <li>Перейдите в раздел "Приложения" → "Мои приложения"</li>
+          <li>Создайте новое веб-приложение или используйте существующее</li>
+          <li>Скопируйте:
+            <ul>
+              <li><strong>URL портала:</strong> домен вашего Bitrix24 (например: portal.bitrix24.ru)</li>
+              <li><strong>Member ID:</strong> идентификатор пользователя</li>
+              <li><strong>Access Token:</strong> токен доступа с правами на crm.contact.*, crm.deal.*</li>
+            </ul>
+          </li>
+        </ol>
+      </div>
+    </mat-card-actions>
+  </mat-card>
+</div>

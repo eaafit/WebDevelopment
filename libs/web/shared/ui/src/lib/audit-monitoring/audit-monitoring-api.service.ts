@@ -106,7 +106,6 @@ function buildFilters(filters: AuditMonitoringFilters) {
     actorQuery: filters.actorQuery.trim(),
     actorUserId: filters.actorUserId.trim(),
     targetId: filters.targetId.trim(),
-    assessmentId: filters.assessmentId.trim(),
     dateRange,
   };
 }

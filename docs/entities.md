@@ -136,14 +136,13 @@
 
 - `Id` (UUID, PK) — идентификатор лога
 - `UserId` (UUID, FK) — пользователь, инициировавший действие
-- `AssessmentId` (UUID, FK, nullable) — заявка, к которой относится событие; используется для scope нотариуса
 - `ActionType` (varchar) — тип действия (create, update, delete и др.)
 - `EntityName` (varchar) — имя сущности (Assessment, Document и др.)
 - `EntityId` (UUID) — ID объекта действия
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
-Сервис доступа: `AuditService.ListAuditEvents` и `AuditService.ExportAuditEvents`. Фильтры: тип события, имя/email исполнителя, точный `actor_user_id`, `target_id`, точный `assessment_id`, диапазон дат. `/admin/monitoring` использует полный scope, `/notary/monitoring` ограничен заявками текущего нотариуса.
+Сервис доступа: `AuditService.ListAuditEvents` и `AuditService.ExportAuditEvents`. Фильтры: тип события, имя/email исполнителя, точный `actor_user_id`, `target_id`, диапазон дат. Для событий заявки используется `EntityName = Assessment`, `EntityId = id заявки`; UI-фильтр «ID заявки» отправляет `target_id`. `/admin/monitoring` использует полный scope, `/notary/monitoring` ограничен заявками текущего нотариуса через список его assessments и `EntityId`.
 
 ## 11. Промокод (Promo)
 

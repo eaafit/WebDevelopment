@@ -178,6 +178,8 @@ model User {
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
+  bitrixSyncLogs    BitrixSyncLog[]
+  clientSync        ClientSync?
 
   @@map("users")
 }
@@ -255,7 +257,6 @@ model Assessment {
   documents        Document[]
   reports          AssessmentReport[]
   payments         Payment[]
-  auditLogs        AuditLog[]
 
   @@map("assessments")
 }
@@ -379,24 +380,22 @@ model PasswordReset {
 }
 
 model AuditLog {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @map("user_id") @db.Uuid
-  assessmentId String?  @map("assessment_id") @db.Uuid
-  actionType   String   @map("action_type") @db.VarChar
-  entityName   String   @map("entity_name") @db.VarChar
-  entityId     String   @map("entity_id") @db.Uuid
-  timestamp    DateTime @default(now()) @db.Timestamp()
-  details      Json?    @db.JsonB
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  actionType String   @map("action_type") @db.VarChar
+  entityName String   @map("entity_name") @db.VarChar
+  entityId   String   @map("entity_id") @db.Uuid
+  timestamp  DateTime @default(now()) @db.Timestamp()
+  details    Json?    @db.JsonB
 
-  user       User        @relation(fields: [userId], references: [id])
-  assessment Assessment? @relation(fields: [assessmentId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([timestamp(sort: Desc)])
   @@index([actionType])
   @@index([entityId])
   @@index([userId])
-  @@index([assessmentId])
-  @@index([assessmentId, timestamp(sort: Desc)])
+  @@index([entityName, entityId])
+  @@index([entityName, entityId, timestamp(sort: Desc)])
   @@map("audit_logs")
 }
 
@@ -429,4 +428,69 @@ model Sale {
   promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("sales")
+}
+
+// ─── Bitrix Integration ──────────────────────────────────────────────────────
+
+model BitrixConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  portalUrl   String   @map("portal_url")   @db.VarChar(255)
+  memberId    String   @map("member_id")    @db.VarChar(100)
+  accessToken String   @map("access_token") @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamp()
+
+  @@map("bitrix_config")
+}
+
+model BitrixSync {
+  id                String   @id @default(uuid()) @db.Uuid
+  jobId             String   @map("job_id") @db.VarChar(100)
+  status            String   @db.VarChar(20) // "pending", "running", "completed", "failed"
+  totalUsers        Int      @default(0) @map("total_users")
+  processedUsers    Int      @default(0) @map("processed_users")
+  successfulSyncs   Int      @default(0) @map("successful_syncs")
+  failedSyncs       Int      @default(0) @map("failed_syncs")
+  errorMessage      String?  @map("error_message") @db.Text
+  startedAt         DateTime @map("started_at") @db.Timestamp()
+  completedAt       DateTime? @map("completed_at") @db.Timestamp()
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
+
+  logs BitrixSyncLog[]
+
+  @@map("bitrix_sync")
+}
+
+model BitrixSyncLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  syncId            String   @map("sync_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
+  action            String   @db.VarChar(20) // "created", "updated", "skipped", "error"
+  status            String   @db.VarChar(10) // "success", "error"
+  message           String?  @db.Text
+  timestamp         DateTime @default(now()) @db.Timestamp()
+
+  sync              BitrixSync @relation(fields: [syncId], references: [id])
+  user              User       @relation(fields: [userId], references: [id])
+
+  @@map("bitrix_sync_log")
+}
+
+model ClientSync {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
+  syncDirection     String   @default("notary") @map("sync_direction") @db.VarChar(10)
+  lastSyncedAt      DateTime? @map("last_synced_at") @db.Timestamp()
+  lastNotaryHash    String?  @map("last_notary_hash") @db.VarChar(64)
+  lastBitrixHash    String?  @map("last_bitrix_hash") @db.VarChar(64)
+  conflictCount     Int      @default(0) @map("conflict_count")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamp()
+
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@map("client_sync")
 }

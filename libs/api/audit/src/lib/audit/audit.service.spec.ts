@@ -65,7 +65,6 @@ describe('AuditService', () => {
       filters: {
         actorQuery: undefined,
         actorUserId: undefined,
-        assessmentId: undefined,
         dateFrom: undefined,
         dateTo: undefined,
         eventType: undefined,
@@ -120,7 +119,6 @@ describe('AuditService', () => {
       filters: {
         actorQuery: undefined,
         actorUserId: undefined,
-        assessmentId: undefined,
         dateFrom: undefined,
         dateTo: undefined,
         eventType: 'assessment.verified',
@@ -134,7 +132,7 @@ describe('AuditService', () => {
     });
   });
 
-  it('should record assessment id and request metadata in audit details', async () => {
+  it('should record entity id and request metadata in audit details', async () => {
     await runAs(
       {
         sub: 'notary-1',
@@ -163,7 +161,6 @@ describe('AuditService', () => {
 
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith({
       userId: 'notary-1',
-      assessmentId: '11111111-1111-4111-8111-111111111111',
       actionType: 'assessment.updated',
       entityName: 'Assessment',
       entityId: '11111111-1111-4111-8111-111111111111',
@@ -181,7 +178,7 @@ describe('AuditService', () => {
     });
   });
 
-  it('should normalize exact actor and assessment filters', async () => {
+  it('should normalize exact actor and target filters', async () => {
     await runAs(
       {
         sub: 'admin-1',
@@ -199,7 +196,7 @@ describe('AuditService', () => {
             },
             filters: {
               actorUserId: '11111111-1111-4111-8111-111111111111',
-              assessmentId: '22222222-2222-4222-8222-222222222222',
+              targetId: '22222222-2222-4222-8222-222222222222',
             },
           }),
         ),
@@ -210,7 +207,7 @@ describe('AuditService', () => {
         limit: 100,
         filters: expect.objectContaining({
           actorUserId: '11111111-1111-4111-8111-111111111111',
-          assessmentId: '22222222-2222-4222-8222-222222222222',
+          targetId: '22222222-2222-4222-8222-222222222222',
         }),
       }),
     );
@@ -316,7 +313,7 @@ describe('AuditService', () => {
             filters: {
               eventType: 'assessment.created',
               actorUserId: '11111111-1111-4111-8111-111111111111',
-              assessmentId: '22222222-2222-4222-8222-222222222222',
+              targetId: '22222222-2222-4222-8222-222222222222',
             },
           }),
         ),
@@ -334,16 +331,15 @@ describe('AuditService', () => {
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: '33333333-3333-4333-8333-333333333333',
-        assessmentId: '22222222-2222-4222-8222-222222222222',
         actionType: 'audit.exported',
-        entityName: 'AuditLog',
-        entityId: '33333333-3333-4333-8333-333333333333',
+        entityName: 'Assessment',
+        entityId: '22222222-2222-4222-8222-222222222222',
         details: expect.objectContaining({
           after: {
             filters: expect.objectContaining({
               eventType: 'assessment.created',
               actorUserId: '11111111-1111-4111-8111-111111111111',
-              assessmentId: '22222222-2222-4222-8222-222222222222',
+              targetId: '22222222-2222-4222-8222-222222222222',
             }),
             exportedRows: 1,
           },

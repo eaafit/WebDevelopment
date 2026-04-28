@@ -35,6 +35,9 @@
       <small class="admin-toolbar__status">
         Найдено: {{ filteredPayments.length }} · Страница {{ currentPage }} из {{ totalPages }}
       </small>
+      @if (loadError) {
+      <small class="admin-toolbar__status">{{ loadError }}</small>
+      }
     </div>
     <span class="admin-toolbar__meta">Всего платежей: {{ payments.length }}</span>
   </section>
@@ -99,6 +102,7 @@
                 @if (activeFilterColumn === column.key) {
                 <div
                   class="column-filter-menu"
+                  [ngStyle]="filterMenuStyle"
                   (click)="$event.stopPropagation()"
                   (keydown)="$event.stopPropagation()"
                   tabindex="-1"
@@ -160,7 +164,13 @@
             </tr>
           </thead>
           <tbody>
-            @if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
+            @if (loading) { @for (row of skeletonRows; track row) {
+            <tr class="skeleton-row">
+              @for (column of headerColumns; track column.key) {
+              <td><span class="skeleton-cell"></span></td>
+              }
+            </tr>
+            } } @else if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
             <tr>
               <td>{{ payment.id }}</td>
               <td>{{ payment.paymentDate | date:'dd.MM.yyyy' }}</td>
@@ -172,9 +182,18 @@
               <td>{{ payment.transactionId || '—' }}</td>
               <td>
                 @if (payment.attachmentFileName && payment.attachmentFileUrl) {
-                <a [href]="payment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
-                  {{ payment.attachmentFileName }}
-                </a>
+                <div class="receipt-actions">
+                  <button type="button" class="icon-btn receipt" (click)="openReceipt(payment.id)" title="Открыть чек">
+                    <i class="las la-file-alt"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn download"
+                    (click)="downloadReceipt(payment.id, payment.attachmentFileName)"
+                    title="Скачать чек">
+                    <i class="las la-download"></i>
+                  </button>
+                </div>
                 } @else { — }
               </td>
               <td>
@@ -217,7 +236,8 @@
             } } @else {
             <tr>
               <td class="payments-table__empty" colspan="12">
-                По текущим фильтрам платежи не найдены. Попробуйте изменить параметры поиска.
+                @if (loadError) { {{ loadError }} } @else { По текущим фильтрам платежи не найдены. Попробуйте изменить
+                параметры поиска. }
               </td>
             </tr>
             }
@@ -229,20 +249,22 @@
     @if (totalPages > 1) {
     <div class="pagination">
       <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">«</button>
-      @for (page of pages; track page) {
+      @for (page of paginationItems; track $index) { @if (isPageItem(page)) {
       <button type="button" class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">
         {{ page }}
       </button>
-      }
+      } @else {
+      <span class="page-ellipsis">…</span>
+      } }
       <button type="button" class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">»</button>
     </div>
     }
   </article>
 </section>
 
+@if (isCreateEditModalOpen) {
 <div
-  class="modal"
-  [ngClass]="{ 'show': isCreateEditModalOpen }"
+  class="modal show"
   (click)="onModalBackdropClick($event)"
   (keydown)="onBackdropKeyDown($event)"
   role="button"
@@ -356,16 +378,15 @@
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-secondary" (click)="closeModals()">Отмена</button>
-      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm.form.valid">
+      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm?.form?.valid">
         {{ isEditMode ? 'Сохранить изменения' : 'Сохранить' }}
       </button>
     </div>
   </div>
 </div>
-
+} @if (isViewModalOpen) {
 <div
-  class="modal"
-  [ngClass]="{ 'show': isViewModalOpen }"
+  class="modal show"
   (click)="onModalBackdropClick($event)"
   (keydown)="onBackdropKeyDown($event)"
   role="button"
@@ -389,9 +410,16 @@
       @if (currentPayment.attachmentFileName && currentPayment.attachmentFileUrl) {
       <p>
         <strong>Чек:</strong>
-        <a [href]="currentPayment.attachmentFileUrl" target="_blank" rel="noopener" class="receipt-link">
-          {{ currentPayment.attachmentFileName }}
-        </a>
+        <button type="button" class="receipt-link" (click)="openReceipt(currentPayment.id)">
+          <i class="las la-file-alt"></i> {{ currentPayment.attachmentFileName }}
+        </button>
+        <button
+          type="button"
+          class="receipt-download"
+          (click)="downloadReceipt(currentPayment.id, currentPayment.attachmentFileName)"
+          title="Скачать">
+          <i class="las la-download"></i>
+        </button>
       </p>
       }
       <p>
@@ -406,29 +434,10 @@
     </div>
   </div>
 </div>
-
-<div
-  class="modal"
-  [ngClass]="{ 'show': isDeleteModalOpen }"
-  (click)="onModalBackdropClick($event)"
-  (keydown)="onBackdropKeyDown($event)"
-  role="button"
-  tabindex="0"
-  aria-label="Закрыть модальное окно">
-  <div class="modal-content delete-modal">
-    <div class="modal-header">
-      <h3>Подтверждение удаления</h3>
-      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p>
-        Вы уверены, что хотите удалить платёж <strong>{{ currentPayment.payer }}</strong> на сумму
-        <strong>{{ currentPayment.amount | currency:'RUB':'symbol-narrow' }}</strong>?
-      </p>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-secondary" (click)="closeModals()">Отмена</button>
-      <button type="button" class="btn btn-danger" (click)="deletePayment()">Удалить</button>
-    </div>
-  </div>
-</div>
+} @if (paymentToDelete) {
+<lib-payment-delete-modal
+  [payment]="paymentToDelete"
+  (confirmed)="onDeleteConfirmed()"
+  (cancelled)="onDeleteCancelled()">
+</lib-payment-delete-modal>
+}

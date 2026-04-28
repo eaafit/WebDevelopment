@@ -1,0 +1,125 @@
+<section class="role-notifications">
+  <header class="role-notifications__hero">
+    <div>
+      <p class="role-notifications__eyebrow">Кабинет нотариуса</p>
+      <h2>Уведомления</h2>
+      <p class="role-notifications__lead">
+        Уведомления по заявкам и подписке. Статусы в интерфейсе: только «отправлено» и «прочитано».
+      </p>
+    </div>
+
+    <div class="role-notifications__actions">
+      <div class="role-notifications__action-row">
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--secondary"
+          (click)="markAllAsRead()">
+          Отметить все прочитанными
+        </button>
+        <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
+      </div>
+      @if (!notifications().length) {
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--ghost"
+          (click)="restoreDemoData()">
+          Вернуть демо-данные
+        </button>
+      }
+      @if (inboxCount(); as c) {
+        <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
+      }
+    </div>
+  </header>
+
+  <section class="role-notifications__filters">
+    <label class="role-notifications__field">
+      <span>Тип</span>
+      <select (change)="setFilter('type', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="application">Заявки</option>
+        <option value="document">Документы</option>
+        <option value="payment">Платежи</option>
+        <option value="system">Системные</option>
+      </select>
+    </label>
+
+    <label class="role-notifications__field">
+      <span>Канал</span>
+      <select (change)="setFilter('channel', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="in-app">In-app</option>
+        <option value="email">Email</option>
+        <option value="push">Push</option>
+      </select>
+    </label>
+
+    <label class="role-notifications__field">
+      <span>Статус</span>
+      <select (change)="setFilter('lifecycle', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="sent">Отправлено</option>
+        <option value="read">Прочитано</option>
+      </select>
+    </label>
+  </section>
+
+  <p class="role-notifications__hint">
+    Клик по карточке переключает «прочитано» и «отправлено». «Удалить» убирает запись из списка.
+  </p>
+
+  @if (filtered().length) {
+  <section class="role-notifications__list">
+    @for (item of filtered(); track item.id) {
+    <article
+      class="role-notifications__card"
+      [class.role-notifications__card--attention]="item.lifecycle === 'sent'"
+      tabindex="0"
+      role="button"
+      (click)="toggleReadOnCard(item.id)"
+      (keydown.enter)="toggleReadOnCard(item.id)"
+      (keydown.space)="toggleReadOnCard(item.id)">
+      <div class="role-notifications__card-main">
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.description }}</p>
+
+        <div class="role-notifications__chips">
+          <span class="chip chip--type">
+            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
+            ? 'Платёж' : 'Система' }}
+          </span>
+          <span class="chip chip--channel">
+            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+          </span>
+          <span
+            class="chip chip--lifecycle"
+            [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
+            [class.chip--lifecycle-read]="item.lifecycle === 'read'">
+            {{ lifecycleLabel(item.lifecycle) }}
+          </span>
+        </div>
+      </div>
+
+      <div class="role-notifications__card-aside">
+        <div class="role-notifications__datetime">
+          <span class="role-notifications__time">{{ item.relativeTime }}</span>
+          <span class="role-notifications__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
+        </div>
+        <button
+          type="button"
+          class="role-notifications__btn-delete"
+          (click)="removeOne(item.id, $event)"
+          title="Удалить из списка">
+          Удалить
+        </button>
+      </div>
+    </article>
+    }
+  </section>
+  } @else {
+  <div class="role-notifications__empty">
+    <strong>Уведомлений нет.</strong>
+    <p>История пуста или фильтры ничего не показывают.</p>
+  </div>
+  }
+</section>

@@ -15,6 +15,7 @@ import {
 } from '@internal/prisma-client';
 import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
+import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -51,6 +52,7 @@ type PaymentRecord = Prisma.PaymentGetPayload<{
     status: true;
     type: true;
     promoId: true;
+    discountAmount: true;
     subscriptionId: true;
     assessmentId: true;
     paymentMethod: true;
@@ -198,6 +200,17 @@ export class PaymentWebhookService {
 
     this.metrics.recordPayment('completed');
     this.metrics.recordPaymentAmount(Number(payment.amount));
+    const metricContext = resolveBillingPaymentMetricContext(payment.type);
+    this.metrics.recordBillingPayment('completed', metricContext);
+    this.metrics.recordBillingPaymentAmount(Number(payment.amount), metricContext);
+
+    if (payment.promoId) {
+      this.metrics.recordPromoApplied(
+        metricContext,
+        'percent',
+        Number(payment.discountAmount ?? 0),
+      );
+    }
     await this.recordPaymentStatusAudit(
       payment,
       'payment.completed',
@@ -233,6 +246,7 @@ export class PaymentWebhookService {
     }
 
     this.metrics.recordPayment('failed');
+    this.metrics.recordBillingPayment('failed', resolveBillingPaymentMetricContext(payment.type));
     await this.recordPaymentStatusAudit(payment, 'payment.failed', PrismaPaymentStatus.Failed, {
       paymentMethod:
         providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
@@ -252,24 +266,26 @@ export class PaymentWebhookService {
       receiptRegistration?: string | null;
     },
   ): Promise<void> {
+    const assessmentId = payment.assessmentId;
+
     await this.auditService.record({
       actorUserId: payment.userId,
       eventType,
-      targetType: 'Payment',
-      targetId: payment.id,
-      assessmentId: payment.assessmentId,
+      targetType: assessmentId ? 'Assessment' : 'Payment',
+      targetId: assessmentId ?? payment.id,
       actionTitle: status === PrismaPaymentStatus.Completed ? 'Платёж завершён' : 'Платёж отклонён',
       actionContext: 'Статус обновлён по YooKassa webhook',
-      targetTitle: `Платёж ${shortId(payment.id)}`,
-      targetContext: payment.assessmentId
-        ? `Заявка ${shortId(payment.assessmentId)}`
-        : 'Без заявки',
+      targetTitle: assessmentId
+        ? `Заявка ${shortId(assessmentId)}`
+        : `Платёж ${shortId(payment.id)}`,
+      targetContext: assessmentId ? `Платёж ${shortId(payment.id)}` : 'Без заявки',
       after: {
+        paymentId: payment.id,
         status,
         amount: payment.amount.toString(),
         transactionId: payment.transactionId,
         type: payment.type,
-        assessmentId: payment.assessmentId,
+        assessmentId,
         ...providerDetails,
       },
     });
@@ -293,6 +309,7 @@ export class PaymentWebhookService {
         status: true,
         type: true,
         promoId: true,
+        discountAmount: true,
         subscriptionId: true,
         assessmentId: true,
         paymentMethod: true,

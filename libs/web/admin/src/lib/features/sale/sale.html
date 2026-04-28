@@ -33,36 +33,66 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th (click)="sortBy('id')">
+            <th
+              (click)="sortBy('id')"
+              (keydown.enter)="sortBy('id')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по ID">
               ID
               <span class="sort-indicator">{{ sortField === 'id' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
             </th>
-            <th (click)="sortBy('name')">
+            <th
+              (click)="sortBy('name')"
+              (keydown.enter)="sortBy('name')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по названию">
               Название
               <span class="sort-indicator"
                 >{{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
               >
             </th>
-            <th (click)="sortBy('percentage')">
+            <th
+              (click)="sortBy('percentage')"
+              (keydown.enter)="sortBy('percentage')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по скидке">
               Скидка
               <span class="sort-indicator"
                 >{{ sortField === 'percentage' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
               >
             </th>
-            <th (click)="sortBy('validFrom')">
+            <th
+              (click)="sortBy('validFrom')"
+              (keydown.enter)="sortBy('validFrom')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по дате начала">
               Действует с
               <span class="sort-indicator"
                 >{{ sortField === 'validFrom' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
               >
             </th>
-            <th (click)="sortBy('validTo')">
+            <th
+              (click)="sortBy('validTo')"
+              (keydown.enter)="sortBy('validTo')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по дате окончания">
               Действует по
               <span class="sort-indicator"
                 >{{ sortField === 'validTo' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
               >
             </th>
             <th>Ограничения</th>
-            <th (click)="sortBy('isActive')">
+            <th
+              (click)="sortBy('isActive')"
+              (keydown.enter)="sortBy('isActive')"
+              tabindex="0"
+              role="button"
+              aria-label="Сортировать по статусу">
               Статус
               <span class="sort-indicator"
                 >{{ sortField === 'isActive' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
