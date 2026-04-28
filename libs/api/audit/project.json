@@ -8,7 +8,7 @@
     "test": {
       "executor": "@nx/jest:jest",
       "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
-      "dependsOn": ["prisma:generate"],
+      "dependsOn": ["^generate-proto", "prisma:generate"],
       "options": {
         "jestConfig": "libs/api/audit/jest.config.cts",
         "tsConfig": "libs/api/audit/tsconfig.spec.json"

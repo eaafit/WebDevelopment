@@ -1,0 +1,76 @@
+.monitoring-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tab {
+  cursor: pointer;
+
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+
+  background: none;
+
+  transition: all 0.2s;
+
+  &:hover {
+    color: #374151;
+  }
+
+  &.active {
+    border-bottom-color: #2563eb;
+    color: #2563eb;
+  }
+}
+
+.tab-content {
+  flex: 1;
+}
+
+.placeholder {
+  padding: 2rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+
+  h2 {
+    margin: 0 0 1rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  p {
+    margin: 0 0 1rem;
+    line-height: 1.5;
+    color: #6b7280;
+  }
+
+  ul {
+    margin: 0 0 1rem;
+    padding-left: 1.5rem;
+    color: #6b7280;
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+    font-style: italic;
+  }
+}

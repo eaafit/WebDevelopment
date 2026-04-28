@@ -1,0 +1,23 @@
+<div class="monitoring-container">
+  <div class="tabs">
+    <button class="tab" [class.active]="activeTab() === 'all-events'" (click)="setActiveTab('all-events')">
+      Все события
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'by-user-order'" (click)="setActiveTab('by-user-order')">
+      По пользователю / заказу
+    </button>
+    <button class="tab" [class.active]="activeTab() === 'security-events'" (click)="setActiveTab('security-events')">
+      События безопасности
+    </button>
+  </div>
+
+  <div class="tab-content">
+    @if (activeTab() === 'all-events') {
+    <lib-audit-monitoring-page mode="admin" />
+    } @if (activeTab() === 'by-user-order') {
+    <lib-audit-by-entity />
+    } @if (activeTab() === 'security-events') {
+    <lib-security-events />
+    }
+  </div>
+</div>
