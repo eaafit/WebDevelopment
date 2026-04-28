@@ -34,6 +34,9 @@ describe('AuthService', () => {
   const metrics = {
     recordUserRegistered: jest.fn(),
   };
+  const auditService = {
+    record: jest.fn(),
+  };
 
   let service: AuthService;
 
@@ -46,6 +49,7 @@ describe('AuthService', () => {
       passwordService as never,
       tokenService as never,
       metrics as never,
+      auditService as never,
       null,
       null,
     );
@@ -105,6 +109,7 @@ describe('AuthService', () => {
     authRepository.findByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'seed-user-000@seed.local',
+      fullName: 'Заявитель 1',
       passwordHash: '$2a$12$abcdefghijklmnopqrstuuK1P6aQ4T6bVJj8M3R1xY8VfQ9g2zT4W',
       isActive: true,
     });
@@ -123,5 +128,21 @@ describe('AuthService', () => {
     });
 
     expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'user.login_failed',
+        targetType: 'Security',
+        targetId: 'user-1',
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Неверный пароль',
+        targetTitle: 'Заявитель 1',
+        targetContext: 'seed-user-000@seed.local',
+        after: expect.objectContaining({
+          reason: 'invalid_password',
+          email: 'seed-user-000@seed.local',
+        }),
+      }),
+    );
   });
 });

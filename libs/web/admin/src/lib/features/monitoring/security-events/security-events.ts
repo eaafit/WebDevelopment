@@ -95,7 +95,6 @@ export class SecurityEvents {
         actorQuery: '',
         actorUserId: '',
         targetId: '',
-        assessmentId: '',
         dateFrom: '',
         dateTo: '',
       }),
@@ -156,7 +155,6 @@ export class SecurityEvents {
         actorQuery: '',
         actorUserId: '',
         targetId: '',
-        assessmentId: '',
         dateFrom: '',
         dateTo: '',
       })
@@ -179,7 +177,6 @@ export class SecurityEvents {
                 actorQuery: '',
                 actorUserId: '',
                 targetId: '',
-                assessmentId: '',
                 dateFrom: '',
                 dateTo: '',
               }),

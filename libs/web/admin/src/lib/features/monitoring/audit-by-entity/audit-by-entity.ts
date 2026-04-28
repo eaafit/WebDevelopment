@@ -84,7 +84,6 @@ export class AuditByEntity {
               actorQuery,
               actorUserId,
               targetId: '',
-              assessmentId: '',
               dateFrom: '',
               dateTo: '',
             })
@@ -130,8 +129,7 @@ export class AuditByEntity {
               eventType: '',
               actorQuery: '',
               actorUserId: '',
-              targetId: '',
-              assessmentId,
+              targetId: assessmentId,
               dateFrom: '',
               dateTo: '',
             })

@@ -90,7 +90,7 @@ describe('AuditByEntity', () => {
         expect.objectContaining({
           actorQuery: 'ivan@example.com',
           actorUserId: '',
-          assessmentId: '',
+          targetId: '',
         }),
       );
       expect(component.events()).toEqual(mockEvents);
@@ -106,7 +106,7 @@ describe('AuditByEntity', () => {
         expect.objectContaining({
           actorQuery: '',
           actorUserId: 'user-123',
-          assessmentId: '',
+          targetId: '',
         }),
       );
       expect(component.events()).toEqual(mockEvents);
@@ -114,7 +114,7 @@ describe('AuditByEntity', () => {
     }, 500);
   });
 
-  it('should call API with assessmentId when searching by assessment', (done) => {
+  it('should call API with targetId when searching by assessment', (done) => {
     component.setSearchMode('assessment');
     fixture.detectChanges();
 
@@ -125,7 +125,7 @@ describe('AuditByEntity', () => {
         expect.objectContaining({
           actorQuery: '',
           actorUserId: '',
-          assessmentId: 'assessment-456',
+          targetId: 'assessment-456',
         }),
       );
       expect(component.events()).toEqual(mockEvents);
