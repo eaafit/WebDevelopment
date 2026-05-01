@@ -33,7 +33,7 @@ import {
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
 import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
 import {
@@ -50,6 +50,8 @@ const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 @Injectable()
 export class AssessmentService {
+  private readonly logger = new Logger(AssessmentService.name);
+
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
@@ -67,157 +69,283 @@ export class AssessmentService {
     );
   }
 
-  listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
-    return this.assessmentRepository.listAssessments(this.normalizeListRequest(request));
+  async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
+    const query = this.normalizeListRequest(request);
+    this.logger.log(
+      `Starting assessment list request page=${query.page} limit=${query.limit}` +
+        formatLogFields({
+          userId: query.userId,
+          status: query.status,
+        }),
+    );
+
+    try {
+      const response = await this.assessmentRepository.listAssessments(query);
+      this.logger.log(
+        `Completed assessment list request page=${response.meta?.currentPage ?? query.page}` +
+          ` totalItems=${response.meta?.totalItems ?? response.assessments.length}`,
+      );
+      return response;
+    } catch (error) {
+      this.logOperationFailure('listAssessments', error, {
+        userId: query.userId,
+        status: query.status,
+      });
+      throw error;
+    }
   }
 
-  getAssessment(request: GetAssessmentRequest): Promise<GetAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    return this.assessmentRepository.getAssessment(request.id);
+  async getAssessment(request: GetAssessmentRequest): Promise<GetAssessmentResponse> {
+    this.logger.log(`Starting assessment lookup assessmentId=${request.id}`);
+
+    try {
+      validateUuid(request.id, 'id');
+      const response = await this.assessmentRepository.getAssessment(request.id);
+      this.logger.log(
+        `Completed assessment lookup assessmentId=${response.assessment?.id ?? request.id}`,
+      );
+      return response;
+    } catch (error) {
+      this.logOperationFailure('getAssessment', error, { assessmentId: request.id });
+      throw error;
+    }
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    validateUuid(request.userId, 'user_id');
+    this.logger.log(
+      `Starting assessment creation userId=${request.userId}` +
+        formatLogFields({
+          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+          cityId: request.realEstateObject?.cityId,
+          districtId: request.realEstateObject?.districtId,
+        }),
+    );
 
-    const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
-    const address = realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
+    try {
+      validateUuid(request.userId, 'user_id');
 
-    const assessment = await this.assessmentRepository.createAssessment({
-      userId: request.userId,
-      address,
-      description: normalizeOptionalText(request.description),
-      realEstateObject,
-    });
-    const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
+      const address =
+        realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
 
-    this.metrics.recordAssessmentCreated('new');
-    await this.auditService.record({
-      actorUserId: getCurrentUser()?.sub ?? request.userId,
-      eventType: 'assessment.created',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Создана заявка',
-      actionContext: 'Создание новой заявки на оценку',
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: snapshot.address,
-      after: toAuditSnapshot(snapshot),
-    });
+      const assessment = await this.assessmentRepository.createAssessment({
+        userId: request.userId,
+        address,
+        description: normalizeOptionalText(request.description),
+        realEstateObject,
+      });
+      const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
 
-    return create(CreateAssessmentResponseSchema, { assessment });
+      this.metrics.recordAssessmentCreated('new');
+      await this.auditService.record({
+        actorUserId: getCurrentUser()?.sub ?? request.userId,
+        eventType: 'assessment.created',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Создана заявка',
+        actionContext: 'Создание новой заявки на оценку',
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: snapshot.address,
+        after: toAuditSnapshot(snapshot),
+      });
+
+      this.logger.log(
+        `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
+          formatLogFields({
+            status: assessment.status,
+            realEstateObjectId: assessment.realEstateObjectId,
+          }),
+      );
+
+      return create(CreateAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('createAssessment', error, {
+        userId: request.userId,
+        cityId: request.realEstateObject?.cityId,
+        districtId: request.realEstateObject?.districtId,
+      });
+      throw error;
+    }
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(
+      `Starting assessment update assessmentId=${request.id}` +
+        formatLogFields({
+          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+          cityId: request.realEstateObject?.cityId,
+          districtId: request.realEstateObject?.districtId,
+        }),
+    );
 
-    const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
-    const assessment = await this.assessmentRepository.updateAssessment(request.id, {
-      address: realEstateObject?.address ?? normalizeOptionalText(request.address),
-      description: request.description.trim(),
-      realEstateObject,
-    });
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: getCurrentUser()?.sub,
-      eventType: 'assessment.updated',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Обновлена заявка',
-      actionContext: 'Изменены данные заявки на оценку',
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
+    try {
+      validateUuid(request.id, 'id');
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-    return create(UpdateAssessmentResponseSchema, { assessment });
+      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
+      const assessment = await this.assessmentRepository.updateAssessment(request.id, {
+        address: realEstateObject?.address ?? normalizeOptionalText(request.address),
+        description: request.description.trim(),
+        realEstateObject,
+      });
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: getCurrentUser()?.sub,
+        eventType: 'assessment.updated',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Обновлена заявка',
+        actionContext: 'Изменены данные заявки на оценку',
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+
+      this.logger.log(
+        `Updated assessment assessmentId=${assessment.id}` +
+          formatLogFields({
+            status: assessment.status,
+            realEstateObjectId: assessment.realEstateObjectId,
+          }),
+      );
+
+      return create(UpdateAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('updateAssessment', error, {
+        assessmentId: request.id,
+        cityId: request.realEstateObject?.cityId,
+        districtId: request.realEstateObject?.districtId,
+      });
+      throw error;
+    }
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(`Starting assessment verification assessmentId=${request.id}`);
 
-    const assessment = await this.assessmentRepository.verifyAssessment(
-      request.id,
-      isNotaryRole(actor?.role) ? actor?.sub : undefined,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.verified',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка взята в работу',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
+    try {
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-    return create(VerifyAssessmentResponseSchema, { assessment });
+      const assessment = await this.assessmentRepository.verifyAssessment(
+        request.id,
+        isNotaryRole(actor?.role) ? actor?.sub : undefined,
+      );
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.verified',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка взята в работу',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+
+      this.logger.log(
+        `Verified assessment assessmentId=${assessment.id}` +
+          formatLogFields({
+            status: assessment.status,
+            notaryId: isNotaryRole(actor?.role) ? actor?.sub : undefined,
+          }),
+      );
+
+      return create(VerifyAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('verifyAssessment', error, { assessmentId: request.id });
+      throw error;
+    }
   }
 
   async completeAssessment(
     request: CompleteAssessmentRequest,
   ): Promise<CompleteAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(`Starting assessment completion assessmentId=${request.id}`);
 
-    if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
-      throw new ConnectError(
-        'final_estimated_value must be a valid decimal number',
-        Code.InvalidArgument,
+    try {
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+
+      if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
+        this.logger.warn(`Invalid final estimated value assessmentId=${request.id}`);
+        throw new ConnectError(
+          'final_estimated_value must be a valid decimal number',
+          Code.InvalidArgument,
+        );
+      }
+
+      const assessment = await this.assessmentRepository.completeAssessment(
+        request.id,
+        request.finalEstimatedValue,
       );
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.completed',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка завершена',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+
+      this.logger.log(
+        `Completed assessment assessmentId=${assessment.id}` +
+          formatLogFields({ status: assessment.status }),
+      );
+
+      return create(CompleteAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('completeAssessment', error, { assessmentId: request.id });
+      throw error;
     }
-
-    const assessment = await this.assessmentRepository.completeAssessment(
-      request.id,
-      request.finalEstimatedValue,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.completed',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка завершена',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
-
-    return create(CompleteAssessmentResponseSchema, { assessment });
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(`Starting assessment cancellation assessmentId=${request.id}`);
 
-    const assessment = await this.assessmentRepository.cancelAssessment(
-      request.id,
-      request.reason?.trim() || undefined,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.cancelled',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка отменена',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
+    try {
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-    return create(CancelAssessmentResponseSchema, { assessment });
+      const assessment = await this.assessmentRepository.cancelAssessment(
+        request.id,
+        request.reason?.trim() || undefined,
+      );
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.cancelled',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка отменена',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+
+      this.logger.log(
+        `Cancelled assessment assessmentId=${assessment.id}` +
+          formatLogFields({ status: assessment.status }),
+      );
+
+      return create(CancelAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('cancelAssessment', error, { assessmentId: request.id });
+      throw error;
+    }
   }
 
   private normalizeListRequest(request: ListAssessmentsRequest): AssessmentQuery {
@@ -230,6 +358,25 @@ export class AssessmentService {
       status:
         request.statusFilter === AssessmentStatus.UNSPECIFIED ? undefined : request.statusFilter,
     };
+  }
+
+  private logOperationFailure(
+    operation: string,
+    error: unknown,
+    context: Record<string, unknown>,
+  ): void {
+    const contextFields = formatLogFields(context);
+    if (isExpectedOperationError(error)) {
+      this.logger.warn(
+        `Assessment operation ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.logger.error(
+      `Assessment operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
+      errorStack(error),
+    );
   }
 }
 
@@ -436,7 +583,9 @@ function normalizeRealEstateObjectInput(
   return realEstateObject;
 }
 
-function hasRealEstateObjectInputData(input: RealEstateObjectInput): boolean {
+function hasRealEstateObjectInputData(input: RealEstateObjectInput | undefined): boolean {
+  if (!input) return false;
+
   return (
     input.cityId !== undefined ||
     input.districtId !== undefined ||
@@ -508,4 +657,30 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function isExpectedOperationError(error: unknown): boolean {
+  return (
+    (error instanceof ConnectError && error.code === Code.InvalidArgument) ||
+    isPrismaNotFoundError(error)
+  );
+}
+
+function isPrismaNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+function formatLogFields(fields: Record<string, unknown>): string {
+  const entries = Object.entries(fields).filter(([, value]) => value !== undefined && value !== '');
+  return entries.length
+    ? ` ${entries.map(([key, value]) => `${key}=${String(value)}`).join(' ')}`
+    : '';
 }
