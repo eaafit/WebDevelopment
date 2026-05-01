@@ -16,9 +16,9 @@
   <form [formGroup]="form" (ngSubmit)="submit()" class="payment-form">
     <label>
       ID пользователя (userId)
-      <input type="text" formControlName="userId" [disabled]="mode === 'edit'" />
+      <input type="text" formControlName="userId" placeholder="UUID пользователя" />
       @if (form.get('userId')?.invalid && form.get('userId')?.touched) {
-        <span class="field-error">Обязательное поле</span>
+        <span class="field-error">Обязательное поле (UUID)</span>
       }
     </label>
 

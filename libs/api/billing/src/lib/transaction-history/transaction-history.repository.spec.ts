@@ -2,6 +2,8 @@ import {
   PaymentReceiptStatus as RpcPaymentReceiptStatus,
   PaymentStatus as RpcPaymentStatus,
   PaymentType as RpcPaymentType,
+  type UpdatePaymentRequest,
+  type DeletePaymentRequest,
 } from '@notary-portal/api-contracts';
 import {
   PaymentReceiptStatus,
@@ -14,10 +16,14 @@ import { TransactionHistoryRepository } from './transaction-history.repository';
 describe('TransactionHistoryRepository', () => {
   const count = jest.fn();
   const findMany = jest.fn();
+  const update = jest.fn();
+  const deleteFn = jest.fn();
   const prisma = {
     payment: {
       count,
       findMany,
+      update,
+      delete: deleteFn,
     },
     $transaction: jest.fn((operations: Array<Promise<unknown>>) => Promise.all(operations)),
   };
@@ -27,6 +33,8 @@ describe('TransactionHistoryRepository', () => {
   beforeEach(() => {
     count.mockReset();
     findMany.mockReset();
+    update.mockReset();
+    deleteFn.mockReset();
     prisma.$transaction.mockClear();
 
     count.mockResolvedValue(21);
@@ -146,5 +154,110 @@ describe('TransactionHistoryRepository', () => {
         }),
       ]),
     );
+  });
+
+  describe('updatePayment', () => {
+    const updatedRecord = {
+      id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890',
+      userId: 'user-1',
+      type: PaymentType.Subscription,
+      status: PaymentStatus.Completed,
+      paymentDate: new Date('2026-03-06T08:45:00.000Z'),
+      transactionId: 'TXN-1001',
+      amount: {
+        toString: () => '5000.00',
+      },
+      paymentMethod: 'bank_card',
+      attachmentFileName: 'receipt.pdf',
+      attachmentFileUrl: 'https://example.local/receipt.pdf',
+      receiptStatus: PaymentReceiptStatus.Available,
+      subscriptionId: 'subscription-1',
+      assessmentId: null,
+      subscription: {
+        plan: SubscriptionPlan.Premium,
+        startDate: new Date('2026-02-15T00:00:00.000Z'),
+        endDate: new Date('2026-03-17T00:00:00.000Z'),
+      },
+      assessment: null,
+    };
+
+    it('should update only provided fields', async () => {
+      update.mockResolvedValue(updatedRecord);
+
+      const request = {
+        id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890',
+        amount: '5000.00',
+        status: RpcPaymentStatus.COMPLETED,
+      } as UpdatePaymentRequest;
+
+      const response = await repository.updatePayment(request);
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890' },
+          data: expect.objectContaining({
+            amount: '5000.00',
+            status: PaymentStatus.Completed,
+          }),
+        }),
+      );
+      expect(response.payment).toBeDefined();
+      expect(response.payment?.id).toBe('a1b2c3d4-e5f6-4bcd-abcd-ef1234567890');
+    });
+
+    it('should map status to Prisma enum', async () => {
+      update.mockResolvedValue(updatedRecord);
+
+      const request = {
+        id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890',
+        status: RpcPaymentStatus.REFUNDED,
+      } as UpdatePaymentRequest;
+
+      await repository.updatePayment(request);
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: PaymentStatus.Refunded,
+          }),
+        }),
+      );
+    });
+
+    it('should set nullable fields to null when empty string provided', async () => {
+      update.mockResolvedValue(updatedRecord);
+
+      const request = {
+        id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890',
+        transactionId: '',
+        attachmentFileName: '',
+      } as UpdatePaymentRequest;
+
+      await repository.updatePayment(request);
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            transactionId: null,
+            attachmentFileName: null,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('deletePayment', () => {
+    it('should delete a payment by id and return success', async () => {
+      deleteFn.mockResolvedValue({ id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890' });
+
+      const request = { id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890' } as DeletePaymentRequest;
+
+      const response = await repository.deletePayment(request);
+
+      expect(deleteFn).toHaveBeenCalledWith({
+        where: { id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890' },
+      });
+      expect(response.success).toBe(true);
+    });
   });
 });
