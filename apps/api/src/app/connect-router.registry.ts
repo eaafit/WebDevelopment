@@ -2,8 +2,10 @@ import { type ConnectRouter } from '@connectrpc/connect';
 import { Injectable } from '@nestjs/common';
 
 // RPC-сервисы
+import { AuditRpcService } from '@internal/audit';
 import { AuthRpcService } from '@internal/auth';
 import { AssessmentRpcService } from '@internal/assessment';
+import { BitrixRpcService } from '@internal/bitrix';
 import { PaymentRpcService } from '@internal/billing';
 import { DocumentRpcService } from '@internal/document';
 import { NotificationRpcService } from '@internal/notification';
@@ -12,8 +14,10 @@ import { UserRpcService } from '@internal/user';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
+  AuditService,
   AuthService,
   AssessmentService,
+  BitrixService,
   DocumentService,
   NotificationService,
   PaymentService,
@@ -24,8 +28,10 @@ import {
 @Injectable()
 export class ConnectRouterRegistry {
   constructor(
+    private readonly auditRpcService: AuditRpcService,
     private readonly authRpcService: AuthRpcService,
     private readonly assessmentRpcService: AssessmentRpcService,
+    private readonly bitrixRpcService: BitrixRpcService,
     private readonly paymentRpcService: PaymentRpcService,
     private readonly documentRpcService: DocumentRpcService,
     private readonly notificationRpcService: NotificationRpcService,
@@ -34,6 +40,12 @@ export class ConnectRouterRegistry {
   ) {}
 
   register(router: ConnectRouter): void {
+    // ─── Audit ───────────────────────────────────────────────
+    router.service(AuditService, {
+      listAuditEvents: this.auditRpcService.listAuditEvents,
+      exportAuditEvents: this.auditRpcService.exportAuditEvents,
+    });
+
     // ─── Auth ────────────────────────────────────────────────
     router.service(AuthService, {
       register: this.authRpcService.register,
@@ -98,6 +110,16 @@ export class ConnectRouterRegistry {
       getPaymentHistory: this.paymentRpcService.getPaymentHistory,
       getSubscription: this.paymentRpcService.getSubscription,
       createSubscription: this.paymentRpcService.createSubscription,
+    });
+
+    // ─── Bitrix ──────────────────────────────────────────────
+    router.service(BitrixService, {
+      getBitrixConfig: this.bitrixRpcService.getBitrixConfig,
+      updateBitrixConfig: this.bitrixRpcService.updateBitrixConfig,
+      testBitrixConnection: this.bitrixRpcService.testBitrixConnection,
+      syncUsersWithBitrix: this.bitrixRpcService.syncUsersWithBitrix,
+      getSyncStatus: this.bitrixRpcService.getSyncStatus,
+      getSyncLogs: this.bitrixRpcService.getSyncLogs,
     });
   }
 }

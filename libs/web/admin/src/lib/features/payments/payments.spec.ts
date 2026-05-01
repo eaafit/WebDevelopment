@@ -1,5 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { AdminPaymentsApiService } from './payments-api.service';
+import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
 
 describe('Payments', () => {
@@ -9,7 +12,18 @@ describe('Payments', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Payments],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminPaymentsApiService,
+          useValue: {
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            preload: () => {},
+            payments$: of(MOCK_PAYMENTS.map((payment) => ({ ...payment }))),
+            getAllPayments: async () => MOCK_PAYMENTS.map((payment) => ({ ...payment })),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Payments);
@@ -25,8 +39,8 @@ describe('Payments', () => {
     component.searchTerm = 'txn_abc123';
 
     const exportedText = (
-      component as Payments & {
-        buildCsvContent: (payments: Payments['filteredPayments']) => string;
+      component as unknown as {
+        buildCsvContent: (payments: Payment[]) => string;
       }
     ).buildCsvContent(component.filteredPayments);
 

@@ -53,6 +53,10 @@ export const notaryRoutes: Route[] = [
           import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
         path: 'assessment/history',
         component: AssessmentHistoryComponent,
         data: { role: 'notary' },
@@ -66,8 +70,9 @@ export const notaryRoutes: Route[] = [
       } as Route,
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),

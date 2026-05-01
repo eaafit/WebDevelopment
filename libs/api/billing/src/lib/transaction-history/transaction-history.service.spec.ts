@@ -19,8 +19,14 @@ describe('TransactionHistoryService', () => {
     const transactionHistoryRepository = {
       getTransactionHistory: jest.fn().mockResolvedValue(response),
     };
+    const metrics = {
+      recordPaymentHistoryRequest: jest.fn(),
+    };
 
-    const service = new TransactionHistoryService(transactionHistoryRepository as never);
+    const service = new TransactionHistoryService(
+      transactionHistoryRepository as never,
+      metrics as never,
+    );
     const request = create(GetPaymentHistoryRequestSchema, {
       pagination: {
         page: 1,
@@ -33,5 +39,6 @@ describe('TransactionHistoryService', () => {
       page: 1,
       limit: 10,
     });
+    expect(metrics.recordPaymentHistoryRequest).toHaveBeenCalledWith('all', 'success');
   });
 });

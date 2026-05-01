@@ -2,6 +2,7 @@ import 'dotenv/config';
 import * as crypto from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AssessmentStatus,
   DocumentType,
@@ -27,6 +28,107 @@ if (!connectionString) {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
+
+const s3 = new S3Client({
+  region: process.env['S3_REGION'] ?? 'us-east-1',
+  endpoint: process.env['S3_ENDPOINT'],
+  credentials: {
+    accessKeyId: process.env['S3_ACCESS_KEY'] ?? 'minioadmin',
+    secretAccessKey: process.env['S3_SECRET_KEY'] ?? 'minioadmin',
+  },
+  forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
+});
+const S3_BUCKET = process.env['S3_BUCKET_PAYMENT_DOCUMENTS'] ?? 'payment-documents';
+
+function makeMinimalPdf(): Buffer {
+  return Buffer.from(
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 200 200]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF',
+  );
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatMoney(value: string): string {
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return value;
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function makeReceiptHtml(params: {
+  paymentId: string;
+  amount: string;
+  paymentDate: string | Date;
+  paymentMethod: string;
+  transactionId: string;
+  type: string;
+}): Buffer {
+  const dateStr =
+    params.paymentDate instanceof Date
+      ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(
+          params.paymentDate,
+        )
+      : params.paymentDate;
+
+  const typeLabel =
+    params.type === 'Subscription'
+      ? 'Оплата подписки'
+      : params.type === 'DocumentCopy'
+        ? 'Оплата копии документа'
+        : 'Оценка недвижимости';
+
+  const html = `<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"/><title>Чек оплаты</title>
+<style>
+  :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5}
+  body{margin:0;padding:32px;background:#f3f5f7;color:#102030}
+  .receipt{max-width:760px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 16px 48px rgba(16,32,48,.12)}
+  .title{margin:0 0 8px;font-size:28px;line-height:1.1}
+  .subtitle{margin:0;color:#556677}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:24px 0}
+  .card{padding:16px;border-radius:16px;background:#f8fafc;border:1px solid #e4ebf2}
+  .label{display:block;margin-bottom:6px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .value{font-size:16px;font-weight:600;word-break:break-word}
+  table{width:100%;border-collapse:collapse;border-radius:16px;border:1px solid #e4ebf2}
+  th,td{padding:14px 16px;text-align:left;border-bottom:1px solid #e4ebf2}
+  th{background:#f8fafc;color:#64748b;font-size:12px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  .summary{margin-top:20px;display:flex;justify-content:flex-end}
+  .summary-card{min-width:240px;padding:16px 20px;border-radius:16px;background:#102030;color:#fff}
+  .summary-card strong{display:block;margin-top:6px;font-size:24px}
+  .footer{margin-top:24px;padding-top:16px;border-top:1px solid #e4ebf2}
+  .note{margin:0;color:#556677}
+  @media print{body{padding:0;background:#fff}.receipt{max-width:none;border-radius:0;box-shadow:none}}
+</style></head>
+<body><main class="receipt">
+  <h1 class="title">Чек оплаты</h1>
+  <p class="subtitle">Документ по подтвержденной оплате в системе.</p>
+  <section class="grid">
+    <article class="card"><span class="label">ID платежа</span><span class="value">${escapeHtml(params.paymentId)}</span></article>
+    <article class="card"><span class="label">ID транзакции</span><span class="value">${escapeHtml(params.transactionId)}</span></article>
+    <article class="card"><span class="label">Дата оплаты</span><span class="value">${escapeHtml(dateStr)}</span></article>
+    <article class="card"><span class="label">Способ оплаты</span><span class="value">${escapeHtml(params.paymentMethod)}</span></article>
+  </section>
+  <table><thead><tr><th>Описание</th><th>Кол-во</th><th>Сумма</th></tr></thead>
+  <tbody><tr><td>${escapeHtml(typeLabel)}</td><td>1</td><td>${escapeHtml(formatMoney(params.amount))}</td></tr></tbody></table>
+  <section class="summary"><div class="summary-card">Итого<strong>${escapeHtml(formatMoney(params.amount))}</strong></div></section>
+  <footer class="footer"><p class="note">Документ сформирован автоматически. Seed-данные для тестирования.</p></footer>
+</main></body></html>`;
+
+  return Buffer.from(html, 'utf8');
+}
 
 const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 100);
 const SEED_USERS_PER_ROLE = 10;
@@ -59,11 +161,17 @@ async function main(): Promise<void> {
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
-  await upsertPayments(SEED_COUNT, userIds, subscriptionIds, assessmentIds, promoIds);
+  const paymentRefs = await upsertPayments(
+    SEED_COUNT,
+    userIds,
+    subscriptionIds,
+    assessmentIds,
+    promoIds,
+  );
   await upsertReports(SEED_COUNT, assessmentIds, userIds);
   await upsertNotifications(SEED_COUNT, userIds);
   await upsertRefreshTokens(SEED_COUNT, userIds);
-  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, promoIds);
+  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, paymentRefs, promoIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
   const [
@@ -446,13 +554,18 @@ async function upsertSubscriptions(count: number, userIds: string[]): Promise<st
   return subscriptionIds;
 }
 
+interface PaymentSeedRef {
+  id: string;
+  assessmentId: string | null;
+}
+
 async function upsertPayments(
   count: number,
   userIds: string[],
   subscriptionIds: string[],
   assessmentIds: string[],
   promoIds: string[],
-): Promise<void> {
+): Promise<PaymentSeedRef[]> {
   const types = [PaymentType.Subscription, PaymentType.Assessment, PaymentType.DocumentCopy];
   const statuses = [
     PaymentStatus.Pending,
@@ -464,6 +577,7 @@ async function upsertPayments(
   const totalHistoryPayments = TOTAL_SEED_USERS * PAYMENT_HISTORY_PER_USER;
   const totalPayments = Math.max(count, totalHistoryPayments);
   const baseDate = new Date('2026-01-01T10:00:00.000Z');
+  const paymentRefs: PaymentSeedRef[] = [];
 
   for (let i = 0; i < totalPayments; i++) {
     const id = seedId('payment', i);
@@ -513,6 +627,44 @@ async function upsertPayments(
       status = statuses[idx % 4];
     }
 
+    const receiptObjectKey = `payment-documents/${id}/${crypto.randomUUID()}.html`;
+    const receiptFileName = `receipt-${i}.html`;
+    const receiptStatus =
+      status === PaymentStatus.Completed
+        ? PaymentReceiptStatus.Available
+        : status === PaymentStatus.Failed
+          ? PaymentReceiptStatus.Failed
+          : PaymentReceiptStatus.Pending;
+    // Upload a receipt HTML with real payment data to MinIO for completed payments
+    if (receiptStatus === PaymentReceiptStatus.Available) {
+      try {
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: receiptObjectKey,
+            Body: makeReceiptHtml({
+              paymentId: id,
+              amount,
+              paymentDate,
+              paymentMethod: methods[i % 3],
+              transactionId: `TXN-SEED-${pad(i, 5)}`,
+              type:
+                type === PaymentType.Subscription
+                  ? 'Subscription'
+                  : type === PaymentType.DocumentCopy
+                    ? 'DocumentCopy'
+                    : 'Assessment',
+            }),
+            ContentType: 'text/html; charset=utf-8',
+          }),
+        );
+      } catch (err) {
+        console.warn(`Seed: failed to upload receipt for payment ${id} to S3`, err);
+      }
+    }
+
+    paymentRefs.push({ id, assessmentId });
+
     await prisma.payment.upsert({
       where: { id },
       update: {
@@ -527,9 +679,11 @@ async function upsertPayments(
         status,
         paymentMethod: methods[i % 3],
         transactionId: `TXN-SEED-${pad(i, 5)}`,
-        attachmentFileName: `receipt-${i}.pdf`,
-        attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
-        receiptStatus: PaymentReceiptStatus.Available,
+        attachmentFileName:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptFileName : null,
+        attachmentFileUrl:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptObjectKey : null,
+        receiptStatus,
       },
       create: {
         id,
@@ -544,12 +698,16 @@ async function upsertPayments(
         status,
         paymentMethod: methods[i % 3],
         transactionId: `TXN-SEED-${pad(i, 5)}`,
-        attachmentFileName: `receipt-${i}.pdf`,
-        attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
-        receiptStatus: PaymentReceiptStatus.Available,
+        attachmentFileName:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptFileName : null,
+        attachmentFileUrl:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptObjectKey : null,
+        receiptStatus,
       },
     });
   }
+
+  return paymentRefs;
 }
 
 async function upsertReports(
@@ -634,6 +792,7 @@ async function upsertAuditLogs(
   count: number,
   userIds: string[],
   assessmentIds: string[],
+  paymentRefs: PaymentSeedRef[],
   promoIds: string[],
 ): Promise<void> {
   const actions: Array<{ actionType: string; entityName: string }> = [
@@ -647,19 +806,40 @@ async function upsertAuditLogs(
     const id = seedId('auditLog', i);
     const userId = userIds[i % userIds.length];
     const action = actions[i % actions.length];
+    const relatedAssessmentId = assessmentIds[i % assessmentIds.length];
+    const paymentRef = paymentRefs.length > 0 ? paymentRefs[i % paymentRefs.length] : null;
+    const entityName =
+      action.entityName === 'Payment' && paymentRef?.assessmentId
+        ? 'Assessment'
+        : action.entityName === 'AssessmentReport'
+          ? 'Assessment'
+          : action.entityName;
     const entityId =
-      action.entityName === 'Assessment'
-        ? assessmentIds[i % assessmentIds.length]
-        : action.entityName === 'Promo' && promoIds.length > 0
-          ? promoIds[i % promoIds.length]
-          : assessmentIds[i % assessmentIds.length];
-    const details = { source: 'seed', index: i };
+      entityName === 'Assessment'
+        ? (paymentRef?.assessmentId ?? relatedAssessmentId)
+        : entityName === 'Payment' && paymentRef
+          ? paymentRef.id
+          : entityName === 'Promo' && promoIds.length > 0
+            ? promoIds[i % promoIds.length]
+            : entityName === 'User'
+              ? userId
+              : relatedAssessmentId;
+    const details = {
+      source: 'seed',
+      index: i,
+      ...(action.entityName === 'Payment' && paymentRef
+        ? { paymentId: paymentRef.id, assessmentId: paymentRef.assessmentId }
+        : {}),
+      ...(action.entityName === 'AssessmentReport'
+        ? { relatedEntityName: 'AssessmentReport' }
+        : {}),
+    };
     await prisma.auditLog.upsert({
       where: { id },
       update: {
         userId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
       },
@@ -667,7 +847,7 @@ async function upsertAuditLogs(
         id,
         userId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
       },

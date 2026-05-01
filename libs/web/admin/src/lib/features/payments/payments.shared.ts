@@ -3,7 +3,7 @@ export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 export type PaymentMethod = 'card' | 'cash' | 'invoice';
 
 export interface Payment {
-  id: number;
+  id: string | number;
   paymentDate: string;
   payer: string;
   amount: number;

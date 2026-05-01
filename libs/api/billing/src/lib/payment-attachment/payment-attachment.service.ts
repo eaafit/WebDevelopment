@@ -17,10 +17,7 @@ import {
   buildStoredPaymentReceiptObjectKey,
   renderStoredPaymentReceipt,
 } from '../payment-receipt/payment-receipt.renderer';
-import type {
-  YooKassaPaymentDetails,
-  YooKassaReceiptRegistration,
-} from '../yookassa/yookassa.client';
+import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
 
 export interface PaymentAttachmentUpload {
   paymentId: string;
@@ -159,7 +156,7 @@ export class PaymentAttachmentService {
       data: {
         attachmentFileName: fileName,
         attachmentFileUrl: objectKey,
-        receiptStatus: mapReceiptStatus(providerPayment.receiptRegistration),
+        receiptStatus: mapReceiptStatus(providerPayment),
       },
     });
 
@@ -278,16 +275,19 @@ function isMissingObjectError(error: unknown): boolean {
   );
 }
 
-function mapReceiptStatus(
-  receiptRegistration: YooKassaReceiptRegistration | null,
-): PaymentReceiptStatus {
-  switch (receiptRegistration) {
+function mapReceiptStatus(providerPayment: YooKassaPaymentDetails): PaymentReceiptStatus {
+  switch (providerPayment.receiptRegistration) {
     case 'succeeded':
       return PaymentReceiptStatus.Available;
     case 'canceled':
       return PaymentReceiptStatus.Failed;
     case 'pending':
+      return PaymentReceiptStatus.Pending;
     default:
+      if (providerPayment.paid && providerPayment.status === 'succeeded') {
+        return PaymentReceiptStatus.Available;
+      }
+
       return PaymentReceiptStatus.Pending;
   }
 }

@@ -1,4 +1,5 @@
 export * from './lib/auth/auth.module';
+export { PasswordService } from './lib/auth/password.service';
 export * from './lib/auth/auth-rpc.service';
 export * from './lib/auth/auth.interceptor';
 export * from './lib/auth/token.service';
