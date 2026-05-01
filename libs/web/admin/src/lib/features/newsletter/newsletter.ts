@@ -2,6 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { NewsletterUiStoreService } from './newsletter-ui-store.service';
 
 type NewsletterTab = 'list' | 'new' | 'groups' | 'history';
+type TemplatePreviewMode = 'desktop' | 'mobile';
 
 interface NewsletterSubscriber {
   id: string;
@@ -94,6 +95,13 @@ const DEFAULT_GROUP_FORM: GroupFormState = {
   isActive: true,
 };
 
+const DEFAULT_EMAIL_SUBJECT = 'Новости нотариального портала';
+const DEFAULT_EMAIL_BODY = `Здравствуйте!
+
+Сообщаем о важных обновлениях нотариального портала. В личном кабинете стали доступны улучшенные статусы заявок, обновленные уведомления и расширенные настройки профиля.
+
+Проверьте актуальность контактных данных и ознакомьтесь с изменениями в удобное время.`;
+
 const INITIAL_SUBSCRIBER_GROUPS: SubscriberGroup[] = [
   {
     id: 'group-001',
@@ -161,7 +169,7 @@ const CAMPAIGNS: NewsletterCampaign[] = [
 export class Newsletter {
   private readonly uiStore = inject(NewsletterUiStoreService);
 
-  protected readonly activeTab = signal<NewsletterTab>('list');
+  protected readonly activeTab = signal<NewsletterTab>('new');
 
   protected readonly filters = signal<NewsletterFilters>({ ...DEFAULT_FILTERS });
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -171,16 +179,23 @@ export class Newsletter {
   protected readonly selectedGroupId = signal<string>('');
   protected readonly smtpClientId = signal<string>(this.uiStore.activeSmtpClients()[0]?.id ?? '');
 
-  protected readonly subject = signal<string>('');
-  protected readonly body = signal<string>('');
+  protected readonly subject = signal<string>(DEFAULT_EMAIL_SUBJECT);
+  protected readonly body = signal<string>(DEFAULT_EMAIL_BODY);
   protected readonly addCta = signal<boolean>(true);
+  protected readonly templatePreviewMode = signal<TemplatePreviewMode>('desktop');
+  protected readonly templateFromName = signal<string>(
+    this.uiStore.activeSmtpClients()[0]?.fromName ?? 'Нотариальный портал',
+  );
+  protected readonly templateReplyTo = signal<string>('');
+  protected readonly templateBcc = signal<string>('');
+  protected readonly templateCc = signal<string>('');
 
   protected readonly groupFilterQuery = signal<string>('');
   protected readonly editingGroupId = signal<string | null>(null);
   protected readonly groupForm = signal<GroupFormState>({ ...DEFAULT_GROUP_FORM });
 
   protected readonly statusMessage = signal<string>(
-    'Выберите подписчиков или перейдите к созданию новой рассылки.',
+    'Форма создания рассылки открыта. Заполните аудиторию, тему и текст письма.',
   );
 
   protected readonly availableSmtpClients = this.uiStore.activeSmtpClients;
@@ -208,6 +223,12 @@ export class Newsletter {
 
   protected readonly selectedSmtpClient = computed(() =>
     this.availableSmtpClients().find((client) => client.id === this.smtpClientId()),
+  );
+
+  protected readonly templateSubject = computed(() => this.subject().trim() || DEFAULT_EMAIL_SUBJECT);
+
+  protected readonly templateBodyPreview = computed(
+    () => this.body().trim() || DEFAULT_EMAIL_BODY,
   );
 
   protected readonly activeSubscriberGroups = computed(() =>
@@ -324,6 +345,11 @@ export class Newsletter {
 
   protected setSmtpClientId(value: string): void {
     this.smtpClientId.set(value);
+
+    const client = this.uiStore.findSmtpClientById(value);
+    if (client?.fromName) {
+      this.templateFromName.set(client.fromName);
+    }
   }
 
   protected setSelectedGroupId(value: string): void {
@@ -332,6 +358,26 @@ export class Newsletter {
 
   protected toggleCta(checked: boolean): void {
     this.addCta.set(checked);
+  }
+
+  protected setTemplatePreviewMode(mode: TemplatePreviewMode): void {
+    this.templatePreviewMode.set(mode);
+  }
+
+  protected updateTemplateFromName(value: string): void {
+    this.templateFromName.set(value);
+  }
+
+  protected updateTemplateReplyTo(value: string): void {
+    this.templateReplyTo.set(value);
+  }
+
+  protected updateTemplateBcc(value: string): void {
+    this.templateBcc.set(value);
+  }
+
+  protected updateTemplateCc(value: string): void {
+    this.templateCc.set(value);
   }
 
   protected updateGroupFilterQuery(value: string): void {
@@ -547,7 +593,7 @@ export class Newsletter {
     );
   }
 
-  private buildAudienceLabel(): string {
+  protected buildAudienceLabel(): string {
     const mode = this.audienceMode();
     if (mode === 'all') return 'Все подписчики';
     if (mode === 'byRole') return `Роль: ${this.audienceRole()}`;

@@ -1,0 +1,112 @@
+<section class="newsletter-list-page admin-page">
+  <header class="newsletter-list-hero">
+    <div>
+      <p class="newsletter-list-hero__eyebrow">Администратор / рассылки</p>
+      <h2>Список рассылок</h2>
+      <p>
+        Просмотр отправленных, запланированных и черновых писем. Данные временно берутся из mock-списка до появления
+        методов рассылок в proto.
+      </p>
+    </div>
+
+    <button type="button" class="newsletter-list-button newsletter-list-button--primary" (click)="createNewsletter()">
+      Создать рассылку
+    </button>
+  </header>
+
+  <section class="newsletter-list-toolbar">
+    <div class="newsletter-list-toolbar__copy">
+      <p>
+        Используйте фильтр по статусу, чтобы быстро найти отправленные письма, черновики или запланированные рассылки.
+      </p>
+      <small class="newsletter-list-toolbar__status">
+        Найдено: {{ filteredNewsletters().length }} · Источник данных: mock
+      </small>
+    </div>
+    <span class="newsletter-list-toolbar__meta">Всего рассылок: {{ newsletters().length }}</span>
+  </section>
+
+  <article class="newsletter-list-card">
+    <div class="newsletter-list-card__header">
+      <div>
+        <h3>Рассылки</h3>
+        <p>Клик по строке открывает боковую панель с деталями письма и первыми получателями.</p>
+      </div>
+      <span class="newsletter-list-badge">На экране: {{ filteredNewsletters().length }}</span>
+    </div>
+
+    <div class="newsletter-list-card__toolbar">
+      <label class="newsletter-list-field">
+        <span>Фильтр по статусу</span>
+        <select [value]="statusFilter()" (change)="updateStatusFilter($any($event.target).value)">
+          <option value="all">Все статусы</option>
+          <option value="sent">Отправлено</option>
+          <option value="draft">Черновик</option>
+          <option value="scheduled">Запланировано</option>
+        </select>
+      </label>
+
+      <div class="newsletter-list-card__counter">
+        Выбран статус: <strong>{{ statusFilterLabel() }}</strong>
+      </div>
+    </div>
+
+    <div class="newsletter-list-table-wrap">
+      <table class="newsletter-list-table">
+        <thead>
+          <tr>
+            <th>Тема письма</th>
+            <th>Дата отправки</th>
+            <th>Получателей</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (filteredNewsletters().length) {
+          @for (item of filteredNewsletters(); track item.id) {
+          <tr
+            tabindex="0"
+            [class.newsletter-list-table__row--active]="isSelected(item)"
+            (click)="selectNewsletter(item)"
+            (keydown.enter)="selectNewsletter(item)">
+            <td class="newsletter-list-table__subject">
+              <strong>{{ item.subject }}</strong>
+              <span>{{ item.previewText }}</span>
+            </td>
+            <td>{{ formatDate(item.sentAt) }}</td>
+            <td>{{ item.recipientCount }}</td>
+            <td>
+              <span
+                class="newsletter-list-status"
+                [class.newsletter-list-status--draft]="item.status === 'draft'"
+                [class.newsletter-list-status--scheduled]="item.status === 'scheduled'">
+                {{ statusLabels[item.status] }}
+              </span>
+            </td>
+          </tr>
+          }
+          } @else {
+          <tr>
+            <td colspan="4" class="newsletter-list-empty">
+              <strong>Рассылки не найдены.</strong>
+              <p>Выберите другой статус или создайте новую рассылку.</p>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  @if (selectedNewsletter()) {
+  <div class="newsletter-list-overlay" (click)="closeDetails()"></div>
+  <lib-newsletter-detail-panel
+    [newsletter]="selectedNewsletter()!"
+    (closePanel)="closeDetails()"
+    (resend)="resendNewsletter($event)" />
+  }
+
+  @if (toastMessage()) {
+  <div class="newsletter-list-toast" role="status">{{ toastMessage() }}</div>
+  }
+</section>

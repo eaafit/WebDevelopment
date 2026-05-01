@@ -312,6 +312,105 @@
           <span>Добавить кнопку «Перейти в личный кабинет» в футер письма</span>
         </label>
 
+        <section class="newsletter-template" aria-label="Шаблон письма">
+          <div class="newsletter-template__workspace">
+            <div class="newsletter-template__topbar">
+              <div>
+                <strong>Шаблон письма</strong>
+                <span>Статический шаблон письма без персональных параметров</span>
+              </div>
+            </div>
+
+            <div class="newsletter-template__subject">
+              <span>Тема *</span>
+              <strong>{{ templateSubject() }}</strong>
+            </div>
+
+            <div
+              class="newsletter-template__preview"
+              [class.newsletter-template__preview--mobile]="templatePreviewMode() === 'mobile'">
+              <div class="newsletter-template__contentbar">
+                <div class="newsletter-template__devices" aria-label="Режим предпросмотра">
+                  <button
+                    type="button"
+                    [class.newsletter-template__device--active]="templatePreviewMode() === 'desktop'"
+                    (click)="setTemplatePreviewMode('desktop')">
+                    Компьютер
+                  </button>
+                  <button
+                    type="button"
+                    [class.newsletter-template__device--active]="templatePreviewMode() === 'mobile'"
+                    (click)="setTemplatePreviewMode('mobile')">
+                    Телефон
+                  </button>
+                </div>
+              </div>
+
+              <p class="newsletter-template__preheader">
+                Сообщение от {{ templateFromName().trim() || 'Нотариальный портал' }} для аудитории:
+                {{ buildAudienceLabel() }}.
+              </p>
+
+              <article class="newsletter-template__mail">
+                <div class="newsletter-template__avatar">Портал</div>
+                <div class="newsletter-template__mail-body">
+                  <h4>{{ templateSubject() }}</h4>
+                  <p>{{ templateBodyPreview() }}</p>
+
+                  @if (addCta()) {
+                  <a class="newsletter-template__cta">Перейти в личный кабинет</a>
+                  }
+
+                  <footer>
+                    Нотариальный портал<br />
+                    Одинаковое письмо для всей выбранной аудитории без подстановки переменных.
+                  </footer>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <aside class="newsletter-template__settings" aria-label="Настройки письма">
+            <label class="newsletter-field">
+              <span>Получатели *</span>
+              <input type="text" [value]="buildAudienceLabel()" disabled />
+            </label>
+
+            <label class="newsletter-field">
+              <span>Имя отправителя</span>
+              <input
+                type="text"
+                [value]="templateFromName()"
+                placeholder="Нотариальный портал"
+                (input)="updateTemplateFromName($any($event.target).value)" />
+            </label>
+
+            <label class="newsletter-field">
+              <span>Адрес отправителя</span>
+              <input type="email" [value]="selectedSmtpClient()?.fromEmail || 'noreply@notary-portal.local'" disabled />
+            </label>
+
+            <label class="newsletter-field">
+              <span>Адрес для ответа</span>
+              <input
+                type="email"
+                [value]="templateReplyTo()"
+                placeholder="support@notary-portal.local"
+                (input)="updateTemplateReplyTo($any($event.target).value)" />
+            </label>
+
+            <label class="newsletter-field">
+              <span>Скрытая копия</span>
+              <input type="email" [value]="templateBcc()" (input)="updateTemplateBcc($any($event.target).value)" />
+            </label>
+
+            <label class="newsletter-field">
+              <span>Копия</span>
+              <input type="email" [value]="templateCc()" (input)="updateTemplateCc($any($event.target).value)" />
+            </label>
+          </aside>
+        </section>
+
         <div class="newsletter-form__actions">
           <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="openPreview()">
             Предпросмотр письма
