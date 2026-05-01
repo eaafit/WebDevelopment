@@ -3,7 +3,7 @@ import { TariffPlanService } from './tariff-plan.service';
 import { CreateTariffPlanDto } from './dto/create-tariff-plan.dto';
 import { UpdateTariffPlanDto } from './dto/update-tariff-plan.dto';
 
-@Controller('tariff-plans')
+@Controller('api/tariff-plans')
 export class TariffPlanController {
   constructor(private readonly service: TariffPlanService) {}
 

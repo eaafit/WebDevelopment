@@ -1,0 +1,99 @@
+:host {
+  display: block;
+}
+
+.promo-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.input {
+  width: 100%;
+  min-width: 220px;
+}
+
+.payments-table-shell {
+  padding: 0 1.15rem 1.15rem;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+}
+
+.payments-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.payments-table th,
+.payments-table td {
+  padding: 1rem 0.95rem;
+  text-align: left;
+  border-bottom: 1px solid rgb(148 163 184 / 18%);
+}
+
+.payments-table th {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--admin-bg) 0%, rgb(255 255 255 / 70%) 100%);
+}
+
+.payments-table__empty {
+  padding: 2.3rem 1rem;
+  text-align: center;
+  color: var(--admin-text-soft);
+}
+
+.mono {
+  font-family: var(--admin-font-mono);
+}
+
+.error {
+  color: var(--admin-critical-text);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+
+.modal {
+  width: min(480px, calc(100vw - 20px));
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+@media (width <= 920px) {
+  .admin-toolbar {
+    align-items: stretch;
+  }
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+

@@ -1,8 +1,98 @@
 :host {
   display: block;
-  min-width: 0;
 }
 
-.sale-container {
-  min-width: 0;
+.sale-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.input {
+  width: 100%;
+  min-width: 220px;
+}
+
+.small {
+  color: var(--admin-text-soft);
+}
+
+.payments-table-shell {
+  padding: 0 1.15rem 1.15rem;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+}
+
+.payments-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.payments-table th,
+.payments-table td {
+  padding: 1rem 0.95rem;
+  text-align: left;
+  border-bottom: 1px solid rgb(148 163 184 / 18%);
+}
+
+.payments-table th {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--admin-bg) 0%, rgb(255 255 255 / 70%) 100%);
+}
+
+.payments-table__empty {
+  padding: 2.3rem 1rem;
+  text-align: center;
+  color: var(--admin-text-soft);
+}
+
+.title {
+  font-weight: 600;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+}
+
+.modal {
+  width: min(520px, calc(100vw - 20px));
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+@media (width <= 920px) {
+  .admin-toolbar {
+    align-items: stretch;
+  }
 }

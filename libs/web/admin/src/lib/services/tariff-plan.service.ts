@@ -1,12 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { TariffPlan } from '@internal/api/tariff-plan';
+import { buildRpcBaseUrl } from '@notary-portal/ui';
+import type { TariffPlan } from '@internal/models/tariff-plan';
 
 @Injectable({ providedIn: 'root' })
 export class TariffPlanService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/tariff-plans';
+  private apiUrl = `${buildRpcBaseUrl()}/api/tariff-plans`;
 
   getAll(params?: any): Observable<TariffPlan[]> {
     let httpParams = new HttpParams();

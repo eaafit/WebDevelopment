@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@notary-portal/prisma';
+import { PrismaService } from '@internal/prisma';
 import { CreateTariffPlanDto } from './dto/create-tariff-plan.dto';
 import { UpdateTariffPlanDto } from './dto/update-tariff-plan.dto';
 

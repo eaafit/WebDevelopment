@@ -52,6 +52,7 @@ async function bootstrap() {
       exposedHeaders: [...connectCors.exposedHeaders],
     }),
   );
+  expressInstance.use('/api', express.json());
 
   const connectRouterRegistry = app.get(ConnectRouterRegistry);
   const authInterceptor = app.get(AuthInterceptor);
@@ -195,15 +196,20 @@ async function bootstrap() {
     },
   );
 
-  app.use(
-    connectNodeAdapter({
-      connect: true,
-      grpc: false,
-      grpcWeb: false,
-      interceptors: [authInterceptor.build()],
-      routes: (router) => connectRouterRegistry.register(router),
-    }),
-  );
+  const connectHandler = connectNodeAdapter({
+    connect: true,
+    grpc: false,
+    grpcWeb: false,
+    interceptors: [authInterceptor.build()],
+    routes: (router) => connectRouterRegistry.register(router),
+  });
+  expressInstance.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith('/api/')) {
+      next();
+      return;
+    }
+    connectHandler(req, res);
+  });
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);

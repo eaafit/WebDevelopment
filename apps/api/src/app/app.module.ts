@@ -15,6 +15,8 @@ import { ConnectRouterRegistry } from './connect-router.registry';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
+import { PromosController } from './promos.controller';
+import { SubscriptionsController } from './subscriptions.controller';
 
 @Module({
   imports: [
@@ -32,7 +34,7 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
     ReportModule,
     UserModule,
   ],
-  controllers: [PaymentAttachmentController],
+  controllers: [PaymentAttachmentController, PromosController, SubscriptionsController],
   providers: [ConnectRouterRegistry, PortalAdminBootstrapService],
 })
 export class AppModule {}

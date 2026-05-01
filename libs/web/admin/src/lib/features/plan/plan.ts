@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TariffPlanService } from '../../services/tariff-plan.service';
-import { TariffPlan } from '@internal/api/tariff-plan';
+import type { TariffPlan } from '@internal/models/tariff-plan';
 
 @Component({
   selector: 'lib-plan',

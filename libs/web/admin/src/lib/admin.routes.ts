@@ -4,6 +4,9 @@ import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
 import { Applications } from './features/applications/applications';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
+import { PlansListComponent } from './features/plans/plans-list/plans-list';
+import { PromoCodesComponent } from './features/promo-codes/promo-codes';
+import { SubscriptionsListComponent } from './features/subscriptions/subscriptions-list/subscriptions-list';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -73,20 +76,20 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'subscriptions',
-        ...placeholder('Подписки', ['Просмотр списка подписок']),
-      } as Route,
+        component: SubscriptionsListComponent,
+      },
       {
         path: 'plans',
-        loadComponent: () => import('./features/plan/plan').then((m) => m.PlanComponent),
-      } as Route,
+        component: PlansListComponent,
+      },
       {
         path: 'discounts',
         loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
       } as Route,
       {
         path: 'promocodes',
-        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
-      } as Route,
+        component: PromoCodesComponent,
+      },
       {
         path: 'files',
         ...placeholder('Модерация файлов', [

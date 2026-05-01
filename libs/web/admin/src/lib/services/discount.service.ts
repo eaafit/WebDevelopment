@@ -1,12 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { Discount } from '@internal/api/discount';
+import { buildRpcBaseUrl } from '@notary-portal/ui';
+import type { Discount } from '@internal/models/discount';
 
 @Injectable({ providedIn: 'root' })
 export class DiscountService {
   private http = inject(HttpClient);
-  private apiUrl = '/api/discounts';
+  private apiUrl = `${buildRpcBaseUrl()}/api/discounts`;
 
   getAll(params?: any): Observable<Discount[]> {
     let httpParams = new HttpParams();

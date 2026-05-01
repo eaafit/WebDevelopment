@@ -3,7 +3,7 @@ import { PromocodeService } from './promocode.service';
 import { CreatePromocodeDto } from './dto/create-promocode.dto';
 import { UpdatePromocodeDto } from './dto/update-promocode.dto';
 
-@Controller('promocodes')
+@Controller('api/promocodes')
 export class PromocodeController {
   constructor(private readonly service: PromocodeService) {}
 

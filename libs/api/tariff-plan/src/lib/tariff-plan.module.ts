@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TariffPlanController } from './tariff-plan.controller';
 import { TariffPlanService } from './tariff-plan.service';
-import { PrismaModule } from '@notary-portal/prisma';
+import { PrismaModule } from '@internal/prisma';
 
 @Module({
   imports: [PrismaModule],
