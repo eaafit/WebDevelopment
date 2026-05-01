@@ -6,6 +6,10 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AssessmentStatus,
   DocumentType,
+  NewsletterAudienceType,
+  NewsletterCampaignStatus,
+  NewsletterDeliveryStatus,
+  NewsletterSubscriptionStatus,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -155,6 +159,7 @@ function pad(i: number, len: number): string {
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertNewsletterData(userIds);
   await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
@@ -186,6 +191,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    newsletterSubscriptionCount,
+    newsletterCampaignCount,
     cityCount,
     districtCount,
   ] = await prisma.$transaction([
@@ -200,6 +207,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.newsletterSubscription.count(),
+    prisma.newsletterCampaign.count(),
     prisma.city.count(),
     prisma.district.count(),
   ]);
@@ -218,6 +227,8 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `NewsletterSubscriptions: ${newsletterSubscriptionCount}`,
+      `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
@@ -265,6 +276,137 @@ async function upsertUsers(count: number, passwordHash: string): Promise<string[
     });
   }
   return userIds;
+}
+
+async function upsertNewsletterData(userIds: string[]): Promise<void> {
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, email: true, fullName: true, role: true, createdAt: true },
+  });
+
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
+    const isUnsubscribed = i % 11 === 0;
+    const unsubscribedAt = isUnsubscribed ? new Date('2026-03-18T10:00:00.000Z') : null;
+
+    await prisma.newsletterSubscription.upsert({
+      where: { userId: user.id },
+      update: {
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+      create: {
+        id: seedId('newsletter-subscription', i),
+        userId: user.id,
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+    });
+  }
+
+  const adminId = users.find((user) => user.role === Role.Admin)?.id ?? users[0]?.id ?? null;
+  const activeUsers = users.filter((_, i) => i % 11 !== 0);
+  const partialFailedEmail = activeUsers[3]?.email;
+  const campaignSeeds = [
+    {
+      subject: 'Обновление тарифных планов для нотариусов',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-02-28T11:35:00.000Z'),
+      completedAt: new Date('2026-02-28T11:37:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Запуск сервиса нотариальной оценки',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.PartialFailed,
+      createdAt: new Date('2026-02-20T16:10:00.000Z'),
+      completedAt: new Date('2026-02-20T16:14:00.000Z'),
+      recipients: activeUsers.slice(0, 12),
+      failedEmails: new Set<string>(partialFailedEmail ? [partialFailedEmail] : []),
+    },
+    {
+      subject: 'Плановое обслуживание системы',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-03-05T09:00:00.000Z'),
+      completedAt: new Date('2026-03-05T09:01:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 3),
+      failedEmails: new Set<string>(),
+    },
+  ];
+
+  for (let i = 0; i < campaignSeeds.length; i++) {
+    const seed = campaignSeeds[i];
+    const id = seedId('newsletter-campaign', i);
+    const sentCount = seed.recipients.filter((user) => !seed.failedEmails.has(user.email)).length;
+    const failedCount = seed.recipients.length - sentCount;
+
+    await prisma.newsletterCampaign.upsert({
+      where: { id },
+      update: {
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+      create: {
+        id,
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+    });
+
+    await prisma.newsletterDelivery.deleteMany({ where: { campaignId: id } });
+    await prisma.newsletterDelivery.createMany({
+      data: seed.recipients.map((user, recipientIndex) => {
+        const failed = seed.failedEmails.has(user.email);
+        return {
+          id: seedId(`newsletter-delivery-${i}`, recipientIndex),
+          campaignId: id,
+          userId: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          status: failed ? NewsletterDeliveryStatus.Failed : NewsletterDeliveryStatus.Sent,
+          errorMessage: failed ? 'Seed delivery failure' : null,
+          sentAt: failed ? null : seed.completedAt,
+          createdAt: seed.createdAt,
+        };
+      }),
+    });
+  }
 }
 
 function buildSeedCredentialHints(count: number): string[] {

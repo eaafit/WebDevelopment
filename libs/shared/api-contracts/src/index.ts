@@ -6,6 +6,7 @@ export * from './generated/notary/common/v1alpha1/common_pb';
 export * from './generated/notary/document/v1alpha1/document_pb';
 export * from './generated/notary/forms/v1alpha1/forms_pb';
 export * from './generated/notary/notification/v1alpha1/notification_pb';
+export * from './generated/notary/newsletter/v1alpha1/newsletter_pb';
 export * from './generated/notary/payment/v1alpha1/payment_pb';
 export * from './generated/notary/report/v1alpha1/report_pb';
 export * from './generated/notary/user/v1alpha1/user_pb';
