@@ -1,0 +1,61 @@
+<aside class="newsletter-detail" aria-label="Детали рассылки">
+  <header class="newsletter-detail__header">
+    <div>
+      <p class="newsletter-detail__eyebrow">Рассылка</p>
+      <h3>{{ newsletter.subject }}</h3>
+    </div>
+
+    <button type="button" class="newsletter-detail__icon" aria-label="Закрыть панель" (click)="onClose()">
+      ×
+    </button>
+  </header>
+
+  <div class="newsletter-detail__body">
+    <dl class="newsletter-detail__meta">
+      <div>
+        <dt>Дата</dt>
+        <dd>{{ formatDate(newsletter.sentAt) }}</dd>
+      </div>
+      <div>
+        <dt>Статус</dt>
+        <dd>
+          <span
+            class="newsletter-detail__status"
+            [class.newsletter-detail__status--draft]="newsletter.status === 'draft'"
+            [class.newsletter-detail__status--scheduled]="newsletter.status === 'scheduled'">
+            {{ statusLabels[newsletter.status] }}
+          </span>
+        </dd>
+      </div>
+      <div>
+        <dt>Получатели</dt>
+        <dd>{{ newsletter.recipientCount }}</dd>
+      </div>
+    </dl>
+
+    <section class="newsletter-detail__section">
+      <h4>Первые получатели</h4>
+      @if (firstRecipients().length) {
+      <ul class="newsletter-detail__recipients">
+        @for (email of firstRecipients(); track email) {
+        <li>{{ email }}</li>
+        }
+      </ul>
+      } @else {
+      <p class="newsletter-detail__muted">Для черновика получатели пока не выбраны.</p>
+      }
+    </section>
+
+    <section class="newsletter-detail__section">
+      <h4>Превью текста</h4>
+      <p class="newsletter-detail__preview">{{ clippedPreview() }}</p>
+    </section>
+  </div>
+
+  <footer class="newsletter-detail__footer">
+    <button type="button" class="newsletter-detail__button newsletter-detail__button--primary" (click)="onResend()">
+      Отправить повторно
+    </button>
+    <button type="button" class="newsletter-detail__button" (click)="onClose()">Закрыть</button>
+  </footer>
+</aside>

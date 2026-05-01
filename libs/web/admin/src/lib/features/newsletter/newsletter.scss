@@ -573,6 +573,183 @@
   margin-top: 0.4rem;
 }
 
+.newsletter-template {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.newsletter-template__workspace,
+.newsletter-template__settings {
+  min-width: 0;
+  border: 1px solid var(--nl-border);
+  border-radius: var(--nl-radius-sm);
+  background: #fff;
+}
+
+.newsletter-template__workspace {
+  overflow: hidden;
+}
+
+.newsletter-template__topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--nl-border);
+  background: var(--nl-surface-alt);
+}
+
+.newsletter-template__topbar div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.newsletter-template__topbar span {
+  font-size: 0.82rem;
+  color: var(--nl-text-muted);
+}
+
+.newsletter-template__devices {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid var(--nl-border);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.newsletter-template__devices button {
+  cursor: pointer;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--nl-text-muted);
+  background: transparent;
+}
+
+.newsletter-template__devices .newsletter-template__device--active {
+  color: var(--nl-accent);
+  background: var(--nl-accent-soft);
+}
+
+.newsletter-template__subject {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--nl-border);
+}
+
+.newsletter-template__subject span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--nl-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.newsletter-template__preview {
+  padding: 1rem;
+  background: #fff;
+}
+
+.newsletter-template__contentbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--nl-border);
+}
+
+.newsletter-template__preview--mobile {
+  max-width: 390px;
+  margin: 0 auto;
+  border-inline: 1px dashed var(--nl-border);
+}
+
+.newsletter-template__preheader {
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px dashed var(--nl-border);
+  font-size: 0.84rem;
+  color: var(--nl-text-soft);
+}
+
+.newsletter-template__mail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--nl-border);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+}
+
+.newsletter-template__avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 2.6rem;
+  border-radius: 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--nl-accent);
+}
+
+.newsletter-template__mail-body {
+  min-width: 0;
+}
+
+.newsletter-template__mail-body h4 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+}
+
+.newsletter-template__mail-body p {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--nl-text-soft);
+  white-space: pre-line;
+}
+
+.newsletter-template__cta {
+  display: inline-flex;
+  margin-top: 0.9rem;
+  padding: 0.62rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  background: var(--nl-accent);
+}
+
+.newsletter-template__mail-body footer {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--nl-border);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--nl-text-muted);
+}
+
+.newsletter-template__settings {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+  padding: 1rem;
+  background: var(--nl-surface-alt);
+}
+
 .newsletter-groups-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -633,6 +810,15 @@
   .newsletter-form__actions {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+
+  .newsletter-template {
+    grid-template-columns: 1fr;
+  }
+
+  .newsletter-template__topbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .newsletter-selection {
