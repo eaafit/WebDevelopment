@@ -45,6 +45,7 @@ export class RequestAssessment implements OnInit, OnDestroy {
   applications: Application[] = [];
   loading = true;
   loadError: string | null = null;
+  mutationInFlight = false;
 
   searchTerm = '';
   statusFilter: '' | PaymentStatus = '';
@@ -332,20 +333,87 @@ export class RequestAssessment implements OnInit, OnDestroy {
     }
   }
 
-  saveApplication(): void {
-    this.currentApplication.statusText = PAYMENT_STATUS_LABELS[this.currentApplication.status];
-    if (this.isEditMode) {
-      const index = this.applications.findIndex((a) => a.id === this.currentApplication.id);
-      if (index !== -1) this.applications[index] = { ...this.currentApplication };
-    } else {
-      this.applications.push({ ...this.currentApplication });
+  async saveApplication(): Promise<void> {
+    if (!this.isEditMode) {
+      this.loadError =
+        'Создание заявок из админ-панели пока недоступно: требуется уточнение обязательных полей (включая userId)';
+      return;
     }
+
+    if (this.mutationInFlight) return;
+
+    this.loadError = null;
+
+    const targetId = String(this.currentApplication.id);
+    const prevIndex = this.applications.findIndex((app) => String(app.id) === targetId);
+    const prevApplication = prevIndex >= 0 ? this.applications[prevIndex] : null;
+    const optimisticApplication: Application = {
+      ...(prevApplication ?? this.currentApplication),
+      ...this.currentApplication,
+      id: targetId,
+      statusText: PAYMENT_STATUS_LABELS[this.currentApplication.status],
+    };
+
+    if (prevIndex >= 0) {
+      const next = [...this.applications];
+      next[prevIndex] = optimisticApplication;
+      this.applications = next;
+    }
+
     this.closeModals();
+    this.mutationInFlight = true;
+
+    try {
+      const updated = await this.api.updateApplication({
+        id: targetId,
+        address: optimisticApplication.recipient,
+      });
+
+      this.applications = this.applications.map((app) => (String(app.id) === targetId ? updated : app));
+    } catch (err) {
+      if (prevApplication && prevIndex >= 0) {
+        const rollback = [...this.applications];
+        const currentIndex = rollback.findIndex((app) => String(app.id) === targetId);
+        if (currentIndex >= 0) {
+          rollback[currentIndex] = prevApplication;
+        } else {
+          rollback.splice(Math.min(prevIndex, rollback.length), 0, prevApplication);
+        }
+        this.applications = rollback;
+      }
+
+      this.loadError = err instanceof Error ? err.message : 'Ошибка при обновлении заявки';
+    } finally {
+      this.mutationInFlight = false;
+    }
   }
 
-  deleteApplication(): void {
-    this.applications = this.applications.filter((a) => a.id !== this.currentApplication.id);
+  async deleteApplication(): Promise<void> {
+    if (this.mutationInFlight) return;
+
+    this.loadError = null;
+    const targetId = String(this.currentApplication.id);
+    const prevIndex = this.applications.findIndex((app) => String(app.id) === targetId);
+    if (prevIndex < 0) {
+      this.closeModals();
+      return;
+    }
+
+    const deletedApplication = this.applications[prevIndex];
     this.closeModals();
+    this.applications = this.applications.filter((app) => String(app.id) !== targetId);
+    this.mutationInFlight = true;
+
+    try {
+      await this.api.cancelApplication(targetId);
+    } catch (err) {
+      const rollback = [...this.applications];
+      rollback.splice(Math.min(prevIndex, rollback.length), 0, deletedApplication);
+      this.applications = rollback;
+      this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении заявки';
+    } finally {
+      this.mutationInFlight = false;
+    }
   }
 
   getTypeLabel(type: PaymentType): string {

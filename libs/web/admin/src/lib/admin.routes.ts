@@ -1,6 +1,6 @@
 import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
-import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { PlaceholderPageRoute, roleGuard, UserRole } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
 
@@ -30,14 +30,17 @@ export const adminRoutes: Route[] = [
       {
         path: 'payments/new',
         component: PaymentFormComponent,
+        canActivate: [roleGuard(UserRole.Admin)],
       },
       {
         path: 'payments/:id/edit',
         component: PaymentFormComponent,
+        canActivate: [roleGuard(UserRole.Admin)],
       },
       {
         path: 'payments',
         component: Payments,
+        canActivate: [roleGuard(UserRole.Admin)],
       },
 
       {

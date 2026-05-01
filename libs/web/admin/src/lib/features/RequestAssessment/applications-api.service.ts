@@ -43,6 +43,44 @@ export class AdminApplicationsApiService {
     this.cache = null;
   }
 
+  async getApplicationById(id: string): Promise<Application | null> {
+    const response = await this.client.getAssessment({ id });
+    return response.assessment ? this.toApplication(response.assessment) : null;
+  }
+
+  async updateApplication(params: {
+    id: string;
+    address: string;
+    description?: string;
+  }): Promise<Application> {
+    const response = await this.client.updateAssessment({
+      id: params.id,
+      address: params.address,
+      description: params.description ?? '',
+    });
+
+    if (!response.assessment) {
+      throw new Error('Сервер не вернул обновлённую заявку');
+    }
+
+    await this.refreshCache();
+    return this.toApplication(response.assessment);
+  }
+
+  async cancelApplication(id: string, reason?: string): Promise<Application> {
+    const response = await this.client.cancelAssessment({
+      id,
+      reason: reason ?? '',
+    });
+
+    if (!response.assessment) {
+      throw new Error('Сервер не вернул отменённую заявку');
+    }
+
+    await this.refreshCache();
+    return this.toApplication(response.assessment);
+  }
+
   private async fetchAllApplications(): Promise<Application[]> {
     const result: Application[] = [];
     let page = 1;
@@ -63,6 +101,12 @@ export class AdminApplicationsApiService {
     }
 
     return result;
+  }
+
+  private async refreshCache(): Promise<void> {
+    this.cache = this.fetchAllApplications();
+    const data = await this.cache;
+    this.applicationsSubject.next(data);
   }
 
   private toApplication(assessment: Assessment): Application {
