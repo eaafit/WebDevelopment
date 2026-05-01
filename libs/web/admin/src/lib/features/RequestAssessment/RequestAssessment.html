@@ -284,13 +284,8 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" (click)="closeModals()" [disabled]="mutationInFlight">Отмена</button>
-      <button
-        class="btn btn-primary"
-        (click)="saveApplication()"
-        [disabled]="!appForm?.form?.valid || mutationInFlight">
-        Сохранить
-      </button>
+      <button class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button class="btn btn-primary" (click)="saveApplication()" [disabled]="!appForm?.form?.valid">Сохранить</button>
     </div>
   </div>
 </div>
@@ -352,8 +347,8 @@
       </p>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" (click)="closeModals()" [disabled]="mutationInFlight">Отмена</button>
-      <button class="btn btn-danger" (click)="deleteApplication()" [disabled]="mutationInFlight">Удалить</button>
+      <button class="btn btn-secondary" (click)="closeModals()">Отмена</button>
+      <button class="btn btn-danger" (click)="deleteApplication()">Удалить</button>
     </div>
   </div>
 </div>

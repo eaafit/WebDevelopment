@@ -3,20 +3,14 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
 import {
-  DeletePaymentResponseSchema,
   GetPaymentHistoryResponseSchema,
-  PaginationMetaSchema,
   PaymentReceiptStatus as RpcPaymentReceiptStatus,
+  PaginationMetaSchema,
   PaymentSchema,
   PaymentStatus as RpcPaymentStatus,
   PaymentType as RpcPaymentType,
-  UpdatePaymentResponseSchema,
-  type DeletePaymentRequest,
-  type DeletePaymentResponse,
   type GetPaymentHistoryResponse,
   type Payment,
-  type UpdatePaymentRequest,
-  type UpdatePaymentResponse,
 } from '@notary-portal/api-contracts';
 import {
   PaymentReceiptStatus as PrismaPaymentReceiptStatus,
@@ -39,110 +33,9 @@ type TransactionRecord = Prisma.PaymentGetPayload<{
   };
 }>;
 
-export interface PaymentAuditSnapshot {
-  id: string;
-  userId: string;
-  status: string;
-  amount: string;
-  type: string;
-  paymentMethod: string | null;
-  transactionId: string | null;
-  assessmentId: string | null;
-  subscriptionId: string | null;
-}
-
 @Injectable()
 export class TransactionHistoryRepository {
   constructor(private readonly prisma: PrismaService) {}
-
-  async getPaymentAuditSnapshot(id: string): Promise<PaymentAuditSnapshot | null> {
-    const payment = await this.prisma.payment.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        status: true,
-        amount: true,
-        type: true,
-        paymentMethod: true,
-        transactionId: true,
-        assessmentId: true,
-        subscriptionId: true,
-      },
-    });
-
-    if (!payment) {
-      return null;
-    }
-
-    return {
-      id: payment.id,
-      userId: payment.userId,
-      status: payment.status,
-      amount: payment.amount.toString(),
-      type: payment.type,
-      paymentMethod: payment.paymentMethod,
-      transactionId: payment.transactionId,
-      assessmentId: payment.assessmentId,
-      subscriptionId: payment.subscriptionId,
-    };
-  }
-
-  async updatePayment(request: UpdatePaymentRequest): Promise<UpdatePaymentResponse> {
-    const data: Prisma.PaymentUpdateInput = {};
-
-    if (request.amount !== undefined) {
-      data.amount = request.amount;
-    }
-
-    if (request.status !== undefined && request.status !== RpcPaymentStatus.UNSPECIFIED) {
-      data.status = this.toPrismaStatus(request.status);
-    }
-
-    if (request.paymentMethod !== undefined) {
-      data.paymentMethod = request.paymentMethod || null;
-    }
-
-    if (request.transactionId !== undefined) {
-      data.transactionId = request.transactionId || null;
-    }
-
-    if (request.attachmentFileName !== undefined) {
-      data.attachmentFileName = request.attachmentFileName || null;
-    }
-
-    if (request.attachmentFileUrl !== undefined) {
-      data.attachmentFileUrl = request.attachmentFileUrl || null;
-    }
-
-    const transaction = await this.prisma.payment.update({
-      where: { id: request.id },
-      data,
-      include: {
-        subscription: true,
-        assessment: {
-          select: {
-            id: true,
-            address: true,
-          },
-        },
-      },
-    });
-
-    return create(UpdatePaymentResponseSchema, {
-      payment: this.toPaymentMessage(transaction),
-    });
-  }
-
-  async deletePayment(request: DeletePaymentRequest): Promise<DeletePaymentResponse> {
-    await this.prisma.payment.delete({
-      where: { id: request.id },
-    });
-
-    return create(DeletePaymentResponseSchema, {
-      success: true,
-    });
-  }
 
   async getTransactionHistory(query: TransactionHistoryQuery): Promise<GetPaymentHistoryResponse> {
     const page = query.page ?? 1;

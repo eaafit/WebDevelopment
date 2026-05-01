@@ -1,5 +1,5 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt';
-import { ConnectError, createClient } from '@connectrpc/connect';
+import { createClient } from '@connectrpc/connect';
 import {
   PaymentService,
   PaymentStatus as RpcPaymentStatus,
@@ -65,62 +65,11 @@ export class AdminPaymentsApiService {
       amount: params.amount,
       type: params.type,
       targetId: params.targetId,
+      promoCode: '',
     });
     this.invalidateCache();
     await this.getAllPayments();
     return { paymentId: response.paymentId };
-  }
-
-  async updatePayment(params: {
-    id: string;
-    amount?: string;
-    status?: RpcPaymentStatus;
-    paymentMethod?: string;
-    transactionId?: string;
-    attachmentFileName?: string;
-    attachmentFileUrl?: string;
-  }): Promise<Payment> {
-    try {
-      const response = await this.client.updatePayment({
-        id: params.id,
-        amount: params.amount,
-        status: params.status,
-        paymentMethod: params.paymentMethod,
-        transactionId: params.transactionId,
-        attachmentFileName: params.attachmentFileName,
-        attachmentFileUrl: params.attachmentFileUrl,
-      });
-
-      if (!response.payment) {
-        throw new Error('Сервер не вернул обновлённый платёж');
-      }
-
-      await this.refreshCache();
-      return this.toAdminPayment(response.payment);
-    } catch (error) {
-      throw mapPaymentsError(error, 'Не удалось обновить платёж');
-    }
-  }
-
-  async deletePayment(id: string): Promise<boolean> {
-    try {
-      const response = await this.client.deletePayment({ id });
-
-      if (!response.success) {
-        throw new Error('Сервер не подтвердил удаление платежа');
-      }
-
-      await this.refreshCache();
-      return true;
-    } catch (error) {
-      throw mapPaymentsError(error, 'Не удалось удалить платёж');
-    }
-  }
-
-  private async refreshCache(): Promise<void> {
-    this.cache = this.fetchAllPayments();
-    const data = await this.cache;
-    this.paymentsSubject.next(data);
   }
 
   private async fetchAllPayments(): Promise<Payment[]> {
@@ -212,16 +161,4 @@ function toPaymentMethod(method: string): PaymentMethod | undefined {
 function nullIfEmpty(value: string): string | null {
   const normalized = value?.trim();
   return normalized ? normalized : null;
-}
-
-function mapPaymentsError(error: unknown, fallbackMessage: string): Error {
-  if (error instanceof ConnectError) {
-    return new Error(error.rawMessage || error.message || fallbackMessage);
-  }
-
-  if (error instanceof Error) {
-    return error;
-  }
-
-  return new Error(fallbackMessage);
 }
