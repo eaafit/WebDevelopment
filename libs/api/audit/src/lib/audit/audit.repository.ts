@@ -260,6 +260,10 @@ function humanizeActionType(value: string): string {
       return 'Платёж завершён';
     case 'payment.failed':
       return 'Платёж отклонён';
+    case 'payment.updated':
+      return 'Платёж обновлён';
+    case 'payment.deleted':
+      return 'Платёж удалён';
     case 'audit.exported':
       return 'Экспорт аудита';
     default:
