@@ -46,9 +46,7 @@
         </select>
       </label>
 
-      <div class="newsletter-list-card__counter">
-        Выбран статус: <strong>{{ statusFilterLabel() }}</strong>
-      </div>
+      <div class="newsletter-list-card__counter">Выбран статус: <strong>{{ statusFilterLabel() }}</strong></div>
     </div>
 
     <div class="newsletter-list-table-wrap">
@@ -62,8 +60,7 @@
           </tr>
         </thead>
         <tbody>
-          @if (filteredNewsletters().length) {
-          @for (item of filteredNewsletters(); track item.id) {
+          @if (filteredNewsletters().length) { @for (item of filteredNewsletters(); track item.id) {
           <tr
             tabindex="0"
             [class.newsletter-list-table__row--active]="isSelected(item)"
@@ -84,8 +81,7 @@
               </span>
             </td>
           </tr>
-          }
-          } @else {
+          } } @else {
           <tr>
             <td colspan="4" class="newsletter-list-empty">
               <strong>Рассылки не найдены.</strong>
@@ -99,14 +95,20 @@
   </article>
 
   @if (selectedNewsletter()) {
-  <div class="newsletter-list-overlay" (click)="closeDetails()"></div>
+  <div
+    class="newsletter-list-overlay"
+    role="button"
+    tabindex="0"
+    aria-label="Закрыть детали рассылки"
+    (click)="closeDetails()"
+    (keydown.enter)="closeDetails()"
+    (keydown.space)="closeDetails()"></div>
   <lib-newsletter-detail-panel
     [newsletter]="selectedNewsletter()!"
     (closePanel)="closeDetails()"
     (resend)="resendNewsletter($event)" />
-  }
-
-  @if (toastMessage()) {
+  } @if (toastMessage()) {
   <div class="newsletter-list-toast" role="status">{{ toastMessage() }}</div>
   }
 </section>
+  
