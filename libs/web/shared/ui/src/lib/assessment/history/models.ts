@@ -14,4 +14,22 @@ export interface AssessmentOrder {
   status: OrderStatus;
   totalAmount: number;
   statusHistory: StatusHistoryEntry[];
+  applicantId: string;
+  applicantName: string;
+  notaryId?: string;
+  notaryName?: string;
+  plannedCompletionDate: Date;
+  actualCompletionDate?: Date;
+  transactionId?: string;
+  realEstateObject: RealEstateObjectInfo;
+}
+
+export interface RealEstateObjectInfo {
+  id: string;
+  address: string;
+  city?: string;
+  area?: number;
+  objectType?: string;
+  roomsCount?: number;
+  floor?: number;
 }

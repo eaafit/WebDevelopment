@@ -22,11 +22,7 @@
         <div class="form-group">
           <label class="form-label">Поиск</label>
           <div class="input-icon-wrap">
-            <input
-              type="text"
-              class="form-input"
-              placeholder="ID или адрес"
-              [ngModel]="searchQuery()"
+            <input type="text" class="form-input" placeholder="ID или адрес" [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)" />
             <span class="input-icon-right">🔍</span>
           </div>
@@ -60,13 +56,34 @@
         </div>
       </div>
 
-      <div *ngFor="let order of filteredOrders" class="order-item-wrapper">
-        <lib-history-item
-          [order]="order"
-          [role]="role"
-          (repeat)="repeatOrder($event)"
+      <div *ngFor="let order of paginatedOrders" class="order-item-wrapper">
+        <lib-history-item [order]="order" [role]="role" (repeat)="repeatOrder($event)"
           (view)="viewOrder($event)"></lib-history-item>
+      </div>
+    </div>
+    <!-- Пагинация -->
+
+    <div class="pagination-controls" *ngIf="totalPages >= 1">
+      <div class="pagination-left"></div> <!-- левая пустая колонка для симметрии -->
+      <div class="pagination-buttons">
+        <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() - 1)"
+          [disabled]="currentPage() === 1">Предыдущая</button>
+        <span class="pagination-info">Страница {{ currentPage() }} из {{ totalPages }}</span>
+        <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() + 1)"
+          [disabled]="currentPage() === totalPages">Следующая</button>
+      </div>
+      <div class="pagination-page-size">
+        <select class="form-input form-select" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)">
+          <option [value]="5">5</option>
+          <option [value]="10">10</option>
+          <option [value]="20">20</option>
+          <option [value]="50">50</option>
+        </select>
+        <span class="text-sm">на странице</span>
       </div>
     </div>
   </div>
 </div>
+<lib-assessment-detail-modal *ngIf="isModalOpen() && selectedOrderId()" [order]="getSelectedOrder()"
+  (close)="closeModal()">
+</lib-assessment-detail-modal>

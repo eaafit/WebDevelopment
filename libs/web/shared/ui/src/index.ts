@@ -15,3 +15,4 @@ export * from './lib/rpc/token-store';
 export * from './lib/rpc/rpc-transport';
 export * from './lib/rpc/guards';
 export * from './lib/assessment/history/assessment-history';
+export * from './lib/assessment/assessment-detail-modal';
