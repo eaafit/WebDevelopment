@@ -23,6 +23,9 @@ node_modules
 !.vscode/launch.json
 !.vscode/extensions.json
 
+# Local agent worktrees
+.claude/
+
 # Misc
 /.sass-cache
 /connect.lock
