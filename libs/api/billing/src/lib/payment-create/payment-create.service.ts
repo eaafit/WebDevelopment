@@ -167,38 +167,19 @@ export class PaymentCreateService {
           data: { status: PrismaPaymentStatus.Failed },
         });
 
-        if (resolved.assessmentId) {
-          try {
-            await this.auditService.record({
-              actorUserId: getCurrentUser()?.sub ?? request.userId,
-              eventType: 'payment.failed',
-              targetType: 'Assessment',
-              targetId: resolved.assessmentId,
-              actionTitle: 'Ошибка платёжного провайдера',
-              actionContext: `Платёж ${shortId(payment.id)}: ${err.message || 'Payment provider error'}`,
-              targetTitle: `Заявка ${shortId(resolved.assessmentId)}`,
-              targetContext: `Платёж ${shortId(payment.id)}`,
-              before: {
-                paymentId: payment.id,
-                status: 'pending',
-                amount: resolved.amount,
-                assessmentId: resolved.assessmentId,
-                paymentMethod: 'yookassa_widget',
-              },
-              after: {
-                paymentId: payment.id,
-                status: 'failed',
-                amount: resolved.amount,
-                assessmentId: resolved.assessmentId,
-                paymentMethod: 'yookassa_widget',
-                errorMessage: err.message || 'Payment provider error',
-                providerStatusCode: err.statusCode ?? null,
-              },
-            });
-          } catch {
-            // audit failure must not break the main operation
-          }
-        }
+        await this.recordPaymentCreationFailedAudit(request.userId, {
+          id: payment.id,
+          type: prismaType,
+          amount: resolved.amount,
+          discountAmount: resolved.discountAmount,
+          status: PrismaPaymentStatus.Failed,
+          paymentMethod: 'yookassa_widget',
+          subscriptionId: resolved.subscriptionId,
+          assessmentId: resolved.assessmentId,
+          promoId: resolved.promo?.id ?? null,
+          errorMessage: err.message || 'Payment provider error',
+          providerStatusCode: err.statusCode ?? null,
+        });
 
         throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
       }
@@ -220,29 +201,17 @@ export class PaymentCreateService {
         },
       });
 
-      if (resolved.assessmentId) {
-        try {
-          await this.auditService.record({
-            actorUserId: getCurrentUser()?.sub ?? request.userId,
-            eventType: 'payment.created',
-            targetType: 'Assessment',
-            targetId: resolved.assessmentId,
-            actionTitle: 'Создан платёж по заявке',
-            actionContext: `Сумма: ${resolved.amount} ${SUBSCRIPTION_CURRENCY} (без платёжного провайдера)`,
-            targetTitle: `Заявка ${shortId(resolved.assessmentId)}`,
-            targetContext: `Платёж ${shortId(payment.id)}`,
-            after: {
-              paymentId: payment.id,
-              status: 'pending',
-              amount: resolved.amount,
-              assessmentId: resolved.assessmentId,
-              paymentMethod: 'direct',
-            },
-          });
-        } catch {
-          // audit failure must not break the main operation
-        }
-      }
+      await this.recordPaymentCreatedAudit(request.userId, {
+        id: payment.id,
+        type: prismaType,
+        amount: resolved.amount,
+        discountAmount: resolved.discountAmount,
+        status: PrismaPaymentStatus.Pending,
+        paymentMethod: 'direct',
+        subscriptionId: resolved.subscriptionId,
+        assessmentId: resolved.assessmentId,
+        promoId: resolved.promo?.id ?? null,
+      });
 
       return create(CreatePaymentResponseSchema, {
         paymentId: payment.id,
