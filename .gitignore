@@ -12,6 +12,7 @@ node_modules
 .classpath
 .c9/
 *.launch
+*.pub
 .settings/
 *.sublime-workspace
 
@@ -21,6 +22,9 @@ node_modules
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Local agent worktrees
+.claude/
 
 # Misc
 /.sass-cache

@@ -2,9 +2,14 @@ import 'dotenv/config';
 import * as crypto from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AssessmentStatus,
   DocumentType,
+  NewsletterAudienceType,
+  NewsletterCampaignStatus,
+  NewsletterDeliveryStatus,
+  NewsletterSubscriptionStatus,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -27,6 +32,107 @@ if (!connectionString) {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString }),
 });
+
+const s3 = new S3Client({
+  region: process.env['S3_REGION'] ?? 'us-east-1',
+  endpoint: process.env['S3_ENDPOINT'],
+  credentials: {
+    accessKeyId: process.env['S3_ACCESS_KEY'] ?? 'minioadmin',
+    secretAccessKey: process.env['S3_SECRET_KEY'] ?? 'minioadmin',
+  },
+  forcePathStyle: process.env['S3_FORCE_PATH_STYLE'] !== 'false',
+});
+const S3_BUCKET = process.env['S3_BUCKET_PAYMENT_DOCUMENTS'] ?? 'payment-documents';
+
+function makeMinimalPdf(): Buffer {
+  return Buffer.from(
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 200 200]/Parent 2 0 R>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF',
+  );
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function formatMoney(value: string): string {
+  const amount = Number(value);
+  if (Number.isNaN(amount)) return value;
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function makeReceiptHtml(params: {
+  paymentId: string;
+  amount: string;
+  paymentDate: string | Date;
+  paymentMethod: string;
+  transactionId: string;
+  type: string;
+}): Buffer {
+  const dateStr =
+    params.paymentDate instanceof Date
+      ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(
+          params.paymentDate,
+        )
+      : params.paymentDate;
+
+  const typeLabel =
+    params.type === 'Subscription'
+      ? 'Оплата подписки'
+      : params.type === 'DocumentCopy'
+        ? 'Оплата копии документа'
+        : 'Оценка недвижимости';
+
+  const html = `<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"/><title>Чек оплаты</title>
+<style>
+  :root{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5}
+  body{margin:0;padding:32px;background:#f3f5f7;color:#102030}
+  .receipt{max-width:760px;margin:0 auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 16px 48px rgba(16,32,48,.12)}
+  .title{margin:0 0 8px;font-size:28px;line-height:1.1}
+  .subtitle{margin:0;color:#556677}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:24px 0}
+  .card{padding:16px;border-radius:16px;background:#f8fafc;border:1px solid #e4ebf2}
+  .label{display:block;margin-bottom:6px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .value{font-size:16px;font-weight:600;word-break:break-word}
+  table{width:100%;border-collapse:collapse;border-radius:16px;border:1px solid #e4ebf2}
+  th,td{padding:14px 16px;text-align:left;border-bottom:1px solid #e4ebf2}
+  th{background:#f8fafc;color:#64748b;font-size:12px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  .summary{margin-top:20px;display:flex;justify-content:flex-end}
+  .summary-card{min-width:240px;padding:16px 20px;border-radius:16px;background:#102030;color:#fff}
+  .summary-card strong{display:block;margin-top:6px;font-size:24px}
+  .footer{margin-top:24px;padding-top:16px;border-top:1px solid #e4ebf2}
+  .note{margin:0;color:#556677}
+  @media print{body{padding:0;background:#fff}.receipt{max-width:none;border-radius:0;box-shadow:none}}
+</style></head>
+<body><main class="receipt">
+  <h1 class="title">Чек оплаты</h1>
+  <p class="subtitle">Документ по подтвержденной оплате в системе.</p>
+  <section class="grid">
+    <article class="card"><span class="label">ID платежа</span><span class="value">${escapeHtml(params.paymentId)}</span></article>
+    <article class="card"><span class="label">ID транзакции</span><span class="value">${escapeHtml(params.transactionId)}</span></article>
+    <article class="card"><span class="label">Дата оплаты</span><span class="value">${escapeHtml(dateStr)}</span></article>
+    <article class="card"><span class="label">Способ оплаты</span><span class="value">${escapeHtml(params.paymentMethod)}</span></article>
+  </section>
+  <table><thead><tr><th>Описание</th><th>Кол-во</th><th>Сумма</th></tr></thead>
+  <tbody><tr><td>${escapeHtml(typeLabel)}</td><td>1</td><td>${escapeHtml(formatMoney(params.amount))}</td></tr></tbody></table>
+  <section class="summary"><div class="summary-card">Итого<strong>${escapeHtml(formatMoney(params.amount))}</strong></div></section>
+  <footer class="footer"><p class="note">Документ сформирован автоматически. Seed-данные для тестирования.</p></footer>
+</main></body></html>`;
+
+  return Buffer.from(html, 'utf8');
+}
 
 const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 100);
 const SEED_USERS_PER_ROLE = 10;
@@ -53,17 +159,25 @@ function pad(i: number, len: number): string {
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertNewsletterData(userIds);
   await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
-  await upsertPayments(SEED_COUNT, userIds, subscriptionIds, assessmentIds, promoIds);
+  const paymentRefs = await upsertPayments(
+    SEED_COUNT,
+    userIds,
+    subscriptionIds,
+    assessmentIds,
+    promoIds,
+  );
   await upsertReports(SEED_COUNT, assessmentIds, userIds);
   await upsertNotifications(SEED_COUNT, userIds);
   await upsertRefreshTokens(SEED_COUNT, userIds);
-  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, promoIds);
+  await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, paymentRefs, promoIds);
+  await upsertSecurityEvents(userIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
   const [
@@ -78,6 +192,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    newsletterSubscriptionCount,
+    newsletterCampaignCount,
     cityCount,
     districtCount,
   ] = await prisma.$transaction([
@@ -92,6 +208,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.newsletterSubscription.count(),
+    prisma.newsletterCampaign.count(),
     prisma.city.count(),
     prisma.district.count(),
   ]);
@@ -110,6 +228,8 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `NewsletterSubscriptions: ${newsletterSubscriptionCount}`,
+      `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
@@ -157,6 +277,137 @@ async function upsertUsers(count: number, passwordHash: string): Promise<string[
     });
   }
   return userIds;
+}
+
+async function upsertNewsletterData(userIds: string[]): Promise<void> {
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, email: true, fullName: true, role: true, createdAt: true },
+  });
+
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
+    const isUnsubscribed = i % 11 === 0;
+    const unsubscribedAt = isUnsubscribed ? new Date('2026-03-18T10:00:00.000Z') : null;
+
+    await prisma.newsletterSubscription.upsert({
+      where: { userId: user.id },
+      update: {
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+      create: {
+        id: seedId('newsletter-subscription', i),
+        userId: user.id,
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+    });
+  }
+
+  const adminId = users.find((user) => user.role === Role.Admin)?.id ?? users[0]?.id ?? null;
+  const activeUsers = users.filter((_, i) => i % 11 !== 0);
+  const partialFailedEmail = activeUsers[3]?.email;
+  const campaignSeeds = [
+    {
+      subject: 'Обновление тарифных планов для нотариусов',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-02-28T11:35:00.000Z'),
+      completedAt: new Date('2026-02-28T11:37:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Запуск сервиса нотариальной оценки',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.PartialFailed,
+      createdAt: new Date('2026-02-20T16:10:00.000Z'),
+      completedAt: new Date('2026-02-20T16:14:00.000Z'),
+      recipients: activeUsers.slice(0, 12),
+      failedEmails: new Set<string>(partialFailedEmail ? [partialFailedEmail] : []),
+    },
+    {
+      subject: 'Плановое обслуживание системы',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-03-05T09:00:00.000Z'),
+      completedAt: new Date('2026-03-05T09:01:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 3),
+      failedEmails: new Set<string>(),
+    },
+  ];
+
+  for (let i = 0; i < campaignSeeds.length; i++) {
+    const seed = campaignSeeds[i];
+    const id = seedId('newsletter-campaign', i);
+    const sentCount = seed.recipients.filter((user) => !seed.failedEmails.has(user.email)).length;
+    const failedCount = seed.recipients.length - sentCount;
+
+    await prisma.newsletterCampaign.upsert({
+      where: { id },
+      update: {
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+      create: {
+        id,
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+    });
+
+    await prisma.newsletterDelivery.deleteMany({ where: { campaignId: id } });
+    await prisma.newsletterDelivery.createMany({
+      data: seed.recipients.map((user, recipientIndex) => {
+        const failed = seed.failedEmails.has(user.email);
+        return {
+          id: seedId(`newsletter-delivery-${i}`, recipientIndex),
+          campaignId: id,
+          userId: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          status: failed ? NewsletterDeliveryStatus.Failed : NewsletterDeliveryStatus.Sent,
+          errorMessage: failed ? 'Seed delivery failure' : null,
+          sentAt: failed ? null : seed.completedAt,
+          createdAt: seed.createdAt,
+        };
+      }),
+    });
+  }
 }
 
 function buildSeedCredentialHints(count: number): string[] {
@@ -446,13 +697,18 @@ async function upsertSubscriptions(count: number, userIds: string[]): Promise<st
   return subscriptionIds;
 }
 
+interface PaymentSeedRef {
+  id: string;
+  assessmentId: string | null;
+}
+
 async function upsertPayments(
   count: number,
   userIds: string[],
   subscriptionIds: string[],
   assessmentIds: string[],
   promoIds: string[],
-): Promise<void> {
+): Promise<PaymentSeedRef[]> {
   const types = [PaymentType.Subscription, PaymentType.Assessment, PaymentType.DocumentCopy];
   const statuses = [
     PaymentStatus.Pending,
@@ -464,6 +720,7 @@ async function upsertPayments(
   const totalHistoryPayments = TOTAL_SEED_USERS * PAYMENT_HISTORY_PER_USER;
   const totalPayments = Math.max(count, totalHistoryPayments);
   const baseDate = new Date('2026-01-01T10:00:00.000Z');
+  const paymentRefs: PaymentSeedRef[] = [];
 
   for (let i = 0; i < totalPayments; i++) {
     const id = seedId('payment', i);
@@ -513,6 +770,44 @@ async function upsertPayments(
       status = statuses[idx % 4];
     }
 
+    const receiptObjectKey = `payment-documents/${id}/${crypto.randomUUID()}.html`;
+    const receiptFileName = `receipt-${i}.html`;
+    const receiptStatus =
+      status === PaymentStatus.Completed
+        ? PaymentReceiptStatus.Available
+        : status === PaymentStatus.Failed
+          ? PaymentReceiptStatus.Failed
+          : PaymentReceiptStatus.Pending;
+    // Upload a receipt HTML with real payment data to MinIO for completed payments
+    if (receiptStatus === PaymentReceiptStatus.Available) {
+      try {
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: receiptObjectKey,
+            Body: makeReceiptHtml({
+              paymentId: id,
+              amount,
+              paymentDate,
+              paymentMethod: methods[i % 3],
+              transactionId: `TXN-SEED-${pad(i, 5)}`,
+              type:
+                type === PaymentType.Subscription
+                  ? 'Subscription'
+                  : type === PaymentType.DocumentCopy
+                    ? 'DocumentCopy'
+                    : 'Assessment',
+            }),
+            ContentType: 'text/html; charset=utf-8',
+          }),
+        );
+      } catch (err) {
+        console.warn(`Seed: failed to upload receipt for payment ${id} to S3`, err);
+      }
+    }
+
+    paymentRefs.push({ id, assessmentId });
+
     await prisma.payment.upsert({
       where: { id },
       update: {
@@ -527,9 +822,11 @@ async function upsertPayments(
         status,
         paymentMethod: methods[i % 3],
         transactionId: `TXN-SEED-${pad(i, 5)}`,
-        attachmentFileName: `receipt-${i}.pdf`,
-        attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
-        receiptStatus: PaymentReceiptStatus.Available,
+        attachmentFileName:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptFileName : null,
+        attachmentFileUrl:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptObjectKey : null,
+        receiptStatus,
       },
       create: {
         id,
@@ -544,12 +841,16 @@ async function upsertPayments(
         status,
         paymentMethod: methods[i % 3],
         transactionId: `TXN-SEED-${pad(i, 5)}`,
-        attachmentFileName: `receipt-${i}.pdf`,
-        attachmentFileUrl: `https://example.local/files/receipt-${i}.pdf`,
-        receiptStatus: PaymentReceiptStatus.Available,
+        attachmentFileName:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptFileName : null,
+        attachmentFileUrl:
+          receiptStatus === PaymentReceiptStatus.Available ? receiptObjectKey : null,
+        receiptStatus,
       },
     });
   }
+
+  return paymentRefs;
 }
 
 async function upsertReports(
@@ -634,6 +935,7 @@ async function upsertAuditLogs(
   count: number,
   userIds: string[],
   assessmentIds: string[],
+  paymentRefs: PaymentSeedRef[],
   promoIds: string[],
 ): Promise<void> {
   const actions: Array<{ actionType: string; entityName: string }> = [
@@ -647,19 +949,40 @@ async function upsertAuditLogs(
     const id = seedId('auditLog', i);
     const userId = userIds[i % userIds.length];
     const action = actions[i % actions.length];
+    const relatedAssessmentId = assessmentIds[i % assessmentIds.length];
+    const paymentRef = paymentRefs.length > 0 ? paymentRefs[i % paymentRefs.length] : null;
+    const entityName =
+      action.entityName === 'Payment' && paymentRef?.assessmentId
+        ? 'Assessment'
+        : action.entityName === 'AssessmentReport'
+          ? 'Assessment'
+          : action.entityName;
     const entityId =
-      action.entityName === 'Assessment'
-        ? assessmentIds[i % assessmentIds.length]
-        : action.entityName === 'Promo' && promoIds.length > 0
-          ? promoIds[i % promoIds.length]
-          : assessmentIds[i % assessmentIds.length];
-    const details = { source: 'seed', index: i };
+      entityName === 'Assessment'
+        ? (paymentRef?.assessmentId ?? relatedAssessmentId)
+        : entityName === 'Payment' && paymentRef
+          ? paymentRef.id
+          : entityName === 'Promo' && promoIds.length > 0
+            ? promoIds[i % promoIds.length]
+            : entityName === 'User'
+              ? userId
+              : relatedAssessmentId;
+    const details = {
+      source: 'seed',
+      index: i,
+      ...(action.entityName === 'Payment' && paymentRef
+        ? { paymentId: paymentRef.id, assessmentId: paymentRef.assessmentId }
+        : {}),
+      ...(action.entityName === 'AssessmentReport'
+        ? { relatedEntityName: 'AssessmentReport' }
+        : {}),
+    };
     await prisma.auditLog.upsert({
       where: { id },
       update: {
         userId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
       },
@@ -667,9 +990,174 @@ async function upsertAuditLogs(
         id,
         userId,
         actionType: action.actionType,
-        entityName: action.entityName,
+        entityName,
         entityId,
         details,
+      },
+    });
+  }
+}
+
+async function upsertSecurityEvents(userIds: string[]): Promise<void> {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const securityEvents = [
+    {
+      offset: 0,
+      actionType: 'user.login_failed',
+      timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      userId: userIds[0],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Неверный пароль',
+        ip: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+        after: {
+          attempts: 3,
+          lastAttempt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+    {
+      offset: 1,
+      actionType: 'user.login_failed',
+      timestamp: new Date(oneDayAgo.getTime() - 5 * 60 * 60 * 1000),
+      userId: userIds[1],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Неверный email',
+        ip: '10.0.0.50',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
+        after: {
+          attempts: 1,
+          lastAttempt: new Date(oneDayAgo.getTime() - 5 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+    {
+      offset: 2,
+      actionType: 'user.blocked',
+      timestamp: new Date(twoDaysAgo.getTime()),
+      userId: userIds[SEED_USERS_PER_ROLE * 2],
+      details: {
+        actionTitle: 'Пользователь заблокирован',
+        actionContext: 'Превышено количество неудачных попыток входа',
+        targetTitle: userIds[2],
+        targetContext: 'Заявитель 3',
+        ip: '172.16.0.10',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/121.0',
+        after: {
+          blockedUntil: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+          reason: 'security',
+        },
+      },
+    },
+    {
+      offset: 3,
+      actionType: 'token.revoked',
+      timestamp: new Date(now.getTime() - 30 * 60 * 1000),
+      userId: userIds[SEED_USERS_PER_ROLE],
+      details: {
+        actionTitle: 'Токен отозван',
+        actionContext: 'Подозрительная активность',
+        targetTitle: 'Refresh Token',
+        targetContext: seedId('refreshToken', 5),
+        ip: '203.0.113.45',
+        userAgent: 'PostmanRuntime/7.36.0',
+        after: {
+          revokedAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+          reason: 'suspicious_activity',
+        },
+      },
+    },
+    {
+      offset: 4,
+      actionType: 'permission.denied',
+      timestamp: new Date(now.getTime() - 10 * 60 * 1000),
+      userId: userIds[0],
+      details: {
+        actionTitle: 'Отказ в доступе',
+        actionContext: 'Попытка доступа к админ-панели',
+        targetTitle: 'Admin Panel',
+        targetContext: '/admin/users',
+        ip: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+        after: { requiredRole: 'Admin', actualRole: 'Applicant' },
+      },
+    },
+    {
+      offset: 5,
+      actionType: 'permission.denied',
+      timestamp: new Date(oneDayAgo.getTime() - 3 * 60 * 60 * 1000),
+      userId: userIds[1],
+      details: {
+        actionTitle: 'Отказ в доступе',
+        actionContext: 'Попытка доступа к чужому заказу',
+        targetTitle: 'Assessment',
+        targetContext: seedId('assessment', 10),
+        ip: '10.0.0.50',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
+        after: { requiredPermission: 'assessment.read', resourceOwner: userIds[5] },
+      },
+    },
+    {
+      offset: 6,
+      actionType: 'user.login_failed',
+      timestamp: new Date(oneWeekAgo.getTime()),
+      userId: userIds[3],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Истёк срок действия пароля',
+        ip: '198.51.100.20',
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+        after: { attempts: 1, passwordExpired: true },
+      },
+    },
+    {
+      offset: 7,
+      actionType: 'token.revoked',
+      timestamp: new Date(twoDaysAgo.getTime() - 12 * 60 * 60 * 1000),
+      userId: userIds[SEED_USERS_PER_ROLE + 1],
+      details: {
+        actionTitle: 'Токен отозван',
+        actionContext: 'Выход из системы',
+        targetTitle: 'Refresh Token',
+        targetContext: seedId('refreshToken', 15),
+        ip: '172.16.0.25',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edge/120.0.0.0',
+        after: {
+          revokedAt: new Date(twoDaysAgo.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+          reason: 'user_logout',
+        },
+      },
+    },
+  ];
+
+  for (const event of securityEvents) {
+    const id = seedId('securityEvent', event.offset);
+    await prisma.auditLog.upsert({
+      where: { id },
+      update: {
+        userId: event.userId,
+        assessmentId: null,
+        actionType: event.actionType,
+        entityName: 'Security',
+        entityId: event.userId,
+        timestamp: event.timestamp,
+        details: event.details,
+      },
+      create: {
+        id,
+        userId: event.userId,
+        assessmentId: null,
+        actionType: event.actionType,
+        entityName: 'Security',
+        entityId: event.userId,
+        timestamp: event.timestamp,
+        details: event.details,
       },
     });
   }

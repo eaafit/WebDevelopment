@@ -10,7 +10,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nx.json tsconfig.base.json 
 COPY apps apps
 COPY libs libs
 COPY scripts scripts
-COPY eslint.config.mjs jest.preset.js jest.config.ts tsconfig.json ./
+COPY eslint.config.mjs jest.preset.js jest.config.ts ./
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec nx run api:build:production --skip-nx-cache

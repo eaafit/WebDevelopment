@@ -39,12 +39,12 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(notary_payments_total[1h])",
+          "expr": "increase(notary_payments_total[24h])",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
       ],
-      "title": "Payments (by status)",
+      "title": "Payments (by status, 24h)",
       "type": "timeseries"
     },
     {
@@ -126,6 +126,126 @@
       ],
       "title": "Reports generated",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_payment_events_total[24h])",
+          "legendFormat": "{{actor}} / {{scenario}} / {{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Billing payment events (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_payment_amount_total[24h])",
+          "legendFormat": "{{actor}} / {{scenario}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Billing payment amount (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_payment_history_requests_total[24h])",
+          "legendFormat": "{{scope}} / {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Payment history requests (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_promo_validation_total[24h])",
+          "legendFormat": "{{flow}} / {{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Promo validation (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_promo_applied_total[24h])",
+          "legendFormat": "{{scenario}} / {{discount_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Promo applied (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "increase(notary_billing_promo_discount_amount_total[24h])",
+          "legendFormat": "{{scenario}} / {{discount_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Promo discount amount (24h)",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -138,6 +258,6 @@
   "timezone": "",
   "title": "Business metrics",
   "uid": "notarius-business",
-  "version": 1,
+  "version": 3,
   "weekStart": ""
 }

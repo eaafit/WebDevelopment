@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '@internal/audit';
 import { PrismaModule } from '@internal/prisma';
 import { AuthRepository } from './auth.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
@@ -10,7 +11,7 @@ import { AuthRpcService } from './auth-rpc.service';
 import { AuthInterceptor } from './auth.interceptor';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuditModule],
   providers: [
     AuthRepository,
     RefreshTokenRepository,
@@ -21,6 +22,6 @@ import { AuthInterceptor } from './auth.interceptor';
     AuthRpcService,
     AuthInterceptor,
   ],
-  exports: [AuthRpcService, TokenService, AuthInterceptor],
+  exports: [AuthRpcService, TokenService, AuthInterceptor, PasswordService],
 })
 export class AuthModule {}

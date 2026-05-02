@@ -8,7 +8,7 @@
 
 - **Диаграмма развертывания UML** с публичным веб-узлом и статикой/CDN при необходимости.
 - Описание развёртывания на ВМ.
-- `README.md`, `apps/nexus-web/Dockerfile`, `apps/nexus-web/DOCKER.md`.
+- `README.md`, `apps/web/Dockerfile`, `apps/web/DOCKER.md`.
 
 ---
 

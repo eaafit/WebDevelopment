@@ -1,5 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { AuditService } from '@internal/audit';
+import { Role, getCurrentUser } from '@internal/auth-shared';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -33,18 +35,32 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentRepository, type AssessmentRealEstateObjectData } from './assessment.repository';
+import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentRepository,
+  type AssessmentAuditSnapshot,
+  type AssessmentRealEstateObjectData,
+} from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
+const CADASTRAL_NUMBER_PATTERN = /^\d{12}$/;
+const AREA_LIMITS = { minimum: 1, maximum: 10_000 } as const;
+const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as const;
+const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
+const YEAR_BUILT_LIMITS = {
+  minimum: 1700,
+  maximum: new Date().getFullYear() + 1,
+} as const;
 
 @Injectable()
 export class AssessmentService {
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
+    private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -80,14 +96,27 @@ export class AssessmentService {
       description: normalizeOptionalText(request.description),
       realEstateObject,
     });
+    const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
 
     this.metrics.recordAssessmentCreated('new');
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub ?? request.userId,
+      eventType: 'assessment.created',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Создана заявка',
+      actionContext: 'Создание новой заявки на оценку',
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: snapshot.address,
+      after: toAuditSnapshot(snapshot),
+    });
 
     return create(CreateAssessmentResponseSchema, { assessment });
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
     const assessment = await this.assessmentRepository.updateAssessment(request.id, {
@@ -95,14 +124,45 @@ export class AssessmentService {
       description: request.description.trim(),
       realEstateObject,
     });
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub,
+      eventType: 'assessment.updated',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Обновлена заявка',
+      actionContext: 'Изменены данные заявки на оценку',
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(UpdateAssessmentResponseSchema, { assessment });
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-    const assessment = await this.assessmentRepository.verifyAssessment(request.id);
+    const assessment = await this.assessmentRepository.verifyAssessment(
+      request.id,
+      isNotaryRole(actor?.role) ? actor?.sub : undefined,
+    );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.verified',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка взята в работу',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(VerifyAssessmentResponseSchema, { assessment });
   }
@@ -111,6 +171,8 @@ export class AssessmentService {
     request: CompleteAssessmentRequest,
   ): Promise<CompleteAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
       throw new ConnectError(
@@ -123,17 +185,45 @@ export class AssessmentService {
       request.id,
       request.finalEstimatedValue,
     );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.completed',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка завершена',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(CompleteAssessmentResponseSchema, { assessment });
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
     validateUuid(request.id, 'id');
+    const actor = getCurrentUser();
+    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
     const assessment = await this.assessmentRepository.cancelAssessment(
       request.id,
       request.reason?.trim() || undefined,
     );
+    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+    await this.auditService.record({
+      actorUserId: actor?.sub,
+      eventType: 'assessment.cancelled',
+      targetType: 'Assessment',
+      targetId: assessment.id,
+      actionTitle: 'Заявка отменена',
+      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+      targetTitle: `Заявка ${shortId(assessment.id)}`,
+      targetContext: after.address,
+      before: toAuditSnapshot(before),
+      after: toAuditSnapshot(after),
+    });
 
     return create(CancelAssessmentResponseSchema, { assessment });
   }
@@ -214,6 +304,8 @@ function normalizeNullableText(value: string | undefined): string | null | undef
 function normalizeOptionalDecimal(
   value: string | undefined,
   fieldName: string,
+  minimum: number,
+  maximum: number,
 ): string | undefined {
   if (value === undefined) return undefined;
 
@@ -222,9 +314,10 @@ function normalizeOptionalDecimal(
     throw new ConnectError(`${fieldName} is required`, Code.InvalidArgument);
   }
 
-  if (!DECIMAL_PATTERN.test(normalized) || Number(normalized) <= 0) {
+  const numericValue = Number(normalized);
+  if (!DECIMAL_PATTERN.test(normalized) || numericValue < minimum || numericValue > maximum) {
     throw new ConnectError(
-      `${fieldName} must be a valid positive decimal number`,
+      `${fieldName} must be a valid decimal number from ${minimum} to ${maximum}`,
       Code.InvalidArgument,
     );
   }
@@ -236,11 +329,12 @@ function normalizeOptionalInteger(
   value: number | undefined,
   fieldName: string,
   minimum: number,
+  maximum: number,
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (!Number.isInteger(value) || value < minimum) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
     throw new ConnectError(
-      `${fieldName} must be an integer greater than or equal to ${minimum}`,
+      `${fieldName} must be an integer from ${minimum} to ${maximum}`,
       Code.InvalidArgument,
     );
   }
@@ -287,9 +381,23 @@ function normalizeRealEstateObjectInput(
   if (address !== undefined) realEstateObject.address = address;
 
   const cadastralNumber = normalizeNullableText(input.cadastralNumber);
-  if (cadastralNumber !== undefined) realEstateObject.cadastralNumber = cadastralNumber;
+  if (cadastralNumber !== undefined) {
+    if (cadastralNumber !== null && !CADASTRAL_NUMBER_PATTERN.test(cadastralNumber)) {
+      throw new ConnectError(
+        'real_estate_object.cadastral_number must contain exactly 12 digits',
+        Code.InvalidArgument,
+      );
+    }
 
-  const area = normalizeOptionalDecimal(input.area, 'real_estate_object.area');
+    realEstateObject.cadastralNumber = cadastralNumber;
+  }
+
+  const area = normalizeOptionalDecimal(
+    input.area,
+    'real_estate_object.area',
+    AREA_LIMITS.minimum,
+    AREA_LIMITS.maximum,
+  );
   if (area !== undefined) realEstateObject.area = area;
 
   const objectType = normalizeRequiredEnum(
@@ -302,24 +410,42 @@ function normalizeRealEstateObjectInput(
   const roomsCount = normalizeOptionalInteger(
     input.roomsCount,
     'real_estate_object.rooms_count',
-    0,
+    ROOMS_LIMITS.minimum,
+    getRoomsMaximum(objectType),
   );
   if (roomsCount !== undefined) realEstateObject.roomsCount = roomsCount;
 
   const floorsTotal = normalizeOptionalInteger(
     input.floorsTotal,
     'real_estate_object.floors_total',
-    1,
+    FLOOR_LIMITS.minimum,
+    FLOOR_LIMITS.maximum,
   );
   if (floorsTotal !== undefined) realEstateObject.floorsTotal = floorsTotal;
 
-  const floor = normalizeOptionalInteger(input.floor, 'real_estate_object.floor', 0);
+  const floor = normalizeOptionalInteger(
+    input.floor,
+    'real_estate_object.floor',
+    FLOOR_LIMITS.minimum,
+    FLOOR_LIMITS.maximum,
+  );
+  if (floor !== undefined && floorsTotal !== undefined && floor > floorsTotal) {
+    throw new ConnectError(
+      'real_estate_object.floor must be less than or equal to real_estate_object.floors_total',
+      Code.InvalidArgument,
+    );
+  }
   if (floor !== undefined) realEstateObject.floor = floor;
 
   const condition = normalizeNullableEnum(input.condition, RealEstateCondition.UNSPECIFIED);
   if (condition !== undefined) realEstateObject.condition = condition;
 
-  const yearBuilt = normalizeOptionalInteger(input.yearBuilt, 'real_estate_object.year_built', 1);
+  const yearBuilt = normalizeOptionalInteger(
+    input.yearBuilt,
+    'real_estate_object.year_built',
+    YEAR_BUILT_LIMITS.minimum,
+    YEAR_BUILT_LIMITS.maximum,
+  );
   if (yearBuilt !== undefined) realEstateObject.yearBuilt = yearBuilt;
 
   const wallMaterial = normalizeNullableEnum(input.wallMaterial, WallMaterial.UNSPECIFIED);
@@ -377,6 +503,18 @@ function hasRealEstateObjectInputData(input: RealEstateObjectInput): boolean {
   );
 }
 
+function getRoomsMaximum(objectType: RealEstateObjectType | undefined): number {
+  if (
+    objectType === RealEstateObjectType.APARTMENT ||
+    objectType === RealEstateObjectType.APARTMENTS ||
+    objectType === RealEstateObjectType.ROOM
+  ) {
+    return ROOMS_LIMITS.compactMaximum;
+  }
+
+  return ROOMS_LIMITS.commonMaximum;
+}
+
 function assertDefined<T>(value: T | undefined, fieldName: string): asserts value is T {
   if (value === undefined) {
     throw new ConnectError(`${fieldName} is required`, Code.InvalidArgument);
@@ -392,4 +530,38 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
     );
   }
   return value;
+}
+
+function isNotaryRole(role: string | undefined): boolean {
+  return role === '2' || role === Role.Notary;
+}
+
+function statusLabel(status: PrismaAssessmentStatus): string {
+  switch (status) {
+    case PrismaAssessmentStatus.New:
+      return 'new';
+    case PrismaAssessmentStatus.Verified:
+      return 'verified';
+    case PrismaAssessmentStatus.InProgress:
+      return 'in_progress';
+    case PrismaAssessmentStatus.Completed:
+      return 'completed';
+    case PrismaAssessmentStatus.Cancelled:
+      return 'cancelled';
+  }
+}
+
+function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
+  return {
+    status: statusLabel(snapshot.status),
+    address: snapshot.address,
+    description: snapshot.description,
+    estimatedValue: snapshot.estimatedValue,
+    notaryId: snapshot.notaryId,
+    cancelReason: snapshot.cancelReason,
+  };
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }

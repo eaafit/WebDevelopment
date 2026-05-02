@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -52,6 +53,15 @@ export const notaryRoutes: Route[] = [
           import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
+        path: 'assessment/history',
+        component: AssessmentHistoryComponent,
+        data: { role: 'notary' },
+      },
+      {
         path: 'copies',
         ...placeholder('Копии документов', [
           'Запрос, оплата и получение копий',
@@ -60,8 +70,9 @@ export const notaryRoutes: Route[] = [
       } as Route,
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),

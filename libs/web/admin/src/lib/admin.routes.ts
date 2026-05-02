@@ -2,7 +2,6 @@ import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
-import { Applications } from './features/applications/applications';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
@@ -20,36 +19,17 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.AdminDashboard),
       } as Route,
       {
-        path: 'users',
+        path: 'applications',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
-      } as Route,
+      },
       {
-        path: 'orders',
+        path: 'order-status-history',
         loadComponent: () =>
-          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
-      } as Route,
-      {
-        path: 'orders/statuses',
-        ...placeholder('Управление статусами', [
-          'Изменение статусов заказов',
-          'Отслеживание переходов между этапами',
-        ]),
-      } as Route,
-      {
-        path: 'orders/queue',
-        ...placeholder('Очередь оценок', [
-          'Список заявок, ожидающих оценки',
-          'Распределение по нотариусам',
-        ]),
-      } as Route,
-      {
-        path: 'orders/moderation',
-        ...placeholder('Ручная модерация', [
-          'Проверка и модерация спорных заявок',
-          'Ручные корректировки',
-        ]),
-      } as Route,
+          import('./features/order-status-history/order-status-history').then(
+            (m) => m.OrderStatusHistory,
+          ),
+      },
       {
         path: 'payments/new',
         component: PaymentFormComponent,
@@ -63,10 +43,6 @@ export const adminRoutes: Route[] = [
         component: Payments,
       },
 
-      {
-        path: 'applications',
-        component: Applications,
-      },
       {
         path: 'subscriptions',
         ...placeholder('Подписки', ['Просмотр списка подписок']),
@@ -83,6 +59,11 @@ export const adminRoutes: Route[] = [
         ]),
       } as Route,
       {
+        path: 'newsletter/new',
+        loadComponent: () =>
+          import('./features/newsletter/newsletter-new').then((m) => m.NewsletterNew),
+      },
+      {
         path: 'newsletter',
         loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
       },
@@ -91,9 +72,18 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
       },
       {
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
+      },
+      {
+        path: 'promocodes',
+        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
+      },
+      {
         path: 'notifications',
-        ...placeholder('Уведомления', ['Управление уведомлениями']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.AdminNotifications),
+      },
       {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),
@@ -106,6 +96,16 @@ export const adminRoutes: Route[] = [
         path: 'settings',
         loadComponent: () =>
           import('./features/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
+      },
+      {
+        path: 'bitrix/config',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-config.component').then((m) => m.BitrixConfigComponent),
+      },
+      {
+        path: 'bitrix/sync',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-sync.component').then((m) => m.BitrixSyncComponent),
       },
     ],
   },

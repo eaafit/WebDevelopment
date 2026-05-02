@@ -7,6 +7,6 @@ import { NotificationRpcService } from './notification-rpc.service';
 @Module({
   imports: [PrismaModule],
   providers: [NotificationRepository, NotificationService, NotificationRpcService],
-  exports: [NotificationRpcService],
+  exports: [NotificationService, NotificationRpcService],
 })
 export class NotificationModule {}

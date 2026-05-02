@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -60,12 +61,8 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'assessment/history',
-        ...placeholder('История заказов', [
-          'Лента заказов',
-          'Статусы и таймлайн',
-          'Фильтры',
-          'Уведомления по изменениям',
-        ]),
+        component: AssessmentHistoryComponent,
+        data: { role: 'applicant' },
       },
       {
         path: 'payments',
@@ -94,13 +91,9 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'In-app уведомления',
-          'Фильтры',
-          'Прочитано/не прочитано',
-          'История событий',
-        ]),
-      },
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.ApplicantNotifications),
+      } as Route,
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения', 'SLA-статусы']),

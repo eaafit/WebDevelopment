@@ -82,6 +82,38 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum NewsletterSubscriptionStatus {
+  Active       @map("active")
+  Unsubscribed @map("unsubscribed")
+
+  @@map("newsletter_subscription_status")
+}
+
+enum NewsletterAudienceType {
+  All      @map("all")
+  Role     @map("role")
+  Selected @map("selected")
+
+  @@map("newsletter_audience_type")
+}
+
+enum NewsletterCampaignStatus {
+  Sending       @map("sending")
+  Sent          @map("sent")
+  Failed        @map("failed")
+  PartialFailed @map("partial_failed")
+
+  @@map("newsletter_campaign_status")
+}
+
+enum NewsletterDeliveryStatus {
+  Pending @map("pending")
+  Sent    @map("sent")
+  Failed  @map("failed")
+
+  @@map("newsletter_delivery_status")
+}
+
 enum SaleType {
   Permanent    @map("permanent")
   Subscription @map("subscription")
@@ -178,6 +210,11 @@ model User {
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
+  bitrixSyncLogs    BitrixSyncLog[]
+  clientSync        ClientSync?
+  newsletterSubscription NewsletterSubscription?
+  newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
+  newsletterDeliveries   NewsletterDelivery[]
 
   @@map("users")
 }
@@ -350,6 +387,67 @@ model Notification {
   @@map("notifications")
 }
 
+model NewsletterSubscription {
+  id             String                       @id @default(uuid()) @db.Uuid
+  userId         String                       @unique @map("user_id") @db.Uuid
+  status         NewsletterSubscriptionStatus @default(Active)
+  subscribedAt   DateTime                     @default(now()) @map("subscribed_at") @db.Timestamp()
+  unsubscribedAt DateTime?                    @map("unsubscribed_at") @db.Timestamp()
+  createdAt      DateTime                     @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt      DateTime                     @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([subscribedAt(sort: Desc)])
+  @@map("newsletter_subscriptions")
+}
+
+model NewsletterCampaign {
+  id              String                   @id @default(uuid()) @db.Uuid
+  createdById     String?                  @map("created_by") @db.Uuid
+  subject         String                   @db.VarChar(200)
+  bodyHtml        String                   @map("body_html") @db.Text
+  audienceType    NewsletterAudienceType   @map("audience_type")
+  audienceRole    Role?                    @map("audience_role")
+  audienceLabel   String                   @map("audience_label") @db.VarChar(255)
+  recipientsCount Int                      @default(0) @map("recipients_count")
+  sentCount       Int                      @default(0) @map("sent_count")
+  failedCount     Int                      @default(0) @map("failed_count")
+  status          NewsletterCampaignStatus @default(Sending)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamp()
+  completedAt     DateTime?                @map("completed_at") @db.Timestamp()
+
+  createdBy  User?                @relation("NewsletterCampaignCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries NewsletterDelivery[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@index([createdById])
+  @@map("newsletter_campaigns")
+}
+
+model NewsletterDelivery {
+  id           String                   @id @default(uuid()) @db.Uuid
+  campaignId   String                   @map("campaign_id") @db.Uuid
+  userId       String?                  @map("user_id") @db.Uuid
+  email        String                   @db.VarChar
+  fullName     String                   @map("full_name") @db.VarChar
+  status       NewsletterDeliveryStatus @default(Pending)
+  errorMessage String?                  @map("error_message") @db.Text
+  createdAt    DateTime                 @default(now()) @map("created_at") @db.Timestamp()
+  sentAt       DateTime?                @map("sent_at") @db.Timestamp()
+
+  campaign NewsletterCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, email])
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("newsletter_deliveries")
+}
+
 model RefreshToken {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
@@ -388,6 +486,12 @@ model AuditLog {
 
   user User @relation(fields: [userId], references: [id])
 
+  @@index([timestamp(sort: Desc)])
+  @@index([actionType])
+  @@index([entityId])
+  @@index([userId])
+  @@index([entityName, entityId])
+  @@index([entityName, entityId, timestamp(sort: Desc)])
   @@map("audit_logs")
 }
 
@@ -420,4 +524,69 @@ model Sale {
   promo        Promo?        @relation(fields: [promoId], references: [id])
 
   @@map("sales")
+}
+
+// ─── Bitrix Integration ──────────────────────────────────────────────────────
+
+model BitrixConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  portalUrl   String   @map("portal_url")   @db.VarChar(255)
+  memberId    String   @map("member_id")    @db.VarChar(100)
+  accessToken String   @map("access_token") @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamp()
+
+  @@map("bitrix_config")
+}
+
+model BitrixSync {
+  id                String   @id @default(uuid()) @db.Uuid
+  jobId             String   @map("job_id") @db.VarChar(100)
+  status            String   @db.VarChar(20) // "pending", "running", "completed", "failed"
+  totalUsers        Int      @default(0) @map("total_users")
+  processedUsers    Int      @default(0) @map("processed_users")
+  successfulSyncs   Int      @default(0) @map("successful_syncs")
+  failedSyncs       Int      @default(0) @map("failed_syncs")
+  errorMessage      String?  @map("error_message") @db.Text
+  startedAt         DateTime @map("started_at") @db.Timestamp()
+  completedAt       DateTime? @map("completed_at") @db.Timestamp()
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
+
+  logs BitrixSyncLog[]
+
+  @@map("bitrix_sync")
+}
+
+model BitrixSyncLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  syncId            String   @map("sync_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
+  action            String   @db.VarChar(20) // "created", "updated", "skipped", "error"
+  status            String   @db.VarChar(10) // "success", "error"
+  message           String?  @db.Text
+  timestamp         DateTime @default(now()) @db.Timestamp()
+
+  sync              BitrixSync @relation(fields: [syncId], references: [id])
+  user              User       @relation(fields: [userId], references: [id])
+
+  @@map("bitrix_sync_log")
+}
+
+model ClientSync {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
+  syncDirection     String   @default("notary") @map("sync_direction") @db.VarChar(10)
+  lastSyncedAt      DateTime? @map("last_synced_at") @db.Timestamp()
+  lastNotaryHash    String?  @map("last_notary_hash") @db.VarChar(64)
+  lastBitrixHash    String?  @map("last_bitrix_hash") @db.VarChar(64)
+  conflictCount     Int      @default(0) @map("conflict_count")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamp()
+
+  user              User     @relation(fields: [userId], references: [id])
+
+  @@map("client_sync")
 }

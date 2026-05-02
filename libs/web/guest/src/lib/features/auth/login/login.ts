@@ -2,6 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
+import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
 interface TestAccount {
   role: string;
@@ -19,6 +20,9 @@ interface TestAccount {
 export class Login {
   private readonly authService = inject(AuthService);
   private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Off by default; set `NG_APP_SHOW_TEST_ACCOUNTS=true` at web image build (or `nx serve` dev config) to show test-account UI. */
+  protected readonly showTestAccountHints = isNgAppShowTestAccountsEnabled();
 
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;

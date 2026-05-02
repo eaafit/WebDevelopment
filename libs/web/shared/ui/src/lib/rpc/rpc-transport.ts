@@ -64,6 +64,16 @@ export function createAuthInterceptor(opts: RpcTransportOptions, router: Router)
   };
 }
 
+export function createRequestIdInterceptor(generateRequestId = defaultRequestId): Interceptor {
+  return (next) => async (req) => {
+    if (!req.header.get('X-Request-Id')) {
+      req.header.set('X-Request-Id', generateRequestId());
+    }
+
+    return next(req);
+  };
+}
+
 export function provideRpcTransport(
   optsOrFactory: RpcTransportOptions | RpcTransportOptionsFactory,
 ): EnvironmentProviders {
@@ -76,9 +86,17 @@ export function provideRpcTransport(
 
         return createConnectTransport({
           baseUrl: buildRpcBaseUrl(),
-          interceptors: [createAuthInterceptor(opts, router)],
+          interceptors: [createRequestIdInterceptor(), createAuthInterceptor(opts, router)],
         });
       },
     },
   ]);
+}
+
+function defaultRequestId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
