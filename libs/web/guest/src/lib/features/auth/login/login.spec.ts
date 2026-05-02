@@ -33,6 +33,15 @@ describe('Login', () => {
     expect(component).toBeTruthy();
   });
 
+  it('should expose the additive email recovery link', () => {
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="email-recovery-link"]') as HTMLAnchorElement | null;
+
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toContain('/auth/password-recovery');
+  });
+
   it('should fill the form and mark credentials as copied', async () => {
     jest.useFakeTimers();
     const writeText = jest.fn().mockResolvedValue(undefined);
