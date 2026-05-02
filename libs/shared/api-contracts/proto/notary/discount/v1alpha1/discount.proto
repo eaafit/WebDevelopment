@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package notary.discount.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+// Админские операции над скидками (страница «Скидки»).
+service DiscountAdminService {
+  rpc ListDiscounts(ListDiscountsRequest) returns (ListDiscountsResponse);
+  rpc GetDiscount(GetDiscountRequest) returns (GetDiscountResponse);
+  rpc CreateDiscount(CreateDiscountRequest) returns (CreateDiscountResponse);
+  rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
+  rpc DeleteDiscount(DeleteDiscountRequest) returns (DeleteDiscountResponse);
+}
+
+enum DiscountStatusFilter {
+  DISCOUNT_STATUS_FILTER_UNSPECIFIED = 0;
+  DISCOUNT_STATUS_FILTER_ACTIVE = 1;
+  DISCOUNT_STATUS_FILTER_INACTIVE = 2;
+}
+
+message Discount {
+  int32 id = 1;
+  string name = 2;
+  double percentage = 3;
+  optional string description = 4;
+  bool is_active = 5;
+  google.protobuf.Timestamp valid_from = 6;
+  google.protobuf.Timestamp valid_to = 7;
+  optional double min_order_amount = 8;
+  optional double max_discount_amount = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message DiscountListFilters {
+  optional string name_contains = 1 [(buf.validate.field).string.max_len = 200];
+  DiscountStatusFilter status = 2;
+  optional google.protobuf.Timestamp valid_from_gte = 3;
+  optional google.protobuf.Timestamp valid_to_lte = 4;
+  optional string sort_field = 5 [(buf.validate.field).string.max_len = 64];
+  optional string sort_direction = 6 [(buf.validate.field).string = {
+    in: [
+      "asc",
+      "desc"
+    ]
+  }];
+}
+
+message ListDiscountsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1 [(buf.validate.field).required = true];
+  DiscountListFilters filters = 2;
+}
+
+message ListDiscountsResponse {
+  repeated Discount discounts = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message GetDiscountRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+}
+
+message GetDiscountResponse {
+  Discount discount = 1;
+}
+
+message CreateDiscountRequest {
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 255
+  }];
+  double percentage = 2;
+  optional string description = 3 [(buf.validate.field).string.max_len = 4000];
+  bool is_active = 4;
+  google.protobuf.Timestamp valid_from = 5 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp valid_to = 6 [(buf.validate.field).required = true];
+  optional double min_order_amount = 7;
+  optional double max_discount_amount = 8;
+}
+
+message CreateDiscountResponse {
+  Discount discount = 1;
+}
+
+message UpdateDiscountRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+  optional string name = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 255
+  }];
+  optional double percentage = 3;
+  optional string description = 4 [(buf.validate.field).string.max_len = 4000];
+  optional bool is_active = 5;
+  optional google.protobuf.Timestamp valid_from = 6;
+  optional google.protobuf.Timestamp valid_to = 7;
+  optional double min_order_amount = 8;
+  optional double max_discount_amount = 9;
+}
+
+message UpdateDiscountResponse {
+  Discount discount = 1;
+}
+
+message DeleteDiscountRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+}
+
+message DeleteDiscountResponse {}
