@@ -160,6 +160,51 @@ export class PaymentCreateService {
         },
       });
     } catch (err) {
+      if (err instanceof YooKassaClientError) {
+        this.metrics.recordPayment('failed');
+        this.metrics.recordBillingPayment('failed', metricContext);
+
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: PrismaPaymentStatus.Failed },
+        });
+
+        if (resolved.assessmentId) {
+          try {
+            await this.auditService.record({
+              actorUserId: getCurrentUser()?.sub ?? request.userId,
+              eventType: 'payment.failed',
+              targetType: 'Assessment',
+              targetId: resolved.assessmentId,
+              actionTitle: 'Ошибка платёжного провайдера',
+              actionContext: `Платёж ${shortId(payment.id)}: ${err.message || 'Payment provider error'}`,
+              targetTitle: `Заявка ${shortId(resolved.assessmentId)}`,
+              targetContext: `Платёж ${shortId(payment.id)}`,
+              before: {
+                paymentId: payment.id,
+                status: 'pending',
+                amount: resolved.amount,
+                assessmentId: resolved.assessmentId,
+                paymentMethod: 'yookassa_widget',
+              },
+              after: {
+                paymentId: payment.id,
+                status: 'failed',
+                amount: resolved.amount,
+                assessmentId: resolved.assessmentId,
+                paymentMethod: 'yookassa_widget',
+                errorMessage: err.message || 'Payment provider error',
+                providerStatusCode: err.statusCode ?? null,
+              },
+            });
+          } catch {
+            // audit failure must not break the main operation
+          }
+        }
+
+        throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
+      }
+
       // Fallback: create payment directly without external payment provider
       const reason = err instanceof Error ? err.message : 'unknown error';
       this.metrics.recordPayment('failed');
