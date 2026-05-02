@@ -28,8 +28,8 @@ describe('EstimationForm', () => {
       {
         objectId: '6600000100000000000000002',
         objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
-        fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
-        objectLevelId: 10,
+        fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+        objectLevelId: 11,
         addressType: 2,
         cityId: 'city-1',
         districtId: 'district-1',
@@ -38,8 +38,8 @@ describe('EstimationForm', () => {
     getFiasAddressItemByIdMock = jest.fn().mockResolvedValue({
       objectId: '6600000100000000000000002',
       objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
-      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
-      objectLevelId: 10,
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
       addressType: 2,
       cityId: 'city-1',
       districtId: 'district-1',
@@ -55,7 +55,7 @@ describe('EstimationForm', () => {
         fiasObjectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
         cityId: 'city-1',
         districtId: '',
-        address: 'Екатеринбург, ул. Ленина, д. 10',
+        address: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
         cadastralNumber: '',
         area: '54.6',
         objectType: '1',
@@ -182,8 +182,8 @@ describe('EstimationForm', () => {
     const suggestion = {
       objectId: '6600000100000000000000002',
       objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
-      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
-      objectLevelId: 10,
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
       addressType: 2,
       cityId: 'city-1',
       districtId: 'district-1',
@@ -193,11 +193,55 @@ describe('EstimationForm', () => {
 
     expect(getFiasAddressItemByIdMock).toHaveBeenCalledWith('6600000100000000000000002');
     expect(component.formControls.address.value).toBe(
-      'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
+      'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
     );
     expect(component.formControls.cityId.value).toBe('city-1');
     expect(component.formControls.districtId.value).toBe('district-1');
     expect(component.formControls.cadastralNumber.value).toBe('660000000002');
+  });
+
+  it('should save a draft after selecting a FIAS suggestion', async () => {
+    await component.onSelectAddressSuggestion({
+      objectId: '6600000100000000000000002',
+      objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
+      addressType: 2,
+      cityId: 'city-1',
+      districtId: 'district-1',
+    });
+    component.formControls.area.setValue('54.6');
+    component.formControls.objectType.setValue('1');
+    component.formControls.floorsTotal.setValue('9');
+    component.formControls.condition.setValue('2');
+
+    await (component as unknown as { handleAutosave(): Promise<void> }).handleAutosave();
+
+    expect(component.formControls.cityId.valid).toBe(true);
+    expect(component.formControls.address.valid).toBe(true);
+    expect(createDraftMock).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        fiasObjectId: '6600000100000000000000002',
+        fiasObjectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+        cityId: 'city-1',
+        districtId: 'district-1',
+        address: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      }),
+    );
+  });
+
+  it('should not save a draft when address text was not selected from FIAS hints', async () => {
+    component.formControls.address.setValue('Свердловская обл, г Екатеринбург, ул Ленина, д 10');
+    component.formControls.area.setValue('54.6');
+    component.formControls.objectType.setValue('1');
+    component.formControls.floorsTotal.setValue('9');
+    component.formControls.condition.setValue('2');
+
+    await (component as unknown as { handleAutosave(): Promise<void> }).handleAutosave();
+
+    expect(component.formControls.cityId.valid).toBe(false);
+    expect(createDraftMock).not.toHaveBeenCalled();
   });
 
   it('should submit and navigate to status when required fields are filled', async () => {

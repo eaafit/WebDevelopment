@@ -72,8 +72,7 @@ export class StubFiasProvider implements FiasProvider {
 
   async searchByParts(request: FiasSearchByPartsRequest): Promise<FiasAddressItem[]> {
     const expectedParts = [request.region, request.city, request.street, request.house]
-      .map((part) => normalizeSearchText(part))
-      .filter(Boolean);
+      .flatMap((part) => toSearchTokens(part));
 
     if (!expectedParts.length) {
       return [];
@@ -89,12 +88,14 @@ export class StubFiasProvider implements FiasProvider {
             item.addressDetails?.district,
             item.addressDetails?.street,
             item.addressDetails?.house,
+            item.addressDetails?.room,
           ].join(' '),
         );
+        const searchableTokens = toSearchTokens(searchableText);
 
         return (
           this.matchesAddressType(item, request.addressType) &&
-          expectedParts.every((part) => searchableText.includes(part))
+          expectedParts.every((part) => searchableTokens.includes(part))
         );
       }),
       request.limit,
@@ -111,15 +112,15 @@ export class StubFiasProvider implements FiasProvider {
       return [];
     }
 
-    const queryParts = query.split(' ').filter(Boolean);
+    const queryParts = toSearchTokens(query);
 
     return this.limitItems(
       this.addressItems.filter((item) => {
-        const searchableText = normalizeSearchText(item.fullName);
+        const searchableTokens = toSearchTokens(item.fullName);
         return (
           item.isActive &&
           this.matchesAddressType(item, addressType) &&
-          queryParts.every((part) => searchableText.includes(part))
+          queryParts.every((part) => searchableTokens.includes(part))
         );
       }),
       limit,
@@ -173,12 +174,14 @@ function buildStubAddressItems(): FiasAddressItem[] {
     buildAddressItem({
       objectId: '6600000100000000000000002',
       objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
-      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
+      houseObjectId: '6600000100000000000000102',
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
       region: 'Свердловская обл',
       city: 'Екатеринбург',
       district: 'Ленинский',
       street: 'ул Ленина',
       house: 'д 10',
+      room: 'кв 45',
       postalCode: '620075',
       cadastralNumber: '660000000002',
       cityId: CITY_IDS.ekaterinburg,
@@ -192,12 +195,14 @@ function buildStubAddressItems(): FiasAddressItem[] {
     buildAddressItem({
       objectId: '7700000000000000000000001',
       objectGuid: 'a2e0274d-5f1a-4f43-8f25-a98d82e21001',
-      fullName: 'г Москва, ул Тверская, д 7',
+      houseObjectId: '7700000000000000000000101',
+      fullName: 'г Москва, ул Тверская, д 7, кв 12',
       region: 'Москва',
       city: 'Москва',
       district: 'Тверской',
       street: 'ул Тверская',
       house: 'д 7',
+      room: 'кв 12',
       postalCode: '125009',
       cadastralNumber: '770000000001',
       cityId: CITY_IDS.moscow,
@@ -210,12 +215,14 @@ function buildStubAddressItems(): FiasAddressItem[] {
     buildAddressItem({
       objectId: '7800000000000000000000001',
       objectGuid: 'e4b9fd65-995f-4cf4-a6a1-9333c87d1001',
-      fullName: 'г Санкт-Петербург, Невский пр-кт, д 28',
+      houseObjectId: '7800000000000000000000101',
+      fullName: 'г Санкт-Петербург, Невский пр-кт, д 28, помещ 4-Н',
       region: 'Санкт-Петербург',
       city: 'Санкт-Петербург',
       district: 'Центральный',
       street: 'Невский пр-кт',
       house: 'д 28',
+      room: 'помещ 4-Н',
       postalCode: '191186',
       cadastralNumber: '780000000001',
       cityId: CITY_IDS.saintPetersburg,
@@ -231,12 +238,14 @@ function buildStubAddressItems(): FiasAddressItem[] {
 function buildAddressItem(params: {
   objectId: string;
   objectGuid: string;
+  houseObjectId?: string;
   fullName: string;
   region: string;
   city: string;
   district: string;
   street: string;
   house: string;
+  room?: string;
   postalCode: string;
   cadastralNumber: string;
   cityId: string;
@@ -244,21 +253,31 @@ function buildAddressItem(params: {
   path: FiasAddressPathItem[];
 }): FiasAddressItem {
   const housePathItem = pathItem(
-    params.objectId,
+    params.houseObjectId ?? params.objectId,
     params.objectGuid,
     params.house.replace(/^д\s+/i, ''),
     'д',
     10,
   );
+  const roomPathItem = params.room
+    ? pathItem(
+        params.objectId,
+        params.objectGuid,
+        params.room.replace(/^(кв|помещ)\s+/i, ''),
+        params.room.toLowerCase().startsWith('помещ') ? 'помещ' : 'кв',
+        11,
+      )
+    : undefined;
+  const hierarchy = [...params.path, housePathItem, ...(roomPathItem ? [roomPathItem] : [])];
 
   return create(FiasAddressItemSchema, {
     objectId: params.objectId,
     objectGuid: params.objectGuid,
     fullName: params.fullName,
-    objectLevelId: 10,
+    objectLevelId: params.room ? 11 : 10,
     addressType: MUNICIPAL_ADDRESS_TYPE,
-    path: [...params.path, housePathItem],
-    hierarchy: [...params.path, housePathItem],
+    path: hierarchy,
+    hierarchy,
     addressDetails: create(FiasAddressDetailsSchema, {
       postalCode: params.postalCode,
       region: params.region,
@@ -266,6 +285,7 @@ function buildAddressItem(params: {
       district: params.district,
       street: params.street,
       house: params.house,
+      room: params.room,
       cadastralNumber: params.cadastralNumber,
     }),
     isActive: true,
@@ -298,5 +318,35 @@ function normalizeSearchText(value: string | undefined): string {
     .toLowerCase()
     .replace(/ё/g, 'е')
     .replace(/[.,]/g, ' ')
+    .replace(/-/g, ' ')
     .replace(/\s+/g, ' ');
+}
+
+function toSearchTokens(value: string | undefined): string[] {
+  return normalizeSearchText(value)
+    .split(' ')
+    .map(normalizeAddressToken)
+    .filter((token) => token.length >= 2);
+}
+
+function normalizeAddressToken(token: string): string {
+  const aliases: Record<string, string> = {
+    город: 'г',
+    г: 'г',
+    область: 'обл',
+    обл: 'обл',
+    улица: 'ул',
+    ул: 'ул',
+    дом: 'д',
+    д: 'д',
+    квартира: 'кв',
+    кв: 'кв',
+    помещение: 'помещ',
+    помещ: 'помещ',
+    проспект: 'пр',
+    пр: 'пр',
+    пркт: 'пр',
+  };
+
+  return aliases[token] ?? token;
 }

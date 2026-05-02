@@ -26,7 +26,7 @@ describe('AssessmentService FIAS flow', () => {
     expect(response.hints[0]).toEqual(
       expect.objectContaining({
         objectId: '6600000100000000000000002',
-        fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10',
+        fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
         cityId: 'c097f53d-e513-47c4-a72b-07a304711ce3',
         districtId: '30448518-de64-4b0f-a080-79a4e7ac1c86',
       }),

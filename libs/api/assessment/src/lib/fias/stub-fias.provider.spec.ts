@@ -25,7 +25,7 @@ describe('StubFiasProvider', () => {
   it('should return a full address item by object_id', async () => {
     const item = await provider.getAddressItemById('6600000100000000000000002');
 
-    expect(item.fullName).toBe('Свердловская обл, г Екатеринбург, ул Ленина, д 10');
+    expect(item.fullName).toBe('Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45');
     expect(item.path.length).toBeGreaterThan(0);
     expect(item.hierarchy.length).toBeGreaterThan(0);
     expect(item.addressDetails).toEqual(
@@ -33,9 +33,18 @@ describe('StubFiasProvider', () => {
         city: 'Екатеринбург',
         street: 'ул Ленина',
         house: 'д 10',
+        room: 'кв 45',
         cadastralNumber: '660000000002',
       }),
     );
+  });
+
+  it('should understand common full-form address tokens in hints', async () => {
+    const hints = await provider.getAddressHint({
+      query: 'город Екатеринбург улица Ленина дом 10 квартира 45',
+    });
+
+    expect(hints.map((hint) => hint.objectId)).toContain('6600000100000000000000002');
   });
 
   it('should return an empty result for an unrelated query', async () => {
@@ -61,4 +70,3 @@ describe('StubFiasProvider', () => {
     expect(items[0]?.objectId).toBe('7700000000000000000000001');
   });
 });
-
