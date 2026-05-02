@@ -1,7 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { SubscriptionPlan } from '@notary-portal/api-contracts';
-import { AdminSubscriptionsService, AdminSubscriptionRow } from '../../../services/admin-subscriptions.service';
+import {
+  AdminSubscriptionsService,
+  AdminSubscriptionRow,
+} from '../../../services/admin-subscriptions.service';
 
 @Component({
   selector: 'lib-subscriptions-list',
@@ -10,8 +13,8 @@ import { AdminSubscriptionsService, AdminSubscriptionRow } from '../../../servic
   templateUrl: './subscriptions-list.html',
   styleUrl: './subscriptions-list.scss',
 })
-export class SubscriptionsListComponent {
-  private subsApi = inject(AdminSubscriptionsService);
+export class SubscriptionsListComponent implements OnInit {
+  private readonly subsApi = inject(AdminSubscriptionsService);
 
   readonly loading = signal(false);
   readonly rows = signal<AdminSubscriptionRow[]>([]);
@@ -40,10 +43,19 @@ export class SubscriptionsListComponent {
 
   cancel(row: AdminSubscriptionRow): void {
     const prev = this.rows();
-    this.rows.set(prev.map((r) => (r.id === row.id ? { ...r, status: 'Cancelled', isActive: false } : r)));
+
+    this.rows.set(
+      prev.map((r) => (r.id === row.id ? { ...r, status: 'Cancelled', isActive: false } : r)),
+    );
+
     this.subsApi.cancel(row.id).subscribe({
-      next: () => {},
-      error: () => this.rows.set(prev),
+      next: () => {
+        console.log(`Subscription ${row.id} successfully cancelled`);
+      },
+      error: (err) => {
+        this.rows.set(prev);
+        this.error.set(err?.message ?? 'Ошибка при отмене подписки');
+      },
     });
   }
 }
