@@ -56,6 +56,11 @@ export const adminRoutes: Route[] = [
         ]),
       } as Route,
       {
+        path: 'newsletter/new',
+        loadComponent: () =>
+          import('./features/newsletter/newsletter-new').then((m) => m.NewsletterNew),
+      },
+      {
         path: 'newsletter',
         loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
       },
