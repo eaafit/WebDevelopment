@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { TransactionHistoryPage } from '@notary-portal/ui';
+import { WebLoggerService, type TransactionHistoryPage } from '@notary-portal/ui';
 import { of, Subject } from 'rxjs';
 import { Payments } from './payments';
 import { PaymentsApiService, type PaymentsHistoryQuery } from './payments-api.service';
@@ -9,8 +9,17 @@ describe('Payments', () => {
   let component: Payments;
   let fixture: ComponentFixture<Payments>;
   let getTransactionHistory: jest.Mock;
+  let openReceipt: jest.Mock;
+  let logger: {
+    info: jest.Mock;
+    error: jest.Mock;
+  };
 
   beforeEach(async () => {
+    logger = {
+      info: jest.fn(),
+      error: jest.fn(),
+    };
     getTransactionHistory = jest.fn().mockImplementation((query: PaymentsHistoryQuery) =>
       of<TransactionHistoryPage>({
         transactions: [
@@ -41,6 +50,7 @@ describe('Payments', () => {
         },
       }),
     );
+    openReceipt = jest.fn().mockResolvedValue(undefined);
 
     await TestBed.configureTestingModule({
       imports: [Payments],
@@ -50,7 +60,12 @@ describe('Payments', () => {
           provide: PaymentsApiService,
           useValue: {
             getTransactionHistory,
+            openReceipt,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -75,6 +90,17 @@ describe('Payments', () => {
     });
     expect(component.transactions()).toHaveLength(1);
     expect(component.meta()?.currentPage).toBe(1);
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.history.applicant.load_succeeded',
+      expect.objectContaining({
+        area: 'applicant_payments_history',
+        query: expect.objectContaining({
+          page: 1,
+          hasSearchQuery: false,
+        }),
+        returnedItems: 1,
+      }),
+    );
   });
 
   it('should request the selected page without appending transactions', async () => {
@@ -119,6 +145,16 @@ describe('Payments', () => {
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.history.applicant.filters_applied',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          hasSearchQuery: true,
+          searchQueryLength: 3,
+          status: 'pending',
+        }),
+      }),
+    );
   });
 
   it('should keep the current filters visible until the next response is ready', async () => {

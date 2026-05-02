@@ -28,6 +28,9 @@ describe('PaymentAttachmentService', () => {
   const update = jest.fn();
   const putObject = jest.fn();
   const getObject = jest.fn();
+  const auditService = {
+    record: jest.fn(),
+  };
 
   const prisma = {
     payment: {
@@ -47,11 +50,16 @@ describe('PaymentAttachmentService', () => {
     update.mockReset();
     putObject.mockReset();
     getObject.mockReset();
+    auditService.record.mockReset();
   });
+
+  function createService(): PaymentAttachmentService {
+    return new PaymentAttachmentService(prisma as never, s3 as never, auditService as never);
+  }
 
   it('throws NotFoundException when payment is missing', async () => {
     findUnique.mockResolvedValue(null);
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('%PDF-1.4\n'));
 
     await expect(
@@ -67,7 +75,7 @@ describe('PaymentAttachmentService', () => {
 
   it('throws ForbiddenException when user is not owner and not admin', async () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'other-user' });
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('%PDF-1.4\n'));
 
     await expect(
@@ -85,7 +93,7 @@ describe('PaymentAttachmentService', () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'other-user' });
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const body = Buffer.from('%PDF-1.4\n');
     const file = pdfFile(body);
 
@@ -107,11 +115,25 @@ describe('PaymentAttachmentService', () => {
         receiptStatus: PaymentReceiptStatus.Available,
       },
     });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-id',
+        eventType: 'payment.receipt.attached',
+        targetType: 'Payment',
+        targetId: 'p1',
+        after: expect.objectContaining({
+          paymentId: 'p1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          attachmentFileName: 'doc.pdf',
+          hasAttachment: true,
+        }),
+      }),
+    );
   });
 
   it('rejects non-PDF payload', async () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'u1' });
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('not pdf'));
 
     await expect(
@@ -148,7 +170,7 @@ describe('PaymentAttachmentService', () => {
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
       id: 'yk-payment-1',
       status: 'succeeded',
@@ -205,7 +227,7 @@ describe('PaymentAttachmentService', () => {
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
       id: 'yk-payment-1',
       status: 'succeeded',
@@ -253,7 +275,7 @@ describe('PaymentAttachmentService', () => {
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
       id: 'yk-payment-1',
       status: 'succeeded',
@@ -282,6 +304,14 @@ describe('PaymentAttachmentService', () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1350.00',
+      },
+      status: 'Completed',
+      paymentMethod: 'bank_card',
+      subscriptionId: 'subscription-1',
+      assessmentId: null,
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
@@ -293,7 +323,7 @@ describe('PaymentAttachmentService', () => {
       contentLength: 13,
     });
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.getReceiptFile({
       paymentId: 'payment-1',
       userId: 'user-1',
@@ -303,19 +333,37 @@ describe('PaymentAttachmentService', () => {
     expect(result.fileName).toBe('receipt-yk-payment-1.html');
     expect(result.contentType).toBe('text/html; charset=utf-8');
     expect(result.body.toString()).toContain('<html>');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.opened',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionContext: 'Пользователь открыл чек из истории платежей',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          amount: '1350.00',
+          transactionId: 'yk-payment-1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          attachmentFileName: 'receipt-yk-payment-1.html',
+          contentType: 'text/html; charset=utf-8',
+        }),
+      }),
+    );
   });
 
   it('returns ConflictException when receipt is still pending', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
       receiptStatus: PaymentReceiptStatus.Pending,
     });
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
 
     await expect(
       service.getReceiptFile({
@@ -325,12 +373,26 @@ describe('PaymentAttachmentService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(getObject).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          receiptStatus: PaymentReceiptStatus.Pending,
+          failureReason: 'receipt_pending',
+        }),
+      }),
+    );
   });
 
   it('marks receipt as failed and clears stale object reference when file is missing in storage', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
@@ -339,7 +401,7 @@ describe('PaymentAttachmentService', () => {
     getObject.mockRejectedValue({ name: 'NoSuchKey' });
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
 
     await expect(
       service.getReceiptFile({
@@ -357,5 +419,18 @@ describe('PaymentAttachmentService', () => {
         attachmentFileUrl: null,
       },
     });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          failureReason: 'receipt_object_missing',
+        }),
+      }),
+    );
   });
 });

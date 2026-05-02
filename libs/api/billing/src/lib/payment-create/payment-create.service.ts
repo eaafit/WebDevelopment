@@ -34,6 +34,12 @@ import {
 } from '../subscription/subscription-plan.catalog';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
+import {
+  buildPaymentActionContext,
+  buildPaymentAuditSnapshot,
+  buildPaymentAuditTarget,
+  type PaymentAuditSnapshotInput,
+} from '../payment-audit';
 
 const PAYMENT_RETURN_PATH_BY_TYPE: Record<PrismaPaymentType, string> = {
   [PrismaPaymentType.Subscription]: '/notary/subscription/checkout/success',
@@ -118,26 +124,18 @@ export class PaymentCreateService {
         data: { transactionId: result.id },
       });
 
-      if (resolved.assessmentId) {
-        await this.auditService.record({
-          actorUserId: getCurrentUser()?.sub ?? request.userId,
-          eventType: 'payment.created',
-          targetType: 'Assessment',
-          targetId: resolved.assessmentId,
-          actionTitle: 'Создан платёж по заявке',
-          actionContext: `Сумма: ${resolved.amount} ${SUBSCRIPTION_CURRENCY}`,
-          targetTitle: `Заявка ${shortId(resolved.assessmentId)}`,
-          targetContext: `Платёж ${shortId(payment.id)}`,
-          after: {
-            paymentId: payment.id,
-            status: 'pending',
-            amount: resolved.amount,
-            transactionId: result.id,
-            assessmentId: resolved.assessmentId,
-            paymentMethod: 'yookassa_widget',
-          },
-        });
-      }
+      await this.recordPaymentCreatedAudit(request.userId, {
+        id: payment.id,
+        type: prismaType,
+        amount: resolved.amount,
+        discountAmount: resolved.discountAmount,
+        status: PrismaPaymentStatus.Pending,
+        transactionId: result.id,
+        paymentMethod: 'yookassa_widget',
+        subscriptionId: resolved.subscriptionId,
+        assessmentId: resolved.assessmentId,
+        promoId: resolved.promo?.id ?? null,
+      });
 
       this.logger.log(
         `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
@@ -163,6 +161,19 @@ export class PaymentCreateService {
         await this.prisma.payment.update({
           where: { id: payment.id },
           data: { status: PrismaPaymentStatus.Failed },
+        });
+        await this.recordPaymentCreationFailedAudit(request.userId, {
+          id: payment.id,
+          type: prismaType,
+          amount: resolved.amount,
+          discountAmount: resolved.discountAmount,
+          status: PrismaPaymentStatus.Failed,
+          paymentMethod: 'yookassa_widget',
+          subscriptionId: resolved.subscriptionId,
+          assessmentId: resolved.assessmentId,
+          promoId: resolved.promo?.id ?? null,
+          errorMessage: err.message || 'Payment provider error',
+          providerStatusCode: err.statusCode ?? null,
         });
         throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
       }
@@ -361,6 +372,47 @@ export class PaymentCreateService {
     }
   }
 
+  private async recordPaymentCreatedAudit(
+    actorUserId: string,
+    payment: PaymentAuditSnapshotInput,
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub ?? actorUserId,
+      eventType: 'payment.created',
+      ...target,
+      actionTitle: 'Создан платёж',
+      actionContext: buildPaymentActionContext(payment),
+      after: buildPaymentAuditSnapshot(payment, {
+        paymentProvider: 'YooKassa',
+      }),
+    });
+  }
+
+  private async recordPaymentCreationFailedAudit(
+    actorUserId: string,
+    payment: PaymentAuditSnapshotInput & {
+      errorMessage: string;
+      providerStatusCode?: number | null;
+    },
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub ?? actorUserId,
+      eventType: 'payment.failed',
+      ...target,
+      actionTitle: 'Платёж отклонён',
+      actionContext: 'Ошибка при создании платежа в YooKassa',
+      after: buildPaymentAuditSnapshot(payment, {
+        paymentProvider: 'YooKassa',
+        errorMessage: payment.errorMessage,
+        providerStatusCode: payment.providerStatusCode,
+      }),
+    });
+  }
+
   private async validatePromoCode(rawPromoCode: string): Promise<PromoValidationResult> {
     const promoCode = rawPromoCode.trim();
     if (!promoCode) {
@@ -468,10 +520,6 @@ function parseAmountToCents(value: string, fieldName: string): number {
 
 function centsToAmount(value: number): string {
   return (value / 100).toFixed(2);
-}
-
-function shortId(value: string): string {
-  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
 
 function calculateDiscountAmount(baseAmountCents: number, percent: string): number {

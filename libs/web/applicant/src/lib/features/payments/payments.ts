@@ -6,6 +6,7 @@ import {
   type TransactionPageMeta,
   type TransactionStatus,
   type TransactionTableFilters,
+  WebLoggerService,
 } from '@notary-portal/ui';
 import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { PaymentsApiService, type PaymentsHistoryQuery } from './payments-api.service';
@@ -33,31 +34,41 @@ export class Payments {
 
   private readonly api = inject(PaymentsApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly logger = inject(WebLoggerService);
   private readonly queryState = signal({
     page: 1,
     filters: DEFAULT_FILTERS,
   });
 
   constructor() {
+    this.logInfo('payment.history.applicant.page_opened');
     toObservable(this.queryState)
       .pipe(
-        tap(() => {
+        tap(({ page, filters }) => {
           this.loading.set(true);
           this.error.set(null);
+          this.logInfo('payment.history.applicant.load_started', {
+            query: this.toLogQuery(this.buildQuery(page, filters)),
+          });
         }),
-        switchMap(({ page, filters }) =>
-          this.api.getTransactionHistory(this.buildQuery(page, filters)).pipe(
-            map((response) => ({ ok: true as const, response, filters })),
+        switchMap(({ page, filters }) => {
+          const query = this.buildQuery(page, filters);
+
+          return this.api.getTransactionHistory(query).pipe(
+            map((response) => ({ ok: true as const, response, filters, query })),
             catchError((err) => {
-              console.error('Failed to load transaction history', err);
+              this.logError('payment.history.applicant.load_failed', err, {
+                query: this.toLogQuery(query),
+              });
 
               return of({
                 ok: false as const,
                 error: extractTransactionsError(err),
+                query,
               });
             }),
-          ),
-        ),
+          );
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((result) => {
@@ -67,6 +78,12 @@ export class Payments {
           this.transactions.set(result.response.transactions);
           this.meta.set(result.response.meta);
           this.filters.set(result.filters);
+          this.logInfo('payment.history.applicant.load_succeeded', {
+            query: this.toLogQuery(result.query),
+            returnedItems: result.response.transactions.length,
+            totalItems: result.response.meta?.totalItems ?? null,
+            totalPages: result.response.meta?.totalPages ?? null,
+          });
           return;
         }
 
@@ -75,21 +92,34 @@ export class Payments {
   }
 
   onFiltersApply(filters: TransactionTableFilters): void {
+    const normalizedFilters = {
+      ...DEFAULT_FILTERS,
+      ...filters,
+      searchQuery: filters.searchQuery.trim(),
+    };
+
+    this.logInfo('payment.history.applicant.filters_applied', {
+      filters: this.toLogFilters(normalizedFilters),
+    });
     this.queryState.set({
       page: 1,
-      filters: {
-        ...DEFAULT_FILTERS,
-        ...filters,
-        searchQuery: filters.searchQuery.trim(),
-      },
+      filters: normalizedFilters,
     });
   }
 
   onPageChange(page: number): void {
     if (page < 1 || page === this.meta()?.currentPage) {
+      this.logInfo('payment.history.applicant.page_change_ignored', {
+        requestedPage: page,
+        currentPage: this.meta()?.currentPage ?? null,
+      });
       return;
     }
 
+    this.logInfo('payment.history.applicant.page_changed', {
+      previousPage: this.meta()?.currentPage ?? null,
+      nextPage: page,
+    });
     this.queryState.update((state) => ({
       ...state,
       page,
@@ -116,13 +146,68 @@ export class Payments {
 
   private async openReceipt(transaction: TransactionItem): Promise<void> {
     this.error.set(null);
+    this.logInfo('payment.history.applicant.receipt_open_requested', {
+      paymentId: transaction.id,
+      transactionId: transaction.transactionId,
+      status: transaction.status,
+      receiptStatus: transaction.receiptStatus,
+      hasReceipt: transaction.hasReceipt,
+    });
 
     try {
       await this.api.openReceipt(transaction);
+      this.logInfo('payment.history.applicant.receipt_open_succeeded', {
+        paymentId: transaction.id,
+        transactionId: transaction.transactionId,
+      });
     } catch (error) {
-      console.error('Failed to open payment receipt', error);
+      this.logError('payment.history.applicant.receipt_open_failed', error, {
+        paymentId: transaction.id,
+        transactionId: transaction.transactionId,
+        status: transaction.status,
+        receiptStatus: transaction.receiptStatus,
+      });
       this.error.set(extractReceiptError(error));
     }
+  }
+
+  private logInfo(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.info(event, {
+      area: 'applicant_payments_history',
+      route: '/applicant/payments',
+      ...context,
+    });
+  }
+
+  private logError(event: string, error: unknown, context: Record<string, unknown> = {}): void {
+    this.logger.error(event, {
+      area: 'applicant_payments_history',
+      route: '/applicant/payments',
+      ...context,
+      error,
+    });
+  }
+
+  private toLogQuery(query: PaymentsHistoryQuery): Record<string, unknown> {
+    return {
+      page: query.page,
+      limit: query.limit,
+      hasSearchQuery: Boolean(query.searchQuery),
+      searchQueryLength: query.searchQuery?.length ?? 0,
+      status: query.status ?? 'all',
+      dateFrom: query.dateFrom ?? null,
+      dateTo: query.dateTo ?? null,
+    };
+  }
+
+  private toLogFilters(filters: TransactionTableFilters): Record<string, unknown> {
+    return {
+      hasSearchQuery: Boolean(filters.searchQuery.trim()),
+      searchQueryLength: filters.searchQuery.trim().length,
+      status: filters.status,
+      dateFrom: filters.dateFrom || null,
+      dateTo: filters.dateTo || null,
+    };
   }
 }
 
