@@ -1,0 +1,28 @@
+<div class="content">
+  <div class="card">
+    <h1>Добро пожаловать!</h1>
+    <p>Вот основная информация о вашей деятельности:</p>
+
+    <div class="stats">
+      <div class="stat-card">
+        <h3>Активных заказов</h3>
+        <p class="stat-number">{{ activeOrdersCount }}</p>
+      </div>
+      <div class="stat-card">
+        <h3>Новых уведомлений</h3>
+        <p class="stat-number">{{ notificationsCount }}</p>
+      </div>
+    </div>
+
+    <div class="subscription-card">
+      <h3>Тариф: Нотариус PRO</h3>
+      <p>Стоимость: 2990 ₽ / месяц</p>
+      <p>Срок действия: до 31.07.2026</p>
+      <button class="btn btn-outline" [routerLink]="'/notary/subscription'">Управление подпиской</button>
+    </div>
+
+    <div class="quick-actions">
+      <button class="btn btn-primary" [routerLink]="'/notary/orders'">Перейти к заказам</button>
+    </div>
+  </div>
+</div>
