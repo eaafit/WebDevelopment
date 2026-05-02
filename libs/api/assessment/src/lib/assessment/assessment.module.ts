@@ -4,10 +4,11 @@ import { PrismaModule } from '@internal/prisma';
 import { AssessmentRepository } from './assessment.repository';
 import { AssessmentService } from './assessment.service';
 import { AssessmentRpcService } from './assessment-rpc.service';
+import { fiasProviderFactory } from '../fias/fias-provider.factory';
 
 @Module({
   imports: [PrismaModule, AuditModule],
-  providers: [AssessmentRepository, AssessmentService, AssessmentRpcService],
+  providers: [AssessmentRepository, AssessmentService, AssessmentRpcService, fiasProviderFactory],
   exports: [AssessmentRpcService],
 })
 export class AssessmentModule {}
