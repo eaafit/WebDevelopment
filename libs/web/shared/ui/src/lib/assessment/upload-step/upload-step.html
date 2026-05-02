@@ -1,0 +1,13 @@
+<div class="upload-zone" (drop)="onDrop($event)" (dragover)="onDragOver($event)">
+  <input type="file" multiple (change)="onFileSelect($event)" />
+  <p>Перетащите файлы или нажмите для загрузки</p>
+  <p>{{ files().length }} / 30</p>
+</div>
+
+<div class="grid">
+  <lib-photo-item
+    *ngFor="let file of files(); let i = index"
+    [file]="file"
+    (remove)="removeFile(i)"
+    (typeChange)="updateType(i, $event)"></lib-photo-item>
+</div>
