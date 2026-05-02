@@ -286,7 +286,7 @@ describe('PaymentWebhookService', () => {
           paymentId: 'payment-1',
           assessmentId: 'assessment-1',
         }),
-      })
+      }),
     );
   });
 
