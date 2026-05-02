@@ -2,11 +2,12 @@ import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DocumentType } from '@notary-portal/api-contracts';
 import { UploadedFile } from '../models/uploaded-file.model';
+import { PhotoItemComponent } from '../photo-item/photo-item';
 
 @Component({
   selector: 'lib-assessment-upload-step',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PhotoItemComponent],
   templateUrl: './upload-step.html',
   styleUrls: ['./upload-step.scss'],
 })
@@ -47,7 +48,7 @@ export class AssessmentUploadStepComponent {
       const uploaded: UploadedFile = {
         file,
         preview,
-        type: DocumentType.Photo,
+        type: DocumentType.PHOTO,
         quality: this.getQuality(file),
       };
 
