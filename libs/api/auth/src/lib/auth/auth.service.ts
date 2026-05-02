@@ -211,7 +211,7 @@ export class AuthService {
 
   /** Не раскрывает, существует ли email: при отсутствии пользователя — тихий успех. */
   async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
-    const email = request.email.trim().toLowerCase();
+    const email = (request.email ?? '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) {
       return create(ForgotPasswordResponseSchema, {});
     }
@@ -234,7 +234,10 @@ export class AuthService {
     const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
 
     if (this.passwordResetMailer) {
-      await this.passwordResetMailer.sendResetLink(record.email, resetUrl);
+      void this.passwordResetMailer.sendResetLink(record.email, resetUrl).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn('[Auth] password reset email failed:', msg);
+      });
     } else {
       console.warn('[Auth] PASSWORD_RESET_MAILER не настроен — ссылка сброса пароля:', resetUrl);
     }
