@@ -6,6 +6,7 @@ import { BillingModule } from '@internal/billing';
 import { BitrixModule } from '@internal/bitrix';
 import { DocumentModule } from '@internal/document';
 import { MetricsModule } from '@internal/metrics';
+import { NewsletterModule } from '@internal/newsletter';
 import { NotificationModule } from '@internal/notification';
 import { ReportModule } from '@internal/report';
 import { UserModule } from '@internal/user';
@@ -28,6 +29,7 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
     BillingModule,
     BitrixModule,
     DocumentModule,
+    NewsletterModule,
     NotificationModule,
     ReportModule,
     UserModule,

@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package notary.newsletter.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+import "notary/user/v1alpha1/user.proto";
+
+service NewsletterService {
+  rpc ListNewsletterSubscribers(ListNewsletterSubscribersRequest) returns (ListNewsletterSubscribersResponse);
+  rpc EstimateNewsletterAudience(EstimateNewsletterAudienceRequest) returns (EstimateNewsletterAudienceResponse);
+  rpc SendNewsletterCampaign(SendNewsletterCampaignRequest) returns (SendNewsletterCampaignResponse);
+  rpc ListNewsletterCampaigns(ListNewsletterCampaignsRequest) returns (ListNewsletterCampaignsResponse);
+}
+
+enum NewsletterSubscriberStatus {
+  NEWSLETTER_SUBSCRIBER_STATUS_UNSPECIFIED = 0;
+  NEWSLETTER_SUBSCRIBER_STATUS_ACTIVE = 1;
+  NEWSLETTER_SUBSCRIBER_STATUS_UNSUBSCRIBED = 2;
+}
+
+enum NewsletterAudienceType {
+  NEWSLETTER_AUDIENCE_TYPE_UNSPECIFIED = 0;
+  NEWSLETTER_AUDIENCE_TYPE_ALL = 1;
+  NEWSLETTER_AUDIENCE_TYPE_ROLE = 2;
+  NEWSLETTER_AUDIENCE_TYPE_SELECTED = 3;
+}
+
+enum NewsletterCampaignStatus {
+  NEWSLETTER_CAMPAIGN_STATUS_UNSPECIFIED = 0;
+  NEWSLETTER_CAMPAIGN_STATUS_SENDING = 1;
+  NEWSLETTER_CAMPAIGN_STATUS_SENT = 2;
+  NEWSLETTER_CAMPAIGN_STATUS_FAILED = 3;
+  NEWSLETTER_CAMPAIGN_STATUS_PARTIAL_FAILED = 4;
+}
+
+message NewsletterSubscriber {
+  string id = 1;
+  string user_id = 2;
+  string email = 3;
+  string full_name = 4;
+  notary.user.v1alpha1.UserRole role = 5;
+  google.protobuf.Timestamp subscribed_at = 6;
+  optional google.protobuf.Timestamp unsubscribed_at = 7;
+  NewsletterSubscriberStatus status = 8;
+}
+
+message NewsletterSubscriberFilters {
+  string query = 1;
+  NewsletterSubscriberStatus status = 2;
+  notary.user.v1alpha1.UserRole role = 3;
+}
+
+message NewsletterAudience {
+  NewsletterAudienceType type = 1 [(buf.validate.field).enum.defined_only = true];
+  notary.user.v1alpha1.UserRole role = 2;
+  repeated string selected_user_ids = 3 [(buf.validate.field).repeated.items.string.uuid = true];
+}
+
+message NewsletterCampaign {
+  string id = 1;
+  google.protobuf.Timestamp created_at = 2;
+  optional google.protobuf.Timestamp completed_at = 3;
+  string subject = 4;
+  NewsletterAudienceType audience_type = 5;
+  string audience_label = 6;
+  int32 recipients_count = 7;
+  int32 sent_count = 8;
+  int32 failed_count = 9;
+  NewsletterCampaignStatus status = 10;
+}
+
+message ListNewsletterSubscribersRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1 [(buf.validate.field).required = true];
+  NewsletterSubscriberFilters filters = 2;
+}
+
+message ListNewsletterSubscribersResponse {
+  repeated NewsletterSubscriber subscribers = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message EstimateNewsletterAudienceRequest {
+  NewsletterAudience audience = 1 [(buf.validate.field).required = true];
+}
+
+message EstimateNewsletterAudienceResponse {
+  int32 recipients_count = 1;
+}
+
+message SendNewsletterCampaignRequest {
+  NewsletterAudience audience = 1 [(buf.validate.field).required = true];
+  string subject = 2 [(buf.validate.field).string = {min_len: 1, max_len: 200}];
+  string body_html = 3 [(buf.validate.field).string = {min_len: 1, max_len: 50000}];
+}
+
+message SendNewsletterCampaignResponse {
+  NewsletterCampaign campaign = 1;
+}
+
+message NewsletterCampaignFilters {
+  string query = 1;
+}
+
+message ListNewsletterCampaignsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1 [(buf.validate.field).required = true];
+  NewsletterCampaignFilters filters = 2;
+}
+
+message ListNewsletterCampaignsResponse {
+  repeated NewsletterCampaign campaigns = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}

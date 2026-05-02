@@ -8,6 +8,7 @@ import { AssessmentRpcService } from '@internal/assessment';
 import { BitrixRpcService } from '@internal/bitrix';
 import { PaymentRpcService } from '@internal/billing';
 import { DocumentRpcService } from '@internal/document';
+import { NewsletterRpcService } from '@internal/newsletter';
 import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
 import { UserRpcService } from '@internal/user';
@@ -19,6 +20,7 @@ import {
   AssessmentService,
   BitrixService,
   DocumentService,
+  NewsletterService,
   NotificationService,
   PaymentService,
   ReportService,
@@ -34,6 +36,7 @@ export class ConnectRouterRegistry {
     private readonly bitrixRpcService: BitrixRpcService,
     private readonly paymentRpcService: PaymentRpcService,
     private readonly documentRpcService: DocumentRpcService,
+    private readonly newsletterRpcService: NewsletterRpcService,
     private readonly notificationRpcService: NotificationRpcService,
     private readonly reportRpcService: ReportRpcService,
     private readonly userRpcService: UserRpcService,
@@ -91,6 +94,14 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+    });
+
+    // ─── Newsletter ────────────────────────────────────────
+    router.service(NewsletterService, {
+      listNewsletterSubscribers: this.newsletterRpcService.listNewsletterSubscribers,
+      estimateNewsletterAudience: this.newsletterRpcService.estimateNewsletterAudience,
+      sendNewsletterCampaign: this.newsletterRpcService.sendNewsletterCampaign,
+      listNewsletterCampaigns: this.newsletterRpcService.listNewsletterCampaigns,
     });
 
     // ─── Report ──────────────────────────────────────────────
