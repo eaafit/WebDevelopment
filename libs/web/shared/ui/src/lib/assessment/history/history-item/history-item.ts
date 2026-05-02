@@ -22,9 +22,10 @@ export class HistoryItemComponent {
     switch (this.order.status) {
       case 'completed':
         return 'badge-success';
-      case 'in_progress':
+      case 'accepted':
+      case 'under_review':
         return 'badge-pending';
-      case 'failed':
+      case 'rejected':
         return 'badge-failed';
       default:
         return 'badge-pending';
@@ -33,10 +34,11 @@ export class HistoryItemComponent {
 
   get statusLabel(): string {
     const map: Record<AssessmentOrder['status'], string> = {
-      pending: 'Ожидает',
-      in_progress: 'В работе',
-      completed: 'Завершён',
-      failed: 'Ошибка',
+      created: 'Создана',
+      accepted: 'Принята',
+      under_review: 'На рассмотрении',
+      completed: 'Завершена',
+      rejected: 'Отклонена',
     };
     return map[this.order.status];
   }

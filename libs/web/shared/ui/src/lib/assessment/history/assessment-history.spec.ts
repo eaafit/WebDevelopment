@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AssessmentHistoryComponent } from './assessment-history';
-import { By } from '@angular/platform-browser';
+import { ActivatedRoute } from '@angular/router';
 
 describe('AssessmentHistoryComponent', () => {
   let component: AssessmentHistoryComponent;
@@ -9,6 +9,16 @@ describe('AssessmentHistoryComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AssessmentHistoryComponent],
+      providers: [
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              data: {},
+            },
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AssessmentHistoryComponent);

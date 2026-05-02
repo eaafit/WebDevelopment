@@ -1,5 +1,5 @@
 // models.ts
-export type OrderStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+export type OrderStatus = 'created' | 'accepted' | 'under_review' | 'completed' | 'rejected';
 
 export interface StatusHistoryEntry {
   status: OrderStatus;

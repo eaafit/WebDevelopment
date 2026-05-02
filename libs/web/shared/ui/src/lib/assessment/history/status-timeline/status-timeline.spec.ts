@@ -14,7 +14,7 @@ describe('StatusTimelineComponent', () => {
     fixture = TestBed.createComponent(StatusTimelineComponent);
     component = fixture.componentInstance;
     // Входной параметр теперь currentStatus (обязательный)
-    component.currentStatus = 'pending';
+    fixture.componentRef.setInput('currentStatus', 'created');
     fixture.detectChanges();
   });
 
@@ -28,9 +28,9 @@ describe('StatusTimelineComponent', () => {
     expect(stages.length).toBe(5);
   });
 
-  // Проверяем, что для статуса 'pending' первый кружок получает класс 'current'
-  it('should apply "current" class to the active stage for status "pending"', () => {
-    component.currentStatus = 'pending';
+  // Проверяем, что для статуса 'created' первый кружок получает класс 'current'
+  it('should apply "current" class to the active stage for status "created"', () => {
+    fixture.componentRef.setInput('currentStatus', 'created');
     fixture.detectChanges();
     const circles = fixture.nativeElement.querySelectorAll('.stage-circle');
     expect(circles[0].classList).toContain('current');
@@ -40,9 +40,9 @@ describe('StatusTimelineComponent', () => {
     expect(circles[4].classList).not.toContain('current');
   });
 
-  // Проверяем, что для статуса 'in_progress' первые два кружка получают 'completed', третий — 'current'
-  it('should mark previous stages as "completed" for status "in_progress"', () => {
-    component.currentStatus = 'in_progress';
+  // Проверяем, что для статуса 'under_review' первые два кружка получают 'completed', третий — 'current'
+  it('should mark previous stages as "completed" for status "under_review"', () => {
+    fixture.componentRef.setInput('currentStatus', 'under_review');
     fixture.detectChanges();
     const circles = fixture.nativeElement.querySelectorAll('.stage-circle');
     expect(circles[0].classList).toContain('completed');
@@ -54,15 +54,15 @@ describe('StatusTimelineComponent', () => {
     expect(circles[4].classList).not.toContain('current');
   });
 
-  // Проверяем, что для статуса 'completed' все кружки имеют класс 'completed'
-  it('should mark all stages as completed when status is "completed"', () => {
-    component.currentStatus = 'completed';
+  it('should mark completed stage as current when status is "completed"', () => {
+    fixture.componentRef.setInput('currentStatus', 'completed');
     fixture.detectChanges();
     const circles = fixture.nativeElement.querySelectorAll('.stage-circle');
-    for (let i = 0; i < circles.length; i++) {
+    for (let i = 0; i < 3; i++) {
       expect(circles[i].classList).toContain('completed');
     }
-    // По желанию можно проверить, что последний кружок также 'current' (если нужно)
-    expect(circles[4].classList).toContain('current');
+    expect(circles[3].classList).toContain('current');
+    expect(circles[4].classList).not.toContain('completed');
+    expect(circles[4].classList).not.toContain('current');
   });
 });
