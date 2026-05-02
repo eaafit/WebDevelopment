@@ -1,0 +1,47 @@
+.history-item {
+  margin-bottom: 0;
+  transition: box-shadow 0.2s;
+
+  &:hover {
+    box-shadow: 0 8px 20px rgb(0 0 0 / 8%);
+  }
+
+  .item-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .item-id {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .item-address {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  .item-amount {
+    font-size: 1.25rem;
+  }
+
+  .item-meta {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+  }
+
+  .timeline-wrapper {
+    margin: 1rem 0 1.25rem;
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    background-color: var(--bg-secondary);
+  }
+
+  .item-actions {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+}
