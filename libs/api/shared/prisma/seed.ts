@@ -172,6 +172,7 @@ async function main(): Promise<void> {
   await upsertNotifications(SEED_COUNT, userIds);
   await upsertRefreshTokens(SEED_COUNT, userIds);
   await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, paymentRefs, promoIds);
+  await upsertSecurityEvents(userIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
   const [
@@ -850,6 +851,171 @@ async function upsertAuditLogs(
         entityName,
         entityId,
         details,
+      },
+    });
+  }
+}
+
+async function upsertSecurityEvents(userIds: string[]): Promise<void> {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const securityEvents = [
+    {
+      offset: 0,
+      actionType: 'user.login_failed',
+      timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      userId: userIds[0],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Неверный пароль',
+        ip: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+        after: {
+          attempts: 3,
+          lastAttempt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+    {
+      offset: 1,
+      actionType: 'user.login_failed',
+      timestamp: new Date(oneDayAgo.getTime() - 5 * 60 * 60 * 1000),
+      userId: userIds[1],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Неверный email',
+        ip: '10.0.0.50',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
+        after: {
+          attempts: 1,
+          lastAttempt: new Date(oneDayAgo.getTime() - 5 * 60 * 60 * 1000).toISOString(),
+        },
+      },
+    },
+    {
+      offset: 2,
+      actionType: 'user.blocked',
+      timestamp: new Date(twoDaysAgo.getTime()),
+      userId: userIds[SEED_USERS_PER_ROLE * 2],
+      details: {
+        actionTitle: 'Пользователь заблокирован',
+        actionContext: 'Превышено количество неудачных попыток входа',
+        targetTitle: userIds[2],
+        targetContext: 'Заявитель 3',
+        ip: '172.16.0.10',
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/121.0',
+        after: {
+          blockedUntil: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+          reason: 'security',
+        },
+      },
+    },
+    {
+      offset: 3,
+      actionType: 'token.revoked',
+      timestamp: new Date(now.getTime() - 30 * 60 * 1000),
+      userId: userIds[SEED_USERS_PER_ROLE],
+      details: {
+        actionTitle: 'Токен отозван',
+        actionContext: 'Подозрительная активность',
+        targetTitle: 'Refresh Token',
+        targetContext: seedId('refreshToken', 5),
+        ip: '203.0.113.45',
+        userAgent: 'PostmanRuntime/7.36.0',
+        after: {
+          revokedAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+          reason: 'suspicious_activity',
+        },
+      },
+    },
+    {
+      offset: 4,
+      actionType: 'permission.denied',
+      timestamp: new Date(now.getTime() - 10 * 60 * 1000),
+      userId: userIds[0],
+      details: {
+        actionTitle: 'Отказ в доступе',
+        actionContext: 'Попытка доступа к админ-панели',
+        targetTitle: 'Admin Panel',
+        targetContext: '/admin/users',
+        ip: '192.168.1.100',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+        after: { requiredRole: 'Admin', actualRole: 'Applicant' },
+      },
+    },
+    {
+      offset: 5,
+      actionType: 'permission.denied',
+      timestamp: new Date(oneDayAgo.getTime() - 3 * 60 * 60 * 1000),
+      userId: userIds[1],
+      details: {
+        actionTitle: 'Отказ в доступе',
+        actionContext: 'Попытка доступа к чужому заказу',
+        targetTitle: 'Assessment',
+        targetContext: seedId('assessment', 10),
+        ip: '10.0.0.50',
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15',
+        after: { requiredPermission: 'assessment.read', resourceOwner: userIds[5] },
+      },
+    },
+    {
+      offset: 6,
+      actionType: 'user.login_failed',
+      timestamp: new Date(oneWeekAgo.getTime()),
+      userId: userIds[3],
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Истёк срок действия пароля',
+        ip: '198.51.100.20',
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+        after: { attempts: 1, passwordExpired: true },
+      },
+    },
+    {
+      offset: 7,
+      actionType: 'token.revoked',
+      timestamp: new Date(twoDaysAgo.getTime() - 12 * 60 * 60 * 1000),
+      userId: userIds[SEED_USERS_PER_ROLE + 1],
+      details: {
+        actionTitle: 'Токен отозван',
+        actionContext: 'Выход из системы',
+        targetTitle: 'Refresh Token',
+        targetContext: seedId('refreshToken', 15),
+        ip: '172.16.0.25',
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edge/120.0.0.0',
+        after: {
+          revokedAt: new Date(twoDaysAgo.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+          reason: 'user_logout',
+        },
+      },
+    },
+  ];
+
+  for (const event of securityEvents) {
+    const id = seedId('securityEvent', event.offset);
+    await prisma.auditLog.upsert({
+      where: { id },
+      update: {
+        userId: event.userId,
+        assessmentId: null,
+        actionType: event.actionType,
+        entityName: 'Security',
+        entityId: event.userId,
+        timestamp: event.timestamp,
+        details: event.details,
+      },
+      create: {
+        id,
+        userId: event.userId,
+        assessmentId: null,
+        actionType: event.actionType,
+        entityName: 'Security',
+        entityId: event.userId,
+        timestamp: event.timestamp,
+        details: event.details,
       },
     });
   }

@@ -1,6 +1,7 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { AuditService } from '@internal/audit';
 import { MetricsService } from '@internal/metrics';
 import {
   AuthResultSchema,
@@ -34,6 +35,7 @@ import { TRANSACTIONAL_MAILER, type TransactionalMailer } from './transactional-
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
+const LOGIN_FAILED_EVENT = 'user.login_failed';
 
 function roleLabelForRpc(role: RpcUserRole): string {
   switch (role) {
@@ -57,6 +59,7 @@ export class AuthService {
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
     private readonly metrics: MetricsService,
+    private readonly auditService: AuditService,
     @Optional()
     @Inject(PASSWORD_RESET_MAILER)
     private readonly passwordResetMailer: PasswordResetMailer | null = null,
@@ -145,6 +148,7 @@ export class AuthService {
 
     const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
     if (!passwordValid) {
+      await this.recordFailedLoginAttempt(record, 'invalid_password');
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }
 
@@ -265,5 +269,26 @@ export class AuthService {
     await this.refreshTokenRepository.revokeAll(stored.userId);
 
     return create(ResetPasswordResponseSchema, {});
+  }
+
+  private async recordFailedLoginAttempt(
+    record: { id: string; email: string; fullName?: string | null },
+    reason: 'invalid_password',
+  ): Promise<void> {
+    await this.auditService.record({
+      actorUserId: record.id,
+      eventType: LOGIN_FAILED_EVENT,
+      targetType: 'Security',
+      targetId: record.id,
+      actionTitle: 'Неудачная попытка входа',
+      actionContext: 'Неверный пароль',
+      targetTitle: record.fullName || record.email,
+      targetContext: record.email,
+      after: {
+        reason,
+        email: record.email,
+        lastAttempt: new Date().toISOString(),
+      },
+    });
   }
 }
