@@ -1,0 +1,16 @@
+<div class="card" draggable="true">
+  <div class="preview">
+    <img *ngIf="isImage()" [src]="file.preview" />
+    <div *ngIf="!isImage()">PDF</div>
+  </div>
+
+  <select (change)="typeChange.emit($any($event.target).value)">
+    <option *ngFor="let t of types" [value]="t">{{ t }}</option>
+  </select>
+
+  <div class="quality" [ngClass]="file.quality">{{ file.quality }}</div>
+
+  <button (click)="remove.emit()">Удалить</button>
+</div>
+
+<div class="card" draggable="true" (dragstart)="dragStart($event)" (dragover)="$event.preventDefault()"></div>

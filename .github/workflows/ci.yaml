@@ -90,7 +90,7 @@ jobs:
         run: pnpm exec nx run-many -t test --parallel=3 --ci --coverage
 
       - name: Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./coverage

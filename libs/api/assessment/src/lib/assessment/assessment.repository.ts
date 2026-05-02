@@ -2,7 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { PrismaService } from '@internal/prisma';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   AssessmentSchema,
   AssessmentStatus as RpcAssessmentStatus,
@@ -122,13 +122,17 @@ const assessmentInclude = {
 
 @Injectable()
 export class AssessmentRepository {
+  private readonly logger = new Logger(AssessmentRepository.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listCities(): Promise<ListCitiesResponse> {
-    const cities = await this.prisma.city.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    });
+    const cities = await this.runDatabaseOperation('listCities', {}, () =>
+      this.prisma.city.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+    );
 
     return create(ListCitiesResponseSchema, {
       cities: cities.map((city) => this.toCityMessage(city)),
@@ -142,11 +146,13 @@ export class AssessmentRepository {
     const orderBy: Prisma.DistrictOrderByWithRelationInput[] = [{ name: 'asc' }];
     if (!cityId) orderBy.push({ cityId: 'asc' });
 
-    const districts = await this.prisma.district.findMany({
-      where,
-      select: { id: true, cityId: true, name: true },
-      orderBy,
-    });
+    const districts = await this.runDatabaseOperation('listDistricts', { cityId }, () =>
+      this.prisma.district.findMany({
+        where,
+        select: { id: true, cityId: true, name: true },
+        orderBy,
+      }),
+    );
 
     return create(ListDistrictsResponseSchema, {
       districts: districts.map((district) => this.toDistrictMessage(district)),
@@ -159,16 +165,27 @@ export class AssessmentRepository {
     const where = this.buildWhere(query);
     const orderBy = this.buildOrderBy(query);
 
-    const [totalItems, assessments] = await this.prisma.$transaction([
-      this.prisma.assessment.count({ where }),
-      this.prisma.assessment.findMany({
-        where,
-        include: assessmentInclude,
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-    ]);
+    const [totalItems, assessments] = await this.runDatabaseOperation(
+      'listAssessments',
+      {
+        page,
+        limit,
+        userId: query.userId,
+        notaryId: query.notaryId,
+        status: query.status,
+      },
+      () =>
+        this.prisma.$transaction([
+          this.prisma.assessment.count({ where }),
+          this.prisma.assessment.findMany({
+            where,
+            include: assessmentInclude,
+            orderBy,
+            skip: (page - 1) * limit,
+            take: limit,
+          }),
+        ]),
+    );
 
     return create(ListAssessmentsResponseSchema, {
       assessments: assessments.map((assessment) => this.toMessage(assessment)),
@@ -182,28 +199,35 @@ export class AssessmentRepository {
   }
 
   async getAssessment(id: string): Promise<GetAssessmentResponse> {
-    const assessment = await this.prisma.assessment.findUniqueOrThrow({
-      where: { id },
-      include: assessmentInclude,
-    });
+    const assessment = await this.runDatabaseOperation('getAssessment', { assessmentId: id }, () =>
+      this.prisma.assessment.findUniqueOrThrow({
+        where: { id },
+        include: assessmentInclude,
+      }),
+    );
 
     return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
   }
 
   async getAssessmentSnapshot(id: string): Promise<AssessmentAuditSnapshot> {
-    const assessment = await this.prisma.assessment.findUniqueOrThrow({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        notaryId: true,
-        status: true,
-        address: true,
-        description: true,
-        estimatedValue: true,
-        cancelReason: true,
-      },
-    });
+    const assessment = await this.runDatabaseOperation(
+      'getAssessmentSnapshot',
+      { assessmentId: id },
+      () =>
+        this.prisma.assessment.findUniqueOrThrow({
+          where: { id },
+          select: {
+            id: true,
+            userId: true,
+            notaryId: true,
+            status: true,
+            address: true,
+            description: true,
+            estimatedValue: true,
+            cancelReason: true,
+          },
+        }),
+    );
 
     return {
       id: assessment.id,
@@ -218,100 +242,186 @@ export class AssessmentRepository {
   }
 
   async createAssessment(data: CreateAssessmentData): Promise<RpcAssessment> {
-    const assessment = await this.prisma.$transaction(async (tx) => {
-      let realEstateObjectId: string | undefined;
+    const assessment = await this.runDatabaseOperation(
+      'createAssessment',
+      {
+        userId: data.userId,
+        cityId: data.realEstateObject?.cityId,
+        districtId: data.realEstateObject?.districtId,
+        hasRealEstateObject: data.realEstateObject !== undefined,
+      },
+      () =>
+        this.prisma.$transaction(async (tx) => {
+          let realEstateObjectId: string | undefined;
 
-      if (data.realEstateObject) {
-        const realEstateObject = await tx.realEstateObject.create({
-          data: this.toRealEstateObjectCreateInput(data.realEstateObject),
-          select: { id: true },
-        });
-        realEstateObjectId = realEstateObject.id;
-      }
+          if (data.realEstateObject) {
+            const realEstateObject = await tx.realEstateObject.create({
+              data: this.toRealEstateObjectCreateInput(data.realEstateObject),
+              select: { id: true },
+            });
+            realEstateObjectId = realEstateObject.id;
+            this.logger.log(
+              `Created real estate object for assessment draft realEstateObjectId=${realEstateObjectId}` +
+                formatLogFields({
+                  userId: data.userId,
+                  cityId: data.realEstateObject.cityId,
+                  districtId: data.realEstateObject.districtId,
+                }),
+            );
+          }
 
-      return tx.assessment.create({
-        data: {
-          userId: data.userId,
-          address: data.address,
-          description: data.description,
-          ...(realEstateObjectId && { realEstateObjectId }),
-        },
-        include: assessmentInclude,
-      });
-    });
+          return tx.assessment.create({
+            data: {
+              userId: data.userId,
+              address: data.address,
+              description: data.description,
+              ...(realEstateObjectId && { realEstateObjectId }),
+            },
+            include: assessmentInclude,
+          });
+        }),
+    );
 
     return this.toMessage(assessment);
   }
 
   async updateAssessment(id: string, data: UpdateAssessmentData): Promise<RpcAssessment> {
-    const assessment = await this.prisma.$transaction(async (tx) => {
-      const currentAssessment = await tx.assessment.findUniqueOrThrow({
-        where: { id },
-        select: { realEstateObjectId: true },
-      });
-
-      let realEstateObjectId = currentAssessment.realEstateObjectId;
-
-      if (data.realEstateObject) {
-        if (realEstateObjectId) {
-          await tx.realEstateObject.update({
-            where: { id: realEstateObjectId },
-            data: this.toRealEstateObjectUpdateInput(data.realEstateObject),
+    const assessment = await this.runDatabaseOperation(
+      'updateAssessment',
+      {
+        assessmentId: id,
+        cityId: data.realEstateObject?.cityId,
+        districtId: data.realEstateObject?.districtId,
+        hasRealEstateObject: data.realEstateObject !== undefined,
+      },
+      () =>
+        this.prisma.$transaction(async (tx) => {
+          const currentAssessment = await tx.assessment.findUniqueOrThrow({
+            where: { id },
+            select: { realEstateObjectId: true },
           });
-        } else {
-          const realEstateObject = await tx.realEstateObject.create({
-            data: this.toRealEstateObjectCreateInput(data.realEstateObject),
-            select: { id: true },
-          });
-          realEstateObjectId = realEstateObject.id;
-        }
-      }
 
-      return tx.assessment.update({
-        where: { id },
-        data: {
-          ...(data.address !== undefined && { address: data.address }),
-          ...(data.description !== undefined && { description: data.description }),
-          ...(realEstateObjectId &&
-            currentAssessment.realEstateObjectId !== realEstateObjectId && {
-              realEstateObjectId,
-            }),
-        },
-        include: assessmentInclude,
-      });
-    });
+          let realEstateObjectId = currentAssessment.realEstateObjectId;
+
+          if (data.realEstateObject) {
+            if (realEstateObjectId) {
+              await tx.realEstateObject.update({
+                where: { id: realEstateObjectId },
+                data: this.toRealEstateObjectUpdateInput(data.realEstateObject),
+              });
+              this.logger.log(
+                `Updated real estate object realEstateObjectId=${realEstateObjectId}` +
+                  formatLogFields({
+                    assessmentId: id,
+                    cityId: data.realEstateObject.cityId,
+                    districtId: data.realEstateObject.districtId,
+                  }),
+              );
+            } else {
+              const realEstateObject = await tx.realEstateObject.create({
+                data: this.toRealEstateObjectCreateInput(data.realEstateObject),
+                select: { id: true },
+              });
+              realEstateObjectId = realEstateObject.id;
+              this.logger.log(
+                `Created real estate object during assessment update realEstateObjectId=${realEstateObjectId}` +
+                  formatLogFields({
+                    assessmentId: id,
+                    cityId: data.realEstateObject.cityId,
+                    districtId: data.realEstateObject.districtId,
+                  }),
+              );
+            }
+          }
+
+          return tx.assessment.update({
+            where: { id },
+            data: {
+              ...(data.address !== undefined && { address: data.address }),
+              ...(data.description !== undefined && { description: data.description }),
+              ...(realEstateObjectId &&
+                currentAssessment.realEstateObjectId !== realEstateObjectId && {
+                  realEstateObjectId,
+                }),
+            },
+            include: assessmentInclude,
+          });
+        }),
+    );
 
     return this.toMessage(assessment);
   }
 
   async verifyAssessment(id: string, notaryId?: string | null): Promise<RpcAssessment> {
-    const assessment = await this.prisma.assessment.update({
-      where: { id },
-      data: {
-        status: PrismaAssessmentStatus.Verified,
-        ...(notaryId != null && notaryId !== '' && { notaryId }),
-      },
-      include: assessmentInclude,
-    });
+    const assessment = await this.runDatabaseOperation(
+      'verifyAssessment',
+      { assessmentId: id, notaryId },
+      () =>
+        this.prisma.assessment.update({
+          where: { id },
+          data: {
+            status: PrismaAssessmentStatus.Verified,
+            ...(notaryId != null && notaryId !== '' && { notaryId }),
+          },
+          include: assessmentInclude,
+        }),
+    );
     return this.toMessage(assessment);
   }
 
   async completeAssessment(id: string, estimatedValue: string): Promise<RpcAssessment> {
-    const assessment = await this.prisma.assessment.update({
-      where: { id },
-      data: { status: PrismaAssessmentStatus.Completed, estimatedValue },
-      include: assessmentInclude,
-    });
+    const assessment = await this.runDatabaseOperation(
+      'completeAssessment',
+      { assessmentId: id, status: PrismaAssessmentStatus.Completed },
+      () =>
+        this.prisma.assessment.update({
+          where: { id },
+          data: { status: PrismaAssessmentStatus.Completed, estimatedValue },
+          include: assessmentInclude,
+        }),
+    );
     return this.toMessage(assessment);
   }
 
   async cancelAssessment(id: string, reason?: string): Promise<RpcAssessment> {
-    const assessment = await this.prisma.assessment.update({
-      where: { id },
-      data: { status: PrismaAssessmentStatus.Cancelled, cancelReason: reason },
-      include: assessmentInclude,
-    });
+    const assessment = await this.runDatabaseOperation(
+      'cancelAssessment',
+      { assessmentId: id, status: PrismaAssessmentStatus.Cancelled, hasReason: Boolean(reason) },
+      () =>
+        this.prisma.assessment.update({
+          where: { id },
+          data: { status: PrismaAssessmentStatus.Cancelled, cancelReason: reason },
+          include: assessmentInclude,
+        }),
+    );
     return this.toMessage(assessment);
+  }
+
+  private async runDatabaseOperation<T>(
+    operation: string,
+    context: Record<string, unknown>,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const contextFields = formatLogFields(context);
+    this.logger.log(`Starting assessment repository operation ${operation}${contextFields}`);
+
+    try {
+      const result = await action();
+      this.logger.log(`Completed assessment repository operation ${operation}${contextFields}`);
+      return result;
+    } catch (error) {
+      if (isPrismaNotFoundError(error)) {
+        this.logger.warn(
+          `Assessment repository operation ${operation} did not find a record${contextFields}: ${errorMessage(error)}`,
+        );
+      } else {
+        this.logger.error(
+          `Assessment repository operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
+          errorStack(error),
+        );
+      }
+      throw error;
+    }
   }
 
   private buildWhere(query: AssessmentQuery): Prisma.AssessmentWhereInput {
@@ -630,4 +740,23 @@ function requireDefined<T>(value: T | undefined, fieldName: string): T {
     throw new ConnectError(`${fieldName} is required`, Code.InvalidArgument);
   }
   return value;
+}
+
+function isPrismaNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+function formatLogFields(fields: Record<string, unknown>): string {
+  const entries = Object.entries(fields).filter(([, value]) => value !== undefined && value !== '');
+  return entries.length
+    ? ` ${entries.map(([key, value]) => `${key}=${String(value)}`).join(' ')}`
+    : '';
 }
