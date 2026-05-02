@@ -3,9 +3,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SubscriptionPlan } from '@notary-portal/api-contracts';
 import { catchError, of } from 'rxjs';
-import type { TariffPlan } from '@internal/models/tariff-plan';
 import { PlanModalComponent, PlanModalSavedEvent } from '../plan-modal/plan-modal';
-import { TariffPlanService } from '../../../services/tariff-plan.service';
+import { TariffPlanService, type TariffPlan } from '../../../../services/tariff-plan.service';
 
 @Component({
   selector: 'lib-plans-list',
@@ -24,7 +23,11 @@ export class PlansListComponent {
     const defaultFeaturesByPlan: Record<SubscriptionPlan, string[]> = {
       [SubscriptionPlan.UNSPECIFIED]: ['Базовые функции'],
       [SubscriptionPlan.BASIC]: ['Базовая поддержка', 'Личный кабинет', 'Ограниченные отчёты'],
-      [SubscriptionPlan.PREMIUM]: ['Приоритетная поддержка', 'Расширенная аналитика', 'Экспорт данных'],
+      [SubscriptionPlan.PREMIUM]: [
+        'Приоритетная поддержка',
+        'Расширенная аналитика',
+        'Экспорт данных',
+      ],
       [SubscriptionPlan.ENTERPRISE]: ['SLA', 'Интеграции', 'Роли и доступы'],
     };
     return source.map((p, idx) => {

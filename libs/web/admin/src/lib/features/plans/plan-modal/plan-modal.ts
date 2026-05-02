@@ -2,8 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, EMPTY } from 'rxjs';
-import type { TariffPlan } from '@internal/models/tariff-plan';
-import { TariffPlanService } from '../../../services/tariff-plan.service';
+import { TariffPlanService, type TariffPlan } from '../../../../services/tariff-plan.service';
 
 export type PlanModalSavedEvent = { mode: 'create' | 'edit'; plan: TariffPlan };
 
@@ -62,9 +61,7 @@ export class PlanModalComponent {
     // NOTE: DB schema for TariffPlan doesn't have "features".
     const description =
       (this.form.description ?? '').trim() +
-      (this.form.featuresText.trim()
-        ? `\n\nFeatures:\n${this.form.featuresText.trim()}`
-        : '');
+      (this.form.featuresText.trim() ? `\n\nFeatures:\n${this.form.featuresText.trim()}` : '');
 
     const payload = {
       name: this.form.name,

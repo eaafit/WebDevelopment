@@ -3,7 +3,7 @@
     <div class="admin-page__hero-copy">
       <p class="admin-page__eyebrow">Личный кабинет администратора / Промокоды</p>
       <h2>Управление промокодами</h2>
-      <p class="admin-page__lead">Поиск, активация и деактивация промокодов с данными из базы.</p>
+      <p class="admin-page__lead">Промокоды из базы: тип скидки, сроки, лимиты использования.</p>
     </div>
     <div class="admin-page__actions">
       <button class="admin-btn admin-btn--primary" type="button" (click)="openAddModal()">+ Добавить промокод</button>
@@ -12,87 +12,167 @@
 
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
-      <p>Поиск применяется сразу по мере ввода.</p>
-      <small class="admin-toolbar__status">Найдено: {{ filteredRows.length }}</small>
+      <p>Поиск по коду среди загруженных записей.</p>
+      <small class="admin-toolbar__status">Найдено: {{ filteredRows().length }}</small>
     </div>
     <label class="admin-field">
       <span>Поиск по коду</span>
-      <input placeholder="Введите код..." [(ngModel)]="filter" />
+      <input placeholder="Введите код…" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
     </label>
   </section>
 
-  <div class="error" *ngIf="error()">{{ error() }}</div>
+  @if (error()) {
+  <p class="promo-page__error">{{ error() }}</p>
+  }
 
   <article class="admin-card">
     <div class="admin-card__header">
       <div>
         <h3>Список промокодов</h3>
-        <p>Управление лимитами использования и статусами.</p>
+        <p>Данные из таблицы promocodes: активация и срок действия.</p>
       </div>
+      @if (loading()) {
+      <span class="admin-badge admin-badge--neutral">Загрузка…</span>
+      }
     </div>
     <div class="payments-table-shell">
       <div class="table-responsive">
-        <table class="payments-table" *ngIf="filteredRows.length > 0; else empty">
+        @if (filteredRows().length > 0) {
+        <table class="payments-table">
           <thead>
             <tr>
               <th>Код</th>
               <th>Скидка</th>
               <th>Лимит</th>
               <th>Использовано</th>
-              <th>Истекает</th>
+              <th>Период</th>
               <th>Статус</th>
               <th>Действия</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let r of filteredRows">
-              <td class="mono">{{ r.code }}</td>
-              <td>{{ r.discountPercent }}%</td>
-              <td>{{ r.usageLimit }}</td>
+            @for (r of filteredRows(); track r.id) {
+            <tr>
+              <td class="promo-page__mono">{{ r.code }}</td>
+              <td>{{ discountLabel(r) }}</td>
+              <td>{{ r.maxUses }}</td>
               <td>{{ r.usedCount }}</td>
-              <td>{{ r.expiresAt | date: 'dd.MM.yyyy' }}</td>
+              <td>{{ r.validFrom | date: 'dd.MM.yyyy' }} — {{ r.validTo | date: 'dd.MM.yyyy' }}</td>
               <td>
-                <span class="admin-badge" [class.admin-badge--success]="r.status === 'Active'" [class.admin-badge--warning]="r.status !== 'Active'">{{ r.status }}</span>
+                @let st = rowStatus(r);
+                <span
+                  class="admin-badge"
+                  [class.admin-badge--success]="st === 'Active'"
+                  [class.admin-badge--warning]="st === 'Inactive'"
+                  [class.admin-badge--neutral]="st === 'Expired'">
+                  {{ st === 'Active' ? 'Активен' : st === 'Inactive' ? 'Неактивен' : 'Истёк' }}
+                </span>
               </td>
               <td>
-                <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleStatus(r)">
-                  {{ r.status === 'Inactive' ? 'Activate' : 'Deactivate' }}
+                @if (rowStatus(r) !== 'Expired') {
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(r)">
+                  {{ r.isActive ? 'Деактивировать' : 'Активировать' }}
                 </button>
+                } @else {
+                <span class="promo-page__muted">—</span>
+                }
               </td>
             </tr>
+            }
           </tbody>
         </table>
+        } @else if (!loading()) {
+        <div class="payments-table__empty">Промокоды не найдены. Создайте первый через «Добавить промокод».</div>
+        }
       </div>
-      <ng-template #empty>
-        <div class="payments-table__empty">Промокоды не найдены.</div>
-      </ng-template>
     </div>
   </article>
 
-  <div class="modal-overlay" *ngIf="showAddModal()">
-    <div class="modal">
-      <h3>Добавить промокод</h3>
-      <label class="field">
-        <span>Код</span>
-        <input class="input" [(ngModel)]="form.code" />
-      </label>
-      <label class="field">
-        <span>Скидка %</span>
-        <input class="input" type="number" min="1" max="100" [(ngModel)]="form.discountPercent" />
-      </label>
-      <label class="field">
-        <span>Лимит</span>
-        <input class="input" type="number" min="1" [(ngModel)]="form.usageLimit" />
-      </label>
-      <label class="field">
-        <span>Истечение</span>
-        <input class="input" type="date" [(ngModel)]="form.expiresAt" />
-      </label>
-      <div class="modal-actions">
-        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeAddModal()">Отменить</button>
-        <button class="admin-btn admin-btn--primary" type="button" (click)="savePromo()">Сохранить</button>
+  @if (showModal()) {
+  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="closeModal()"></button>
+  <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
+    <div class="entity-modal__head">
+      <div>
+        <h3 id="promo-modal-title">Новый промокод</h3>
+        <p class="entity-modal__subtitle">Код, тип скидки, период действия и лимит применений.</p>
       </div>
+      <button type="button" class="entity-modal__close" (click)="closeModal()">Закрыть</button>
     </div>
-  </div>
-</section>
 
+    @if (error()) {
+    <p class="entity-modal__error">{{ error() }}</p>
+    }
+
+    <form class="entity-modal__form" (ngSubmit)="savePromo()">
+      <label class="entity-field">
+        <span class="entity-field__label">Код *</span>
+        <input class="entity-input promo-page__mono" name="code" [(ngModel)]="form.code" autocomplete="off" />
+      </label>
+
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Тип скидки</span>
+          <select class="entity-input" name="discountType" [(ngModel)]="form.discountType">
+            <option value="percentage">Процент</option>
+            <option value="fixed">Фиксированная сумма (₽)</option>
+          </select>
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Значение *</span>
+          <input
+            class="entity-input"
+            type="number"
+            name="discountValue"
+            [(ngModel)]="form.discountValue"
+            min="0"
+            step="0.01" />
+        </label>
+      </div>
+
+      <label class="entity-field">
+        <span class="entity-field__label">Описание</span>
+        <textarea
+          class="entity-textarea"
+          name="description"
+          rows="2"
+          [(ngModel)]="form.description"
+          placeholder="Необязательно — иначе подставится автоматический текст"></textarea>
+      </label>
+
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Действует с *</span>
+          <input class="entity-input" type="date" name="validFrom" [(ngModel)]="form.validFrom" required />
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Действует по *</span>
+          <input
+            class="entity-input"
+            type="date"
+            name="validTo"
+            [(ngModel)]="form.validTo"
+            required
+            [min]="form.validFrom" />
+        </label>
+      </div>
+
+      <label class="entity-field">
+        <span class="entity-field__label">Максимум использований *</span>
+        <input class="entity-input" type="number" name="usageLimit" [(ngModel)]="form.usageLimit" min="1" step="1" />
+      </label>
+
+      <label class="entity-check">
+        <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+        <span>Промокод активен</span>
+      </label>
+
+      <div class="entity-modal__actions">
+        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">Отмена</button>
+        <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Сохранение…' : 'Сохранить' }}
+        </button>
+      </div>
+    </form>
+  </div>
+  }
+</section>

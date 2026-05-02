@@ -1,8 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, EMPTY } from 'rxjs';
-import { AdminPromoBridgeService, AdminPromoRow } from '../../services/admin-promo-bridge.service';
+import { PromocodeService, type PromocodeDto } from '../../../services/promocode.service';
+
+export type PromocodeUiStatus = 'Active' | 'Inactive' | 'Expired';
 
 @Component({
   selector: 'lib-promo-codes',
@@ -11,31 +13,36 @@ import { AdminPromoBridgeService, AdminPromoRow } from '../../services/admin-pro
   templateUrl: './promo-codes.html',
   styleUrl: './promo-codes.scss',
 })
-export class PromoCodesComponent {
-  private readonly promoService = inject(AdminPromoBridgeService);
+export class PromoCodesComponent implements OnInit {
+  private readonly promocodeService = inject(PromocodeService);
 
-  readonly rows = signal<AdminPromoRow[]>([]);
-  readonly showAddModal = signal(false);
+  readonly rows = signal<PromocodeDto[]>([]);
+  readonly filter = signal('');
+  readonly showModal = signal(false);
   readonly error = signal<string | null>(null);
   readonly loading = signal(false);
+  readonly saving = signal(false);
 
-  filter = '';
   form = {
     code: '',
-    discountPercent: 10,
+    discountType: 'percentage' as 'percentage' | 'fixed',
+    discountValue: 10,
+    description: '',
     usageLimit: 100,
-    expiresAt: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+    validFrom: '',
+    validTo: '',
+    isActive: true,
   };
 
   ngOnInit(): void {
-    this.loadPromos();
+    this.loadPromocodes();
   }
 
-  loadPromos(): void {
+  loadPromocodes(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.promoService
-      .list(this.filter)
+    this.promocodeService
+      .getAll({ sortField: 'id', sortDirection: 'desc', take: 500 })
       .pipe(
         catchError((err) => {
           this.error.set(err?.message ?? 'Не удалось загрузить промокоды');
@@ -43,67 +50,104 @@ export class PromoCodesComponent {
           return EMPTY;
         }),
       )
-      .subscribe((rows) => {
-        this.rows.set(rows);
+      .subscribe((list) => {
+        this.rows.set(list);
         this.loading.set(false);
       });
   }
 
-  get filteredRows(): AdminPromoRow[] {
-    const term = this.filter.trim().toLowerCase();
-    if (!term) return this.rows();
-    return this.rows().filter((row) => row.code.toLowerCase().includes(term));
+  filteredRows(): PromocodeDto[] {
+    const term = this.filter().trim().toLowerCase();
+    const list = this.rows();
+    if (!term) return list;
+    return list.filter((row) => row.code.toLowerCase().includes(term));
   }
 
-  toggleStatus(row: AdminPromoRow): void {
-    this.promoService
-      .deactivate(row.id)
+  rowStatus(row: PromocodeDto): PromocodeUiStatus {
+    const now = Date.now();
+    if (new Date(row.validTo).getTime() < now) return 'Expired';
+    if (!row.isActive) return 'Inactive';
+    return 'Active';
+  }
+
+  discountLabel(row: PromocodeDto): string {
+    if (row.discountType === 'percentage') {
+      return `${row.discountValue}%`;
+    }
+    return `${row.discountValue} ₽`;
+  }
+
+  toggleActive(row: PromocodeDto): void {
+    const isActive = Boolean(row.isActive);
+    this.promocodeService
+      .update(row.id, {
+        code: row.code,
+        discountType: row.discountType,
+        discountValue: Number(row.discountValue),
+        description: row.description ?? null,
+        isActive: !isActive,
+        validFrom: row.validFrom,
+        validTo: row.validTo,
+        maxUses: row.maxUses,
+      })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось деактивировать промокод');
+          this.error.set(err?.message ?? 'Не удалось обновить промокод');
           return EMPTY;
         }),
       )
-      .subscribe(() => this.loadPromos());
+      .subscribe(() => this.loadPromocodes());
   }
 
   openAddModal(): void {
     this.error.set(null);
     this.form = {
       code: '',
-      discountPercent: 10,
+      discountType: 'percentage',
+      discountValue: 10,
+      description: '',
       usageLimit: 100,
-      expiresAt: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+      validFrom: new Date().toISOString().split('T')[0],
+      validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+      isActive: true,
     };
-    this.showAddModal.set(true);
+    this.showModal.set(true);
   }
 
-  closeAddModal(): void {
-    this.showAddModal.set(false);
+  closeModal(): void {
+    this.showModal.set(false);
   }
 
   savePromo(): void {
     if (!this.form.code.trim()) {
-      this.error.set('Укажи код промокода');
+      this.error.set('Укажите код промокода');
       return;
     }
-    this.promoService
+    this.saving.set(true);
+    this.error.set(null);
+    this.promocodeService
       .create({
         code: this.form.code.trim().toUpperCase(),
-        discountPercent: Number(this.form.discountPercent),
-        usageLimit: Number(this.form.usageLimit),
-        expiresAt: new Date(this.form.expiresAt).toISOString(),
+        discountType: this.form.discountType,
+        discountValue: Number(this.form.discountValue),
+        description:
+          this.form.description.trim() || `Промокод ${this.form.code.trim().toUpperCase()}`,
+        isActive: this.form.isActive,
+        validFrom: new Date(this.form.validFrom).toISOString(),
+        validTo: new Date(this.form.validTo).toISOString(),
+        maxUses: Number(this.form.usageLimit),
       })
       .pipe(
         catchError((err) => {
           this.error.set(err?.message ?? 'Не удалось создать промокод');
+          this.saving.set(false);
           return EMPTY;
         }),
       )
       .subscribe(() => {
-        this.showAddModal.set(false);
-        this.loadPromos();
+        this.saving.set(false);
+        this.showModal.set(false);
+        this.loadPromocodes();
       });
   }
 }
-

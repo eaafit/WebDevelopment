@@ -6,31 +6,39 @@
       <p class="admin-page__lead">Централизованное управление правилами скидок и сроками действия.</p>
     </div>
     <div class="admin-page__actions">
-      <button class="admin-btn admin-btn--primary" type="button" (click)="openAddModal()">+ Добавить</button>
+      <button class="admin-btn admin-btn--primary" type="button" (click)="openCreateModal()">+ Добавить скидку</button>
     </div>
   </header>
 
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
       <p>Фильтрация по названию, описанию и проценту.</p>
-      <small class="admin-toolbar__status">Показано: {{ visibleDiscounts.length }}</small>
+      <small class="admin-toolbar__status">Показано: {{ visibleDiscounts().length }}</small>
     </div>
     <label class="admin-field">
       <span>Поиск</span>
-      <input [(ngModel)]="filterName" placeholder="Поиск по названию/описанию/проценту" />
+      <input
+        [ngModel]="filterName()"
+        (ngModelChange)="filterName.set($event)"
+        placeholder="Поиск по названию / описанию / %" />
     </label>
   </section>
+
+  @if (error()) {
+  <p class="sale-page__error">{{ error() }}</p>
+  }
 
   <article class="admin-card">
     <div class="admin-card__header">
       <div>
         <h3>Список скидок</h3>
-        <p>Активируйте и деактивируйте правила прямо из таблицы.</p>
+        <p>Создание, редактирование и переключение активности прямо из таблицы.</p>
       </div>
     </div>
     <div class="payments-table-shell">
       <div class="table-responsive">
-        <table class="payments-table" *ngIf="visibleDiscounts.length > 0; else emptyDiscounts">
+        @if (visibleDiscounts().length > 0) {
+        <table class="payments-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -43,80 +51,152 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let d of visibleDiscounts">
+            @for (d of visibleDiscounts(); track d.id) {
+            <tr>
               <td>{{ d.id }}</td>
               <td>
-                <div class="title">{{ d.name }}</div>
-                <div class="small">{{ d.description }}</div>
+                <div class="sale-page__title">{{ d.name }}</div>
+                @if (d.description) {
+                <div class="sale-page__muted">{{ d.description }}</div>
+                }
               </td>
               <td>{{ d.percentage }}%</td>
-              <td>{{ d.validFrom | date: 'dd.MM.yyyy' }} - {{ d.validTo | date: 'dd.MM.yyyy' }}</td>
+              <td>{{ d.validFrom | date: 'dd.MM.yyyy' }} — {{ d.validTo | date: 'dd.MM.yyyy' }}</td>
               <td>
-                <span *ngIf="d.minOrderAmount">от {{ d.minOrderAmount }} ₽</span>
-                <span *ngIf="d.minOrderAmount && d.maxDiscountAmount">, </span>
-                <span *ngIf="d.maxDiscountAmount">макс {{ d.maxDiscountAmount }} ₽</span>
-                <span *ngIf="!d.minOrderAmount && !d.maxDiscountAmount">без ограничений</span>
+                @if (d.minOrderAmount) {
+                <span>от {{ d.minOrderAmount }} ₽</span>
+                } @if (d.minOrderAmount && d.maxDiscountAmount) {
+                <span>, </span>
+                } @if (d.maxDiscountAmount) {
+                <span>макс. {{ d.maxDiscountAmount }} ₽</span>
+                } @if (!d.minOrderAmount && !d.maxDiscountAmount) {
+                <span class="sale-page__muted">без ограничений</span>
+                }
               </td>
               <td>
-                <span class="admin-badge" [class.admin-badge--success]="d.isActive" [class.admin-badge--warning]="!d.isActive">
-                  {{ d.isActive ? 'Active' : 'Inactive' }}
+                <span
+                  class="admin-badge"
+                  [class.admin-badge--success]="d.isActive"
+                  [class.admin-badge--warning]="!d.isActive">
+                  {{ d.isActive ? 'Активна' : 'Неактивна' }}
                 </span>
               </td>
-              <td>
+              <td class="sale-page__actions">
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(d)">Изменить</button>
                 <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(d)">
-                  {{ d.isActive ? 'Deactivate' : 'Activate' }}
+                  {{ d.isActive ? 'Деактивировать' : 'Активировать' }}
                 </button>
               </td>
             </tr>
+            }
           </tbody>
         </table>
+        } @else {
+        <div class="payments-table__empty">Нет скидок по текущему фильтру. Нажмите «Добавить скидку».</div>
+        }
       </div>
-      <ng-template #emptyDiscounts>
-        <div class="payments-table__empty">Нет скидок по текущему фильтру.</div>
-      </ng-template>
     </div>
   </article>
 
-  <div class="modal-overlay" *ngIf="showAddModal">
-    <div class="modal">
-      <h3>Добавить скидку</h3>
-      <label class="field">
-        <span>Название</span>
-        <input class="input" [(ngModel)]="form.name" />
+  @if (showModal()) {
+  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="closeModal()"></button>
+  <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title">
+    <div class="entity-modal__head">
+      <div>
+        <h3 id="sale-modal-title">{{ modalMode() === 'create' ? 'Новая скидка' : 'Редактирование скидки' }}</h3>
+        <p class="entity-modal__subtitle">
+          {{ modalMode() === 'create' ? 'Заполните поля и сохраните правило.' : 'Измените параметры и сохраните.' }}
+        </p>
+      </div>
+      <button type="button" class="entity-modal__close" (click)="closeModal()">Закрыть</button>
+    </div>
+
+    @if (error()) {
+    <p class="entity-modal__error">{{ error() }}</p>
+    }
+
+    <form class="entity-modal__form" (ngSubmit)="saveDiscount()">
+      <label class="entity-field">
+        <span class="entity-field__label">Название *</span>
+        <input class="entity-input" name="name" [(ngModel)]="form.name" required autocomplete="off" />
       </label>
-      <label class="field">
-        <span>Процент</span>
-        <input class="input" type="number" min="1" max="100" [(ngModel)]="form.percentage" />
+
+      <label class="entity-field">
+        <span class="entity-field__label">Процент скидки *</span>
+        <input
+          class="entity-input"
+          type="number"
+          name="percentage"
+          [(ngModel)]="form.percentage"
+          min="0"
+          max="100"
+          step="0.01" />
       </label>
-      <label class="field">
-        <span>Описание</span>
-        <input class="input" [(ngModel)]="form.description" />
+
+      <label class="entity-field">
+        <span class="entity-field__label">Описание</span>
+        <textarea
+          class="entity-textarea"
+          name="description"
+          rows="3"
+          [(ngModel)]="form.description"
+          placeholder="Кратко опишите условие применения"></textarea>
       </label>
-      <label class="field">
-        <span>Действует с</span>
-        <input class="input" type="date" [(ngModel)]="form.validFrom" />
+
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Действует с *</span>
+          <input class="entity-input" type="date" name="validFrom" [(ngModel)]="form.validFrom" required />
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Действует по *</span>
+          <input
+            class="entity-input"
+            type="date"
+            name="validTo"
+            [(ngModel)]="form.validTo"
+            required
+            [min]="form.validFrom" />
+        </label>
+      </div>
+
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Мин. сумма заказа (₽)</span>
+          <input
+            class="entity-input"
+            type="number"
+            name="minOrder"
+            [(ngModel)]="form.minOrderAmount"
+            min="0"
+            step="1" />
+          <p class="entity-field__hint">Опционально: скидка только от этой суммы</p>
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Макс. размер скидки (₽)</span>
+          <input
+            class="entity-input"
+            type="number"
+            name="maxDisc"
+            [(ngModel)]="form.maxDiscountAmount"
+            min="0"
+            step="1" />
+          <p class="entity-field__hint">Опционально: потолок выгоды</p>
+        </label>
+      </div>
+
+      <label class="entity-check">
+        <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+        <span>Правило активно</span>
       </label>
-      <label class="field">
-        <span>Действует до</span>
-        <input class="input" type="date" [(ngModel)]="form.validTo" />
-      </label>
-      <label class="field">
-        <span>Мин. сумма заказа</span>
-        <input class="input" type="number" min="0" [(ngModel)]="form.minOrderAmount" />
-      </label>
-      <label class="field">
-        <span>Макс. скидка</span>
-        <input class="input" type="number" min="0" [(ngModel)]="form.maxDiscountAmount" />
-      </label>
-      <label class="field">
-        <span><input type="checkbox" [(ngModel)]="form.isActive" /> Активна</span>
-      </label>
-      <div class="modal-actions">
-        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeAddModal()">Отменить</button>
-        <button class="admin-btn admin-btn--primary" type="button" (click)="createDiscount()" [disabled]="creating">
-          {{ creating ? 'Сохранение...' : 'Сохранить' }}
+
+      <div class="entity-modal__actions">
+        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">Отмена</button>
+        <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Сохранение…' : 'Сохранить' }}
         </button>
       </div>
-    </div>
+    </form>
   </div>
+  }
 </section>

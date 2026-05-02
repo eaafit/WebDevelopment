@@ -1,8 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TariffPlanService } from '../../services/tariff-plan.service';
-import type { TariffPlan } from '@internal/models/tariff-plan';
+import { TariffPlanService, type TariffPlan } from '../../../services/tariff-plan.service';
 
 @Component({
   selector: 'lib-plan',

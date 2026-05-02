@@ -1,3 +1,5 @@
+@use '../../../styles/entity-form-modal';
+
 :host {
   display: block;
 }
@@ -7,9 +9,15 @@
   gap: 1.5rem;
 }
 
-.input {
-  width: 100%;
-  min-width: 220px;
+.promo-page__error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--admin-radius-xs, 14px);
+
+  font-size: 0.9rem;
+  color: var(--admin-critical-text);
+
+  background: var(--admin-critical-bg);
 }
 
 .payments-table-shell {
@@ -24,17 +32,17 @@
 }
 
 .payments-table {
-  width: 100%;
-  min-width: 980px;
-  border-collapse: separate;
   border-spacing: 0;
+  border-collapse: separate;
+  width: 100%;
+  min-width: 1020px;
 }
 
 .payments-table th,
 .payments-table td {
   padding: 1rem 0.95rem;
-  text-align: left;
   border-bottom: 1px solid rgb(148 163 184 / 18%);
+  text-align: left;
 }
 
 .payments-table th {
@@ -44,38 +52,27 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
+
   background: linear-gradient(180deg, var(--admin-bg) 0%, rgb(255 255 255 / 70%) 100%);
 }
 
 .payments-table__empty {
   padding: 2.3rem 1rem;
-  text-align: center;
   color: var(--admin-text-soft);
+  text-align: center;
 }
 
-.mono {
+.promo-page__mono {
   font-family: var(--admin-font-mono);
 }
 
-.error {
-  color: var(--admin-critical-text);
+.promo-page__muted {
+  font-size: 0.88rem;
+  color: var(--admin-text-soft);
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgb(0 0 0 / 55%);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-}
-
-.modal {
-  width: min(480px, calc(100vw - 20px));
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 14px;
+select.entity-input {
+  cursor: pointer;
 }
 
 @media (width <= 920px) {
@@ -83,17 +80,3 @@
     align-items: stretch;
   }
 }
-
-.field {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 12px;
-}
-

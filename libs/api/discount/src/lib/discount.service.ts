@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
+import type { Prisma } from '@internal/prisma-client';
 import { CreateDiscountDto } from './dto/create-discount.dto';
 import { UpdateDiscountDto } from './dto/update-discount.dto';
 
@@ -31,15 +32,19 @@ export class DiscountService {
   }
 
   async update(id: number, dto: UpdateDiscountDto) {
-    const data: any = {};
-    if (dto.name !== undefined) data.name = dto.name;
-    if (dto.percentage !== undefined) data.percentage = dto.percentage;
-    if (dto.description !== undefined) data.description = dto.description;
-    if (dto.isActive !== undefined) data.isActive = dto.isActive;
-    if (dto.validFrom !== undefined) data.validFrom = new Date(dto.validFrom);
-    if (dto.validTo !== undefined) data.validTo = new Date(dto.validTo);
-    if (dto.minOrderAmount !== undefined) data.minOrderAmount = dto.minOrderAmount;
-    if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = dto.maxDiscountAmount;
+    // Тело приходит как plain object; читаем поля без опоры на «класс» DTO.
+    const raw = dto as Record<string, unknown>;
+    const data: Prisma.DiscountUpdateInput = {};
+    if (raw['name'] !== undefined) data.name = String(raw['name']);
+    if (raw['percentage'] !== undefined) data.percentage = Number(raw['percentage']);
+    if (raw['description'] !== undefined) data.description = raw['description'] as string | null;
+    if (raw['isActive'] !== undefined) data.isActive = Boolean(raw['isActive']);
+    if (raw['validFrom'] !== undefined) data.validFrom = new Date(String(raw['validFrom']));
+    if (raw['validTo'] !== undefined) data.validTo = new Date(String(raw['validTo']));
+    if (raw['minOrderAmount'] !== undefined)
+      data.minOrderAmount = raw['minOrderAmount'] as number | null;
+    if (raw['maxDiscountAmount'] !== undefined)
+      data.maxDiscountAmount = raw['maxDiscountAmount'] as number | null;
     return this.prisma.discount.update({ where: { id }, data });
   }
 

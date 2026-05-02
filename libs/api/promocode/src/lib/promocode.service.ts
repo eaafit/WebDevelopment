@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
+import type { Prisma } from '@internal/prisma-client';
 import { CreatePromocodeDto } from './dto/create-promocode.dto';
 import { UpdatePromocodeDto } from './dto/update-promocode.dto';
 
@@ -32,15 +33,16 @@ export class PromocodeService {
   }
 
   async update(id: number, dto: UpdatePromocodeDto) {
-    const data: any = {};
-    if (dto.code !== undefined) data.code = dto.code;
-    if (dto.discountType !== undefined) data.discountType = dto.discountType;
-    if (dto.discountValue !== undefined) data.discountValue = dto.discountValue;
-    if (dto.description !== undefined) data.description = dto.description;
-    if (dto.isActive !== undefined) data.isActive = dto.isActive;
-    if (dto.validFrom !== undefined) data.validFrom = new Date(dto.validFrom);
-    if (dto.validTo !== undefined) data.validTo = new Date(dto.validTo);
-    if (dto.maxUses !== undefined) data.maxUses = dto.maxUses;
+    const raw = dto as Record<string, unknown>;
+    const data: Prisma.PromocodeUpdateInput = {};
+    if (raw['code'] !== undefined) data.code = String(raw['code']);
+    if (raw['discountType'] !== undefined) data.discountType = String(raw['discountType']);
+    if (raw['discountValue'] !== undefined) data.discountValue = Number(raw['discountValue']);
+    if (raw['description'] !== undefined) data.description = raw['description'] as string | null;
+    if (raw['isActive'] !== undefined) data.isActive = Boolean(raw['isActive']);
+    if (raw['validFrom'] !== undefined) data.validFrom = new Date(String(raw['validFrom']));
+    if (raw['validTo'] !== undefined) data.validTo = new Date(String(raw['validTo']));
+    if (raw['maxUses'] !== undefined) data.maxUses = Number(raw['maxUses']);
     return this.prisma.promocode.update({ where: { id }, data });
   }
 
