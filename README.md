@@ -100,4 +100,3 @@
 - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
 - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
 - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
-

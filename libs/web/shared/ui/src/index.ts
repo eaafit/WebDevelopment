@@ -14,3 +14,7 @@ export * from './lib/placeholder-page/placeholder-page-route';
 export * from './lib/rpc/token-store';
 export * from './lib/rpc/rpc-transport';
 export * from './lib/rpc/guards';
+export * from './lib/assessment/upload-step/upload-step';
+export * from './lib/assessment/photo-item/photo-item';
+export * from './lib/assessment/history/assessment-history';
+export * from './lib/assessment/assessment-detail-modal';

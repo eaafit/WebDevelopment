@@ -260,6 +260,16 @@ function humanizeActionType(value: string): string {
       return 'Платёж завершён';
     case 'payment.failed':
       return 'Платёж отклонён';
+    case 'payment.updated':
+      return 'Платёж обновлён';
+    case 'payment.deleted':
+      return 'Платёж удалён';
+    case 'payment.receipt.attached':
+      return 'Чек прикреплён';
+    case 'payment.receipt.opened':
+      return 'Открыт чек платежа';
+    case 'payment.receipt.failed':
+      return 'Чек платежа не открыт';
     case 'audit.exported':
       return 'Экспорт аудита';
     default:

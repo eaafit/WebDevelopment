@@ -14,7 +14,8 @@ export const guestRoutes: Route[] = [
       { path: 'landing-page', component: LandingPage },
       {
         path: 'auth',
-        loadComponent: () => import('./features/auth/auth-shell/auth-shell').then((m) => m.AuthShell),
+        loadComponent: () =>
+          import('./features/auth/auth-shell/auth-shell').then((m) => m.AuthShell),
         children: [
           {
             path: '',
@@ -24,7 +25,9 @@ export const guestRoutes: Route[] = [
           {
             path: 'forgot-password',
             loadComponent: () =>
-              import('./features/auth/forgot-password/forgot-password').then((m) => m.ForgotPassword),
+              import('./features/auth/forgot-password/forgot-password').then(
+                (m) => m.ForgotPassword,
+              ),
           },
           {
             path: 'reset-password',
@@ -35,7 +38,8 @@ export const guestRoutes: Route[] = [
       },
       {
         path: 'password-restore',
-        loadComponent: () => import('./features/password-restore/password-restore').then((m) => m.PasswordRestore),
+        loadComponent: () =>
+          import('./features/password-restore/password-restore').then((m) => m.PasswordRestore),
       },
       {
         path: 'transactions',
