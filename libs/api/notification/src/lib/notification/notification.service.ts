@@ -1,9 +1,15 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import {
+  NotificationStatus as PrismaNotificationStatus,
+  NotificationType as PrismaNotificationType,
+} from '@internal/prisma-client';
+import {
   DeleteNotificationResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
+  NotificationStatus,
+  NotificationType,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type ListNotificationsRequest,
@@ -21,6 +27,22 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 @Injectable()
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
+
+  async createInternalNotification(params: {
+    userId: string;
+    message: string;
+    type?: NotificationType;
+    status?: NotificationStatus;
+  }): Promise<void> {
+    validateUuid(params.userId, 'user_id');
+
+    await this.notificationRepository.createNotification({
+      userId: params.userId,
+      message: params.message,
+      type: toPrismaType(params.type),
+      status: toPrismaStatus(params.status),
+    });
+  }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
     validateUuid(request.userId, 'user_id');
@@ -56,5 +78,35 @@ export class NotificationService {
 function validateUuid(value: string | undefined, fieldName: string): void {
   if (!value || !UUID_PATTERN.test(value)) {
     throw new ConnectError(`${fieldName} must be a valid UUID`, Code.InvalidArgument);
+  }
+}
+
+function toPrismaType(type: NotificationType | undefined): PrismaNotificationType | undefined {
+  switch (type) {
+    case NotificationType.EMAIL:
+      return PrismaNotificationType.Email;
+    case NotificationType.SMS:
+      return PrismaNotificationType.SMS;
+    case NotificationType.PUSH:
+      return PrismaNotificationType.Push;
+    case NotificationType.UNSPECIFIED:
+    case undefined:
+    default:
+      return undefined;
+  }
+}
+
+function toPrismaStatus(status: NotificationStatus | undefined): PrismaNotificationStatus | undefined {
+  switch (status) {
+    case NotificationStatus.FAILED:
+      return PrismaNotificationStatus.Failed;
+    case NotificationStatus.SENT:
+      return PrismaNotificationStatus.Sent;
+    case NotificationStatus.PENDING:
+      return PrismaNotificationStatus.Pending;
+    case NotificationStatus.UNSPECIFIED:
+    case undefined:
+    default:
+      return undefined;
   }
 }

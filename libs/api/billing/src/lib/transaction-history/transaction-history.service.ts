@@ -3,12 +3,23 @@ import { timestampDate } from '@bufbuild/protobuf/wkt';
 import {
   PaymentStatus,
   PaymentType,
+  type Payment,
+  type DeletePaymentRequest,
+  type DeletePaymentResponse,
   type GetPaymentHistoryRequest,
   type GetPaymentHistoryResponse,
+  type UpdatePaymentRequest,
+  type UpdatePaymentResponse,
 } from '@notary-portal/api-contracts';
+import { getCurrentUser } from '@internal/auth-shared';
+import { AuditService } from '@internal/audit';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { TransactionHistoryRepository } from './transaction-history.repository';
+import { NotificationService } from '@internal/notification';
+import {
+  TransactionHistoryRepository,
+  type PaymentAuditSnapshot,
+} from './transaction-history.repository';
 import type { TransactionHistoryQuery } from './transaction-history.query';
 
 const DEFAULT_PAGE = 1;
@@ -31,6 +42,8 @@ export class TransactionHistoryService {
   constructor(
     private readonly transactionHistoryRepository: TransactionHistoryRepository,
     private readonly metrics: MetricsService,
+    private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async getPaymentHistory(request: GetPaymentHistoryRequest): Promise<GetPaymentHistoryResponse> {
@@ -46,6 +59,104 @@ export class TransactionHistoryService {
       this.metrics.recordPaymentHistoryRequest(scope, 'failed');
       throw error;
     }
+  }
+
+  async updatePayment(request: UpdatePaymentRequest): Promise<UpdatePaymentResponse> {
+    if (!UUID_PATTERN.test(request.id)) {
+      throw invalidArgument('id', 'must be a valid UUID');
+    }
+
+    if (request.status === PaymentStatus.UNSPECIFIED) {
+      throw invalidArgument('status', 'must not be UNSPECIFIED');
+    }
+
+    if (request.amount !== undefined && !/^\d+(\.\d{1,2})?$/.test(request.amount)) {
+      throw invalidArgument('amount', 'must be a valid decimal (up to 2 fractional digits)');
+    }
+
+    const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
+    const response = await this.transactionHistoryRepository.updatePayment(request);
+
+    if (!response.payment) {
+      return response;
+    }
+
+    const actorUserId = getCurrentUser()?.sub;
+    const after = toAuditSnapshotFromPayment(response.payment);
+    const target = resolveAuditTarget(after.id, after.assessmentId);
+    const shortPaymentId = shortId(after.id);
+
+    try {
+      await this.auditService.record({
+        actorUserId,
+        eventType: 'payment.updated',
+        targetType: target.targetType,
+        targetId: target.targetId,
+        actionTitle: 'Платёж обновлён',
+        actionContext: `Обновлён платёж ${shortPaymentId}`,
+        targetTitle: target.targetTitle,
+        targetContext: target.targetContext,
+        ...(before ? { before: toAuditJsonFromSnapshot(before) } : {}),
+        after: toAuditJsonFromSnapshot(after),
+      });
+    } catch {
+      // audit failure must not break the main operation
+    }
+
+    try {
+      await this.notificationService.createInternalNotification({
+        userId: after.userId,
+        message: `Платёж ${shortPaymentId} обновлён`,
+      });
+    } catch {
+      // notification failure must not break the main operation
+    }
+
+    return response;
+  }
+
+  async deletePayment(request: DeletePaymentRequest): Promise<DeletePaymentResponse> {
+    if (!UUID_PATTERN.test(request.id)) {
+      throw invalidArgument('id', 'must be a valid UUID');
+    }
+
+    const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
+    const response = await this.transactionHistoryRepository.deletePayment(request);
+
+    if (!before) {
+      return response;
+    }
+
+    const actorUserId = getCurrentUser()?.sub;
+    const target = resolveAuditTarget(before.id, before.assessmentId);
+    const shortPaymentId = shortId(before.id);
+
+    try {
+      await this.auditService.record({
+        actorUserId,
+        eventType: 'payment.deleted',
+        targetType: target.targetType,
+        targetId: target.targetId,
+        actionTitle: 'Платёж удалён',
+        actionContext: `Удалён платёж ${shortPaymentId}`,
+        targetTitle: target.targetTitle,
+        targetContext: target.targetContext,
+        before: toAuditJsonFromSnapshot(before),
+      });
+    } catch {
+      // audit failure must not break the main operation
+    }
+
+    try {
+      await this.notificationService.createInternalNotification({
+        userId: before.userId,
+        message: `Платёж ${shortPaymentId} удалён`,
+      });
+    } catch {
+      // notification failure must not break the main operation
+    }
+
+    return response;
   }
 
   private normalizeRequest(request: GetPaymentHistoryRequest): TransactionHistoryQuery {
@@ -127,4 +238,82 @@ function normalizeEnumList<T extends number>(
 
 function invalidArgument(fieldName: string, message: string): ConnectError {
   return new ConnectError(`${fieldName} ${message}`, Code.InvalidArgument);
+}
+
+function toAuditSnapshotFromPayment(payment: Payment): PaymentAuditSnapshot {
+  return {
+    id: payment.id,
+    userId: payment.userId,
+    status: toStatusText(payment.status),
+    amount: payment.amount?.amount ?? '0',
+    type: toTypeText(payment.type),
+    paymentMethod: payment.paymentMethod || null,
+    transactionId: payment.transactionId || null,
+    assessmentId: payment.assessmentId || null,
+    subscriptionId: payment.subscriptionId || null,
+  };
+}
+
+function resolveAuditTarget(paymentId: string, assessmentId: string | null) {
+  if (assessmentId) {
+    return {
+      targetType: 'Assessment',
+      targetId: assessmentId,
+      targetTitle: `Заявка ${shortId(assessmentId)}`,
+      targetContext: `Платёж ${shortId(paymentId)}`,
+    };
+  }
+
+  return {
+    targetType: 'Payment',
+    targetId: paymentId,
+    targetTitle: `Платёж ${shortId(paymentId)}`,
+    targetContext: 'Без заявки',
+  };
+}
+
+function toAuditJsonFromSnapshot(snapshot: PaymentAuditSnapshot) {
+  return {
+    paymentId: snapshot.id,
+    userId: snapshot.userId,
+    status: snapshot.status,
+    amount: snapshot.amount,
+    type: snapshot.type,
+    paymentMethod: snapshot.paymentMethod,
+    transactionId: snapshot.transactionId,
+    assessmentId: snapshot.assessmentId,
+    subscriptionId: snapshot.subscriptionId,
+  };
+}
+
+function toStatusText(status: PaymentStatus): string {
+  switch (status) {
+    case PaymentStatus.COMPLETED:
+      return 'Completed';
+    case PaymentStatus.FAILED:
+      return 'Failed';
+    case PaymentStatus.REFUNDED:
+      return 'Refunded';
+    case PaymentStatus.PENDING:
+    case PaymentStatus.UNSPECIFIED:
+    default:
+      return 'Pending';
+  }
+}
+
+function toTypeText(type: PaymentType): string {
+  switch (type) {
+    case PaymentType.SUBSCRIPTION:
+      return 'Subscription';
+    case PaymentType.DOCUMENT_COPY:
+      return 'DocumentCopy';
+    case PaymentType.ASSESSMENT:
+    case PaymentType.UNSPECIFIED:
+    default:
+      return 'Assessment';
+  }
+}
+
+function shortId(value: string): string {
+  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
