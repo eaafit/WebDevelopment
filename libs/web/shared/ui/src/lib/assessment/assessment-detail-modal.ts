@@ -23,7 +23,7 @@ export class AssessmentDetailModalComponent {
     }
   }
 
-  onBackdropKeydown(event: KeyboardEvent): void {
+  onBackdropKeydown(event: Event): void {
     if (event.target === event.currentTarget) {
       this.closeModal();
     }

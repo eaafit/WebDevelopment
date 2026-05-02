@@ -84,7 +84,7 @@ export class TokenStore {
   readonly isLoggedIn = computed(() => this._user() !== null);
   readonly role       = computed(() => this._user()?.role ?? null);
 
-  setTokens(accessToken: string, refreshToken: string, rpcUser: RpcAuthUser | null): void {
+  setTokens(accessToken: string, refreshToken: string, rpcUser: RpcAuthUser | null | undefined): void {
     this._accessToken = accessToken;
     this.persistRefreshToken(refreshToken);
 
