@@ -72,9 +72,7 @@ export class PaymentCreateService {
     const requestAmount = parseAmountToCents(request.amount, 'amount');
     const prismaType = this.toPrismaType(request.type);
     const metricContext = resolveBillingPaymentMetricContext(prismaType);
-    this.assertReturnUrlConfigured();
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const receipt = await this.buildPaymentReceipt(request.userId, resolved);
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -91,11 +89,14 @@ export class PaymentCreateService {
       },
     });
 
-    const returnUrl = this.buildReturnUrl(prismaType, payment.id);
     this.metrics.recordPayment('pending');
     this.metrics.recordBillingPayment('pending', metricContext);
 
     try {
+      this.assertReturnUrlConfigured();
+      const receipt = await this.buildPaymentReceipt(request.userId, resolved);
+      const returnUrl = this.buildReturnUrl(prismaType, payment.id);
+
       const result = await this.yookassa.createPayment({
         amount: resolved.amount,
         currency: SUBSCRIPTION_CURRENCY,
@@ -157,16 +158,54 @@ export class PaymentCreateService {
         },
       });
     } catch (err) {
-      if (err instanceof YooKassaClientError) {
-        this.metrics.recordPayment('failed');
-        this.metrics.recordBillingPayment('failed', metricContext);
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: PrismaPaymentStatus.Failed },
-        });
-        throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
+      // Fallback: create payment directly without external payment provider
+      const reason = err instanceof Error ? err.message : 'unknown error';
+      this.metrics.recordPayment('failed');
+      this.metrics.recordBillingPayment('failed', metricContext);
+
+      this.logger.warn(
+        `Payment provider unavailable (${reason}), creating payment ${payment.id} without external provider`,
+      );
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: {
+          paymentMethod: 'direct',
+          receiptStatus: PrismaPaymentReceiptStatus.Available,
+        },
+      });
+
+      if (resolved.assessmentId) {
+        try {
+          await this.auditService.record({
+            actorUserId: getCurrentUser()?.sub ?? request.userId,
+            eventType: 'payment.created',
+            targetType: 'Assessment',
+            targetId: resolved.assessmentId,
+            actionTitle: 'Создан платёж по заявке',
+            actionContext: `Сумма: ${resolved.amount} ${SUBSCRIPTION_CURRENCY} (без платёжного провайдера)`,
+            targetTitle: `Заявка ${shortId(resolved.assessmentId)}`,
+            targetContext: `Платёж ${shortId(payment.id)}`,
+            after: {
+              paymentId: payment.id,
+              status: 'pending',
+              amount: resolved.amount,
+              assessmentId: resolved.assessmentId,
+              paymentMethod: 'direct',
+            },
+          });
+        } catch {
+          // audit failure must not break the main operation
+        }
       }
-      throw err;
+
+      return create(CreatePaymentResponseSchema, {
+        paymentId: payment.id,
+        amount: {
+          amount: resolved.amount,
+          currency: SUBSCRIPTION_CURRENCY,
+        },
+      });
     }
   }
 

@@ -86,23 +86,31 @@ export class TransactionHistoryService {
     const target = resolveAuditTarget(after.id, after.assessmentId);
     const shortPaymentId = shortId(after.id);
 
-    await this.auditService.record({
-      actorUserId,
-      eventType: 'payment.updated',
-      targetType: target.targetType,
-      targetId: target.targetId,
-      actionTitle: 'Платёж обновлён',
-      actionContext: `Обновлён платёж ${shortPaymentId}`,
-      targetTitle: target.targetTitle,
-      targetContext: target.targetContext,
-      ...(before ? { before: toAuditJsonFromSnapshot(before) } : {}),
-      after: toAuditJsonFromSnapshot(after),
-    });
+    try {
+      await this.auditService.record({
+        actorUserId,
+        eventType: 'payment.updated',
+        targetType: target.targetType,
+        targetId: target.targetId,
+        actionTitle: 'Платёж обновлён',
+        actionContext: `Обновлён платёж ${shortPaymentId}`,
+        targetTitle: target.targetTitle,
+        targetContext: target.targetContext,
+        ...(before ? { before: toAuditJsonFromSnapshot(before) } : {}),
+        after: toAuditJsonFromSnapshot(after),
+      });
+    } catch {
+      // audit failure must not break the main operation
+    }
 
-    await this.notificationService.createInternalNotification({
-      userId: after.userId,
-      message: `Платёж ${shortPaymentId} обновлён`,
-    });
+    try {
+      await this.notificationService.createInternalNotification({
+        userId: after.userId,
+        message: `Платёж ${shortPaymentId} обновлён`,
+      });
+    } catch {
+      // notification failure must not break the main operation
+    }
 
     return response;
   }
@@ -123,22 +131,30 @@ export class TransactionHistoryService {
     const target = resolveAuditTarget(before.id, before.assessmentId);
     const shortPaymentId = shortId(before.id);
 
-    await this.auditService.record({
-      actorUserId,
-      eventType: 'payment.deleted',
-      targetType: target.targetType,
-      targetId: target.targetId,
-      actionTitle: 'Платёж удалён',
-      actionContext: `Удалён платёж ${shortPaymentId}`,
-      targetTitle: target.targetTitle,
-      targetContext: target.targetContext,
-      before: toAuditJsonFromSnapshot(before),
-    });
+    try {
+      await this.auditService.record({
+        actorUserId,
+        eventType: 'payment.deleted',
+        targetType: target.targetType,
+        targetId: target.targetId,
+        actionTitle: 'Платёж удалён',
+        actionContext: `Удалён платёж ${shortPaymentId}`,
+        targetTitle: target.targetTitle,
+        targetContext: target.targetContext,
+        before: toAuditJsonFromSnapshot(before),
+      });
+    } catch {
+      // audit failure must not break the main operation
+    }
 
-    await this.notificationService.createInternalNotification({
-      userId: before.userId,
-      message: `Платёж ${shortPaymentId} удалён`,
-    });
+    try {
+      await this.notificationService.createInternalNotification({
+        userId: before.userId,
+        message: `Платёж ${shortPaymentId} удалён`,
+      });
+    } catch {
+      // notification failure must not break the main operation
+    }
 
     return response;
   }
