@@ -58,8 +58,12 @@ export class AssessmentRpcService {
     this.handleRpcCall('cancelAssessment', () => this.assessmentService.cancelAssessment(r));
 
   private async handleRpcCall<T>(operation: string, action: () => Promise<T>): Promise<T> {
+    this.logger.log(`Starting assessment RPC ${operation}`);
+
     try {
-      return await action();
+      const response = await action();
+      this.logger.log(`Completed assessment RPC ${operation}`);
+      return response;
     } catch (error) {
       if (isExpectedRpcError(error)) {
         this.logger.warn(`Assessment RPC ${operation} rejected request: ${errorMessage(error)}`);

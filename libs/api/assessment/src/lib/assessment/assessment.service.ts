@@ -690,13 +690,13 @@ function statusLabel(status: PrismaAssessmentStatus): string {
     case PrismaAssessmentStatus.New:
       return 'new';
     case PrismaAssessmentStatus.Verified:
-      return 'verified';
+      return 'accepted';
     case PrismaAssessmentStatus.InProgress:
-      return 'in_progress';
+      return 'under_review';
     case PrismaAssessmentStatus.Completed:
       return 'completed';
     case PrismaAssessmentStatus.Cancelled:
-      return 'cancelled';
+      return 'rejected';
   }
 }
 
