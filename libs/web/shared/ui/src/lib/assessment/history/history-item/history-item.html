@@ -13,7 +13,7 @@
   <div class="item-body">
     <div class="item-meta flex gap-4 text-sm">
       <span>📅 Дата заказа: {{ formatDate(order.orderDate) }}</span>
-      <span *ngIf="role === 'notary'">👤 Заявитель: Иванов И.И.</span>
+      <span *ngIf="role === 'notary'">👤 Заявитель: {{ order.applicantName }}</span>
     </div>
 
     <!-- Таймлайн статусов -->
