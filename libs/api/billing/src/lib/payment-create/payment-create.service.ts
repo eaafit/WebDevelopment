@@ -74,6 +74,9 @@ export class PaymentCreateService {
     const metricContext = resolveBillingPaymentMetricContext(prismaType);
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
 
+    this.assertReturnUrlConfigured();
+    resolveReceiptVatCode();
+
     const payment = await this.prisma.payment.create({
       data: {
         userId: request.userId,
@@ -93,7 +96,6 @@ export class PaymentCreateService {
     this.metrics.recordBillingPayment('pending', metricContext);
 
     try {
-      this.assertReturnUrlConfigured();
       const receipt = await this.buildPaymentReceipt(request.userId, resolved);
       const returnUrl = this.buildReturnUrl(prismaType, payment.id);
 
