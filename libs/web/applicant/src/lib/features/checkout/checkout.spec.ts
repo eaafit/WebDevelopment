@@ -2,7 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { PaymentType } from '@notary-portal/api-contracts';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore, WebLoggerService } from '@notary-portal/ui';
 import { Checkout } from './checkout';
 import { CheckoutApiService } from './checkout-api.service';
 import { YooKassaWidgetService, type YooKassaWidgetHandlers } from './yookassa-widget.service';
@@ -26,8 +26,18 @@ describe('Checkout', () => {
   let widgetService: {
     mount: jest.Mock;
   };
+  let logger: {
+    info: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+  };
 
   beforeEach(async () => {
+    logger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
     checkoutApi = {
       createPayment: jest.fn().mockResolvedValue({
         paymentId: 'payment-1',
@@ -97,6 +107,10 @@ describe('Checkout', () => {
           provide: YooKassaWidgetService,
           useValue: widgetService,
         },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
+        },
       ],
     }).compileComponents();
 
@@ -140,6 +154,14 @@ describe('Checkout', () => {
       expect.objectContaining({
         onSuccess: expect.any(Function),
         onFail: expect.any(Function),
+      }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.applicant.create_payment_succeeded',
+      expect.objectContaining({
+        area: 'applicant_checkout',
+        paymentId: 'payment-1',
+        targetId: 'assessment-1',
       }),
     );
     expect(checkout.state()).toBe('widget');
@@ -187,6 +209,10 @@ describe('Checkout', () => {
           provide: YooKassaWidgetService,
           useValue: widgetService,
         },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
+        },
       ],
     }).compileComponents();
 
@@ -201,6 +227,13 @@ describe('Checkout', () => {
     expect(checkoutApi.createPayment).not.toHaveBeenCalled();
     expect(localCheckout.state()).toBe('error');
     expect(localCheckout.errorMessage()).toContain('не хватает идентификатора заказа');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.checkout.applicant.start_blocked_missing_target',
+      expect.objectContaining({
+        area: 'applicant_checkout',
+        targetId: null,
+      }),
+    );
   });
 
   it('should switch to the success state after widget success and confirmed webhook status', async () => {
@@ -212,6 +245,13 @@ describe('Checkout', () => {
       userId: 'user-1',
       paymentId: 'payment-1',
     });
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.applicant.status_check_finished',
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        status: 'completed',
+      }),
+    );
     expect(checkout.state()).toBe('success');
     expect((fixture.nativeElement as HTMLElement).querySelector('.success-card')).not.toBeNull();
   });
@@ -256,6 +296,10 @@ describe('Checkout', () => {
         {
           provide: YooKassaWidgetService,
           useValue: widgetService,
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();

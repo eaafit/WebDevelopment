@@ -82,6 +82,38 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum NewsletterSubscriptionStatus {
+  Active       @map("active")
+  Unsubscribed @map("unsubscribed")
+
+  @@map("newsletter_subscription_status")
+}
+
+enum NewsletterAudienceType {
+  All      @map("all")
+  Role     @map("role")
+  Selected @map("selected")
+
+  @@map("newsletter_audience_type")
+}
+
+enum NewsletterCampaignStatus {
+  Sending       @map("sending")
+  Sent          @map("sent")
+  Failed        @map("failed")
+  PartialFailed @map("partial_failed")
+
+  @@map("newsletter_campaign_status")
+}
+
+enum NewsletterDeliveryStatus {
+  Pending @map("pending")
+  Sent    @map("sent")
+  Failed  @map("failed")
+
+  @@map("newsletter_delivery_status")
+}
+
 enum SaleType {
   Permanent    @map("permanent")
   Subscription @map("subscription")
@@ -180,6 +212,9 @@ model User {
   auditLogs         AuditLog[]
   bitrixSyncLogs    BitrixSyncLog[]
   clientSync        ClientSync?
+  newsletterSubscription NewsletterSubscription?
+  newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
+  newsletterDeliveries   NewsletterDelivery[]
 
   @@map("users")
 }
@@ -350,6 +385,67 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+model NewsletterSubscription {
+  id             String                       @id @default(uuid()) @db.Uuid
+  userId         String                       @unique @map("user_id") @db.Uuid
+  status         NewsletterSubscriptionStatus @default(Active)
+  subscribedAt   DateTime                     @default(now()) @map("subscribed_at") @db.Timestamp()
+  unsubscribedAt DateTime?                    @map("unsubscribed_at") @db.Timestamp()
+  createdAt      DateTime                     @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt      DateTime                     @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([subscribedAt(sort: Desc)])
+  @@map("newsletter_subscriptions")
+}
+
+model NewsletterCampaign {
+  id              String                   @id @default(uuid()) @db.Uuid
+  createdById     String?                  @map("created_by") @db.Uuid
+  subject         String                   @db.VarChar(200)
+  bodyHtml        String                   @map("body_html") @db.Text
+  audienceType    NewsletterAudienceType   @map("audience_type")
+  audienceRole    Role?                    @map("audience_role")
+  audienceLabel   String                   @map("audience_label") @db.VarChar(255)
+  recipientsCount Int                      @default(0) @map("recipients_count")
+  sentCount       Int                      @default(0) @map("sent_count")
+  failedCount     Int                      @default(0) @map("failed_count")
+  status          NewsletterCampaignStatus @default(Sending)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamp()
+  completedAt     DateTime?                @map("completed_at") @db.Timestamp()
+
+  createdBy  User?                @relation("NewsletterCampaignCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries NewsletterDelivery[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@index([createdById])
+  @@map("newsletter_campaigns")
+}
+
+model NewsletterDelivery {
+  id           String                   @id @default(uuid()) @db.Uuid
+  campaignId   String                   @map("campaign_id") @db.Uuid
+  userId       String?                  @map("user_id") @db.Uuid
+  email        String                   @db.VarChar
+  fullName     String                   @map("full_name") @db.VarChar
+  status       NewsletterDeliveryStatus @default(Pending)
+  errorMessage String?                  @map("error_message") @db.Text
+  createdAt    DateTime                 @default(now()) @map("created_at") @db.Timestamp()
+  sentAt       DateTime?                @map("sent_at") @db.Timestamp()
+
+  campaign NewsletterCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, email])
+  @@index([campaignId])
+  @@index([userId])
+  @@index([status])
+  @@map("newsletter_deliveries")
 }
 
 model RefreshToken {

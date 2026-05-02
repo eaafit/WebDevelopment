@@ -59,6 +59,14 @@ interface ImagePreviewState {
 const ASSESSMENT_ID_QUERY_PARAM = 'assessmentId';
 const AUTOSAVE_DEBOUNCE_MS = 700;
 const LAND_PLOT_OBJECT_TYPE = String(RealEstateObjectType.LAND_PLOT);
+const CADASTRAL_NUMBER_LENGTH = 12;
+const AREA_LIMITS = { minimum: 1, compactMaximum: 1_000, extendedMaximum: 2_000 } as const;
+const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as const;
+const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
+const YEAR_BUILT_LIMITS = {
+  minimum: 1700,
+  maximum: new Date().getFullYear() + 1,
+} as const;
 const INITIAL_UPLOAD_STATE: UploadState = {
   documents: false,
   photos: false,
@@ -78,14 +86,17 @@ export class EstimationForm implements OnDestroy {
     cityId: ['', [trimmedRequiredValidator]],
     districtId: [''],
     address: ['', [trimmedRequiredValidator, Validators.minLength(8), Validators.maxLength(180)]],
-    cadastralNumber: ['', [Validators.maxLength(64)]],
-    area: ['', [trimmedRequiredValidator, decimalRangeValidator(1, 100000)]],
+    cadastralNumber: ['', [optionalCadastralNumberValidator]],
+    area: ['', [trimmedRequiredValidator, decimalRangeValidator(getAreaLimits(''))]],
     objectType: ['', [trimmedRequiredValidator]],
-    rooms: ['', [optionalIntegerRangeValidator(0, 50)]],
-    floorsTotal: ['', [optionalIntegerRangeValidator(1, 200)]],
-    floor: ['', [optionalIntegerRangeValidator(0, 200)]],
+    rooms: ['', [optionalIntegerRangeValidator(ROOMS_LIMITS.minimum, ROOMS_LIMITS.commonMaximum)]],
+    floorsTotal: ['', [optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum)]],
+    floor: ['', [optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum)]],
     condition: [''],
-    yearBuilt: ['', [optionalIntegerRangeValidator(1700, 2100)]],
+    yearBuilt: [
+      '',
+      [optionalIntegerRangeValidator(YEAR_BUILT_LIMITS.minimum, YEAR_BUILT_LIMITS.maximum)],
+    ],
     wallMaterial: [''],
     elevatorType: [''],
     hasBalconyOrLoggia: false,
@@ -172,7 +183,7 @@ export class EstimationForm implements OnDestroy {
     }
 
     return {
-      message: 'После заполнения обязательных полей черновик будет создан автоматически.',
+      message: '',
       tone: 'neutral',
     };
   });
@@ -219,9 +230,9 @@ export class EstimationForm implements OnDestroy {
         'input.ng-invalid, select.ng-invalid, textarea.ng-invalid',
       );
       if (firstInvalidControl) {
-        this.validationErrorMessage = this.buildValidationErrorMessage(form, firstInvalidControl);
         firstInvalidControl.focus();
       }
+      this.validationErrorMessage = this.buildFormValidationSummaryMessage();
       return;
     }
 
@@ -254,15 +265,22 @@ export class EstimationForm implements OnDestroy {
       }
 
       await this.sendApplicantRequestEmailsIfConfigured();
-      await this.router.navigate(['/applicant/assessment/status'], {
+      const navigated = await this.router.navigate(['/applicant/assessment/status'], {
         queryParams: {
           [ASSESSMENT_ID_QUERY_PARAM]: assessment.id,
         },
       });
+
+      if (navigated) {
+        this.clearCompletedDraftState(assessment.id);
+      }
     } catch (error) {
       console.error('Failed to submit estimation form', error);
       this.saveError.set(
-        extractErrorMessage(error, 'Не удалось сохранить параметры объекта. Попробуйте ещё раз.'),
+        extractUserFacingSaveErrorMessage(
+          error,
+          'Не удалось сохранить параметры объекта. Попробуйте ещё раз.',
+        ),
       );
     } finally {
       this.saving.set(false);
@@ -637,6 +655,23 @@ export class EstimationForm implements OnDestroy {
     return this.formControls.objectType.value === LAND_PLOT_OBJECT_TYPE;
   }
 
+  onCadastralNumberInput(event: Event): void {
+    const inputElement = event.target as HTMLInputElement;
+    const normalized = normalizeCadastralNumber(inputElement.value);
+
+    if (inputElement.value !== normalized) {
+      inputElement.value = normalized;
+    }
+
+    if (this.formControls.cadastralNumber.value !== normalized) {
+      this.formControls.cadastralNumber.setValue(normalized);
+    }
+  }
+
+  getRoomsMaximum(): number {
+    return getRoomsMaximum(this.formControls.objectType.value);
+  }
+
   getAddressSuggestions(): string[] {
     const cityName = this.getSelectedCityName();
     const districtName = this.getSelectedDistrictName();
@@ -651,9 +686,27 @@ export class EstimationForm implements OnDestroy {
   }
 
   private setupFormSubscriptions(): void {
+    this.formControls.cadastralNumber.valueChanges
+      .pipe(
+        filter(() => !this.isApplyingDraft),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((value) => {
+        const normalized = normalizeCadastralNumber(value);
+        if (value !== normalized) {
+          this.formControls.cadastralNumber.setValue(normalized, { emitEvent: false });
+        }
+      });
+
     this.formControls.objectType.valueChanges
       .pipe(startWith(this.formControls.objectType.value), takeUntilDestroyed(this.destroyRef))
       .subscribe((objectType) => this.applyConditionalValidators(objectType));
+
+    this.formControls.floorsTotal.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.formControls.floor.updateValueAndValidity({ emitEvent: false });
+      });
 
     this.formControls.cityId.valueChanges
       .pipe(
@@ -719,23 +772,27 @@ export class EstimationForm implements OnDestroy {
       }
 
       if (localAssessmentId) {
-        try {
-          const draft = await this.assessmentApi.getAssessment(localAssessmentId);
-          this.applyDraft(draft);
-          shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
-          if (!shouldAutosaveRestoredState) {
-            this.persistAssessmentSnapshot(draft);
-          }
-          await this.syncAssessmentId(draft.id);
-          await this.loadDistrictsForCity(
-            this.formControls.cityId.value,
-            this.formControls.districtId.value,
-          );
-          await this.loadStoredDocuments(draft.id);
-          return;
-        } catch (error) {
-          console.error('Failed to restore estimation assessment from local snapshot', error);
+        if (this.localDraftService.isCompleted(userId, localAssessmentId)) {
           this.clearLocalDraft();
+        } else {
+          try {
+            const draft = await this.assessmentApi.getAssessment(localAssessmentId);
+            this.applyDraft(draft);
+            shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
+            if (!shouldAutosaveRestoredState) {
+              this.persistAssessmentSnapshot(draft);
+            }
+            await this.syncAssessmentId(draft.id);
+            await this.loadDistrictsForCity(
+              this.formControls.cityId.value,
+              this.formControls.districtId.value,
+            );
+            await this.loadStoredDocuments(draft.id);
+            return;
+          } catch (error) {
+            console.error('Failed to restore estimation assessment from local snapshot', error);
+            this.clearLocalDraft();
+          }
         }
       }
 
@@ -750,7 +807,7 @@ export class EstimationForm implements OnDestroy {
       }
 
       const latestDraft = await this.assessmentApi.findLatestDraft(userId);
-      if (latestDraft) {
+      if (latestDraft && !this.localDraftService.isCompleted(userId, latestDraft.id)) {
         this.applyDraft(latestDraft);
         this.persistAssessmentSnapshot(latestDraft);
         await this.syncAssessmentId(latestDraft.id);
@@ -831,7 +888,7 @@ export class EstimationForm implements OnDestroy {
     } catch (error) {
       console.error('Failed to autosave estimation draft', error);
       this.saveError.set(
-        extractErrorMessage(error, 'Не удалось автоматически сохранить изменения.'),
+        extractUserFacingSaveErrorMessage(error, 'Не удалось автоматически сохранить изменения.'),
       );
     }
   }
@@ -934,6 +991,33 @@ export class EstimationForm implements OnDestroy {
     this.localDraftService.clear(userId);
   }
 
+  private clearCompletedDraftState(assessmentId: string): void {
+    const userId = this.userId();
+    if (userId) {
+      this.localDraftService.markCompleted(userId, assessmentId);
+      this.localDraftService.clear(userId);
+    }
+
+    this.assessmentId.set(null);
+    this.lastDraftSavedAt.set(null);
+    this.storedDocuments.set([]);
+    this.uploadingState.set({ ...INITIAL_UPLOAD_STATE });
+    this.deletingStoredDocumentIds.set([]);
+    this.queuedUploadGroups.clear();
+    this.autosaveQueuedAfterCurrentSave = false;
+    this.showValidationErrors = false;
+    this.validationErrorMessage = '';
+    this.saveError.set(null);
+    this.documentsError.set(null);
+    this.documentFiles = [];
+    this.photoFiles = [];
+    this.additionalFiles = [];
+    this.patchDraftForm(INITIAL_ESTIMATION_FORM_VALUE);
+    this.estimationForm.markAsPristine();
+    this.estimationForm.markAsUntouched();
+    this.syncAllUploadInputs();
+  }
+
   private canPersistDraft(): boolean {
     return (
       this.formControls.cityId.valid &&
@@ -947,14 +1031,41 @@ export class EstimationForm implements OnDestroy {
     return 'Чтобы сохранить черновик, заполните город, адрес, площадь и тип объекта.';
   }
 
+  private hasRequiredValidationError(): boolean {
+    return Object.values(this.estimationForm.controls).some((control) =>
+      control.hasError('required'),
+    );
+  }
+
+  private buildFormValidationSummaryMessage(): string {
+    return this.hasRequiredValidationError()
+      ? 'Заполните обязательные поля перед отправкой заявки.'
+      : 'Проверьте заполнение полей формы.';
+  }
+
   private applyConditionalValidators(objectType: string): void {
     const isLandPlot = objectType === LAND_PLOT_OBJECT_TYPE;
+    const roomsMaximum = getRoomsMaximum(objectType);
+
+    this.setControlValidators(this.formControls.area, [
+      trimmedRequiredValidator,
+      decimalRangeValidator(getAreaLimits(objectType)),
+    ]);
+    this.setControlValidators(this.formControls.rooms, [
+      optionalIntegerRangeValidator(ROOMS_LIMITS.minimum, roomsMaximum),
+    ]);
+    this.setControlValidators(this.formControls.floor, [
+      optionalFloorValidator(() => this.formControls.floorsTotal.value),
+    ]);
 
     this.setControlValidators(
       this.formControls.floorsTotal,
       isLandPlot
-        ? [optionalIntegerRangeValidator(1, 200)]
-        : [trimmedRequiredValidator, optionalIntegerRangeValidator(1, 200)],
+        ? [optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum)]
+        : [
+            trimmedRequiredValidator,
+            optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum),
+          ],
     );
     this.setControlValidators(
       this.formControls.condition,
@@ -1236,21 +1347,6 @@ export class EstimationForm implements OnDestroy {
     };
   }
 
-  private buildValidationErrorMessage(form: HTMLFormElement, control: FormControlElement): string {
-    const labelText = this.getControlLabel(form, control);
-    const browserMessage = control.validationMessage || this.getReactiveValidationMessage(control);
-
-    if (labelText && browserMessage) {
-      return `${labelText}: ${browserMessage}`;
-    }
-
-    if (browserMessage) {
-      return browserMessage;
-    }
-
-    return labelText;
-  }
-
   private buildUploadValidationErrorMessage(group: RequiredUploadGroup): string {
     if (group === 'documents') {
       return 'Сканы и документы: загрузите хотя бы один документ или скан.';
@@ -1391,64 +1487,6 @@ export class EstimationForm implements OnDestroy {
     }
   }
 
-  private getControlLabel(form: HTMLFormElement, control: FormControlElement): string {
-    if (control.id) {
-      const boundLabel = form.querySelector<HTMLLabelElement>(`label[for="${control.id}"]`);
-      if (boundLabel) {
-        return this.normalizeLabelText(boundLabel.textContent);
-      }
-    }
-
-    const ariaLabel = control.getAttribute('aria-label');
-    if (ariaLabel) {
-      return this.normalizeLabelText(ariaLabel);
-    }
-
-    return this.normalizeLabelText(control.closest('label')?.textContent);
-  }
-
-  private normalizeLabelText(labelText: string | null | undefined): string {
-    return labelText?.replace(/\*/g, '').replace(/\s+/g, ' ').trim() ?? '';
-  }
-
-  private getReactiveValidationMessage(control: FormControlElement): string {
-    const controlName = control.getAttribute('formControlName');
-    if (!controlName) {
-      return '';
-    }
-
-    const formControl = this.estimationForm.get(controlName);
-    if (!formControl?.errors) {
-      return '';
-    }
-
-    if (formControl.hasError('required')) {
-      return 'поле обязательно для заполнения.';
-    }
-
-    if (formControl.hasError('minlength')) {
-      return 'значение слишком короткое.';
-    }
-
-    if (formControl.hasError('maxlength')) {
-      return 'значение превышает допустимую длину.';
-    }
-
-    if (formControl.hasError('decimal')) {
-      return 'введите число в корректном формате.';
-    }
-
-    if (formControl.hasError('integer')) {
-      return 'введите целое число.';
-    }
-
-    if (formControl.hasError('range')) {
-      return 'значение вне допустимого диапазона.';
-    }
-
-    return '';
-  }
-
   private getOptionLabel(options: ReadonlyArray<SelectOption>, value: string): string {
     if (!value.trim()) {
       return '—';
@@ -1585,7 +1623,16 @@ function trimmedRequiredValidator(control: AbstractControl): Record<string, true
   return value ? null : { required: true };
 }
 
-function decimalRangeValidator(minimum: number, maximum: number): ValidatorFn {
+function optionalCadastralNumberValidator(control: AbstractControl): Record<string, true> | null {
+  const value = `${control.value ?? ''}`.trim();
+  if (!value) {
+    return null;
+  }
+
+  return /^\d{12}$/.test(value) ? null : { cadastralNumber: true };
+}
+
+function decimalRangeValidator(limits: { minimum: number; maximum: number }): ValidatorFn {
   return (control: AbstractControl): Record<string, true> | null => {
     const value = `${control.value ?? ''}`.trim();
     if (!value) {
@@ -1597,7 +1644,7 @@ function decimalRangeValidator(minimum: number, maximum: number): ValidatorFn {
     }
 
     const numericValue = Number(value);
-    if (numericValue < minimum || numericValue > maximum) {
+    if (numericValue < limits.minimum || numericValue > limits.maximum) {
       return { range: true };
     }
 
@@ -1623,6 +1670,75 @@ function optionalIntegerRangeValidator(minimum: number, maximum: number): Valida
 
     return null;
   };
+}
+
+function optionalFloorValidator(getFloorsTotal: () => string): ValidatorFn {
+  return (control: AbstractControl): Record<string, true> | null => {
+    const rangeError = optionalIntegerRangeValidator(
+      FLOOR_LIMITS.minimum,
+      FLOOR_LIMITS.maximum,
+    )(control);
+    if (rangeError) {
+      return rangeError;
+    }
+
+    const floor = Number(`${control.value ?? ''}`.trim());
+    const floorsTotalValue = `${getFloorsTotal() ?? ''}`.trim();
+    if (!Number.isInteger(floor) || !floorsTotalValue || !/^\d+$/.test(floorsTotalValue)) {
+      return null;
+    }
+
+    const floorsTotal = Number(floorsTotalValue);
+    return floor > floorsTotal ? { floorAboveTotal: true } : null;
+  };
+}
+
+function normalizeCadastralNumber(value: string): string {
+  return value.replace(/\D/g, '').slice(0, CADASTRAL_NUMBER_LENGTH);
+}
+
+function getAreaLimits(objectType: string): { minimum: number; maximum: number } {
+  return {
+    minimum: AREA_LIMITS.minimum,
+    maximum: getAreaMaximum(objectType),
+  };
+}
+
+function getAreaMaximum(objectType: string): number {
+  if (
+    objectType === String(RealEstateObjectType.APARTMENTS) ||
+    objectType === String(RealEstateObjectType.HOUSE) ||
+    objectType === String(RealEstateObjectType.COMMERCIAL_PROPERTY)
+  ) {
+    return AREA_LIMITS.extendedMaximum;
+  }
+
+  return AREA_LIMITS.compactMaximum;
+}
+
+function getRoomsMaximum(objectType: string): number {
+  if (
+    objectType === String(RealEstateObjectType.APARTMENT) ||
+    objectType === String(RealEstateObjectType.APARTMENTS) ||
+    objectType === String(RealEstateObjectType.ROOM)
+  ) {
+    return ROOMS_LIMITS.compactMaximum;
+  }
+
+  return ROOMS_LIMITS.commonMaximum;
+}
+
+function extractUserFacingSaveErrorMessage(error: unknown, fallback: string): string {
+  if (isFieldValidationBackendError(error)) {
+    return 'Проверьте заполнение полей формы.';
+  }
+
+  return extractErrorMessage(error, fallback);
+}
+
+function isFieldValidationBackendError(error: unknown): boolean {
+  const message = extractErrorMessage(error, '').toLowerCase();
+  return message.includes('invalid_argument') && message.includes('real_estate_object.');
 }
 
 function extractErrorMessage(error: unknown, fallback: string): string {

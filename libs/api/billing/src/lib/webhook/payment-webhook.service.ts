@@ -16,6 +16,7 @@ import {
 import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
+import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -266,28 +267,18 @@ export class PaymentWebhookService {
       receiptRegistration?: string | null;
     },
   ): Promise<void> {
-    const assessmentId = payment.assessmentId;
+    const target = buildPaymentAuditTarget(payment);
 
     await this.auditService.record({
       actorUserId: payment.userId,
       eventType,
-      targetType: assessmentId ? 'Assessment' : 'Payment',
-      targetId: assessmentId ?? payment.id,
+      ...target,
       actionTitle: status === PrismaPaymentStatus.Completed ? 'Платёж завершён' : 'Платёж отклонён',
       actionContext: 'Статус обновлён по YooKassa webhook',
-      targetTitle: assessmentId
-        ? `Заявка ${shortId(assessmentId)}`
-        : `Платёж ${shortId(payment.id)}`,
-      targetContext: assessmentId ? `Платёж ${shortId(payment.id)}` : 'Без заявки',
-      after: {
-        paymentId: payment.id,
+      after: buildPaymentAuditSnapshot(payment, {
         status,
-        amount: payment.amount.toString(),
-        transactionId: payment.transactionId,
-        type: payment.type,
-        assessmentId,
         ...providerDetails,
-      },
+      }),
     });
   }
 
@@ -377,10 +368,6 @@ function parseWebhookPayload(payload: string): YooKassaNotificationPayload {
   } catch {
     throw new PaymentWebhookError('Webhook payload is invalid JSON', 400);
   }
-}
-
-function shortId(value: string): string {
-  return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
 
 function isYooKassaNotificationPayload(value: unknown): value is YooKassaNotificationPayload {

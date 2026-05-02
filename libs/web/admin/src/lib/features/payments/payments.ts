@@ -296,11 +296,7 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   openEditModal(payment: Payment): void {
-    this.closeModals();
-    this.isEditMode = true;
-    this.currentPayment = { ...payment };
-    this.fee = payment.fee ?? 0;
-    this.isCreateEditModalOpen = true;
+    this.router.navigate(['/admin', 'payments', payment.id, 'edit']);
   }
 
   openViewModal(payment: Payment): void {
@@ -314,13 +310,18 @@ export class Payments implements OnInit, OnDestroy {
     this.paymentToDelete = { ...payment };
   }
 
-  onDeleteConfirmed(): void {
+  async onDeleteConfirmed(): Promise<void> {
     if (!this.paymentToDelete) return;
 
-    // TODO: replace mock delete with real API call after backend delete endpoint is ready
-    this.payments = this.payments.filter((p) => p.id !== this.paymentToDelete?.id);
+    const deleted = this.paymentToDelete;
     this.paymentToDelete = null;
-    this.router.navigate(['/admin', 'payments']);
+
+    try {
+      await this.api.deletePayment(String(deleted.id));
+      this.payments = this.payments.filter((p) => String(p.id) !== String(deleted.id));
+    } catch (err) {
+      this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
+    }
   }
 
   onDeleteCancelled(): void {
@@ -346,21 +347,22 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   savePayment(): void {
-    this.currentPayment.fee = Number(this.fee ?? 0);
-    this.currentPayment.statusText = PAYMENT_STATUS_LABELS[this.currentPayment.status];
-    if (this.isEditMode) {
-      const index = this.payments.findIndex((p) => p.id === this.currentPayment.id);
-      if (index !== -1) this.payments[index] = { ...this.currentPayment };
-    } else {
-      this.payments.push({ ...this.currentPayment });
-    }
     this.closeModals();
+    this.router.navigate(['/admin', 'payments', this.currentPayment.id, 'edit']);
   }
 
-  deletePayment(): void {
-    this.payments = this.payments.filter((p) => p.id !== this.currentPayment.id);
-    this.closeModals();
-    this.router.navigate(['/admin', 'payments']);
+  async deletePayment(): Promise<void> {
+    this.loading = true;
+    this.loadError = null;
+
+    try {
+      await this.api.deletePayment(String(this.currentPayment.id));
+      this.closeModals();
+    } catch (err) {
+      this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
+    } finally {
+      this.loading = false;
+    }
   }
 
   goToApplications(payment?: Payment): void {

@@ -26,9 +26,27 @@ export interface NotificationQuery {
   unreadOnly?: boolean;
 }
 
+export interface CreateNotificationInput {
+  userId: string;
+  message: string;
+  type?: PrismaNotificationType;
+  status?: PrismaNotificationStatus;
+}
+
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createNotification(input: CreateNotificationInput): Promise<void> {
+    await this.prisma.notification.create({
+      data: {
+        userId: input.userId,
+        message: input.message,
+        type: input.type ?? PrismaNotificationType.Push,
+        status: input.status ?? PrismaNotificationStatus.Sent,
+      },
+    });
+  }
 
   async listNotifications(query: NotificationQuery): Promise<ListNotificationsResponse> {
     const { page, limit } = query;
