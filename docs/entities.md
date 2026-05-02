@@ -214,6 +214,17 @@
 - `CreatedAt` (timestamp) — дата создания
 - `UpdatedAt` (timestamp) — дата последнего обновления
 
+## 15. Заказ (Lead)
+
+- `Id` (UUID, PK) — уникальный идентификатор заказа
+- `ApplicantUserId` (UUID, FK) — кто заказал (заявитель, ссылка на User.Id)
+- `ExecutorUserId` (UUID, FK) — кто исполнитель (нотариус, ссылка на User.Id)
+- `AssessmentId` (UUID, FK) — ID заявки на оценку (Assessment.Id)
+- `StartDate` (date) — дата начала работ
+- `ActualCompletionDate` (date, nullable) — фактическая дата окончания
+- `PlannedCompletionDate` (date) — планируемая дата окончания
+- `TransactionId` (varchar, nullable) — идентификатор транзакции (оплата)
+
 ---
 
 # Краткие пояснения
