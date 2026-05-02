@@ -27,6 +27,16 @@ export const guestRoutes: Route[] = [
               import('./features/auth/forgot-password/forgot-password').then((m) => m.ForgotPassword),
           },
           {
+            path: 'password-recovery',
+            loadComponent: () =>
+              import('./features/auth/password-recovery/password-recovery').then((m) => m.PasswordRecovery),
+          },
+          {
+            path: 'password-recovery/reset',
+            loadComponent: () =>
+              import('./features/auth/password-recovery/password-recovery-reset').then((m) => m.PasswordRecoveryReset),
+          },
+          {
             path: 'reset-password',
             loadComponent: () =>
               import('./features/auth/reset-password/reset-password').then((m) => m.ResetPassword),
