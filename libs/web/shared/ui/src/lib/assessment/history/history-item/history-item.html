@@ -30,7 +30,7 @@
         (click)="onRepeat()">
         Повторить заказ
       </button>
-      <button *ngIf="role === 'notary' && order.status === 'pending'" class="btn btn-primary btn-sm">
+      <button *ngIf="role === 'notary' && order.status === 'created'" class="btn btn-primary btn-sm">
         Взять в работу
       </button>
     </div>

@@ -4,10 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HistoryItemComponent } from './history-item/history-item';
 import { AssessmentOrder, OrderStatus } from './models';
 import { ActivatedRoute } from '@angular/router';
-import { Router } from '@angular/router'; // пока не нужен, но оставим
 import { AssessmentDetailModalComponent } from '../assessment-detail-modal';
-
-
 
 @Component({
   selector: 'lib-assessment-history',
@@ -38,10 +35,11 @@ export class AssessmentHistoryComponent implements OnInit {
   // Доступные статусы для фильтра
   statusOptions: { value: OrderStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'Все статусы' },
-    { value: 'pending', label: 'Ожидает' },
-    { value: 'in_progress', label: 'В работе' },
-    { value: 'completed', label: 'Завершён' },
-    { value: 'failed', label: 'Ошибка' },
+    { value: 'created', label: 'Создана' },
+    { value: 'accepted', label: 'Принята' },
+    { value: 'under_review', label: 'На рассмотрении' },
+    { value: 'completed', label: 'Завершена' },
+    { value: 'rejected', label: 'Отклонена' },
   ];
 
   // Моковые данные (в реальном проекте получать через сервис)
@@ -53,8 +51,8 @@ export class AssessmentHistoryComponent implements OnInit {
       status: 'completed',
       totalAmount: 4500,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-03-10'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-03-11'), comment: 'Назначен оценщик' },
+        { status: 'created', date: new Date('2025-03-10'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-03-11'), comment: 'Назначен оценщик' },
         { status: 'completed', date: new Date('2025-03-15'), comment: 'Отчёт готов' },
       ],
       // Новые поля
@@ -79,11 +77,11 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-002',
       objectAddress: 'г. Санкт-Петербург, Невский пр., д. 100',
       orderDate: new Date('2025-03-20'),
-      status: 'in_progress',
+      status: 'accepted',
       totalAmount: 6200,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-03-20'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-03-22'), comment: 'Документы приняты' },
+        { status: 'created', date: new Date('2025-03-20'), comment: 'Заказ создан' },
+        { status: 'accepted', date: new Date('2025-03-22'), comment: 'Документы приняты' },
       ],
       applicantId: 'user-002',
       applicantName: 'Сидоров Пётр Алексеевич',
@@ -105,11 +103,11 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-003',
       objectAddress: 'г. Казань, ул. Баумана, д. 5',
       orderDate: new Date('2025-03-05'),
-      status: 'failed',
+      status: 'rejected',
       totalAmount: 3800,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-03-05'), comment: 'Заказ создан' },
-        { status: 'failed', date: new Date('2025-03-07'), comment: 'Недостаточно данных' },
+        { status: 'created', date: new Date('2025-03-05'), comment: 'Заказ создан' },
+        { status: 'rejected', date: new Date('2025-03-07'), comment: 'Недостаточно данных' },
       ],
       applicantId: 'user-003',
       applicantName: 'Михайлова Ольга Дмитриевна',
@@ -130,11 +128,9 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-004',
       objectAddress: 'г. Екатеринбург, ул. Ленина, д. 15',
       orderDate: new Date('2025-04-01'),
-      status: 'pending',
+      status: 'created',
       totalAmount: 5100,
-      statusHistory: [
-        { status: 'pending', date: new Date('2025-04-01'), comment: 'Заказ создан' }
-      ],
+      statusHistory: [{ status: 'created', date: new Date('2025-04-01'), comment: 'Заказ создан' }],
       applicantId: 'user-004',
       applicantName: 'Смирнов Алексей Викторович',
       plannedCompletionDate: new Date('2025-04-20'),
@@ -152,11 +148,11 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-005',
       objectAddress: 'г. Новосибирск, Красный пр., д. 20',
       orderDate: new Date('2025-04-10'),
-      status: 'in_progress',
+      status: 'under_review',
       totalAmount: 8900,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-04-10'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-04-12'), comment: 'Документы приняты' }
+        { status: 'created', date: new Date('2025-04-10'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-04-12'), comment: 'Документы приняты' },
       ],
       applicantId: 'user-005',
       applicantName: 'Кузнецова Татьяна Петровна',
@@ -181,9 +177,9 @@ export class AssessmentHistoryComponent implements OnInit {
       status: 'completed',
       totalAmount: 4300,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-04-15'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-04-17'), comment: 'Назначен оценщик' },
-        { status: 'completed', date: new Date('2025-04-25'), comment: 'Отчёт готов' }
+        { status: 'created', date: new Date('2025-04-15'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-04-17'), comment: 'Назначен оценщик' },
+        { status: 'completed', date: new Date('2025-04-25'), comment: 'Отчёт готов' },
       ],
       applicantId: 'user-006',
       applicantName: 'Морозов Илья Сергеевич',
@@ -206,11 +202,9 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-007',
       objectAddress: 'г. Челябинск, пр. Ленина, д. 30',
       orderDate: new Date('2025-04-20'),
-      status: 'pending',
+      status: 'created',
       totalAmount: 7200,
-      statusHistory: [
-        { status: 'pending', date: new Date('2025-04-20'), comment: 'Заказ создан' }
-      ],
+      statusHistory: [{ status: 'created', date: new Date('2025-04-20'), comment: 'Заказ создан' }],
       applicantId: 'user-007',
       applicantName: 'Васильева Екатерина Дмитриевна',
       plannedCompletionDate: new Date('2025-05-15'),
@@ -228,11 +222,11 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-008',
       objectAddress: 'г. Омск, ул. Интернациональная, д. 12',
       orderDate: new Date('2025-04-25'),
-      status: 'in_progress',
+      status: 'under_review',
       totalAmount: 6500,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-04-25'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-04-27'), comment: 'Оценка начата' }
+        { status: 'created', date: new Date('2025-04-25'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-04-27'), comment: 'Оценка начата' },
       ],
       applicantId: 'user-008',
       applicantName: 'Петров Артём Владимирович',
@@ -257,9 +251,9 @@ export class AssessmentHistoryComponent implements OnInit {
       status: 'completed',
       totalAmount: 5400,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-05-01'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-05-03'), comment: 'Подготовка отчёта' },
-        { status: 'completed', date: new Date('2025-05-10'), comment: 'Отчёт подписан' }
+        { status: 'created', date: new Date('2025-05-01'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-05-03'), comment: 'Подготовка отчёта' },
+        { status: 'completed', date: new Date('2025-05-10'), comment: 'Отчёт подписан' },
       ],
       applicantId: 'user-009',
       applicantName: 'Зайцева Наталья Сергеевна',
@@ -282,11 +276,9 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-010',
       objectAddress: 'г. Самара, ул. Молодогвардейская, д. 40',
       orderDate: new Date('2025-05-05'),
-      status: 'pending',
+      status: 'created',
       totalAmount: 4700,
-      statusHistory: [
-        { status: 'pending', date: new Date('2025-05-05'), comment: 'Заказ создан' }
-      ],
+      statusHistory: [{ status: 'created', date: new Date('2025-05-05'), comment: 'Заказ создан' }],
       applicantId: 'user-010',
       applicantName: 'Николаев Денис Викторович',
       plannedCompletionDate: new Date('2025-05-25'),
@@ -304,11 +296,11 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-011',
       objectAddress: 'г. Воронеж, пр. Революции, д. 18',
       orderDate: new Date('2025-05-08'),
-      status: 'in_progress',
+      status: 'under_review',
       totalAmount: 8300,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-05-08'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-05-10'), comment: 'Сбор документов' }
+        { status: 'created', date: new Date('2025-05-08'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-05-10'), comment: 'Сбор документов' },
       ],
       applicantId: 'user-011',
       applicantName: 'Фёдорова Анастасия Игоревна',
@@ -333,9 +325,9 @@ export class AssessmentHistoryComponent implements OnInit {
       status: 'completed',
       totalAmount: 6100,
       statusHistory: [
-        { status: 'pending', date: new Date('2025-05-12'), comment: 'Заказ создан' },
-        { status: 'in_progress', date: new Date('2025-05-14'), comment: 'Оценка' },
-        { status: 'completed', date: new Date('2025-05-20'), comment: 'Готово' }
+        { status: 'created', date: new Date('2025-05-12'), comment: 'Заказ создан' },
+        { status: 'under_review', date: new Date('2025-05-14'), comment: 'Оценка' },
+        { status: 'completed', date: new Date('2025-05-20'), comment: 'Готово' },
       ],
       applicantId: 'user-012',
       applicantName: 'Григорьев Сергей Александрович',
@@ -358,11 +350,9 @@ export class AssessmentHistoryComponent implements OnInit {
       id: 'ORD-013',
       objectAddress: 'г. Пермь, ул. Ленина, д. 50',
       orderDate: new Date('2025-05-15'),
-      status: 'pending',
+      status: 'created',
       totalAmount: 3950,
-      statusHistory: [
-        { status: 'pending', date: new Date('2025-05-15'), comment: 'Заказ создан' }
-      ],
+      statusHistory: [{ status: 'created', date: new Date('2025-05-15'), comment: 'Заказ создан' }],
       applicantId: 'user-013',
       applicantName: 'Алексеева Виктория Андреевна',
       plannedCompletionDate: new Date('2025-06-05'),
@@ -381,12 +371,17 @@ export class AssessmentHistoryComponent implements OnInit {
   notifications = signal([
     {
       id: 1,
-      message: 'Заявка #ORD-003 перешла в статус "Ошибка"',
+      message: 'Заявка #ORD-003 перешла в статус "Отклонена"',
       timeAgo: '2 часа назад',
       icon: '⚡',
     },
     { id: 2, message: 'Заявка #ORD-001 завершена — результат готов', timeAgo: 'вчера', icon: '⚡' },
-    { id: 3, message: 'Заявка #ORD-002 взята в работу', timeAgo: '5 часов назад', icon: '⚡' },
+    {
+      id: 3,
+      message: 'Заявка #ORD-002 перешла в статус "Принята"',
+      timeAgo: '5 часов назад',
+      icon: '⚡',
+    },
   ]);
 
   // Пагинация
@@ -447,7 +442,7 @@ export class AssessmentHistoryComponent implements OnInit {
   getSelectedOrder(): AssessmentOrder | null {
     const id = this.selectedOrderId();
     if (!id) return null;
-    return this.orders().find(o => o.id === id) ?? null;
+    return this.orders().find((o) => o.id === id) ?? null;
   }
 
   // Действия

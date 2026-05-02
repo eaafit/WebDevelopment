@@ -395,7 +395,9 @@
                       <button
                         class="upload-list-remove"
                         type="button"
-                        [disabled]="isGroupUploading('documents') || isStoredDocumentDeleting(document.id)"
+                        [disabled]="
+                          isReadOnlyMode() || isGroupUploading('documents') || isStoredDocumentDeleting(document.id)
+                        "
                         [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                         (click)="removeStoredDocument(document)">
                         <span aria-hidden="true">×</span>
@@ -444,7 +446,7 @@
                       <button
                         class="upload-list-remove"
                         type="button"
-                        [disabled]="isGroupUploading('documents')"
+                        [disabled]="isReadOnlyMode() || isGroupUploading('documents')"
                         [attr.aria-label]="'Удалить файл ' + file.name"
                         (click)="removeFile(documentFilesField, 'documents', $index)">
                         <span aria-hidden="true">×</span>
@@ -485,7 +487,7 @@
                     <button
                       class="photo-card-remove"
                       type="button"
-                      [disabled]="isGroupUploading('photos') || isStoredDocumentDeleting(document.id)"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('photos') || isStoredDocumentDeleting(document.id)"
                       [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                       (click)="removeStoredDocument(document)">
                       <span aria-hidden="true">×</span>
@@ -531,7 +533,7 @@
                     <button
                       class="photo-card-remove"
                       type="button"
-                      [disabled]="isGroupUploading('photos')"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('photos')"
                       [attr.aria-label]="'Удалить файл ' + file.name"
                       (click)="removeFile(photoFilesField, 'photos', $index)">
                       <span aria-hidden="true">×</span>
@@ -631,7 +633,9 @@
                     <button
                       class="upload-list-remove"
                       type="button"
-                      [disabled]="isGroupUploading('additional') || isStoredDocumentDeleting(document.id)"
+                      [disabled]="
+                        isReadOnlyMode() || isGroupUploading('additional') || isStoredDocumentDeleting(document.id)
+                      "
                       [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                       (click)="removeStoredDocument(document)">
                       <span aria-hidden="true">×</span>
@@ -678,7 +682,7 @@
                     <button
                       class="upload-list-remove"
                       type="button"
-                      [disabled]="isGroupUploading('additional')"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('additional')"
                       [attr.aria-label]="'Удалить файл ' + file.name"
                       (click)="removeFile(additionalFilesField, 'additional', $index)">
                       <span aria-hidden="true">×</span>
@@ -692,9 +696,11 @@
           </fieldset>
 
           <div class="form-actions">
+            @if (!isReadOnlyMode()) {
             <button class="btn btn-primary" type="submit" [disabled]="isBusy()">
               {{ saving() ? 'Сохраняем...' : 'Сохранить и перейти к статусу' }}
             </button>
+            }
           </div>
 
           @if (imagePreviewState; as preview) {
