@@ -360,7 +360,7 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: {
-            status: PrismaAssessmentStatus.Verified,
+            status: PrismaAssessmentStatus.InProgress,
             ...(notaryId != null && notaryId !== '' && { notaryId }),
           },
           include: assessmentInclude,

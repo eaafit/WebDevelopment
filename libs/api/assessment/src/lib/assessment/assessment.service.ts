@@ -242,12 +242,28 @@ export class AssessmentService {
         isNotaryRole(actor?.role) ? actor?.sub : undefined,
       );
       const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+
+      if (before.notaryId !== after.notaryId && after.notaryId) {
+        await this.auditService.record({
+          actorUserId: actor?.sub,
+          eventType: 'assessment.assigned_to_notary',
+          targetType: 'Assessment',
+          targetId: assessment.id,
+          actionTitle: 'Заявка назначена нотариусу',
+          actionContext: `Нотариус: ${formatOptionalId(before.notaryId)} -> ${shortId(after.notaryId)}`,
+          targetTitle: `Заявка ${shortId(assessment.id)}`,
+          targetContext: after.address,
+          before: toAuditSnapshot(before),
+          after: toAuditSnapshot(after),
+        });
+      }
+
       await this.auditService.record({
         actorUserId: actor?.sub,
-        eventType: 'assessment.verified',
+        eventType: 'assessment.status_in_progress',
         targetType: 'Assessment',
         targetId: assessment.id,
-        actionTitle: 'Заявка взята в работу',
+        actionTitle: 'Заявка переведена в работу',
         actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
         targetTitle: `Заявка ${shortId(assessment.id)}`,
         targetContext: after.address,
@@ -713,6 +729,10 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function formatOptionalId(value: string | null): string {
+  return value ? shortId(value) : 'не назначен';
 }
 
 function isExpectedOperationError(error: unknown): boolean {
