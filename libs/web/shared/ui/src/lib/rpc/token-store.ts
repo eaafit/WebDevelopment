@@ -33,6 +33,15 @@ export interface JwtPayload {
   exp: number;
 }
 
+export interface RpcAuthUser {
+  id?: string;
+  email?: string;
+  fullName?: string;
+  role?: string | number | UserRole;
+  phoneNumber?: string;
+  isActive?: boolean;
+}
+
 // ─── JWT helpers ─────────────────────────────────────────────────────────────
 
 export function parseJwtPayload(token: string): JwtPayload | null {
@@ -75,7 +84,7 @@ export class TokenStore {
   readonly isLoggedIn = computed(() => this._user() !== null);
   readonly role       = computed(() => this._user()?.role ?? null);
 
-  setTokens(accessToken: string, refreshToken: string, rpcUser: any): void {
+  setTokens(accessToken: string, refreshToken: string, rpcUser: RpcAuthUser | null): void {
     this._accessToken = accessToken;
     this.persistRefreshToken(refreshToken);
 

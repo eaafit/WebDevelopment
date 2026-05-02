@@ -1,16 +1,16 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { UploadStep } from './upload-step';
+import { AssessmentUploadStepComponent } from './upload-step';
 
 describe('UploadStep', () => {
-  let component: UploadStep;
-  let fixture: ComponentFixture<UploadStep>;
+  let component: AssessmentUploadStepComponent;
+  let fixture: ComponentFixture<AssessmentUploadStepComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [UploadStep],
+      imports: [AssessmentUploadStepComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(UploadStep);
+    fixture = TestBed.createComponent(AssessmentUploadStepComponent);
     component = fixture.componentInstance;
     await fixture.whenStable();
   });
