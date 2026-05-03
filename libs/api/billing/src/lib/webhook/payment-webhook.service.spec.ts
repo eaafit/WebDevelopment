@@ -4,6 +4,7 @@ import { PaymentWebhookError, PaymentWebhookService } from './payment-webhook.se
 
 describe('PaymentWebhookService', () => {
   const findPayment = jest.fn();
+  const findPaymentById = jest.fn();
   const paymentUpdateMany = jest.fn();
   const promoUpdate = jest.fn();
   const transaction = jest.fn();
@@ -19,6 +20,9 @@ describe('PaymentWebhookService', () => {
   const yookassa = {
     getPayment: jest.fn(),
   };
+  const robokassa = {
+    verifyResultSignature: jest.fn(),
+  };
   const paymentSubscriptionService = {
     activateSubscription: jest.fn(),
   };
@@ -32,6 +36,7 @@ describe('PaymentWebhookService', () => {
   const prisma = {
     payment: {
       findFirst: findPayment,
+      findUnique: findPaymentById,
       updateMany: paymentUpdateMany,
     },
     promo: {
@@ -48,6 +53,7 @@ describe('PaymentWebhookService', () => {
     loggerSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
     findPayment.mockReset();
+    findPaymentById.mockReset();
     paymentUpdateMany.mockReset();
     promoUpdate.mockReset();
     transaction.mockReset();
@@ -59,6 +65,7 @@ describe('PaymentWebhookService', () => {
     metrics.recordBillingPaymentAmount.mockReset();
     metrics.recordPromoApplied.mockReset();
     yookassa.getPayment.mockReset();
+    robokassa.verifyResultSignature.mockReset();
     paymentSubscriptionService.activateSubscription.mockReset();
     auditService.record.mockReset();
 
@@ -81,6 +88,25 @@ describe('PaymentWebhookService', () => {
       attachmentFileUrl: null,
       receiptStatus: PaymentReceiptStatus.Pending,
     });
+    findPaymentById.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      amount: {
+        toString: () => '1350.00',
+      },
+      status: PaymentStatus.Pending,
+      type: PaymentType.Subscription,
+      promoId: 'promo-1',
+      discountAmount: {
+        toString: () => '150.00',
+      },
+      subscriptionId: 'subscription-1',
+      assessmentId: null,
+      paymentMethod: 'robokassa_redirect',
+      transactionId: 'payment-1',
+      attachmentFileUrl: null,
+      receiptStatus: PaymentReceiptStatus.Available,
+    });
     yookassa.getPayment.mockResolvedValue({
       id: 'yk-payment-1',
       status: 'succeeded',
@@ -96,6 +122,7 @@ describe('PaymentWebhookService', () => {
         payment_id: 'payment-1',
       },
     });
+    robokassa.verifyResultSignature.mockReturnValue(true);
     transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) =>
       callback({
         payment: {
@@ -126,6 +153,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -245,6 +273,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -328,6 +357,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -368,6 +398,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -415,6 +446,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -483,6 +515,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -542,6 +575,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -581,6 +615,7 @@ describe('PaymentWebhookService', () => {
       prisma as never,
       metrics as never,
       yookassa as never,
+      robokassa as never,
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
@@ -598,6 +633,73 @@ describe('PaymentWebhookService', () => {
         },
         { signature: 'bad-secret' },
       ),
+    ).rejects.toEqual(expect.objectContaining<Partial<PaymentWebhookError>>({ statusCode: 401 }));
+  });
+
+  it('should accept a valid Robokassa callback and complete payment once', async () => {
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      robokassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+    );
+
+    const response = await service.handleRobokassaResult({
+      OutSum: '1350.00',
+      InvId: 'payment-1',
+      SignatureValue: 'ok-signature',
+    });
+
+    expect(robokassa.verifyResultSignature).toHaveBeenCalledWith({
+      outSum: '1350.00',
+      invoiceId: 'payment-1',
+      signatureValue: 'ok-signature',
+    });
+    expect(paymentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'payment-1',
+        status: PaymentStatus.Pending,
+      },
+      data: {
+        status: PaymentStatus.Completed,
+        paymentMethod: 'robokassa_redirect',
+        receiptStatus: PaymentReceiptStatus.Available,
+      },
+    });
+    expect(response).toBe('OKpayment-1');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.completed',
+        actionContext: 'Статус обновлён по Robokassa callback',
+        after: expect.objectContaining({
+          paymentProvider: 'Robokassa',
+        }),
+      }),
+    );
+  });
+
+  it('should reject Robokassa callback with invalid signature', async () => {
+    robokassa.verifyResultSignature.mockReturnValue(false);
+
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      robokassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+    );
+
+    await expect(
+      service.handleRobokassaResult({
+        OutSum: '1350.00',
+        InvId: 'payment-1',
+        SignatureValue: 'bad-signature',
+      }),
     ).rejects.toEqual(expect.objectContaining<Partial<PaymentWebhookError>>({ statusCode: 401 }));
   });
 });

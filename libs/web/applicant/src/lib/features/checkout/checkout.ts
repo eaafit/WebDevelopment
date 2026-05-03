@@ -115,11 +115,6 @@ export class Checkout implements OnDestroy {
         targetId,
       });
 
-      const confirmationToken = response.widget?.confirmationToken?.trim();
-      if (!confirmationToken) {
-        throw new Error('Backend did not return a YooKassa confirmation token');
-      }
-
       this.paymentId.set(response.paymentId);
       this.confirmedAmount.set(response.amount?.amount?.trim() || this.baseAmount());
       this.logInfo('payment.checkout.applicant.create_payment_succeeded', {
@@ -128,6 +123,25 @@ export class Checkout implements OnDestroy {
         confirmedAmount: this.confirmedAmount(),
         currency: response.amount?.currency ?? 'RUB',
       });
+
+      const paymentUrl = response.paymentUrl?.trim();
+      if (paymentUrl) {
+        this.logInfo('payment.checkout.applicant.robokassa_redirect', {
+          actorUserId: userId,
+          paymentId: response.paymentId,
+          paymentUrl,
+        });
+        this.state.set('processing');
+        this.cdr.detectChanges();
+        window.location.href = paymentUrl;
+        return;
+      }
+
+      const confirmationToken = response.widget?.confirmationToken?.trim();
+      if (!confirmationToken) {
+        throw new Error('Backend did not return a payment URL or confirmation token');
+      }
+
       this.state.set('widget');
       this.cdr.detectChanges();
 

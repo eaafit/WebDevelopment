@@ -256,6 +256,32 @@ describe('Checkout', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.success-card')).not.toBeNull();
   });
 
+  it('should redirect to Robokassa payment URL when the backend returns paymentUrl', async () => {
+    const robokassaUrl =
+      'https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=notary_platform&InvId=payment-1&OutSum=2500.00';
+    checkoutApi.createPayment.mockResolvedValue({
+      paymentId: 'payment-1',
+      paymentUrl: robokassaUrl,
+      amount: {
+        amount: '2500.00',
+        currency: 'RUB',
+      },
+    });
+
+    await checkout.startPayment();
+    fixture.detectChanges();
+
+    expect(checkout.state()).toBe('processing');
+    expect(widgetService.mount).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.applicant.robokassa_redirect',
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: robokassaUrl,
+      }),
+    );
+  });
+
   it('should create a document copy payment when the checkout type is document_copy', async () => {
     TestBed.resetTestingModule();
 

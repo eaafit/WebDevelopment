@@ -156,6 +156,23 @@ async function bootstrap() {
     },
   );
 
+  expressInstance.post(
+    '/api/payments/robokassa/result',
+    express.urlencoded({ extended: false }),
+    (req: express.Request, res: express.Response) => {
+      paymentWebhookService
+        .handleRobokassaResult(req.body)
+        .then((result) => res.status(200).type('text/plain').send(result))
+        .catch((error: unknown) => {
+          if (error instanceof PaymentWebhookError) {
+            res.status(error.statusCode).send(error.message);
+            return;
+          }
+          res.status(500).send('Internal server error');
+        });
+    },
+  );
+
   expressInstance.get(
     '/api/payments/:paymentId/receipt',
     (req: express.Request, res: express.Response) => {

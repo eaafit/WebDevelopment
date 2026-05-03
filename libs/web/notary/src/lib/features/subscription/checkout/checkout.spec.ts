@@ -290,6 +290,32 @@ describe('Checkout', () => {
     expect(element.textContent).toContain('Проверяем подтверждение платежа');
   });
 
+  it('should redirect to Robokassa payment URL when the backend returns paymentUrl', async () => {
+    const robokassaUrl =
+      'https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=notary_platform&InvId=payment-1&OutSum=1350.00';
+    checkoutApi.createPayment.mockResolvedValue({
+      paymentId: 'payment-1',
+      paymentUrl: robokassaUrl,
+      amount: {
+        amount: '1350.00',
+        currency: 'RUB',
+      },
+    });
+
+    await checkout.startPayment();
+    fixture.detectChanges();
+
+    expect(checkout.state()).toBe('processing');
+    expect(widgetService.mount).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.notary.robokassa_redirect',
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: robokassaUrl,
+      }),
+    );
+  });
+
   it('should show a retryable cancelled state when the widget is closed', async () => {
     await checkout.startPayment();
     widgetHandlers?.onClose();
