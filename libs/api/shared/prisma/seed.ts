@@ -1142,7 +1142,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       where: { id },
       update: {
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,
@@ -1152,7 +1151,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       create: {
         id,
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,
