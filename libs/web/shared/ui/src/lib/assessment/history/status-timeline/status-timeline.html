@@ -1,7 +1,13 @@
 <div class="timeline-horizontal" [class.compact]="compact">
-  <div *ngFor="let stage of stages; let i = index" class="timeline-stage">
-    <div class="stage-circle" [class.completed]="isCompleted(i)" [class.current]="isCurrent(i)"></div>
-    <span class="stage-label" *ngIf="!compact">{{ stage.label }}</span>
-    <div *ngIf="i < stages.length - 1" class="stage-line" [class.completed]="i < activeStageIndex"></div>
-  </div>
+  @for (stage of stages; track $index; let i = $index) {
+    <div class="timeline-stage">
+      <div class="stage-circle" [class.completed]="isCompleted(i)" [class.current]="isCurrent(i)"></div>
+      @if (!compact) {
+        <span class="stage-label">{{ stage.label }}</span>
+      }
+      @if (i < stages.length - 1) {
+        <div class="stage-line" [class.completed]="i < activeStageIndex"></div>
+      }
+    </div>
+  }
 </div>

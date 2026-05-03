@@ -5,9 +5,7 @@
 </div>
 
 <div class="grid">
-  <lib-photo-item
-    *ngFor="let file of files(); let i = index"
-    [file]="file"
-    (remove)="removeFile(i)"
-    (typeChange)="updateType(i, $event)"></lib-photo-item>
+  @for (file of files(); track $index; let i = $index) {
+    <lib-photo-item [file]="file" (remove)="removeFile(i)" (typeChange)="updateType(i, $event)"></lib-photo-item>
+  }
 </div>

@@ -11,14 +11,25 @@ import { AssessmentOrder } from './history/models';
 })
 export class AssessmentDetailModalComponent {
   @Input() order: AssessmentOrder | null = null;
-  @Output() close = new EventEmitter<void>();
+  @Output() modalClose = new EventEmitter<void>();
 
   closeModal(): void {
-    this.close.emit();
+    this.modalClose.emit();
   }
 
   onBackdropClick(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
+      this.closeModal();
+    }
+  }
+
+  onBackdropKeydown(event: KeyboardEvent): void {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
       this.closeModal();
     }
   }
