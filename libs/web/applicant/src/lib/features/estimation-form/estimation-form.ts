@@ -16,7 +16,10 @@ import {
   type ValidatorFn,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { RealEstateObjectType } from '@notary-portal/api-contracts';
+import {
+  AssessmentStatus as RpcAssessmentStatus,
+  RealEstateObjectType,
+} from '@notary-portal/api-contracts';
 import { TokenStore } from '@notary-portal/ui';
 import { debounceTime, distinctUntilChanged, filter, from, startWith, switchMap } from 'rxjs';
 import { applicantEmailJsClientConfig } from '../../config/applicant-emailjs.config';
@@ -57,6 +60,7 @@ interface ImagePreviewState {
 }
 
 const ASSESSMENT_ID_QUERY_PARAM = 'assessmentId';
+const READONLY_QUERY_PARAM = 'readonly';
 const AUTOSAVE_DEBOUNCE_MS = 700;
 const LAND_PLOT_OBJECT_TYPE = String(RealEstateObjectType.LAND_PLOT);
 const CADASTRAL_NUMBER_LENGTH = 12;
@@ -116,6 +120,7 @@ export class EstimationForm implements OnDestroy {
   readonly saveError = signal<string | null>(null);
   readonly documentsError = signal<string | null>(null);
   readonly assessmentId = signal<string | null>(null);
+  readonly isReadOnlyMode = signal(false);
   readonly lastDraftSavedAt = signal<string | null>(null);
   readonly storedDocuments = signal<AssessmentDocumentModel[]>([]);
   readonly userId = signal<string | null>(null);
@@ -140,6 +145,7 @@ export class EstimationForm implements OnDestroy {
   readonly canUploadFiles = computed(
     () =>
       this.hasAssessmentId() &&
+      !this.isReadOnlyMode() &&
       !this.draftSaving() &&
       !this.saving() &&
       !this.hasPendingDocumentDeletions(),
@@ -153,6 +159,13 @@ export class EstimationForm implements OnDestroy {
       this.hasPendingDocumentDeletions(),
   );
   readonly autosaveStatus = computed<AutosaveStatus>(() => {
+    if (this.isReadOnlyMode()) {
+      return {
+        message: 'Параметры заявки открыты в режиме просмотра.',
+        tone: 'neutral',
+      };
+    }
+
     if (this.loading()) {
       return {
         message: 'Восстанавливаем черновик параметров объекта...',
@@ -220,6 +233,12 @@ export class EstimationForm implements OnDestroy {
 
   async onSubmit(event: Event, form: HTMLFormElement): Promise<void> {
     event.preventDefault();
+
+    if (this.isReadOnlyMode()) {
+      this.saveError.set('Заявка уже передана в обработку. Изменение параметров недоступно.');
+      return;
+    }
+
     this.showValidationErrors = true;
     this.validationErrorMessage = '';
     this.saveError.set(null);
@@ -369,6 +388,10 @@ export class EstimationForm implements OnDestroy {
   }
 
   onFilesSelected(event: Event, group: UploadGroup): void {
+    if (this.isReadOnlyMode()) {
+      return;
+    }
+
     const inputElement = event.target as HTMLInputElement;
     const selectedFiles = inputElement.files ? Array.from(inputElement.files) : [];
     if (!selectedFiles.length) {
@@ -382,7 +405,7 @@ export class EstimationForm implements OnDestroy {
   }
 
   removeFile(inputElement: HTMLInputElement, group: UploadGroup, fileIndex: number): void {
-    if (this.isGroupUploading(group)) {
+    if (this.isReadOnlyMode() || this.isGroupUploading(group)) {
       return;
     }
 
@@ -490,7 +513,7 @@ export class EstimationForm implements OnDestroy {
   }
 
   async removeStoredDocument(document: AssessmentDocumentModel): Promise<void> {
-    if (this.isStoredDocumentDeleting(document.id)) {
+    if (this.isReadOnlyMode() || this.isStoredDocumentDeleting(document.id)) {
       return;
     }
 
@@ -752,17 +775,31 @@ export class EstimationForm implements OnDestroy {
       const routeAssessmentId =
         this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
       const localAssessmentId = localDraftSnapshot?.assessmentId?.trim() ?? '';
+      const forceNewAssessment = this.isNewAssessmentRoute();
+      const routeReadOnly = this.isReadOnlyQueryParam();
 
       this.userId.set(userId);
       this.cities.set(cities);
 
+      if (forceNewAssessment) {
+        this.clearLocalDraft();
+        this.resetDraftStateForNewAssessment();
+        return;
+      }
+
       if (routeAssessmentId) {
         const draft = await this.assessmentApi.getAssessment(routeAssessmentId);
-        this.applyDraft(draft);
-        shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
-        if (!shouldAutosaveRestoredState) {
+        const isReadOnlyDraft = routeReadOnly || !isEditableDraftStatus(draft.status);
+        this.applyDraft(draft, isReadOnlyDraft);
+
+        if (!isReadOnlyDraft) {
+          shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
+        }
+
+        if (!isReadOnlyDraft && !shouldAutosaveRestoredState) {
           this.persistAssessmentSnapshot(draft);
         }
+
         await this.loadDistrictsForCity(
           this.formControls.cityId.value,
           this.formControls.districtId.value,
@@ -777,11 +814,17 @@ export class EstimationForm implements OnDestroy {
         } else {
           try {
             const draft = await this.assessmentApi.getAssessment(localAssessmentId);
-            this.applyDraft(draft);
-            shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
-            if (!shouldAutosaveRestoredState) {
+            const isReadOnlyDraft = !isEditableDraftStatus(draft.status);
+            this.applyDraft(draft, isReadOnlyDraft);
+
+            if (!isReadOnlyDraft) {
+              shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
+            }
+
+            if (!isReadOnlyDraft && !shouldAutosaveRestoredState) {
               this.persistAssessmentSnapshot(draft);
             }
+
             await this.syncAssessmentId(draft.id);
             await this.loadDistrictsForCity(
               this.formControls.cityId.value,
@@ -808,7 +851,7 @@ export class EstimationForm implements OnDestroy {
 
       const latestDraft = await this.assessmentApi.findLatestDraft(userId);
       if (latestDraft && !this.localDraftService.isCompleted(userId, latestDraft.id)) {
-        this.applyDraft(latestDraft);
+        this.applyDraft(latestDraft, false);
         this.persistAssessmentSnapshot(latestDraft);
         await this.syncAssessmentId(latestDraft.id);
         await this.loadDistrictsForCity(
@@ -831,10 +874,11 @@ export class EstimationForm implements OnDestroy {
     }
   }
 
-  private applyDraft(draft: AssessmentDraftModel): void {
+  private applyDraft(draft: AssessmentDraftModel, isReadOnly: boolean): void {
     this.assessmentId.set(draft.id);
     this.lastDraftSavedAt.set(draft.updatedAt);
     this.patchDraftForm(draft.form);
+    this.setReadOnlyMode(isReadOnly);
   }
 
   private applyLocalDraftSnapshot(
@@ -871,6 +915,26 @@ export class EstimationForm implements OnDestroy {
 
     this.applyConditionalValidators(this.formControls.objectType.value);
     this.isApplyingDraft = false;
+  }
+
+  private setReadOnlyMode(isReadOnly: boolean): void {
+    this.isReadOnlyMode.set(isReadOnly);
+
+    if (isReadOnly) {
+      this.estimationForm.disable({ emitEvent: false });
+      return;
+    }
+
+    this.estimationForm.enable({ emitEvent: false });
+  }
+
+  private isNewAssessmentRoute(): boolean {
+    return this.route.snapshot.routeConfig?.path === 'assessment/new/params';
+  }
+
+  private isReadOnlyQueryParam(): boolean {
+    const value = this.route.snapshot.queryParamMap.get(READONLY_QUERY_PARAM)?.trim().toLowerCase();
+    return value === '1' || value === 'true';
   }
 
   private async handleAutosave(): Promise<void> {
@@ -958,7 +1022,7 @@ export class EstimationForm implements OnDestroy {
 
   private persistLocalDraft(): void {
     const userId = this.userId();
-    if (!userId) {
+    if (!userId || this.isReadOnlyMode()) {
       return;
     }
 
@@ -991,13 +1055,8 @@ export class EstimationForm implements OnDestroy {
     this.localDraftService.clear(userId);
   }
 
-  private clearCompletedDraftState(assessmentId: string): void {
-    const userId = this.userId();
-    if (userId) {
-      this.localDraftService.markCompleted(userId, assessmentId);
-      this.localDraftService.clear(userId);
-    }
-
+  private resetDraftStateForNewAssessment(): void {
+    this.setReadOnlyMode(false);
     this.assessmentId.set(null);
     this.lastDraftSavedAt.set(null);
     this.storedDocuments.set([]);
@@ -1018,8 +1077,19 @@ export class EstimationForm implements OnDestroy {
     this.syncAllUploadInputs();
   }
 
+  private clearCompletedDraftState(assessmentId: string): void {
+    const userId = this.userId();
+    if (userId) {
+      this.localDraftService.markCompleted(userId, assessmentId);
+      this.localDraftService.clear(userId);
+    }
+
+    this.resetDraftStateForNewAssessment();
+  }
+
   private canPersistDraft(): boolean {
     return (
+      !this.isReadOnlyMode() &&
       this.formControls.cityId.valid &&
       this.formControls.address.valid &&
       this.formControls.area.valid &&
@@ -1763,6 +1833,10 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function isEditableDraftStatus(status: RpcAssessmentStatus): boolean {
+  return status === RpcAssessmentStatus.NEW;
 }
 
 function shouldRestoreLocalSnapshot(

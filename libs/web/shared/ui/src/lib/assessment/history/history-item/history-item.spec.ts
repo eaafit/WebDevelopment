@@ -10,7 +10,7 @@ describe('HistoryItemComponent', () => {
     id: 'ORD-001',
     objectAddress: 'ул. Тестовая, д.1',
     orderDate: new Date(),
-    status: 'pending',
+    status: 'created',
     totalAmount: 5000,
     statusHistory: [],
   };

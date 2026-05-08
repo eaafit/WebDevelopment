@@ -14,24 +14,26 @@ export class StatusTimelineComponent {
   @Input({ required: true }) currentStatus!: OrderStatus;
   @Input() compact = false;
 
-  // 5 этапов в правильном порядке
   stages = [
-    { label: 'Создан', statusKey: 'pending' },
-    { label: 'Проверен', statusKey: 'pending' }, // промежуточный
-    { label: 'В работе', statusKey: 'in_progress' },
-    { label: 'Оценён', statusKey: 'completed' }, // промежуточный
-    { label: 'Завершён', statusKey: 'completed' },
+    { label: 'Создана', statusKey: 'created' },
+    { label: 'Принята', statusKey: 'accepted' },
+    { label: 'На рассмотрении', statusKey: 'under_review' },
+    { label: 'Завершена', statusKey: 'completed' },
+    { label: 'Отклонена', statusKey: 'rejected' },
   ];
 
-  // Индекс текущего активного этапа (от 0 до 4)
   get activeStageIndex(): number {
     switch (this.currentStatus) {
-      case 'pending':
-        return 0; // Создан
-      case 'in_progress':
-        return 2; // В работе
+      case 'created':
+        return 0;
+      case 'accepted':
+        return 1;
+      case 'under_review':
+        return 2;
       case 'completed':
-        return 4; // Завершён
+        return 3;
+      case 'rejected':
+        return 4;
       default:
         return -1;
     }

@@ -13,7 +13,9 @@
   <div class="item-body">
     <div class="item-meta flex gap-4 text-sm">
       <span>📅 Дата заказа: {{ formatDate(order.orderDate) }}</span>
-      <span *ngIf="role === 'notary'">👤 Заявитель: {{ order.applicantName }}</span>
+      @if (role === 'notary') {
+      <span>👤 Заявитель: {{ order.applicantName }}</span>
+      }
     </div>
 
     <!-- Таймлайн статусов -->
@@ -24,15 +26,16 @@
     <!-- Действия -->
     <div class="item-actions flex justify-end gap-2">
       <button class="btn btn-outline btn-sm" (click)="onView()">Подробнее</button>
-      <button
-        *ngIf="role === 'applicant' && order.status === 'completed'"
-        class="btn btn-primary btn-sm"
-        (click)="onRepeat()">
+      @if (role === 'applicant' && order.status === 'completed') {
+      <button class="btn btn-primary btn-sm" (click)="onRepeat()">
         Повторить заказ
       </button>
-      <button *ngIf="role === 'notary' && order.status === 'pending'" class="btn btn-primary btn-sm">
+      }
+      @if (role === 'notary' && order.status === 'created') {
+      <button class="btn btn-primary btn-sm">
         Взять в работу
       </button>
+      }
     </div>
   </div>
 </div>

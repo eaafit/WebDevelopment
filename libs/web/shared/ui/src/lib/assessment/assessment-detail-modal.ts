@@ -11,10 +11,10 @@ import { AssessmentOrder } from './history/models';
 })
 export class AssessmentDetailModalComponent {
   @Input() order: AssessmentOrder | null = null;
-  @Output() close = new EventEmitter<void>();
+  @Output() modalClose = new EventEmitter<void>();
 
   closeModal(): void {
-    this.close.emit();
+    this.modalClose.emit();
   }
 
   onBackdropClick(event: MouseEvent): void {
@@ -23,12 +23,19 @@ export class AssessmentDetailModalComponent {
     }
   }
 
+  onBackdropKeydown(event: Event): void {
+    if (event.target === event.currentTarget) {
+      this.closeModal();
+    }
+  }
+
   getStatusLabel(status: string): string {
     const map: Record<string, string> = {
-      pending: 'Ожидает',
-      in_progress: 'В работе',
-      completed: 'Завершён',
-      failed: 'Ошибка'
+      created: 'Создана',
+      accepted: 'Принята',
+      under_review: 'На рассмотрении',
+      completed: 'Завершена',
+      rejected: 'Отклонена',
     };
     return map[status] || status;
   }
@@ -40,7 +47,7 @@ export class AssessmentDetailModalComponent {
       room: 'Комната',
       apartments: 'Апартаменты',
       landPlot: 'Земельный участок',
-      commercialProperty: 'Коммерческая недвижимость'
+      commercialProperty: 'Коммерческая недвижимость',
     };
     return map[type] || type;
   }

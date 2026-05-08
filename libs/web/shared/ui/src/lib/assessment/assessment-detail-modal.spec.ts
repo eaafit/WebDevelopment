@@ -10,7 +10,7 @@ describe('AssessmentDetailModalComponent', () => {
     id: 'ORD-001',
     objectAddress: 'ул. Тестовая, 1',
     orderDate: new Date(),
-    status: 'pending',
+    status: 'created',
     totalAmount: 5000,
     statusHistory: [],
     applicantId: 'user-1',
@@ -39,20 +39,21 @@ describe('AssessmentDetailModalComponent', () => {
   });
 
   it('should emit close event when closeModal is called', () => {
-    jest.spyOn(component.close, 'emit');
+    jest.spyOn(component.modalClose, 'emit');
     component.closeModal();
-    expect(component.close.emit).toHaveBeenCalled();
+    expect(component.modalClose.emit).toHaveBeenCalled();
   });
 
   it('should close on backdrop click if target is backdrop', () => {
-    const event = { target: {}, currentTarget: {} } as MouseEvent;
+    const backdrop = {};
+    const event = { target: backdrop, currentTarget: backdrop } as unknown as MouseEvent;
     jest.spyOn(component, 'closeModal');
     component.onBackdropClick(event);
     expect(component.closeModal).toHaveBeenCalled();
   });
 
   it('should NOT close on backdrop click if target is not backdrop', () => {
-    const event = { target: { tagName: 'BUTTON' }, currentTarget: {} } as any;
+    const event = { target: { tagName: 'BUTTON' }, currentTarget: {} } as unknown as MouseEvent;
     jest.spyOn(component, 'closeModal');
     component.onBackdropClick(event);
     expect(component.closeModal).not.toHaveBeenCalled();
