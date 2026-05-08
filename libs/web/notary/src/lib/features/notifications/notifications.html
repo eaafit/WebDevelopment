@@ -4,7 +4,7 @@
       <p class="role-notifications__eyebrow">Кабинет нотариуса</p>
       <h2>Уведомления</h2>
       <p class="role-notifications__lead">
-        Уведомления по заявкам и подписке. Статусы в интерфейсе: только «отправлено» и «прочитано».
+        In-app уведомления из журнала аудита. Сейчас показываются события новых заявок (`assessment.created`).
       </p>
     </div>
 
@@ -18,54 +18,14 @@
         </button>
         <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
-      @if (!notifications().length) {
-        <button
-          type="button"
-          class="role-notifications__btn role-notifications__btn--ghost"
-          (click)="restoreDemoData()">
-          Вернуть демо-данные
-        </button>
-      }
       @if (inboxCount(); as c) {
         <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
       }
     </div>
   </header>
 
-  <section class="role-notifications__filters">
-    <label class="role-notifications__field">
-      <span>Тип</span>
-      <select (change)="setFilter('type', $any($event.target).value)">
-        <option value="all">Все</option>
-        <option value="application">Заявки</option>
-        <option value="document">Документы</option>
-        <option value="payment">Платежи</option>
-        <option value="system">Системные</option>
-      </select>
-    </label>
-
-    <label class="role-notifications__field">
-      <span>Канал</span>
-      <select (change)="setFilter('channel', $any($event.target).value)">
-        <option value="all">Все</option>
-        <option value="in-app">In-app</option>
-        <option value="email">Email</option>
-        <option value="push">Push</option>
-      </select>
-    </label>
-
-    <label class="role-notifications__field">
-      <span>Статус</span>
-      <select (change)="setFilter('lifecycle', $any($event.target).value)">
-        <option value="all">Все</option>
-        <option value="sent">Отправлено</option>
-        <option value="read">Прочитано</option>
-      </select>
-    </label>
-  </section>
-
   <p class="role-notifications__hint">
-    Клик по карточке переключает «прочитано» и «отправлено». «Удалить» убирает запись из списка.
+    Клик по карточке помечает уведомление прочитанным. Данные загружаются из API.
   </p>
 
   @if (filtered().length) {
@@ -85,11 +45,10 @@
 
         <div class="role-notifications__chips">
           <span class="chip chip--type">
-            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
-            ? 'Платёж' : 'Система' }}
+            Заявка
           </span>
           <span class="chip chip--channel">
-            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+            In-app
           </span>
           <span
             class="chip chip--lifecycle"
@@ -102,7 +61,7 @@
 
       <div class="role-notifications__card-aside">
         <div class="role-notifications__datetime">
-          <span class="role-notifications__time">{{ item.relativeTime }}</span>
+          <span class="role-notifications__time">{{ relativeTime(item.createdAt) }}</span>
           <span class="role-notifications__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
         </div>
         <button
@@ -123,3 +82,22 @@
   </div>
   }
 </section>
+
+@if (popupNotification(); as popup) {
+  <div class="role-notifications__popup-backdrop" (click)="closePopup()">
+    <div class="role-notifications__popup" (click)="$event.stopPropagation()">
+      <h3>{{ popup.title }}</h3>
+      <p>{{ popup.description }}</p>
+      @if (popup.details.length) {
+        <ul>
+          @for (line of popup.details; track line) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+      }
+      <button type="button" class="role-notifications__btn role-notifications__btn--secondary" (click)="closePopup()">
+        Понятно
+      </button>
+    </div>
+  </div>
+}

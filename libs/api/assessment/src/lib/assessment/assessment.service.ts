@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { NotificationService } from '@internal/notification';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -35,7 +36,10 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentStatus as PrismaAssessmentStatus,
+  Role as PrismaRole,
+} from '@internal/prisma-client';
 import {
   AssessmentRepository,
   type AssessmentAuditSnapshot,
@@ -63,6 +67,7 @@ export class AssessmentService {
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -155,6 +160,10 @@ export class AssessmentService {
         targetTitle: `Заявка ${shortId(assessment.id)}`,
         targetContext: snapshot.address,
         after: toAuditSnapshot(snapshot),
+      });
+      await this.notificationService.createInternalNotificationsForRoles({
+        roles: [PrismaRole.Notary, PrismaRole.Admin],
+        message: buildAssessmentCreatedNotificationMessage(assessment.id, snapshot),
       });
 
       this.logger.log(
@@ -713,6 +722,18 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function buildAssessmentCreatedNotificationMessage(
+  assessmentId: string,
+  snapshot: AssessmentAuditSnapshot,
+): string {
+  return [
+    'Была создана новая заявка на оценку',
+    `Заявка: ${shortId(assessmentId)}`,
+    `Адрес: ${snapshot.address}`,
+    `Статус: ${statusLabel(snapshot.status)}`,
+  ].join('\n');
 }
 
 function isExpectedOperationError(error: unknown): boolean {

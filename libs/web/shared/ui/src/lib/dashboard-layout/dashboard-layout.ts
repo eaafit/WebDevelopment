@@ -19,6 +19,8 @@ export class DashboardLayout {
   @Input() pageTitle = '';
   @Input() menuItems: DashboardMenuItem[] = [];
   @Input() userLabel = 'Пользователь';
+  @Input() notificationCount = 0;
+  @Input() notificationRoute = 'notifications';
 
   currentYear = new Date().getFullYear();
 }

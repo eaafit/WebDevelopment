@@ -3,6 +3,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import {
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
+  Role as PrismaRole,
 } from '@internal/prisma-client';
 import {
   DeleteNotificationResponseSchema,
@@ -38,6 +39,22 @@ export class NotificationService {
 
     await this.notificationRepository.createNotification({
       userId: params.userId,
+      message: params.message,
+      type: toPrismaType(params.type),
+      status: toPrismaStatus(params.status),
+    });
+  }
+
+  async createInternalNotificationsForRoles(params: {
+    roles: PrismaRole[];
+    message: string;
+    type?: NotificationType;
+    status?: NotificationStatus;
+  }): Promise<void> {
+    const userIds = await this.notificationRepository.listActiveUserIdsByRoles(params.roles);
+
+    await this.notificationRepository.createManyNotifications({
+      userIds,
       message: params.message,
       type: toPrismaType(params.type),
       status: toPrismaStatus(params.status),

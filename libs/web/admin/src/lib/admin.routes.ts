@@ -16,6 +16,22 @@ export const adminRoutes: Route[] = [
     children: [
       { path: '', ...placeholder('Главное меню', ['Обзор панели администратора']) } as Route,
       {
+        path: 'users',
+        ...placeholder('Пользователи', ['Просмотр списка пользователей', 'Поиск и фильтры']),
+      } as Route,
+      {
+        path: 'orders/statuses',
+        ...placeholder('Управление статусами', ['Настройка статусов заказов', 'История изменений']),
+      } as Route,
+      {
+        path: 'orders/queue',
+        ...placeholder('Очередь оценок', ['Новые заявки', 'Распределение по нотариусам']),
+      } as Route,
+      {
+        path: 'orders/moderation',
+        ...placeholder('Ручная модерация', ['Проверка заявок', 'Ручные корректировки']),
+      } as Route,
+      {
         path: 'applications',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),

@@ -1,6 +1,6 @@
-import { Component, ViewEncapsulation, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, inject, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, InAppNotificationsApiService } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
 import { AdminApplicationsApiService } from '../features/RequestAssessment/applications-api.service';
 
@@ -34,16 +34,38 @@ const ADMIN_MENU = [
   styleUrl: './admin.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Admin {
+export class Admin implements OnInit, OnDestroy {
   menuItems = ADMIN_MENU;
   pageTitle = 'Панель администратора';
   userLabel = 'Администратор';
+  unreadNotifications = signal(0);
 
   private readonly paymentsApi = inject(AdminPaymentsApiService);
   private readonly applicationsApi = inject(AdminApplicationsApiService);
+  private readonly notificationsApi = inject(InAppNotificationsApiService);
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.paymentsApi.preload();
     this.applicationsApi.preload();
+  }
+
+  async ngOnInit(): Promise<void> {
+    await this.refreshUnreadCount();
+    this.refreshTimer = setInterval(() => {
+      void this.refreshUnreadCount();
+    }, 30_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+
+  private async refreshUnreadCount(): Promise<void> {
+    const { unreadCount } = await this.notificationsApi.listMine({ page: 1, limit: 1, unreadOnly: true });
+    this.unreadNotifications.set(unreadCount);
   }
 }

@@ -19,6 +19,9 @@
           <span class="menu-icon">{{ item.icon }}</span>
           }
           <span class="menu-label">{{ item.label }}</span>
+          @if (item.route === notificationRoute && notificationCount > 0) {
+          <span class="menu-badge">{{ notificationCount }}</span>
+          }
         </a>
         }
       </nav>
@@ -27,9 +30,17 @@
     <main class="main-content">
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
-        <div class="user-info">
+        <div class="header-right">
+          <a [routerLink]="notificationRoute" class="header-bell" aria-label="Уведомления">
+            🔔
+            @if (notificationCount > 0) {
+            <span class="header-bell__badge">{{ notificationCount }}</span>
+            }
+          </a>
+          <div class="user-info">
           <span class="user-avatar">{{ userLabel.charAt(0) }}</span>
           <span class="user-label text-bold">{{ userLabel }}</span>
+          </div>
         </div>
       </header>
 

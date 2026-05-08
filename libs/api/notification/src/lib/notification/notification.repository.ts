@@ -14,6 +14,7 @@ import {
 import {
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
+  Role as PrismaRole,
   type Prisma,
 } from '@internal/prisma-client';
 
@@ -33,6 +34,13 @@ export interface CreateNotificationInput {
   status?: PrismaNotificationStatus;
 }
 
+export interface CreateManyNotificationsInput {
+  userIds: string[];
+  message: string;
+  type?: PrismaNotificationType;
+  status?: PrismaNotificationStatus;
+}
+
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -46,6 +54,33 @@ export class NotificationRepository {
         status: input.status ?? PrismaNotificationStatus.Sent,
       },
     });
+  }
+
+  async createManyNotifications(input: CreateManyNotificationsInput): Promise<void> {
+    if (!input.userIds.length) {
+      return;
+    }
+
+    await this.prisma.notification.createMany({
+      data: input.userIds.map((userId) => ({
+        userId,
+        message: input.message,
+        type: input.type ?? PrismaNotificationType.Push,
+        status: input.status ?? PrismaNotificationStatus.Sent,
+      })),
+    });
+  }
+
+  async listActiveUserIdsByRoles(roles: PrismaRole[]): Promise<string[]> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: { in: roles },
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    return users.map((user) => user.id);
   }
 
   async listNotifications(query: NotificationQuery): Promise<ListNotificationsResponse> {
