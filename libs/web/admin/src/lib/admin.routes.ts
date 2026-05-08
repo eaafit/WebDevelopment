@@ -62,7 +62,10 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'newsletter',
-        loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
+        loadComponent: () =>
+          import('./features/newsletter/newsletter-list/newsletter-list').then(
+            (m) => m.NewsletterListComponent,
+          ),
       },
       {
         path: 'monitoring',

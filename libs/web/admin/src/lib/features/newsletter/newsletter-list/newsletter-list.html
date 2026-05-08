@@ -1,0 +1,222 @@
+<section class="newsletter-page">
+  <header class="newsletter-page__hero">
+    <div>
+      <p class="newsletter-page__eyebrow">Администратор / рассылка</p>
+      <h2>Список email-рассылок</h2>
+      <p class="newsletter-page__lead">
+        Журнал писем, выбор получателей и боковая панель с деталями отправки.
+      </p>
+    </div>
+
+    <div class="newsletter-page__hero-actions">
+      <button type="button" class="newsletter-btn newsletter-btn--primary" (click)="createNewsletter()">
+        Создать рассылку
+      </button>
+    </div>
+  </header>
+
+  <section class="newsletter-status" aria-live="polite">
+    <span>{{ statusMessage() }}</span>
+    <strong>Всего: {{ displayedNewsletters().length }}</strong>
+  </section>
+
+  <section class="newsletter-sender-card" aria-label="SMTP отправитель">
+    <div>
+      <p class="newsletter-page__eyebrow">Почтовый отправитель</p>
+      <h3>{{ senderProfile()?.appName || 'Notary portal' }}</h3>
+      <p>
+        Отправитель:
+        <strong>{{ senderProfile()?.fromEmail || 'noreply@notary-portal.local' }}</strong>
+      </p>
+    </div>
+    <dl>
+      <div>
+        <dt>SMTP host</dt>
+        <dd>{{ senderProfile()?.host || 'загрузка...' }}</dd>
+      </div>
+      <div>
+        <dt>Порт</dt>
+        <dd>{{ senderProfile()?.port || '—' }}</dd>
+      </div>
+      <div>
+        <dt>Статус</dt>
+        <dd>{{ senderProfile()?.configured ? 'Настроен' : 'Ожидает настройки' }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="newsletter-panel newsletter-panel--recipients" aria-label="Выбор получателей">
+    <div class="newsletter-panel__header">
+      <div>
+        <h3>Получатели для новой рассылки</h3>
+        <p>Отметьте подписчиков и создайте рассылку для выбранной аудитории.</p>
+      </div>
+      <button
+        type="button"
+        class="newsletter-btn newsletter-btn--primary"
+        [disabled]="!selectedCount()"
+        (click)="createNewsletter()">
+        Использовать выбранных
+      </button>
+    </div>
+
+    <section class="newsletter-status newsletter-status--embedded" aria-live="polite">
+      <span>Подписчиков доступно: {{ subscribersMeta().totalItems }}</span>
+      <strong>Выбрано: {{ selectedCount() }}</strong>
+    </section>
+
+    <div class="newsletter-table-wrap">
+      <table class="newsletter-table newsletter-table--subscribers">
+        <thead>
+          <tr>
+            <th class="newsletter-table__checkbox"></th>
+            <th>Email</th>
+            <th>ФИО</th>
+            <th>Роль</th>
+            <th>Дата подписки</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (subscribersLoading()) {
+          <tr>
+            <td colspan="6" class="newsletter-empty">Загрузка подписчиков...</td>
+          </tr>
+          } @else if (subscribers().length) {
+          @for (subscriber of subscribers(); track subscriber.id) {
+          <tr>
+            <td class="newsletter-table__checkbox">
+              <input
+                type="checkbox"
+                [checked]="isSubscriberSelected(subscriber.userId)"
+                [disabled]="subscriber.status !== 'active'"
+                (change)="toggleSubscriber(subscriber)" />
+            </td>
+            <td class="newsletter-table__email">{{ subscriber.email }}</td>
+            <td>{{ subscriber.fullName }}</td>
+            <td>{{ subscriber.roleLabel }}</td>
+            <td>{{ subscriber.subscribedAt }}</td>
+            <td>
+              <span class="newsletter-badge" [class.newsletter-badge--muted]="subscriber.status === 'unsubscribed'">
+                {{ subscriber.statusLabel }}
+              </span>
+            </td>
+          </tr>
+          }
+          } @else {
+          <tr>
+            <td colspan="6" class="newsletter-empty">Подписчики не найдены.</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="newsletter-panel__footer">
+      <div class="newsletter-actions">
+        <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="selectActiveSubscribersOnPage()">
+          Выбрать активных на странице
+        </button>
+        <button
+          type="button"
+          class="newsletter-btn newsletter-btn--ghost"
+          [disabled]="!selectedCount()"
+          (click)="clearSubscriberSelection()">
+          Очистить выбор
+        </button>
+      </div>
+    </footer>
+  </section>
+
+  <section class="newsletter-panel" aria-label="Журнал писем">
+    <div class="newsletter-panel__header">
+      <div>
+        <h3>Журнал писем</h3>
+        <p>Отправленные через SMTP письма и подготовленные рассылки.</p>
+      </div>
+      <div class="newsletter-panel__header-actions">
+        <div class="newsletter-summary">
+          <span>Отправлено: {{ sentCount() }}</span>
+          <span>Черновики: {{ draftCount() }}</span>
+          <span>Запланировано: {{ scheduledCount() }}</span>
+        </div>
+        <button
+          type="button"
+          class="newsletter-btn newsletter-btn--secondary"
+          [disabled]="sentMessagesLoading()"
+          (click)="refreshSentMessages()">
+          {{ sentMessagesLoading() ? 'Обновление...' : 'Обновить' }}
+        </button>
+      </div>
+    </div>
+
+    <section class="newsletter-status newsletter-status--embedded" aria-live="polite">
+      <span>{{ sentMessagesStatus() }}</span>
+      <strong>{{ sentMessagesConfigured() ? 'Журнал доступен' : 'Журнал недоступен' }}</strong>
+    </section>
+
+    <div class="newsletter-filters newsletter-filters--list">
+      <label class="newsletter-field">
+        <span>Статус письма</span>
+        <select [value]="statusFilter()" (change)="updateStatusFilter($any($event.target).value)">
+          <option value="all">Все статусы</option>
+          <option value="sent">Отправлено</option>
+          <option value="draft">Черновик</option>
+          <option value="scheduled">Запланировано</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="newsletter-table-wrap">
+      <table class="newsletter-table newsletter-table--campaigns">
+        <thead>
+          <tr>
+            <th>Тема письма</th>
+            <th>Дата отправки</th>
+            <th>Получатели</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (filteredNewsletters().length) {
+          @for (newsletter of filteredNewsletters(); track newsletter.id) {
+          <tr
+            class="newsletter-table__row"
+            tabindex="0"
+            (click)="openDetails(newsletter)"
+            (keydown.enter)="openDetails(newsletter)"
+            (keydown.space)="$event.preventDefault(); openDetails(newsletter)">
+            <td class="newsletter-table__subject">
+              <strong>{{ newsletter.subject }}</strong>
+              <small>{{ newsletter.previewText }}</small>
+            </td>
+            <td>{{ formatDate(newsletter.sentAt) }}</td>
+            <td>{{ newsletter.recipientCount }}</td>
+            <td>
+              <span
+                class="newsletter-badge"
+                [class.newsletter-badge--muted]="newsletter.status === 'draft'"
+                [class.newsletter-badge--warning]="newsletter.status === 'scheduled'">
+                {{ statusLabel(newsletter.status) }}
+              </span>
+            </td>
+          </tr>
+          }
+          } @else {
+          <tr>
+            <td colspan="4" class="newsletter-empty">Письма с таким статусом не найдены.</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (selectedNewsletter()) {
+  <lib-newsletter-detail-panel
+    [item]="selectedNewsletter()!"
+    [senderProfile]="senderProfile()"
+    (closePanel)="closeDetails()"
+    (resend)="resendNewsletter($event)" />
+  }
+</section>

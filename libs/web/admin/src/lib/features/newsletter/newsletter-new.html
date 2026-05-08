@@ -18,7 +18,7 @@
   <section class="newsletter-status" aria-live="polite">
     <span>{{ statusMessage() }}</span>
     @if (recipientsCount() !== null) {
-    <strong>{{ estimating() ? 'Расчёт...' : 'Получателей: ' + recipientsCount() }}</strong>
+    <strong>{{ estimating() ? 'Расчёт...' : recipientsCountLabel(recipientsCount()) }}</strong>
     }
   </section>
 
@@ -82,7 +82,7 @@
             (change)="setAudienceMode('selected')" />
           <span>
             <strong>Выбранные вручную</strong>
-            <small>Сейчас выбрано адресов: {{ selectedCount() }}.</small>
+            <small>Выбрано: {{ selectedAddressLabel() }}.</small>
           </span>
         </label>
       </div>
@@ -148,7 +148,7 @@
         <h3>Подтвердите отправку</h3>
       </header>
       <p>
-        Письмо «{{ subject() }}» будет отправлено получателям: {{ recipientsCount() ?? 0 }}.
+        Письмо «{{ subject() }}» будет отправлено. Аудитория: {{ recipientsCountLabel(recipientsCount()) }}.
       </p>
       <div class="newsletter-form__actions">
         <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="sending()" (click)="closeConfirm()">

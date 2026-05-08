@@ -43,6 +43,9 @@ export class NewsletterNew {
     if (this.audienceMode() === 'selected' && this.selectedCount() === 0) return false;
     return true;
   });
+  protected readonly selectedAddressLabel = computed(() =>
+    formatCount(this.selectedCount(), ['адрес', 'адреса', 'адресов']),
+  );
 
   constructor() {
     if (this.selectedCount() > 0) {
@@ -163,8 +166,32 @@ export class NewsletterNew {
     }
     return true;
   }
+
+  protected recipientsCountLabel(count: number | null): string {
+    return formatCount(count ?? 0, ['получатель', 'получателя', 'получателей']);
+  }
 }
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function formatCount(count: number, forms: [string, string, string]): string {
+  const absCount = Math.abs(count);
+  const lastTwoDigits = absCount % 100;
+  const lastDigit = absCount % 10;
+
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {
+    return `${count} ${forms[2]}`;
+  }
+
+  if (lastDigit === 1) {
+    return `${count} ${forms[0]}`;
+  }
+
+  if (lastDigit >= 2 && lastDigit <= 4) {
+    return `${count} ${forms[1]}`;
+  }
+
+  return `${count} ${forms[2]}`;
 }

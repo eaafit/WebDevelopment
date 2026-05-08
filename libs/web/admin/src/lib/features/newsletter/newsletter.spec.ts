@@ -1,9 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router } from '@angular/router';
 import { NewsletterApiService } from './newsletter-api.service';
+import { NewsletterSentMessagesService } from './newsletter-sent-messages.service';
 import { NewsletterSelectionService } from './newsletter-selection.service';
 import { NewsletterNew } from './newsletter-new';
-import { Newsletter } from './newsletter';
+import { NewsletterListComponent } from './newsletter-list/newsletter-list';
+import { NewsletterSenderProfileService } from './newsletter-sender-profile.service';
 import type {
   NewsletterCampaignView,
   NewsletterSubscriberView,
@@ -57,9 +59,67 @@ describe('Newsletter admin feature', () => {
     estimateAudience: jest.fn(),
     sendCampaign: jest.fn(),
   };
+  const router = {
+    navigate: jest.fn().mockResolvedValue(true),
+  };
+  const senderProfile = {
+    getSenderProfile: jest.fn().mockResolvedValue({
+      appName: 'Notary portal',
+      fromEmail: 'noreply@test.local',
+      host: 'smtp.ethereal.email',
+      port: 2525,
+      transport: 'smtp',
+      configured: true,
+      source: 'api',
+    }),
+  };
+  const sentMessages = {
+    listMessages: jest.fn().mockResolvedValue({
+      configured: true,
+      messages: [
+        {
+          id: 'sent-1',
+          subject: 'Проверка SMTP',
+          bodyText: 'Здравствуйте, Нотариус Тестовый!\n\nОсновной текст письма\n\n— Notary portal',
+          bodyHtml: '<p>Основной текст письма</p>',
+          sentAt: '2026-03-22T09:30:00.000Z',
+          fromEmail: 'noreply@test.local',
+          toEmail: 'notary@example.com',
+          transport: 'smtp',
+          previewUrl: 'https://ethereal.email/message/test-message',
+        },
+      ],
+    }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    router.navigate.mockResolvedValue(true);
+    senderProfile.getSenderProfile.mockResolvedValue({
+      appName: 'Notary portal',
+      fromEmail: 'noreply@test.local',
+      host: 'smtp.ethereal.email',
+      port: 2525,
+      transport: 'smtp',
+      configured: true,
+      source: 'api',
+    });
+    sentMessages.listMessages.mockResolvedValue({
+      configured: true,
+      messages: [
+        {
+          id: 'sent-1',
+          subject: 'Проверка SMTP',
+          bodyText: 'Здравствуйте, Нотариус Тестовый!\n\nОсновной текст письма\n\n— Notary portal',
+          bodyHtml: '<p>Основной текст письма</p>',
+          sentAt: '2026-03-22T09:30:00.000Z',
+          fromEmail: 'noreply@test.local',
+          toEmail: 'notary@example.com',
+          transport: 'smtp',
+          previewUrl: 'https://ethereal.email/message/test-message',
+        },
+      ],
+    });
     api.listSubscribers.mockResolvedValue({
       subscribers,
       meta: { totalItems: 2, totalPages: 1, currentPage: 1, perPage: 10 },
@@ -77,50 +137,92 @@ describe('Newsletter admin feature', () => {
     });
 
     await TestBed.configureTestingModule({
-      imports: [Newsletter, NewsletterNew],
+      imports: [NewsletterListComponent, NewsletterNew],
       providers: [
-        provideRouter([]),
+        { provide: Router, useValue: router },
         NewsletterSelectionService,
         { provide: NewsletterApiService, useValue: api },
+        { provide: NewsletterSenderProfileService, useValue: senderProfile },
+        { provide: NewsletterSentMessagesService, useValue: sentMessages },
       ],
     }).compileComponents();
   });
 
-  it('renders subscribers and applies filters through API', async () => {
-    const fixture = TestBed.createComponent(Newsletter);
+  it('renders sent messages from the mail API in the journal table', async () => {
+    const fixture = TestBed.createComponent(NewsletterListComponent);
     await settle(fixture);
 
-    expect(fixture.nativeElement.textContent).toContain('notary@example.com');
-    expect(fixture.nativeElement.textContent).toContain('old@example.com');
+    expect(fixture.nativeElement.textContent).toContain('Журнал писем');
+    expect(fixture.nativeElement.textContent).toContain('noreply@test.local');
+    expect(fixture.nativeElement.textContent).toContain('Проверка SMTP');
+    expect(fixture.nativeElement.textContent).toContain('Мартовское обновление тарифов');
 
-    const input: HTMLInputElement = fixture.nativeElement.querySelector('input[type="search"]');
-    input.value = 'notary@example.com';
-    input.dispatchEvent(new Event('input'));
-    const applyButton = Array.from<HTMLButtonElement>(
-      fixture.nativeElement.querySelectorAll('button'),
-    ).find((button) => button.textContent?.includes('Применить')) as HTMLButtonElement;
-    applyButton.click();
+    const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    select.value = 'sent';
+    select.dispatchEvent(new Event('change'));
     await settle(fixture);
 
-    expect(api.listSubscribers).toHaveBeenLastCalledWith(
-      expect.objectContaining({ query: 'notary@example.com' }),
-    );
+    expect(fixture.nativeElement.textContent).toContain('Проверка SMTP');
   });
 
-  it('keeps selected subscribers for the new campaign route', async () => {
-    const listFixture = TestBed.createComponent(Newsletter);
+  it('opens message detail panel and repeats sending', async () => {
+    const fixture = TestBed.createComponent(NewsletterListComponent);
+    await settle(fixture);
+
+    const firstRow: HTMLTableRowElement = fixture.nativeElement.querySelector(
+      '.newsletter-table--campaigns tbody tr',
+    );
+    firstRow.click();
+    await settle(fixture);
+
+    expect(fixture.nativeElement.textContent).toContain('Детали письма');
+    expect(fixture.nativeElement.textContent).toContain('notary@example.com');
+
+    const repeatButton = Array.from<HTMLButtonElement>(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((button) => button.textContent?.includes('Отправить повторно')) as HTMLButtonElement;
+    repeatButton.click();
+    await settle(fixture);
+
+    expect(fixture.nativeElement.textContent).toContain('Повторная отправка письма');
+  });
+
+  it('keeps checked recipients for Karlov newsletter form', async () => {
+    const listFixture = TestBed.createComponent(NewsletterListComponent);
     await settle(listFixture);
 
+    expect(listFixture.nativeElement.textContent).toContain('Получатели для новой рассылки');
     const firstCheckbox: HTMLInputElement = listFixture.nativeElement.querySelector(
-      'tbody input[type="checkbox"]',
+      '.newsletter-table--subscribers tbody input[type="checkbox"]',
     );
     firstCheckbox.click();
     await settle(listFixture);
 
+    const selectedButton = Array.from<HTMLButtonElement>(
+      listFixture.nativeElement.querySelectorAll('button'),
+    ).find((button) => button.textContent?.includes('Использовать выбранных')) as HTMLButtonElement;
+    selectedButton.click();
+    await settle(listFixture);
+
+    expect(router.navigate).toHaveBeenCalledWith(['/admin/newsletter/new']);
+
     const newFixture = TestBed.createComponent(NewsletterNew);
     await settle(newFixture);
 
-    expect(newFixture.nativeElement.textContent).toContain('Сейчас выбрано адресов: 1');
+    expect(newFixture.nativeElement.textContent).toContain('Выбрано: 1 адрес');
+  });
+
+  it('routes create button to Karlov newsletter form', async () => {
+    const fixture = TestBed.createComponent(NewsletterListComponent);
+    await settle(fixture);
+
+    const createButton = Array.from<HTMLButtonElement>(
+      fixture.nativeElement.querySelectorAll('button'),
+    ).find((button) => button.textContent?.includes('Создать рассылку')) as HTMLButtonElement;
+    createButton.click();
+    await settle(fixture);
+
+    expect(router.navigate).toHaveBeenCalledWith(['/admin/newsletter/new']);
   });
 
   it('opens sanitized preview and confirmation before sending', async () => {

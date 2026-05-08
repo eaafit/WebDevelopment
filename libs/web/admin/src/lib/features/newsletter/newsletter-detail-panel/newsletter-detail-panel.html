@@ -1,0 +1,80 @@
+<div class="newsletter-detail-overlay" (click)="close()" aria-hidden="true"></div>
+
+<aside class="newsletter-detail-panel" role="dialog" aria-modal="true" aria-label="Детали письма">
+  <header class="newsletter-detail-panel__header">
+    <div>
+      <p class="newsletter-page__eyebrow">Детали письма</p>
+      <h3>{{ item.subject }}</h3>
+    </div>
+    <button type="button" class="newsletter-link" (click)="close()">Закрыть</button>
+  </header>
+
+  <dl class="newsletter-detail-list">
+    <div>
+      <dt>Дата отправки</dt>
+      <dd>{{ formattedDate }}</dd>
+    </div>
+    <div>
+      <dt>Статус</dt>
+      <dd>
+        <span
+          class="newsletter-badge"
+          [class.newsletter-badge--muted]="item.status === 'draft'"
+          [class.newsletter-badge--warning]="item.status === 'scheduled'">
+          {{ statusLabel }}
+        </span>
+      </dd>
+    </div>
+    <div>
+      <dt>Получатели</dt>
+      <dd>{{ recipientsCountLabel }}</dd>
+    </div>
+    <div>
+      <dt>Отправитель</dt>
+      <dd>
+        <strong>{{ senderProfile?.fromEmail || 'noreply@notary-portal.local' }}</strong>
+        <small>{{ senderProfile?.host || 'SMTP профиль не загружен' }}</small>
+      </dd>
+    </div>
+    @if (item.previewUrl) {
+    <div>
+      <dt>Предпросмотр</dt>
+      <dd>
+        <a class="newsletter-detail-link" [href]="item.previewUrl" target="_blank" rel="noreferrer">
+          Открыть письмо
+        </a>
+      </dd>
+    </div>
+    }
+  </dl>
+
+  <section class="newsletter-detail-section">
+    <h4>Первые получатели</h4>
+    @if (visibleRecipients.length) {
+    <ul class="newsletter-recipient-list">
+      @for (recipient of visibleRecipients; track recipient) {
+      <li>{{ recipient }}</li>
+      }
+    </ul>
+    @if (hiddenRecipientsCount > 0) {
+    <p class="newsletter-detail-note">И ещё {{ hiddenRecipientsLabel }}.</p>
+    }
+    } @else {
+    <p class="newsletter-detail-note">Для черновика получатели ещё не выбраны.</p>
+    }
+  </section>
+
+  <section class="newsletter-detail-section">
+    <h4>Превью текста</h4>
+    <p class="newsletter-detail-preview">{{ preview }}</p>
+  </section>
+
+  <footer class="newsletter-detail-panel__footer">
+    <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="repeatSend()">
+      Отправить повторно
+    </button>
+    <button type="button" class="newsletter-btn newsletter-btn--ghost" (click)="close()">
+      Закрыть
+    </button>
+  </footer>
+</aside>

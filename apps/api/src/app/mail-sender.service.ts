@@ -7,8 +7,21 @@ import type { NewsletterMailer, NewsletterMailPayload } from '@internal/newslett
 
 type ResolvedTransport = 'smtp' | 'emailjs' | 'none';
 
+export interface SentMailJournalItem {
+  id: string;
+  subject: string;
+  bodyText: string;
+  bodyHtml: string;
+  sentAt: string;
+  fromEmail: string;
+  toEmail: string;
+  transport: string;
+  previewUrl: string | null;
+}
+
 @Injectable()
 export class MailSenderService implements PasswordResetMailer, TransactionalMailer, NewsletterMailer {
+  private readonly sentMailJournal: SentMailJournalItem[] = [];
   private readonly transporter: Transporter | null;
   private readonly transport: ResolvedTransport;
   private readonly emailjsCore: { serviceId: string; publicKey: string; privateKey: string } | null;
@@ -346,12 +359,13 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
     const appName = this.appName();
     const from = this.mailFrom();
     const safeFullName = payload.fullName.trim() || payload.to;
+    const text = newsletterTextFallback(payload.bodyHtml, safeFullName, appName);
 
-    await this.transporter.sendMail({
+    const info = await this.transporter.sendMail({
       from: `"${appName}" <${from}>`,
       to: payload.to,
       subject: payload.subject,
-      text: newsletterTextFallback(payload.bodyHtml, safeFullName, appName),
+      text,
       html: `
         <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111827">
           <p>Здравствуйте, ${escapeHtml(safeFullName)}!</p>
@@ -360,6 +374,44 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
         </div>
       `.trim(),
     });
+
+    this.rememberSentMail({
+      subject: payload.subject,
+      bodyText: text,
+      bodyHtml: payload.bodyHtml,
+      fromEmail: from,
+      toEmail: payload.to,
+      previewUrl: nodemailer.getTestMessageUrl(info) || null,
+    });
+  }
+
+  listSentMailJournal(): SentMailJournalItem[] {
+    return [...this.sentMailJournal];
+  }
+
+  private rememberSentMail(input: {
+    subject: string;
+    bodyText: string;
+    bodyHtml: string;
+    fromEmail: string;
+    toEmail: string;
+    previewUrl: string | null;
+  }): void {
+    this.sentMailJournal.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+      subject: input.subject,
+      bodyText: input.bodyText,
+      bodyHtml: input.bodyHtml,
+      sentAt: new Date().toISOString(),
+      fromEmail: input.fromEmail,
+      toEmail: input.toEmail,
+      transport: this.transport,
+      previewUrl: input.previewUrl,
+    });
+
+    if (this.sentMailJournal.length > 50) {
+      this.sentMailJournal.length = 50;
+    }
   }
 }
 
