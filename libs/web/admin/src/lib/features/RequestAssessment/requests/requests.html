@@ -1,6 +1,17 @@
 <div class="admin-page admin-crud-page requests-container">
   <h1 class="page-title">Заявки на оценку</h1>
 
+  @if (loading) {
+  <div class="admin-toolbar">
+    <p>Загрузка заявок…</p>
+  </div>
+  } @if (loadError) {
+  <div class="admin-toolbar admin-toolbar--error">
+    <p>{{ loadError }}</p>
+    <button type="button" class="btn btn-secondary" (click)="reload()">Повторить</button>
+  </div>
+  }
+
   <!-- СПИСОК ЗАЯВОК -->
   @if (!showView) {
   <div class="list-container">
@@ -268,7 +279,9 @@
 
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeCancelModal()">Отмена</button>
-        <button class="btn btn-danger" (click)="confirmCancel()">❌ Отменить заявку</button>
+        <button class="btn btn-danger" [disabled]="mutationInFlight" (click)="confirmCancel()">
+          ❌ Отменить заявку
+        </button>
       </div>
     </div>
   </div>
@@ -303,7 +316,10 @@
 
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeVerifyModal()">Отмена</button>
-        <button class="btn btn-primary" [disabled]="!notaryId || notaryOptions.length === 0" (click)="confirmVerify()">
+        <button
+          class="btn btn-primary"
+          [disabled]="!notaryId || notaryOptions.length === 0 || mutationInFlight"
+          (click)="confirmVerify()">
           ✅ Назначить
         </button>
       </div>
@@ -324,7 +340,9 @@
 
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeStartWorkModal()">Отмена</button>
-        <button class="btn btn-primary" (click)="confirmStartWork()">🔄 Начать работу</button>
+        <button class="btn btn-primary" [disabled]="mutationInFlight" (click)="confirmStartWork()">
+          🔄 Начать работу
+        </button>
       </div>
     </div>
   </div>
@@ -341,9 +359,26 @@
 
       <p>Завершить заявку <strong>{{ getShortId(assessmentToComplete.id) }}</strong>?</p>
 
+      <div class="form-group">
+        <label class="required" for="finalEstimatedValue">Итоговая стоимость, ₽</label>
+        <input
+          id="finalEstimatedValue"
+          type="number"
+          min="0"
+          step="0.01"
+          [class.error]="finalEstimatedValueError"
+          [(ngModel)]="finalEstimatedValue"
+          placeholder="Например, 3200000" />
+        @if (finalEstimatedValueError) {
+        <div class="form-error active">{{ finalEstimatedValueError }}</div>
+        }
+      </div>
+
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeCompleteModal()">Отмена</button>
-        <button class="btn btn-success" (click)="confirmComplete()">✔️ Завершить</button>
+        <button class="btn btn-success" [disabled]="mutationInFlight" (click)="confirmComplete()">
+          ✔️ Завершить
+        </button>
       </div>
     </div>
   </div>

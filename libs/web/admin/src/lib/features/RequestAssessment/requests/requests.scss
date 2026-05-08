@@ -404,6 +404,12 @@
   }
 }
 
+/* ========== ОШИБКА ЗАГРУЗКИ ========== */
+.admin-toolbar--error {
+  border-color: var(--admin-danger, #d33);
+  color: var(--admin-danger, #d33);
+}
+
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (width <= 768px) {
   .filters {

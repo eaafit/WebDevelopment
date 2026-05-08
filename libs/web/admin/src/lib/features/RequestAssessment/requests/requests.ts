@@ -10,7 +10,11 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
-import { User } from '../RequestAssessment';
+import {
+  AdminAssessmentApiService,
+  type AdminAssessmentRow,
+} from '../services/assessment-api.service';
+import { AdminUserApiService } from '../services/user-api.service';
 
 export interface AssessmentItem {
   id: string;
@@ -39,6 +43,74 @@ type RequestFilterColumn =
   | 'createdAt'
   | 'actions';
 
+const ASSESSMENTS_PAGE_LIMIT = 200;
+const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
+
+/**
+ * WIP — Клиентский workaround для назначения нотариуса.
+ *
+ * Причина: proto-контракт `Assessment` (lab #6, issue-05) не содержит
+ * поле `notary_id`, а RPC `verifyAssessment(id)` определяет нотариуса
+ * из контекста авторизации — это несовместимо со сценарием админки,
+ * где админ выбирает нотариуса от лица системы.
+ *
+ * Решение: пока proto не расширен, связь `assessmentId → notaryId`
+ * хранится в localStorage[ADMIN_NOTARY_ASSIGNMENTS_KEY]. Список
+ * нотариусов для dropdown'а грузится через AdminUserApiService.
+ *
+ * План миграции при расширении proto:
+ *   1. В proto Assessment добавить поле `notary_id` (и опционально
+ *      вернуть его в getAssessment / listAssessments).
+ *   2. В services/assessment-api.service.ts перенести подмешивание
+ *      notaryId внутрь `toAdminAssessmentRow` (через named export).
+ *   3. В `verifyAssessment` RPC передать notaryId как часть запроса.
+ *   4. Удалить чтение/запись ADMIN_NOTARY_ASSIGNMENTS_KEY и эту константу.
+ *   5. Удалить методы readNotaryAssignments / saveNotaryAssignment.
+ *   6. Удалить этот WIP-блок.
+ *
+ * Связано: PR/issue на расширение proto должен быть открыт отдельно
+ * (тег #issue-05-notary-id).
+ *
+ * Владелец: Деркач Е.С. (issue-05)
+ * Дата создания: 2026-05-09
+ */
+const ADMIN_NOTARY_ASSIGNMENTS_KEY = 'admin_notary_assignments';
+
+/**
+ * WIP — Клиентский workaround для перехода «В работу» (Verified → InProgress).
+ *
+ * Причина: proto AssessmentService (lab #6, issue-05) не содержит RPC
+ * для этого перехода. Бэкенд предоставляет только verify (New → Verified),
+ * complete (любой → Completed) и cancel. Кнопка «Начать работу» в
+ * админке должна работать для UX — чтобы статусы выглядели цельно
+ * для пользователя и страница не показывала «обрыв» между Verified и
+ * Completed.
+ *
+ * Решение: пока proto не расширен, статус InProgress хранится локально
+ * в localStorage[ADMIN_STATUS_OVERRIDES_KEY]. На сервере при
+ * complete/cancel статус сразу переходит из Verified → Completed/Cancelled,
+ * минуя InProgress, — но клиент видит корректную последовательность.
+ * Override применяется ТОЛЬКО если на сервере по-прежнему `Verified`,
+ * иначе серверный статус считается актуальнее (override игнорируется
+ * и затем чистится при следующей mutation).
+ *
+ * План миграции при расширении proto:
+ *   1. В AssessmentService добавить RPC `startWorkAssessment(id)`.
+ *   2. В AdminAssessmentApiService добавить метод-обёртку.
+ *   3. Заменить запись в localStorage в `confirmStartWork()` на API-вызов.
+ *   4. Удалить чтение override'а в `loadAssessments()`.
+ *   5. Удалить ADMIN_STATUS_OVERRIDES_KEY и этот WIP-блок.
+ *
+ * Альтернатива (если бэк откажется добавлять RPC): принять InProgress
+ * как чисто клиентское состояние и не отражать его на сервере вовсе —
+ * тогда workaround остаётся постоянным, но WIP-комментарий заменяется
+ * на финальный design note с обоснованием.
+ *
+ * Владелец: Деркач Е.С. (issue-05)
+ * Дата создания: 2026-05-09
+ */
+const ADMIN_STATUS_OVERRIDES_KEY = 'admin_status_overrides';
+
 @Component({
   selector: 'lib-requests',
   imports: [CommonModule, FormsModule],
@@ -47,10 +119,16 @@ type RequestFilterColumn =
 })
 export class RequestsComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
+  private readonly assessmentApi = inject(AdminAssessmentApiService);
+  private readonly userApi = inject(AdminUserApiService);
 
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
   paginatedAssessments: AssessmentItem[] = [];
+
+  loading = false;
+  loadError: string | null = null;
+  mutationInFlight = false;
 
   searchTerm = '';
   dateFrom = '';
@@ -110,6 +188,8 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   showCompleteModal = false;
   assessmentToComplete: AssessmentItem | null = null;
+  finalEstimatedValue = '';
+  finalEstimatedValueError = '';
 
   readonly statusLabels: Record<string, string> = {
     New: 'Новая',
@@ -132,13 +212,15 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.applyFilters();
       this.cdr.detectChanges();
     });
-    this.initializeData();
-    this.loadNotaries();
-    this.applyFilters();
+    void this.initialLoad();
   }
 
   ngOnDestroy(): void {
     this.searchSubscription?.unsubscribe();
+  }
+
+  reload(): void {
+    void this.initialLoad();
   }
 
   onSearchChange(value: string): void {
@@ -150,189 +232,135 @@ export class RequestsComponent implements OnInit, OnDestroy {
     }
   }
 
-  private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  }
+  // ========== ЗАГРУЗКА С API ==========
 
-  private initializeData(): void {
-    this.ensureUsersSeeded();
-
-    if (!localStorage.getItem('assessments')) {
-      // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
-      const notaryIds = this.readNotaryIds();
-      const pickNotary = (i: number): string | undefined =>
-        notaryIds.length ? notaryIds[i % notaryIds.length] : undefined;
-
-      const testData: AssessmentItem[] = [
-        {
-          id: this.generateUUID(),
-          userId: 'user-001',
-          applicantName: 'Иванов Иван Иванович',
-          status: 'New',
-          address: 'г. Москва, ул. Тверская, д. 12, кв. 45',
-          description: 'Оценка жилого помещения для ипотечного кредитования',
-          estimatedValue: '',
-          createdAt: '2024-03-01T10:00:00',
-          updatedAt: '2024-03-01T10:00:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-002',
-          applicantName: 'Петрова Мария Сергеевна',
-          status: 'Verified',
-          address: 'г. Санкт-Петербург, Невский пр., д. 78, кв. 3',
-          description: 'Оценка коммерческой недвижимости для продажи',
-          estimatedValue: '',
-          notaryId: pickNotary(0),
-          createdAt: '2024-03-05T14:30:00',
-          updatedAt: '2024-03-06T09:15:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-003',
-          applicantName: 'Сидоров Алексей Петрович',
-          status: 'InProgress',
-          address: 'г. Казань, ул. Баумана, д. 33',
-          description: 'Оценка земельного участка под строительство',
-          estimatedValue: '4500000',
-          notaryId: pickNotary(1),
-          createdAt: '2024-02-20T11:45:00',
-          updatedAt: '2024-03-10T16:20:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-004',
-          applicantName: 'Козлова Елена Викторовна',
-          status: 'Completed',
-          address: 'г. Екатеринбург, ул. Ленина, д. 5, кв. 12',
-          description: 'Оценка квартиры для наследственного дела',
-          estimatedValue: '3200000',
-          createdAt: '2024-02-10T09:00:00',
-          updatedAt: '2024-03-01T14:00:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-005',
-          applicantName: 'Новиков Дмитрий Александрович',
-          status: 'Cancelled',
-          address: 'г. Новосибирск, ул. Красный пр., д. 100',
-          description: 'Оценка нежилого помещения',
-          estimatedValue: '',
-          createdAt: '2024-02-15T16:30:00',
-          updatedAt: '2024-02-18T10:00:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-006',
-          applicantName: 'Васильева Ольга Михайловна',
-          status: 'New',
-          address: 'г. Нижний Новгород, ул. Горького, д. 22, кв. 8',
-          description: 'Оценка жилого дома для раздела имущества',
-          estimatedValue: '',
-          createdAt: '2024-03-12T08:15:00',
-          updatedAt: '2024-03-12T08:15:00',
-        },
-        {
-          id: this.generateUUID(),
-          userId: 'user-007',
-          applicantName: 'Морозов Сергей Владимирович',
-          status: 'InProgress',
-          address: 'г. Краснодар, ул. Красная, д. 55',
-          description: 'Оценка гаражного помещения',
-          estimatedValue: '1800000',
-          notaryId: pickNotary(0),
-          createdAt: '2024-03-08T13:00:00',
-          updatedAt: '2024-03-11T11:30:00',
-        },
-      ];
-      localStorage.setItem('assessments', JSON.stringify(testData));
-    }
-
-    this.assessments = JSON.parse(localStorage.getItem('assessments') ?? '[]');
-  }
-
-  private ensureUsersSeeded(): void {
-    // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
-    // Минимальный seed активных нотариусов, чтобы dropdown в модалке Verify
-    // и фильтр по нотариусу в T-A2 имели данные при первом заходе на /admin/orders.
-    if (localStorage.getItem('users')) return;
-    const seed: User[] = [
-      {
-        id: 'seed-notary-petrova',
-        firstName: 'Мария',
-        lastName: 'Петрова',
-        middleName: 'Сергеевна',
-        email: 'petrova@example.com',
-        phoneNumber: '+7 (999) 234-56-78',
-        role: 'Notary',
-        subscriptionPlan: 'Premium',
-        isActive: true,
-        createdAt: '2024-01-20T14:20:00',
-        updatedAt: '2024-02-01T09:15:00',
-      },
-      {
-        id: 'seed-notary-novikov',
-        firstName: 'Дмитрий',
-        lastName: 'Новиков',
-        middleName: 'Александрович',
-        email: 'novikov@example.com',
-        phoneNumber: '+7 (999) 567-89-01',
-        role: 'Notary',
-        subscriptionPlan: 'Premium',
-        isActive: true,
-        createdAt: '2024-02-08T09:15:00',
-        updatedAt: '2024-02-08T09:15:00',
-      },
-      {
-        id: 'seed-notary-morozov',
-        firstName: 'Сергей',
-        lastName: 'Морозов',
-        middleName: 'Владимирович',
-        email: 'morozov@example.com',
-        phoneNumber: '+7 (999) 789-01-23',
-        role: 'Notary',
-        subscriptionPlan: 'Basic',
-        isActive: false,
-        createdAt: '2024-02-15T10:00:00',
-        updatedAt: '2024-02-20T15:20:00',
-      },
-    ];
-    localStorage.setItem('users', JSON.stringify(seed));
-  }
-
-  private readNotaryIds(): string[] {
-    return this.readUsers()
-      .filter((u) => u.role === 'Notary' && u.isActive)
-      .map((u) => u.id);
-  }
-
-  private readUsers(): User[] {
-    // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
-    const raw = localStorage.getItem('users');
-    if (!raw) return [];
+  private async initialLoad(): Promise<void> {
+    this.loading = true;
+    this.loadError = null;
     try {
-      const parsed = JSON.parse(raw) as User[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
+      // Параллельно: пользователи нужны для applicantName/нотариусов,
+      // заявки — основной список. Без users список покажется, но имена
+      // заявителей будут стабами короткого id.
+      await Promise.all([this.userApi.loadUsers(), this.loadAssessments()]);
+      this.loadNotaries();
+      this.applyFilters();
+    } catch (error) {
+      this.loadError = (error as Error).message || 'Не удалось загрузить заявки';
+      this.assessments = [];
+      this.applyFilters();
+    } finally {
+      this.loading = false;
+      this.cdr.detectChanges();
     }
+  }
+
+  private async loadAssessments(): Promise<void> {
+    // Пока серверная пагинация не подключена (T-C3), грузим всё одной
+    // страницей; на бэке seed создаёт заметно меньше 200 записей.
+    const page = await this.assessmentApi.listAssessments({
+      page: 1,
+      limit: ASSESSMENTS_PAGE_LIMIT,
+    });
+    const overrides = this.readStatusOverrides();
+    const assignments = this.readNotaryAssignments();
+    this.assessments = page.items.map((row) =>
+      this.toAssessmentItem(row, overrides, assignments),
+    );
+  }
+
+  private toAssessmentItem(
+    row: AdminAssessmentRow,
+    overrides: Record<string, 'InProgress'>,
+    assignments: Record<string, string>,
+  ): AssessmentItem {
+    const overrideStatus = overrides[row.id];
+    // Override применяем ТОЛЬКО если сервер всё ещё показывает Verified.
+    // Если сервер ушёл вперёд (Completed/Cancelled) — он авторитетен.
+    const status: AssessmentItem['status'] =
+      overrideStatus === 'InProgress' && row.status === 'Verified' ? 'InProgress' : row.status;
+    return {
+      id: row.id,
+      userId: row.userId,
+      applicantName: this.userApi.getUserName(row.userId),
+      status,
+      address: row.address,
+      description: row.description,
+      estimatedValue: row.estimatedValue,
+      notaryId: assignments[row.id],
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private async refreshAfterMutation(touchedId: string): Promise<void> {
+    await this.loadAssessments();
+    this.applyFilters();
+    if (this.showView && this.selectedAssessment?.id === touchedId) {
+      const fresh = this.assessments.find((a) => a.id === touchedId);
+      this.selectedAssessment = fresh ?? null;
+      if (!fresh) this.showView = false;
+    }
+    this.cdr.detectChanges();
   }
 
   private loadNotaries(): void {
-    this.notaryOptions = this.readUsers()
-      .filter((u) => u.role === 'Notary' && u.isActive)
-      .map((u) => ({
-        id: u.id,
-        label: `${u.lastName} ${u.firstName} ${u.middleName} (${this.getShortId(u.id)})`,
-      }));
+    const notaries: NotaryOption[] = [];
+    for (const user of this.userApi.usersById.values()) {
+      if (user.role === 'Notary' && user.isActive) {
+        notaries.push({
+          id: user.id,
+          label: `${user.fullName} (${this.getShortId(user.id)})`,
+        });
+      }
+    }
+    notaries.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+    this.notaryOptions = notaries;
   }
 
-  private saveToStorage(): void {
-    localStorage.setItem('assessments', JSON.stringify(this.assessments));
+  // ========== WORKAROUND #1: assessmentId → notaryId ==========
+
+  private readNotaryAssignments(): Record<string, string> {
+    const raw = localStorage.getItem(ADMIN_NOTARY_ASSIGNMENTS_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private saveNotaryAssignment(assessmentId: string, notaryId: string): void {
+    const map = this.readNotaryAssignments();
+    map[assessmentId] = notaryId;
+    localStorage.setItem(ADMIN_NOTARY_ASSIGNMENTS_KEY, JSON.stringify(map));
+  }
+
+  // ========== WORKAROUND #2: assessmentId → 'InProgress' ==========
+
+  private readStatusOverrides(): Record<string, 'InProgress'> {
+    const raw = localStorage.getItem(ADMIN_STATUS_OVERRIDES_KEY);
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw) as Record<string, 'InProgress'>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private writeStatusOverride(assessmentId: string, status: 'InProgress'): void {
+    const map = this.readStatusOverrides();
+    map[assessmentId] = status;
+    localStorage.setItem(ADMIN_STATUS_OVERRIDES_KEY, JSON.stringify(map));
+  }
+
+  private clearStatusOverride(assessmentId: string): void {
+    const map = this.readStatusOverrides();
+    if (assessmentId in map) {
+      delete map[assessmentId];
+      localStorage.setItem(ADMIN_STATUS_OVERRIDES_KEY, JSON.stringify(map));
+    }
   }
 
   // ========== ФИЛЬТРАЦИЯ И СОРТИРОВКА ==========
@@ -581,6 +609,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   }
 
   formatDate(dateString: string): string {
+    if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('ru-RU', {
       year: 'numeric',
       month: 'long',
@@ -635,32 +664,28 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.cancelReasonError = '';
   }
 
-  confirmCancel(): void {
+  async confirmCancel(): Promise<void> {
     if (!this.cancelReason.trim()) {
       this.cancelReasonError = 'Укажите причину отмены';
       return;
     }
-    if (!this.assessmentToCancel) return;
-
-    const index = this.assessments.findIndex((a) => a.id === this.assessmentToCancel?.id);
-    if (index !== -1) {
-      this.assessments[index] = {
-        ...this.assessments[index],
-        status: 'Cancelled',
-        updatedAt: new Date().toISOString(),
-      };
-      this.saveToStorage();
-    }
-
-    this.closeCancelModal();
-    this.applyFilters();
-
-    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
-      this.selectedAssessment = this.assessments[index];
+    if (!this.assessmentToCancel || this.mutationInFlight) return;
+    const id = this.assessmentToCancel.id;
+    const reason = this.cancelReason.trim();
+    this.mutationInFlight = true;
+    try {
+      await this.assessmentApi.cancelAssessment(id, reason);
+      this.clearStatusOverride(id);
+      this.closeCancelModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.cancelReasonError = (error as Error).message || 'Не удалось отменить заявку';
+    } finally {
+      this.mutationInFlight = false;
     }
   }
 
-  // ========== ВЗЯТЬ В РАБОТУ ==========
+  // ========== ВЗЯТЬ В РАБОТУ (New → Verified) ==========
 
   openVerifyModal(item: AssessmentItem): void {
     this.assessmentToVerify = item;
@@ -677,34 +702,30 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.notaryIdError = '';
   }
 
-  confirmVerify(): void {
+  async confirmVerify(): Promise<void> {
     if (!this.notaryId.trim()) {
       this.notaryIdError = 'Выберите нотариуса';
       return;
     }
-    if (!this.assessmentToVerify) return;
-
-    const index = this.assessments.findIndex((a) => a.id === this.assessmentToVerify?.id);
-    if (index !== -1) {
-      // WIP: T-C1 — заменить чтение/запись localStorage на RPC-вызов
-      this.assessments[index] = {
-        ...this.assessments[index],
-        status: 'Verified',
-        notaryId: this.notaryId,
-        updatedAt: new Date().toISOString(),
-      };
-      this.saveToStorage();
-    }
-
-    this.closeVerifyModal();
-    this.applyFilters();
-
-    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
-      this.selectedAssessment = this.assessments[index];
+    if (!this.assessmentToVerify || this.mutationInFlight) return;
+    const id = this.assessmentToVerify.id;
+    const chosenNotary = this.notaryId;
+    this.mutationInFlight = true;
+    try {
+      // Workaround #1: фиксируем выбор нотариуса до RPC, чтобы при
+      // ошибке refresh всё равно показал назначение в UI.
+      this.saveNotaryAssignment(id, chosenNotary);
+      await this.assessmentApi.verifyAssessment(id);
+      this.closeVerifyModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.notaryIdError = (error as Error).message || 'Не удалось перевести заявку в работу';
+    } finally {
+      this.mutationInFlight = false;
     }
   }
 
-  // ========== НАЧАТЬ РАБОТУ (Verified → InProgress) ==========
+  // ========== НАЧАТЬ РАБОТУ (Verified → InProgress, без RPC) ==========
 
   openStartWorkModal(item: AssessmentItem): void {
     this.assessmentToStartWork = item;
@@ -717,56 +738,67 @@ export class RequestsComponent implements OnInit, OnDestroy {
   }
 
   confirmStartWork(): void {
-    if (!this.assessmentToStartWork) return;
-
-    const index = this.assessments.findIndex((a) => a.id === this.assessmentToStartWork?.id);
-    if (index !== -1) {
-      this.assessments[index] = {
-        ...this.assessments[index],
+    if (!this.assessmentToStartWork || this.mutationInFlight) return;
+    const id = this.assessmentToStartWork.id;
+    // Workaround #2: на бэке нет RPC startWorkAssessment, фиксируем
+    // переход локально и обновляем строку в таблице без перезагрузки.
+    this.writeStatusOverride(id, 'InProgress');
+    const idx = this.assessments.findIndex((a) => a.id === id);
+    if (idx !== -1) {
+      this.assessments[idx] = {
+        ...this.assessments[idx],
         status: 'InProgress',
         updatedAt: new Date().toISOString(),
       };
-      this.saveToStorage();
+      if (this.showView && this.selectedAssessment?.id === id) {
+        this.selectedAssessment = this.assessments[idx];
+      }
     }
-
     this.closeStartWorkModal();
     this.applyFilters();
-
-    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
-      this.selectedAssessment = this.assessments[index];
-    }
+    this.cdr.detectChanges();
   }
 
-  // ========== ЗАВЕРШИТЬ (InProgress → Completed) ==========
+  // ========== ЗАВЕРШИТЬ (любой → Completed) ==========
 
   openCompleteModal(item: AssessmentItem): void {
     this.assessmentToComplete = item;
+    this.finalEstimatedValue = item.estimatedValue ?? '';
+    this.finalEstimatedValueError = '';
     this.showCompleteModal = true;
   }
 
   closeCompleteModal(): void {
     this.showCompleteModal = false;
     this.assessmentToComplete = null;
+    this.finalEstimatedValue = '';
+    this.finalEstimatedValueError = '';
   }
 
-  confirmComplete(): void {
-    if (!this.assessmentToComplete) return;
-
-    const index = this.assessments.findIndex((a) => a.id === this.assessmentToComplete?.id);
-    if (index !== -1) {
-      this.assessments[index] = {
-        ...this.assessments[index],
-        status: 'Completed',
-        updatedAt: new Date().toISOString(),
-      };
-      this.saveToStorage();
+  async confirmComplete(): Promise<void> {
+    if (!this.assessmentToComplete || this.mutationInFlight) return;
+    const value = this.finalEstimatedValue.trim();
+    if (!value) {
+      this.finalEstimatedValueError = 'Укажите итоговую стоимость';
+      return;
     }
-
-    this.closeCompleteModal();
-    this.applyFilters();
-
-    if (this.showView && this.selectedAssessment?.id === this.assessments[index]?.id) {
-      this.selectedAssessment = this.assessments[index];
+    if (!DECIMAL_PATTERN.test(value) || Number(value) <= 0) {
+      this.finalEstimatedValueError =
+        'Введите положительное число (до двух знаков после точки)';
+      return;
+    }
+    const id = this.assessmentToComplete.id;
+    this.mutationInFlight = true;
+    try {
+      await this.assessmentApi.completeAssessment(id, value);
+      this.clearStatusOverride(id);
+      this.closeCompleteModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.finalEstimatedValueError =
+        (error as Error).message || 'Не удалось завершить заявку';
+    } finally {
+      this.mutationInFlight = false;
     }
   }
 }
