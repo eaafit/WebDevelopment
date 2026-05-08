@@ -1,7 +1,6 @@
 import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
-import { Payments } from './features/payments/payments';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
@@ -37,8 +36,12 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'payments',
-        component: Payments,
+        loadComponent: () =>
+          import('./features/payments/payments-list/payments-list.component').then(
+            (m) => m.PaymentsListComponent,
+          ),
       },
+
 
       {
         path: 'subscriptions',
