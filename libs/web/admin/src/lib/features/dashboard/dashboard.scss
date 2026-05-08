@@ -93,6 +93,11 @@
   }
 }
 
+.admin-toolbar--error {
+  border-color: var(--admin-danger, #d33);
+  color: var(--admin-danger, #d33);
+}
+
 @media (width <= 640px) {
   .dashboard-stats {
     grid-template-columns: 1fr;

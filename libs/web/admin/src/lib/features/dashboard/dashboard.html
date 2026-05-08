@@ -8,13 +8,28 @@
       </p>
     </div>
     <div class="admin-page__actions">
-      <button type="button" class="admin-btn admin-btn--primary" (click)="refresh()">Обновить данные</button>
+      <button type="button" class="admin-btn admin-btn--primary" [disabled]="loading()" (click)="refresh()">
+        Обновить данные
+      </button>
     </div>
   </header>
 
+  @if (loading()) {
+  <section class="admin-toolbar">
+    <p>Загрузка данных дашборда…</p>
+  </section>
+  } @if (loadError()) {
+  <section class="admin-toolbar admin-toolbar--error">
+    <div class="admin-toolbar__copy">
+      <p>{{ loadError() }}</p>
+    </div>
+    <button type="button" class="admin-btn admin-btn--ghost" (click)="refresh()">Повторить</button>
+  </section>
+  }
+
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
-      <p>Источник данных: локальное хранилище браузера (моки)</p>
+      <p>Источник данных: бэкенд (AssessmentService)</p>
       <small class="admin-toolbar__status">Последнее обновление: {{ updatedAtLabel() }}</small>
     </div>
     <span class="admin-toolbar__meta">Всего записей: {{ total() }}</span>

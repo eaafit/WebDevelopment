@@ -1,7 +1,14 @@
-import { Component, computed, OnInit, signal } from '@angular/core';
+import { Component, computed, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {
+  AdminAssessmentApiService,
+  type AdminAssessmentRow,
+} from '../RequestAssessment/services/assessment-api.service';
+import { AdminUserApiService } from '../RequestAssessment/services/user-api.service';
 import { AssessmentItem } from '../RequestAssessment/requests/requests';
-import { ASSESSMENTS_STORAGE_KEY, DASHBOARD_SEED, QUICK_LINKS, QuickLink } from './dashboard.data';
+import { QUICK_LINKS, QuickLink } from './dashboard.data';
+
+const DASHBOARD_PAGE_LIMIT = 200;
 
 type Status = AssessmentItem['status'];
 
@@ -20,6 +27,11 @@ interface Metric {
   styleUrl: './dashboard.scss',
 })
 export class AdminDashboard implements OnInit {
+  private readonly assessmentApi = inject(AdminAssessmentApiService);
+  private readonly userApi = inject(AdminUserApiService);
+
+  protected readonly loading = signal(false);
+  protected readonly loadError = signal<string | null>(null);
   private readonly assessments = signal<AssessmentItem[]>([]);
   private readonly updatedAt = signal<Date>(new Date());
 
@@ -90,28 +102,51 @@ export class AdminDashboard implements OnInit {
   );
 
   ngOnInit(): void {
-    this.loadOrSeed();
+    void this.initialLoad();
   }
 
-  protected refresh(): void {
-    this.loadOrSeed();
-    this.updatedAt.set(new Date());
+  refresh(): void {
+    void this.initialLoad();
   }
 
-  private loadOrSeed(): void {
-    const raw = localStorage.getItem(ASSESSMENTS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(ASSESSMENTS_STORAGE_KEY, JSON.stringify(DASHBOARD_SEED));
-      this.assessments.set(DASHBOARD_SEED);
-      return;
-    }
-
+  private async initialLoad(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
     try {
-      const parsed = JSON.parse(raw) as AssessmentItem[];
-      this.assessments.set(Array.isArray(parsed) ? parsed : []);
-    } catch {
+      // userApi.loadUsers() обязателен до маппинга, чтобы applicantName
+      // в виджете «Последние заявки» был именем, а не UUID-стабом.
+      await Promise.all([this.userApi.loadUsers(), this.loadAssessments()]);
+      this.updatedAt.set(new Date());
+    } catch (error) {
+      this.loadError.set((error as Error).message || 'Не удалось загрузить данные дашборда');
       this.assessments.set([]);
+    } finally {
+      this.loading.set(false);
     }
+  }
+
+  private async loadAssessments(): Promise<void> {
+    const page = await this.assessmentApi.listAssessments({
+      page: 1,
+      limit: DASHBOARD_PAGE_LIMIT,
+    });
+    this.assessments.set(page.items.map((row) => this.toAssessmentItem(row)));
+  }
+
+  private toAssessmentItem(row: AdminAssessmentRow): AssessmentItem {
+    return {
+      id: row.id,
+      userId: row.userId,
+      applicantName: this.userApi.getUserName(row.userId),
+      status: row.status,
+      address: row.address,
+      description: row.description,
+      estimatedValue: row.estimatedValue,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      // notaryId намеренно не подмешивается — дашборд его не показывает.
+      // Workaround localStorage['admin_notary_assignments'] остаётся в requests.ts.
+    };
   }
 
   private countByStatus(status: Status): number {
