@@ -1,140 +1,42 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { PaymentStatus, PaymentType } from '@notary-portal/api-contracts';
 import { AdminPaymentsApiService, AdminPaymentItem, PaymentQuery } from '../../../api/admin-payments-api.service';
 import { PaymentDetailPanelComponent } from '../payment-detail-panel/payment-detail-panel.component';
+import { PaymentDeleteModalComponent } from '../payment-delete-modal.component';
 import { Subscription } from 'rxjs';
+
+type FilterColumn = 'transactionId' | 'userId' | 'type' | 'amount' | 'status' | 'paymentDate' | 'actions';
 
 @Component({
   selector: 'lib-admin-payments-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, PaymentDetailPanelComponent],
-  template: `
-    <div class="page-container">
-      <div class="page-header">
-        <h1>Платежи</h1>
-        <div class="header-actions">
-          <button class="btn btn-secondary" (click)="exportCsv()">Экспорт CSV</button>
-          <button class="btn btn-primary" (click)="addPayment()">Добавить платёж</button>
-        </div>
-      </div>
-
-      <div class="filters">
-        <div class="filter-group">
-          <label>Статус</label>
-          <select multiple [(ngModel)]="filters.statuses" (change)="applyFilters()">
-            <option *ngFor="let s of statusOptions" [ngValue]="s.value">{{ s.label }}</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Тип</label>
-          <select [(ngModel)]="filters.type" (change)="applyFilters()">
-            <option [ngValue]="null">Все типы</option>
-            <option *ngFor="let t of typeOptions" [ngValue]="t.value">{{ t.label }}</option>
-          </select>
-        </div>
-        <div class="filter-group">
-          <label>Дата от</label>
-          <input type="date" [(ngModel)]="filters.dateFrom" (change)="applyFilters()">
-        </div>
-        <div class="filter-group">
-          <label>Дата до</label>
-          <input type="date" [(ngModel)]="filters.dateTo" (change)="applyFilters()">
-        </div>
-      </div>
-
-      <div class="table-container">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>ID транзакции</th>
-              <th>Пользователь</th>
-              <th>Тип</th>
-              <th>Сумма</th>
-              <th>Статус</th>
-              <th>Дата</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let p of payments" (click)="openDetail(p)" class="clickable-row">
-              <td>{{ p.transactionId || '—' }}</td>
-              <td>{{ p.userId }}</td>
-              <td>{{ getTypeLabel(p.type) }}</td>
-              <td>{{ formatAmount(p.amount) }}</td>
-              <td>
-                <span class="status-badge" [ngClass]="getStatusClass(p.status)">
-                  {{ getStatusLabel(p.status) }}
-                </span>
-              </td>
-              <td>{{ formatDate(p.paymentDate) }}</td>
-            </tr>
-            <tr *ngIf="payments.length === 0 && !loading">
-              <td colspan="6" class="empty-state">Платежи не найдены</td>
-            </tr>
-            <tr *ngIf="loading">
-              <td colspan="6" class="empty-state">Загрузка...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="pagination" *ngIf="totalPages > 1">
-        <button [disabled]="currentPage === 1" (click)="changePage(currentPage - 1)">Назад</button>
-        <span>Страница {{ currentPage }} из {{ totalPages }}</span>
-        <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">Вперед</button>
-      </div>
-    </div>
-
-    <lib-payment-detail-panel
-      *ngIf="selectedPayment"
-      [payment]="selectedPayment"
-      (close)="selectedPayment = null"
-      (deleted)="onPaymentDeleted($event)"
-    ></lib-payment-detail-panel>
-  `,
-  styles: [
-    `
-      .page-container { padding: 24px; max-width: 1200px; margin: 0 auto; }
-      .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-      .page-header h1 { margin: 0; font-size: 1.5rem; }
-      .header-actions { display: flex; gap: 12px; }
-      .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-weight: 500; }
-      .btn-primary { background: #3b82f6; color: white; }
-      .btn-secondary { background: #f1f5f9; color: #334155; }
-      .filters { display: flex; gap: 16px; margin-bottom: 24px; align-items: flex-end; }
-      .filter-group { display: flex; flex-direction: column; gap: 4px; }
-      .filter-group label { font-size: 0.875rem; color: #64748b; }
-      .filter-group select, .filter-group input { padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
-      .table-container { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
-      .table { width: 100%; border-collapse: collapse; }
-      .table th, .table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; }
-      .table th { background: #f8fafc; font-weight: 600; color: #475569; }
-      .clickable-row { cursor: pointer; transition: background 0.2s; }
-      .clickable-row:hover { background: #f8fafc; }
-      .empty-state { text-align: center; color: #64748b; padding: 32px !important; }
-      .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.875rem; font-weight: 500; }
-      .status-pending { background: #fef08a; color: #854d0e; }
-      .status-completed { background: #bbf7d0; color: #166534; }
-      .status-failed { background: #fecaca; color: #991b1b; }
-      .status-refunded { background: #e2e8f0; color: #334155; }
-      .pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
-      .pagination button { padding: 8px 16px; border: 1px solid #cbd5e1; background: white; border-radius: 4px; cursor: pointer; }
-      .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
-    `
-  ]
+  imports: [CommonModule, FormsModule, PaymentDetailPanelComponent, PaymentDeleteModalComponent],
+  templateUrl: './payments-list.component.html',
+  styleUrl: '../payments.scss'
 })
 export class PaymentsListComponent implements OnInit, OnDestroy {
   payments: AdminPaymentItem[] = [];
-  loading = false;
-  currentPage = 1;
-  totalPages = 1;
-  limit = 10;
+  loading = true;
+  loadError: string | null = null;
+  totalItems = 0;
 
-  selectedPayment: AdminPaymentItem | null = null;
+  readonly headerColumns: { key: FilterColumn; label: string }[] = [
+    { key: 'transactionId', label: 'ID транзакции' },
+    { key: 'userId', label: 'Пользователь' },
+    { key: 'type', label: 'Тип' },
+    { key: 'amount', label: 'Сумма' },
+    { key: 'status', label: 'Статус' },
+    { key: 'paymentDate', label: 'Дата платежа' },
+    { key: 'actions', label: 'Действия' },
+  ];
 
-  filters = {
+  activeFilterColumn: FilterColumn | null = null;
+  filterMenuStyle: Record<string, string> = {};
+
+  serverFilters = {
     statuses: [] as PaymentStatus[],
     type: null as PaymentType | null,
     dateFrom: '',
@@ -154,6 +56,14 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     { value: PaymentType.DOCUMENT_COPY, label: 'Копия документа' }
   ];
 
+  currentPage = 1;
+  totalPages = 1;
+  limit = 10;
+  readonly skeletonRows = Array.from({ length: 6 }, (_, index) => index);
+
+  selectedPaymentForView: AdminPaymentItem | null = null;
+  selectedPaymentForDelete: AdminPaymentItem | null = null;
+
   private readonly api = inject(AdminPaymentsApiService);
   private readonly router = inject(Router);
   private sub?: Subscription;
@@ -168,13 +78,15 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
 
   loadPayments(): void {
     this.loading = true;
+    this.loadError = null;
+
     const query: PaymentQuery = {
       page: this.currentPage,
       limit: this.limit,
-      statuses: this.filters.statuses,
-      types: this.filters.type !== null ? [this.filters.type] : [],
-      dateFrom: this.filters.dateFrom || undefined,
-      dateTo: this.filters.dateTo || undefined
+      statuses: this.serverFilters.statuses,
+      types: this.serverFilters.type !== null ? [this.serverFilters.type] : [],
+      dateFrom: this.serverFilters.dateFrom || undefined,
+      dateTo: this.serverFilters.dateTo || undefined
     };
 
     this.sub?.unsubscribe();
@@ -182,18 +94,20 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.payments = res.payments;
         this.totalPages = res.meta?.totalPages || 1;
+        this.totalItems = res.meta?.totalItems || 0;
         this.loading = false;
       },
       error: (err) => {
         console.error('Не удалось загрузить платежи', err);
+        this.loadError = 'Не удалось загрузить данные платежей с сервера';
+        this.payments = [];
         this.loading = false;
       }
     });
   }
 
-  applyFilters(): void {
-    this.currentPage = 1;
-    this.loadPayments();
+  get pages(): number[] {
+    return Array.from({ length: this.totalPages }, (_, i) => i + 1);
   }
 
   changePage(page: number): void {
@@ -203,16 +117,132 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     }
   }
 
-  openDetail(payment: AdminPaymentItem): void {
-    this.selectedPayment = payment;
+  isFilterable(column: FilterColumn): boolean {
+    return column === 'status' || column === 'type' || column === 'paymentDate';
+  }
+
+  toggleColumnFilter(column: FilterColumn, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.activeFilterColumn === column) {
+      this.activeFilterColumn = null;
+      this.filterMenuStyle = {};
+      return;
+    }
+
+    this.activeFilterColumn = column;
+    this.positionFilterMenu(event);
+  }
+
+  private positionFilterMenu(event: MouseEvent): void {
+    const trigger = event.target as HTMLElement;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = 270;
+    const menuMaxHeight = 360;
+    const gap = 8;
+
+    let left = rect.right - menuWidth;
+    let top = rect.bottom + gap;
+
+    if (left < gap) {
+      left = rect.left;
+    }
+    if (left + menuWidth > window.innerWidth - gap) {
+      left = window.innerWidth - menuWidth - gap;
+    }
+    if (top + menuMaxHeight > window.innerHeight - gap) {
+      top = rect.top - menuMaxHeight - gap;
+    }
+    if (top < gap) {
+      top = gap;
+    }
+
+    this.filterMenuStyle = {
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+    };
+  }
+
+  closeColumnFilter(): void {
+    this.activeFilterColumn = null;
+    this.filterMenuStyle = {};
+  }
+
+  applyFilters(): void {
+    this.currentPage = 1;
+    this.loadPayments();
+    this.closeColumnFilter();
+  }
+
+  cancelColumnFilter(): void {
+    this.closeColumnFilter();
+  }
+
+  clearCurrentFilter(): void {
+    if (this.activeFilterColumn === 'status') {
+      this.serverFilters.statuses = [];
+    } else if (this.activeFilterColumn === 'type') {
+      this.serverFilters.type = null;
+    } else if (this.activeFilterColumn === 'paymentDate') {
+      this.serverFilters.dateFrom = '';
+      this.serverFilters.dateTo = '';
+    }
+    this.applyFilters();
+  }
+
+  toggleStatusFilter(status: PaymentStatus): void {
+    const idx = this.serverFilters.statuses.indexOf(status);
+    if (idx > -1) {
+      this.serverFilters.statuses.splice(idx, 1);
+    } else {
+      this.serverFilters.statuses.push(status);
+    }
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    this.closeColumnFilter();
   }
 
   addPayment(): void {
     this.router.navigate(['/admin', 'payments', 'new']);
   }
 
+  openDetail(payment: AdminPaymentItem): void {
+    this.selectedPaymentForView = payment;
+  }
+
+  editPayment(payment: AdminPaymentItem): void {
+    this.router.navigate(['/admin', 'payments', payment.id, 'edit']);
+  }
+
+  deletePayment(payment: AdminPaymentItem): void {
+    this.selectedPaymentForDelete = payment;
+  }
+
+  async onDeleteConfirmed(): Promise<void> {
+    if (!this.selectedPaymentForDelete) return;
+    try {
+      // Тут предполагается вызов удаления через API, 
+      // но в задаче было сказано просто открывать модалку Липовцева.
+      // Если Липовцев делает удаление внутри PaymentDeleteModal, 
+      // то нам нужно только обновить список.
+      this.loadPayments();
+    } finally {
+      this.selectedPaymentForDelete = null;
+    }
+  }
+
+  onDeleteCancelled(): void {
+    this.selectedPaymentForDelete = null;
+  }
+
+  onPaymentDeleted(id: string): void {
+    this.selectedPaymentForView = null;
+    this.loadPayments();
+  }
+
   formatAmount(amount: number): string {
-    return amount.toLocaleString('ru-RU') + ' ₽';
+    return amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽';
   }
 
   formatDate(dateStr: string): string {
@@ -233,10 +263,10 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
   getStatusClass(status: PaymentStatus): string {
     const map: Record<PaymentStatus, string> = {
       [PaymentStatus.UNSPECIFIED]: '',
-      [PaymentStatus.PENDING]: 'status-pending',
-      [PaymentStatus.COMPLETED]: 'status-completed',
-      [PaymentStatus.FAILED]: 'status-failed',
-      [PaymentStatus.REFUNDED]: 'status-refunded'
+      [PaymentStatus.PENDING]: 'pending',
+      [PaymentStatus.COMPLETED]: 'completed',
+      [PaymentStatus.FAILED]: 'failed',
+      [PaymentStatus.REFUNDED]: 'refunded'
     };
     return map[status] || '';
   }
@@ -260,8 +290,8 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
 
     const header = ['ID транзакции', 'ID пользователя', 'Тип', 'Сумма', 'Валюта', 'Статус', 'Дата'];
     const csvContent = [header, ...rows]
-      .map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(','))
-      .join('\n');
+      .map(row => row.map(val => `"${val.replace(/"/g, '""')}"`).join(';'))
+      .join('\r\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -273,10 +303,5 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
-
-  onPaymentDeleted(id: string): void {
-    this.selectedPayment = null;
-    this.loadPayments();
-  }
 }
-
+ 

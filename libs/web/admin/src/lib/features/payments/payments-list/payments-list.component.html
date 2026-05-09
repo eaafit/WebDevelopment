@@ -1,0 +1,205 @@
+<section class="admin-page payments-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Платежи</p>
+      <h2>Управление платежами</h2>
+      <p class="admin-page__lead">
+        Отслеживайте поступления, быстро находите нужные операции и выгружайте текущую выборку в CSV в том же
+        интерфейсе.
+      </p>
+    </div>
+
+    <div class="admin-page__actions">
+      <button
+        type="button"
+        class="admin-btn admin-btn--primary"
+        (click)="exportCsv()"
+        [disabled]="!payments.length">
+        Экспорт CSV
+      </button>
+      <button type="button" class="admin-btn admin-btn--secondary" (click)="addPayment()">+ Создать платёж</button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar">
+    <div class="admin-toolbar__copy">
+      <p>
+        Экспорт выгружает только текущую отфильтрованную выборку. Пагинация и фильтры по колонкам применяются на сервере.
+      </p>
+      <small class="admin-toolbar__status">
+        Найдено: {{ totalItems }} · Страница {{ currentPage }} из {{ totalPages }}
+      </small>
+    </div>
+  </section>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Список платежей</h3>
+        <p>Просмотр, редактирование, удаление доступны прямо из строки таблицы.</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">На странице: {{ payments.length }}</span>
+    </div>
+
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        <table class="payments-table">
+          <thead>
+            <tr>
+              @for (column of headerColumns; track column.key) {
+              <th class="filterable no-wrap-col">
+                <div class="header-cell">
+                  <span>{{ column.label }}</span>
+                  @if (isFilterable(column.key)) {
+                  <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
+                    ▼
+                  </button>
+                  }
+                </div>
+                @if (activeFilterColumn === column.key) {
+                <div
+                  class="column-filter-menu"
+                  [ngStyle]="filterMenuStyle"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                  tabindex="-1"
+                  role="menu"
+                  aria-label="Меню фильтрации">
+
+                  @if (column.key === 'status') {
+                    <div class="menu-section value-list">
+                      @for (status of statusOptions; track status.value) {
+                      <label class="checkbox-row">
+                        <input
+                          type="checkbox"
+                          [checked]="serverFilters.statuses.includes(status.value)"
+                          (change)="toggleStatusFilter(status.value)" />
+                        <span>{{ status.label }}</span>
+                      </label>
+                      }
+                    </div>
+                  } @else if (column.key === 'type') {
+                    <div class="menu-section value-list">
+                      <label class="checkbox-row">
+                        <input
+                          type="radio"
+                          name="typeFilter"
+                          [checked]="serverFilters.type === null"
+                          (change)="serverFilters.type = null" />
+                        <span>Все типы</span>
+                      </label>
+                      @for (type of typeOptions; track type.value) {
+                      <label class="checkbox-row">
+                        <input
+                          type="radio"
+                          name="typeFilter"
+                          [checked]="serverFilters.type === type.value"
+                          (change)="serverFilters.type = type.value" />
+                        <span>{{ type.label }}</span>
+                      </label>
+                      }
+                    </div>
+                  } @else if (column.key === 'paymentDate') {
+                    <div class="menu-section">
+                      <label style="display:block; margin-bottom: 8px;">
+                        <span style="display:block; font-size: 12px; margin-bottom: 4px;">От</span>
+                        <input type="date" [(ngModel)]="serverFilters.dateFrom" style="width:100%; padding:4px;" />
+                      </label>
+                      <label style="display:block;">
+                        <span style="display:block; font-size: 12px; margin-bottom: 4px;">До</span>
+                        <input type="date" [(ngModel)]="serverFilters.dateTo" style="width:100%; padding:4px;" />
+                      </label>
+                    </div>
+                  }
+
+                  <div class="menu-actions">
+                    <button type="button" class="btn btn-primary btn-sm" (click)="applyFilters()">OK</button>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="cancelColumnFilter()">
+                      Отмена
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm clear-btn" (click)="clearCurrentFilter()">
+                      Сброс
+                    </button>
+                  </div>
+                </div>
+                }
+              </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @if (loading) {
+              @for (row of skeletonRows; track row) {
+              <tr class="skeleton-row">
+                @for (column of headerColumns; track column.key) {
+                <td><span class="skeleton-cell"></span></td>
+                }
+              </tr>
+              }
+            } @else if (payments.length) {
+              @for (payment of payments; track payment.id) {
+              <tr class="clickable-row">
+                <td>{{ payment.transactionId || '—' }}</td>
+                <td>{{ payment.userId }}</td>
+                <td>{{ getTypeLabel(payment.type) }}</td>
+                <td>{{ formatAmount(payment.amount) }}</td>
+                <td>
+                  <span class="status-badge" [ngClass]="getStatusClass(payment.status)">
+                    {{ getStatusLabel(payment.status) }}
+                  </span>
+                </td>
+                <td>{{ formatDate(payment.paymentDate) }}</td>
+                <td class="actions">
+                  <button type="button" class="icon-btn view" (click)="openDetail(payment)" title="Просмотр">
+                    <i class="las la-eye"></i>
+                  </button>
+                  <button type="button" class="icon-btn edit" (click)="editPayment(payment)" title="Редактировать">
+                    <i class="las la-pencil-alt"></i>
+                  </button>
+                  <button type="button" class="icon-btn delete" (click)="deletePayment(payment)" title="Удалить">
+                    <i class="las la-trash"></i>
+                  </button>
+                </td>
+              </tr>
+              }
+            } @else {
+              <tr>
+                <td class="payments-table__empty" colspan="7">
+                  По текущим фильтрам платежи не найдены. Попробуйте изменить параметры поиска.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button type="button" class="page-btn" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">«</button>
+      @for (page of pages; track $index) {
+      <button type="button" class="page-btn" [class.active]="page === currentPage" (click)="changePage(page)">
+        {{ page }}
+      </button>
+      }
+      <button type="button" class="page-btn" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">»</button>
+    </div>
+    }
+  </article>
+</section>
+
+@if (selectedPaymentForView) {
+  <lib-payment-detail-panel
+    [payment]="selectedPaymentForView"
+    (close)="selectedPaymentForView = null"
+    (deleted)="onPaymentDeleted($event)"
+  ></lib-payment-detail-panel>
+}
+
+@if (selectedPaymentForDelete) {
+  <lib-payment-delete-modal
+    [payment]="selectedPaymentForDelete"
+    (confirmed)="onDeleteConfirmed()"
+    (cancelled)="onDeleteCancelled()">
+  </lib-payment-delete-modal>
+}

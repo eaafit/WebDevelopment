@@ -22,18 +22,19 @@ export interface PaymentQuery {
 
 export interface AdminPaymentItem {
   id: string;
-  transactionId: string | null;
+  transactionId?: string;
   userId: string;
+  payer: string;
   type: PaymentType;
   amount: number;
   currency: string;
   status: PaymentStatus;
   paymentDate: string;
-  paymentMethod: string | null;
-  subscriptionId: string | null;
-  assessmentId: string | null;
-  attachmentFileName: string | null;
-  attachmentFileUrl: string | null;
+  paymentMethod?: string;
+  subscriptionId?: string;
+  assessmentId?: string;
+  attachmentFileName?: string;
+  attachmentFileUrl?: string;
 }
 
 export interface PaymentHistoryPage {
@@ -90,25 +91,21 @@ export class AdminPaymentsApiService {
   private toAdminPaymentItem(payment: Payment): AdminPaymentItem {
     return {
       id: payment.id,
-      transactionId: nullIfEmpty(payment.transactionId),
+      transactionId: payment.transactionId || undefined,
       userId: payment.userId,
+      payer: payment.userId,
       type: payment.type,
       amount: payment.amount ? Number(payment.amount.amount) : 0,
       currency: payment.amount?.currency ?? 'RUB',
       status: payment.status,
       paymentDate: payment.paymentDate ? timestampDate(payment.paymentDate).toISOString() : '',
-      paymentMethod: nullIfEmpty(payment.paymentMethod),
-      subscriptionId: nullIfEmpty(payment.subscriptionId),
-      assessmentId: nullIfEmpty(payment.assessmentId),
-      attachmentFileName: nullIfEmpty(payment.attachmentFileName),
-      attachmentFileUrl: nullIfEmpty(payment.attachmentFileUrl),
+      paymentMethod: payment.paymentMethod || undefined,
+      subscriptionId: payment.subscriptionId || undefined,
+      assessmentId: payment.assessmentId || undefined,
+      attachmentFileName: payment.attachmentFileName || undefined,
+      attachmentFileUrl: payment.attachmentFileUrl || undefined,
     };
   }
-}
-
-function nullIfEmpty(value: string): string | null {
-  const s = value?.trim();
-  return s ? s : null;
 }
 
 function toUtcBoundary(value: string, edge: 'start' | 'end') {
