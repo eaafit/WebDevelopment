@@ -23,13 +23,8 @@ export class AssessmentDetailModalComponent {
     }
   }
 
-  onBackdropKeydown(event: KeyboardEvent): void {
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
+  onBackdropKeydown(event: Event): void {
+    if (event.target === event.currentTarget) {
       this.closeModal();
     }
   }

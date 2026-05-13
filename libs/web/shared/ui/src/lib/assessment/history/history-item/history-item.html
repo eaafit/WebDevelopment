@@ -14,7 +14,7 @@
     <div class="item-meta flex gap-4 text-sm">
       <span>📅 Дата заказа: {{ formatDate(order.orderDate) }}</span>
       @if (role === 'notary') {
-        <span>👤 Заявитель: {{ order.applicantName }}</span>
+      <span>👤 Заявитель: {{ order.applicantName }}</span>
       }
     </div>
 
@@ -27,10 +27,14 @@
     <div class="item-actions flex justify-end gap-2">
       <button class="btn btn-outline btn-sm" (click)="onView()">Подробнее</button>
       @if (role === 'applicant' && order.status === 'completed') {
-        <button class="btn btn-primary btn-sm" (click)="onRepeat()">Повторить заказ</button>
+      <button class="btn btn-primary btn-sm" (click)="onRepeat()">
+        Повторить заказ
+      </button>
       }
       @if (role === 'notary' && order.status === 'created') {
-        <button class="btn btn-primary btn-sm">Взять в работу</button>
+      <button class="btn btn-primary btn-sm">
+        Взять в работу
+      </button>
       }
     </div>
   </div>

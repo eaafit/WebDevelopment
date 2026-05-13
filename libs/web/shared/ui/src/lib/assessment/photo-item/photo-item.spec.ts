@@ -13,15 +13,12 @@ describe('PhotoItem', () => {
 
     fixture = TestBed.createComponent(PhotoItemComponent);
     component = fixture.componentInstance;
-
     component.file = {
-      file: new File(['test'], 'test.jpg', { type: 'image/jpeg' }),
+      file: new File(['test'], 'test.png', { type: 'image/png' }),
       preview: 'blob:test',
       type: DocumentType.PHOTO,
       quality: 'good',
     };
-
-    fixture.detectChanges();
     await fixture.whenStable();
   });
 

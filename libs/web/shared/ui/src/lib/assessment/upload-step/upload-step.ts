@@ -21,8 +21,8 @@ export class AssessmentUploadStepComponent {
   readonly maxSize = 20 * 1024 * 1024;
 
   onFileSelect(event: Event) {
-    const input = event.target as HTMLInputElement | null;
-    const selectedFiles: File[] = Array.from(input?.files || []);
+    const input = event.target as HTMLInputElement;
+    const selectedFiles: File[] = Array.from(input.files ?? []);
     this.addFiles(selectedFiles);
   }
 

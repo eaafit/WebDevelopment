@@ -1,16 +1,16 @@
 <div class="card" draggable="true">
   <div class="preview">
     @if (isImage()) {
-      <img [src]="file.preview" alt="Предпросмотр загруженного файла" />
+    <img [src]="file.preview" [alt]="'Предпросмотр файла ' + file.file.name" />
     }
     @if (!isImage()) {
-      <div>PDF</div>
+    <div>PDF</div>
     }
   </div>
 
   <select (change)="typeChange.emit($any($event.target).value)">
-    @for (t of types; track $index) {
-      <option [value]="t">{{ t }}</option>
+    @for (t of types; track t) {
+    <option [value]="t">{{ t }}</option>
     }
   </select>
 

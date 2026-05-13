@@ -5,7 +5,10 @@
 </div>
 
 <div class="grid">
-  @for (file of files(); track $index; let i = $index) {
-    <lib-photo-item [file]="file" (remove)="removeFile(i)" (typeChange)="updateType(i, $event)"></lib-photo-item>
+  @for (file of files(); track file.preview; let i = $index) {
+  <lib-photo-item
+    [file]="file"
+    (remove)="removeFile(i)"
+    (typeChange)="updateType(i, $event)"></lib-photo-item>
   }
 </div>

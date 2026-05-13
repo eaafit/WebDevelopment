@@ -1,13 +1,13 @@
 <div class="timeline-horizontal" [class.compact]="compact">
-  @for (stage of stages; track $index; let i = $index) {
-    <div class="timeline-stage">
-      <div class="stage-circle" [class.completed]="isCompleted(i)" [class.current]="isCurrent(i)"></div>
-      @if (!compact) {
-        <span class="stage-label">{{ stage.label }}</span>
-      }
-      @if (i < stages.length - 1) {
-        <div class="stage-line" [class.completed]="i < activeStageIndex"></div>
-      }
-    </div>
+  @for (stage of stages; track stage.statusKey; let i = $index) {
+  <div class="timeline-stage">
+    <div class="stage-circle" [class.completed]="isCompleted(i)" [class.current]="isCurrent(i)"></div>
+    @if (!compact) {
+    <span class="stage-label">{{ stage.label }}</span>
+    }
+    @if (i < stages.length - 1) {
+    <div class="stage-line" [class.completed]="i < activeStageIndex"></div>
+    }
+  </div>
   }
 </div>

@@ -7,48 +7,48 @@
       </p>
     </div>
     @if (notifications().length) {
-      <div class="notifications-block card">
-        <div class="card-title">📢 Последние изменения</div>
-        <div class="notifications-list">
-          @for (n of notifications(); track $index) {
-            <div class="notification-item">
-              <span class="notification-icon">{{ n.icon }}</span>
-              <span class="notification-message">{{ n.message }}</span>
-              <span class="notification-time">{{ n.timeAgo }}</span>
-            </div>
-          }
+    <div class="notifications-block card">
+      <div class="card-title">📢 Последние изменения</div>
+      <div class="notifications-list">
+        @for (n of notifications(); track n.message) {
+        <div class="notification-item">
+          <span class="notification-icon">{{ n.icon }}</span>
+          <span class="notification-message">{{ n.message }}</span>
+          <span class="notification-time">{{ n.timeAgo }}</span>
         </div>
+        }
       </div>
+    </div>
     }
     <!-- Блок фильтров -->
     <div class="filters-section">
       <div class="grid-filters">
         <div class="form-group">
-          <label class="form-label" for="history-search">Поиск</label>
+          <label class="form-label" for="assessment-search">Поиск</label>
           <div class="input-icon-wrap">
-            <input id="history-search" type="text" class="form-input" placeholder="ID или адрес" [ngModel]="searchQuery()"
+            <input id="assessment-search" type="text" class="form-input" placeholder="ID или адрес" [ngModel]="searchQuery()"
               (ngModelChange)="searchQuery.set($event)" />
             <span class="input-icon-right">🔍</span>
           </div>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="history-status">Статус</label>
-          <select id="history-status" class="form-input form-select" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
-            @for (opt of statusOptions; track $index) {
-              <option [value]="opt.value">{{ opt.label }}</option>
+          <label class="form-label" for="assessment-status">Статус</label>
+          <select id="assessment-status" class="form-input form-select" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+            @for (opt of statusOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
             }
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="history-date-from">Дата от</label>
-          <input id="history-date-from" type="date" class="form-input" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+          <label class="form-label" for="assessment-date-from">Дата от</label>
+          <input id="assessment-date-from" type="date" class="form-input" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="history-date-to">Дата до</label>
-          <input id="history-date-to" type="date" class="form-input" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+          <label class="form-label" for="assessment-date-to">Дата до</label>
+          <input id="assessment-date-to" type="date" class="form-input" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
         </div>
       </div>
     </div>
@@ -56,46 +56,47 @@
     <!-- Список заказов -->
     <div class="orders-list">
       @if (filteredOrders.length === 0) {
-        <div class="empty-state">
-          <div class="alert-info">
-            <span>ℹ️</span>
-            <span>Заказы не найдены. Измените параметры фильтра.</span>
-          </div>
+      <div class="empty-state">
+        <div class="alert-info">
+          <span>ℹ️</span>
+          <span>Заказы не найдены. Измените параметры фильтра.</span>
         </div>
+      </div>
       }
 
       @for (order of paginatedOrders; track order.id) {
-        <div class="order-item-wrapper">
-          <lib-history-item [order]="order" [role]="role" (repeat)="repeatOrder($event)"
-            (view)="viewOrder($event)"></lib-history-item>
-        </div>
+      <div class="order-item-wrapper">
+        <lib-history-item [order]="order" [role]="role" (repeat)="repeatOrder($event)"
+          (view)="viewOrder($event)"></lib-history-item>
+      </div>
       }
     </div>
     <!-- Пагинация -->
+
     @if (totalPages >= 1) {
-      <div class="pagination-controls">
-        <div class="pagination-left"></div> <!-- левая пустая колонка для симметрии -->
-        <div class="pagination-buttons">
-          <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() - 1)"
-            [disabled]="currentPage() === 1">Предыдущая</button>
-          <span class="pagination-info">Страница {{ currentPage() }} из {{ totalPages }}</span>
-          <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() + 1)"
-            [disabled]="currentPage() === totalPages">Следующая</button>
-        </div>
-        <div class="pagination-page-size">
-          <select class="form-input form-select" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)">
-            <option [value]="5">5</option>
-            <option [value]="10">10</option>
-            <option [value]="20">20</option>
-            <option [value]="50">50</option>
-          </select>
-          <span class="text-sm">на странице</span>
-        </div>
+    <div class="pagination-controls">
+      <div class="pagination-left"></div> <!-- левая пустая колонка для симметрии -->
+      <div class="pagination-buttons">
+        <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() - 1)"
+          [disabled]="currentPage() === 1">Предыдущая</button>
+        <span class="pagination-info">Страница {{ currentPage() }} из {{ totalPages }}</span>
+        <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() + 1)"
+          [disabled]="currentPage() === totalPages">Следующая</button>
       </div>
+      <div class="pagination-page-size">
+        <select class="form-input form-select" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)">
+          <option [value]="5">5</option>
+          <option [value]="10">10</option>
+          <option [value]="20">20</option>
+          <option [value]="50">50</option>
+        </select>
+        <span class="text-sm">на странице</span>
+      </div>
+    </div>
     }
   </div>
 </div>
 @if (isModalOpen() && selectedOrderId()) {
-  <lib-assessment-detail-modal [order]="getSelectedOrder()" (modalClose)="closeModal()">
-  </lib-assessment-detail-modal>
+<lib-assessment-detail-modal [order]="getSelectedOrder()" (modalClose)="closeModal()">
+</lib-assessment-detail-modal>
 }
