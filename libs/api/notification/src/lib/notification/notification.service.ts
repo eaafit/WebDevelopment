@@ -49,6 +49,22 @@ export class NotificationService {
     });
   }
 
+  async createInternalNotification(params: {
+    userId: string;
+    message: string;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
+  }): Promise<void> {
+    validateUuid(params.userId, 'user_id');
+
+    await this.notificationRepository.createNotification({
+      userId: params.userId,
+      message: normalizeMessage(params.message),
+      type: params.type ?? RpcNotificationType.PUSH,
+      status: params.status ?? RpcNotificationStatus.SENT,
+    });
+  }
+
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
     validateUuid(request.userId, 'user_id');
     return this.notificationRepository.listNotifications({

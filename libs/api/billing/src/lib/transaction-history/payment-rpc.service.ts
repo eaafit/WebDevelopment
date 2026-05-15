@@ -3,12 +3,16 @@ import {
   type CreatePaymentResponse,
   type CreateSubscriptionRequest,
   type CreateSubscriptionResponse,
+  type DeletePaymentRequest,
+  type DeletePaymentResponse,
   type GetPaymentHistoryRequest,
   type GetPaymentHistoryResponse,
   type GetSubscriptionRequest,
   type GetSubscriptionResponse,
   type ProcessWebhookRequest,
   type ProcessWebhookResponse,
+  type UpdatePaymentRequest,
+  type UpdatePaymentResponse,
   type ValidateSubscriptionPromoRequest,
   type ValidateSubscriptionPromoResponse,
 } from '@notary-portal/api-contracts';
@@ -50,4 +54,10 @@ export class PaymentRpcService {
     request: CreateSubscriptionRequest,
   ): Promise<CreateSubscriptionResponse> =>
     this.paymentSubscriptionService.createSubscription(request);
+
+  readonly updatePayment = (request: UpdatePaymentRequest): Promise<UpdatePaymentResponse> =>
+    this.transactionHistoryService.updatePayment(request);
+
+  readonly deletePayment = (request: DeletePaymentRequest): Promise<DeletePaymentResponse> =>
+    this.transactionHistoryService.deletePayment(request);
 }

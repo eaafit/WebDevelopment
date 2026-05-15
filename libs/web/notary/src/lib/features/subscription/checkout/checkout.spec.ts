@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore, WebLoggerService } from '@notary-portal/ui';
 import { Checkout } from './checkout';
 import { SubscriptionCheckoutApiService } from './subscription-checkout-api.service';
 import { YooKassaWidgetService, type YooKassaWidgetHandlers } from './yookassa-widget.service';
@@ -31,8 +31,18 @@ describe('Checkout', () => {
   let widgetService: {
     mount: jest.Mock;
   };
+  let logger: {
+    info: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+  };
 
   beforeEach(async () => {
+    logger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
     checkoutApi = {
       createSubscriptionDraft: jest.fn().mockResolvedValue('subscription-1'),
       createPayment: jest.fn().mockResolvedValue({
@@ -99,6 +109,10 @@ describe('Checkout', () => {
           provide: YooKassaWidgetService,
           useValue: widgetService,
         },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
+        },
       ],
     }).compileComponents();
 
@@ -137,6 +151,14 @@ describe('Checkout', () => {
         onFail: expect.any(Function),
       }),
     );
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.notary.create_payment_succeeded',
+      expect.objectContaining({
+        area: 'notary_subscription_checkout',
+        paymentId: 'payment-1',
+        subscriptionId: 'subscription-1',
+      }),
+    );
     expect(checkout.state()).toBe('widget');
     expect(checkout.displayAmount()).toBe('1350.00');
     expect(element.querySelector('.widget-stage')).not.toBeNull();
@@ -159,6 +181,14 @@ describe('Checkout', () => {
     expect(element.querySelector('.promo-feedback.is-success')).not.toBeNull();
     expect(element.textContent).toContain('Промокод применён.');
     expect(element.textContent).toContain('SPRING10');
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.notary.promo_applied',
+      expect.objectContaining({
+        area: 'notary_subscription_checkout',
+        finalAmount: '1350.00',
+        discountAmount: '150.00',
+      }),
+    );
   });
 
   it('should show an inline error for an invalid promo code', async () => {
@@ -181,6 +211,12 @@ describe('Checkout', () => {
     expect(element.querySelector('.promo-feedback.is-error')).not.toBeNull();
     expect(element.querySelector('.error-card')).toBeNull();
     expect(element.textContent).toContain('Такой промокод не найден. Проверьте написание.');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.checkout.notary.promo_validation_rejected',
+      expect.objectContaining({
+        validationStatus: 'not_found',
+      }),
+    );
   });
 
   it('should require promo application before starting payment', async () => {
@@ -205,12 +241,18 @@ describe('Checkout', () => {
       userId: 'user-1',
       paymentId: 'payment-1',
     });
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.notary.status_check_finished',
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        status: 'completed',
+      }),
+    );
     expect(checkout.state()).toBe('success');
     expect((fixture.nativeElement as HTMLElement).querySelector('.success-card')).not.toBeNull();
   });
 
   it('should show a user-friendly error card without exposing raw technical details', async () => {
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     checkoutApi.createPayment.mockRejectedValue(new Error('connect ETIMEDOUT 10.0.0.1'));
 
     await checkout.startPayment();
@@ -225,8 +267,12 @@ describe('Checkout', () => {
       'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
     );
     expect(element.textContent).not.toContain('ETIMEDOUT');
-
-    consoleErrorSpy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith(
+      'payment.checkout.notary.start_failed',
+      expect.objectContaining({
+        error: expect.any(Error),
+      }),
+    );
   });
 
   it('should keep processing UI inside widget stage without a duplicate notice banner', async () => {

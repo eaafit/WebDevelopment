@@ -28,8 +28,8 @@ export interface NotificationQuery {
 
 export interface CreateNotificationInput {
   userId: string;
-  type: RpcNotificationType;
   message: string;
+  type?: RpcNotificationType;
   status?: RpcNotificationStatus;
   sentAt?: Date;
   readAt?: Date | null;
@@ -43,7 +43,7 @@ export class NotificationRepository {
     const notification = await this.prisma.notification.create({
       data: {
         userId: input.userId,
-        type: this.toPrismaType(input.type),
+        type: this.toPrismaType(input.type ?? RpcNotificationType.PUSH),
         message: input.message,
         status: this.toPrismaStatus(input.status ?? RpcNotificationStatus.SENT),
         sentAt: input.sentAt ?? new Date(),
