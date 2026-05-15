@@ -4,6 +4,9 @@ import {
   DeleteNotificationResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
+  NotificationStatus as RpcNotificationStatus,
+  NotificationType as RpcNotificationType,
+  type Notification as RpcNotification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type ListNotificationsRequest,
@@ -18,9 +21,33 @@ import { NotificationRepository } from './notification.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export interface CreateNotificationInput {
+  userId: string;
+  type: RpcNotificationType;
+  message: string;
+  status?: RpcNotificationStatus;
+  sentAt?: Date;
+  readAt?: Date | null;
+}
+
 @Injectable()
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
+
+  async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
+    validateUuid(request.userId, 'user_id');
+
+    const message = normalizeMessage(request.message);
+
+    return this.notificationRepository.createNotification({
+      userId: request.userId,
+      type: request.type,
+      message,
+      status: request.status,
+      sentAt: request.sentAt,
+      readAt: request.readAt,
+    });
+  }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
     validateUuid(request.userId, 'user_id');
@@ -57,4 +84,14 @@ function validateUuid(value: string | undefined, fieldName: string): void {
   if (!value || !UUID_PATTERN.test(value)) {
     throw new ConnectError(`${fieldName} must be a valid UUID`, Code.InvalidArgument);
   }
+}
+
+function normalizeMessage(value: string): string {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new ConnectError('message is required', Code.InvalidArgument);
+  }
+
+  return normalized;
 }
