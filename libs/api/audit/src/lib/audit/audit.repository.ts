@@ -162,6 +162,28 @@ export class AuditRepository {
           : { in: filters.targetId ? [] : assessmentIds };
     }
 
+    if (scope.kind === 'applicant') {
+      const assessmentIds = await this.findApplicantAssessmentIds(scope.applicantId);
+      const scopedOr: Prisma.AuditLogWhereInput[] = [{ userId: scope.applicantId }];
+
+      if (assessmentIds.length) {
+        scopedOr.push({
+          entityName: 'Assessment',
+          entityId: filters.targetId
+            ? assessmentIds.includes(filters.targetId)
+              ? filters.targetId
+              : { in: [] }
+            : { in: assessmentIds },
+        });
+      }
+
+      if (filters.targetId) {
+        where.AND = [{ OR: scopedOr }, { entityId: filters.targetId }];
+      } else {
+        where.OR = scopedOr;
+      }
+    }
+
     return where;
   }
 
@@ -169,6 +191,19 @@ export class AuditRepository {
     const assessments = await this.prisma.assessment.findMany({
       where: {
         notaryId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return assessments.map((assessment) => assessment.id);
+  }
+
+  private async findApplicantAssessmentIds(applicantId: string): Promise<string[]> {
+    const assessments = await this.prisma.assessment.findMany({
+      where: {
+        userId: applicantId,
       },
       select: {
         id: true,

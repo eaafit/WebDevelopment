@@ -17,6 +17,11 @@ import {
   Role as PrismaRole,
   type Prisma,
 } from '@internal/prisma-client';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type NotificationPreferenceCategory,
+  type NotificationPreferenceRecord,
+} from './notification-preferences';
 
 export interface NotificationQuery {
   page: number;
@@ -68,6 +73,72 @@ export class NotificationRepository {
         type: input.type ?? PrismaNotificationType.Push,
         status: input.status ?? PrismaNotificationStatus.Sent,
       })),
+    });
+  }
+
+  async getOrCreatePreferences(userId: string): Promise<NotificationPreferenceRecord> {
+    const row = await this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+      },
+      update: {},
+    });
+
+    return toPreferenceRecord(row);
+  }
+
+  async updatePreferences(
+    record: NotificationPreferenceRecord,
+  ): Promise<NotificationPreferenceRecord> {
+    const row = await this.prisma.notificationPreference.upsert({
+      where: { userId: record.userId },
+      create: record,
+      update: {
+        assessmentEmailEnabled: record.assessmentEmailEnabled,
+        assessmentPushEnabled: record.assessmentPushEnabled,
+        assessmentInAppEnabled: record.assessmentInAppEnabled,
+        paymentEmailEnabled: record.paymentEmailEnabled,
+        paymentPushEnabled: record.paymentPushEnabled,
+        paymentInAppEnabled: record.paymentInAppEnabled,
+        systemEmailEnabled: record.systemEmailEnabled,
+        systemPushEnabled: record.systemPushEnabled,
+        systemInAppEnabled: record.systemInAppEnabled,
+      },
+    });
+
+    return toPreferenceRecord(row);
+  }
+
+  async filterUserIdsWithInAppEnabled(
+    userIds: string[],
+    category: NotificationPreferenceCategory,
+  ): Promise<string[]> {
+    if (!userIds.length) {
+      return [];
+    }
+
+    const preferences = await this.prisma.notificationPreference.findMany({
+      where: { userId: { in: userIds } },
+    });
+    const preferenceByUserId = new Map(preferences.map((row) => [row.userId, toPreferenceRecord(row)]));
+
+    return userIds.filter((userId) => {
+      const record = preferenceByUserId.get(userId);
+      if (!record) {
+        return true;
+      }
+
+      switch (category) {
+        case 'payment':
+          return record.paymentInAppEnabled;
+        case 'system':
+          return record.systemInAppEnabled;
+        case 'assessment':
+        default:
+          return record.assessmentInAppEnabled;
+      }
     });
   }
 
@@ -204,4 +275,30 @@ export class NotificationRepository {
     };
     return map[s];
   }
+}
+
+function toPreferenceRecord(row: {
+  userId: string;
+  assessmentEmailEnabled: boolean;
+  assessmentPushEnabled: boolean;
+  assessmentInAppEnabled: boolean;
+  paymentEmailEnabled: boolean;
+  paymentPushEnabled: boolean;
+  paymentInAppEnabled: boolean;
+  systemEmailEnabled: boolean;
+  systemPushEnabled: boolean;
+  systemInAppEnabled: boolean;
+}): NotificationPreferenceRecord {
+  return {
+    userId: row.userId,
+    assessmentEmailEnabled: row.assessmentEmailEnabled,
+    assessmentPushEnabled: row.assessmentPushEnabled,
+    assessmentInAppEnabled: row.assessmentInAppEnabled,
+    paymentEmailEnabled: row.paymentEmailEnabled,
+    paymentPushEnabled: row.paymentPushEnabled,
+    paymentInAppEnabled: row.paymentInAppEnabled,
+    systemEmailEnabled: row.systemEmailEnabled,
+    systemPushEnabled: row.systemPushEnabled,
+    systemInAppEnabled: row.systemInAppEnabled,
+  };
 }

@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NotificationBell } from '../notifications/notification-bell';
 
 export interface DashboardMenuItem {
   label: string;
@@ -10,7 +11,7 @@ export interface DashboardMenuItem {
 @Component({
   selector: 'lib-dashboard-layout',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, NotificationBell],
   templateUrl: './dashboard-layout.html',
   styleUrl: './dashboard-layout.scss',
 })

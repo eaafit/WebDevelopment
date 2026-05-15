@@ -206,7 +206,8 @@ model User {
   payments          Payment[]
   uploadedDocuments Document[]         @relation("UploadedBy")
   signedReports     AssessmentReport[] @relation("SignedBy")
-  notifications     Notification[]
+  notifications            Notification[]
+  notificationPreference   NotificationPreference?
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
@@ -385,6 +386,28 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+model NotificationPreference {
+  userId String @id @map("user_id") @db.Uuid
+
+  assessmentEmailEnabled Boolean @default(true) @map("assessment_email_enabled")
+  assessmentPushEnabled  Boolean @default(true) @map("assessment_push_enabled")
+  assessmentInAppEnabled Boolean @default(true) @map("assessment_in_app_enabled")
+
+  paymentEmailEnabled Boolean @default(true) @map("payment_email_enabled")
+  paymentPushEnabled  Boolean @default(true) @map("payment_push_enabled")
+  paymentInAppEnabled Boolean @default(true) @map("payment_in_app_enabled")
+
+  systemEmailEnabled Boolean @default(true) @map("system_email_enabled")
+  systemPushEnabled  Boolean @default(true) @map("system_push_enabled")
+  systemInAppEnabled Boolean @default(true) @map("system_in_app_enabled")
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 model NewsletterSubscription {

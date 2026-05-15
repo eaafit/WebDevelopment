@@ -1,8 +1,9 @@
 import { timestampDate } from '@bufbuild/protobuf/wkt';
-import { createClient } from '@connectrpc/connect';
+import { ConnectError, createClient } from '@connectrpc/connect';
 import {
   NotificationService,
   type Notification,
+  type NotificationSettings,
   type NotificationStatus,
   type NotificationType,
 } from '@notary-portal/api-contracts';
@@ -16,6 +17,10 @@ const DEFAULT_LIMIT = 50;
 export class InAppNotificationsApiService {
   private readonly client = createClient(NotificationService, inject(RPC_TRANSPORT));
   private readonly tokenStore = inject(TokenStore);
+
+  async listRecent(limit = 5): Promise<{ notifications: Notification[]; unreadCount: number }> {
+    return this.listMine({ page: 1, limit, unreadOnly: false });
+  }
 
   async listMine(params?: {
     page?: number;
@@ -62,6 +67,22 @@ export class InAppNotificationsApiService {
     await this.client.deleteNotification({ id });
   }
 
+  async getNotificationSettings(): Promise<NotificationSettings> {
+    const response = await this.client.getNotificationSettings({});
+    if (!response.settings) {
+      throw new Error('Настройки уведомлений не получены');
+    }
+    return response.settings;
+  }
+
+  async updateNotificationSettings(settings: NotificationSettings): Promise<NotificationSettings> {
+    const response = await this.client.updateNotificationSettings({ settings });
+    if (!response.settings) {
+      throw new Error('Настройки уведомлений не сохранены');
+    }
+    return response.settings;
+  }
+
   getCurrentUserId(): string | null {
     return this.tokenStore.user()?.id ?? null;
   }
@@ -69,4 +90,16 @@ export class InAppNotificationsApiService {
 
 export function notificationOccurredAt(notification: Notification): Date {
   return notification.sentAt ? timestampDate(notification.sentAt) : new Date(0);
+}
+
+export function mapNotificationRpcError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof ConnectError) {
+    return new Error(error.rawMessage || error.message || fallbackMessage);
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(fallbackMessage);
 }

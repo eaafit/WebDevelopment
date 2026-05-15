@@ -164,6 +164,16 @@ export class AssessmentService {
       await this.notificationService.createInternalNotificationsForRoles({
         roles: [PrismaRole.Notary, PrismaRole.Admin],
         message: buildAssessmentCreatedNotificationMessage(assessment.id, snapshot),
+        category: 'assessment',
+      });
+      await this.notificationService.createInternalNotification({
+        userId: assessment.userId,
+        message: buildAssessmentApplicantNotificationMessage(
+          'Создана заявка на оценку',
+          assessment.id,
+          snapshot,
+        ),
+        category: 'assessment',
       });
 
       this.logger.log(
@@ -263,6 +273,15 @@ export class AssessmentService {
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
       });
+      await this.notificationService.createInternalNotification({
+        userId: after.userId,
+        message: buildAssessmentApplicantNotificationMessage(
+          'Заявка принята в работу',
+          assessment.id,
+          after,
+        ),
+        category: 'assessment',
+      });
 
       this.logger.log(
         `Verified assessment assessmentId=${assessment.id}` +
@@ -314,6 +333,15 @@ export class AssessmentService {
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
       });
+      await this.notificationService.createInternalNotification({
+        userId: after.userId,
+        message: buildAssessmentApplicantNotificationMessage(
+          'Заявка завершена',
+          assessment.id,
+          after,
+        ),
+        category: 'assessment',
+      });
 
       this.logger.log(
         `Completed assessment assessmentId=${assessment.id}` +
@@ -351,6 +379,15 @@ export class AssessmentService {
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.notificationService.createInternalNotification({
+        userId: after.userId,
+        message: buildAssessmentApplicantNotificationMessage(
+          'Заявка отменена',
+          assessment.id,
+          after,
+        ),
+        category: 'assessment',
       });
 
       this.logger.log(
@@ -730,6 +767,19 @@ function buildAssessmentCreatedNotificationMessage(
 ): string {
   return [
     'Была создана новая заявка на оценку',
+    `Заявка: ${shortId(assessmentId)}`,
+    `Адрес: ${snapshot.address}`,
+    `Статус: ${statusLabel(snapshot.status)}`,
+  ].join('\n');
+}
+
+function buildAssessmentApplicantNotificationMessage(
+  title: string,
+  assessmentId: string,
+  snapshot: AssessmentAuditSnapshot,
+): string {
+  return [
+    title,
     `Заявка: ${shortId(assessmentId)}`,
     `Адрес: ${snapshot.address}`,
     `Статус: ${statusLabel(snapshot.status)}`,

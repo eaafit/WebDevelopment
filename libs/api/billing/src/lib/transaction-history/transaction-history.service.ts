@@ -107,6 +107,7 @@ export class TransactionHistoryService {
       await this.notificationService.createInternalNotification({
         userId: after.userId,
         message: `Платёж ${shortPaymentId} обновлён`,
+        category: 'payment',
       });
     } catch {
       // notification failure must not break the main operation
@@ -151,6 +152,7 @@ export class TransactionHistoryService {
       await this.notificationService.createInternalNotification({
         userId: before.userId,
         message: `Платёж ${shortPaymentId} удалён`,
+        category: 'payment',
       });
     } catch {
       // notification failure must not break the main operation

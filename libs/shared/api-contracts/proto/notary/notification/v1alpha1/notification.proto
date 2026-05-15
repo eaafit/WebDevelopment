@@ -11,6 +11,8 @@ service NotificationService {
   rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
   rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
   rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse);
+  rpc GetNotificationSettings(GetNotificationSettingsRequest) returns (GetNotificationSettingsResponse);
+  rpc UpdateNotificationSettings(UpdateNotificationSettingsRequest) returns (UpdateNotificationSettingsResponse);
 }
 
 enum NotificationType {
@@ -77,4 +79,30 @@ message DeleteNotificationRequest {
 
 message DeleteNotificationResponse {
   bool success = 1;
+}
+
+message NotificationChannelToggles {
+  bool email_enabled = 1;
+  bool push_enabled = 2;
+  bool in_app_enabled = 3;
+}
+
+message NotificationSettings {
+  NotificationChannelToggles assessment = 1;
+  NotificationChannelToggles payment = 2;
+  NotificationChannelToggles system = 3;
+}
+
+message GetNotificationSettingsRequest {}
+
+message GetNotificationSettingsResponse {
+  NotificationSettings settings = 1;
+}
+
+message UpdateNotificationSettingsRequest {
+  NotificationSettings settings = 1 [(buf.validate.field).required = true];
+}
+
+message UpdateNotificationSettingsResponse {
+  NotificationSettings settings = 1;
 }

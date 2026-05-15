@@ -31,12 +31,7 @@
       <header class="header">
         <h1 class="header-title">{{ pageTitle }}</h1>
         <div class="header-right">
-          <a [routerLink]="notificationRoute" class="header-bell" aria-label="Уведомления">
-            🔔
-            @if (notificationCount > 0) {
-            <span class="header-bell__badge">{{ notificationCount }}</span>
-            }
-          </a>
+          <lib-notification-bell [notificationsRoute]="notificationRoute" />
           <div class="user-info">
           <span class="user-avatar">{{ userLabel.charAt(0) }}</span>
           <span class="user-label text-bold">{{ userLabel }}</span>

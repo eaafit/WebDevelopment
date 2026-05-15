@@ -1,0 +1,157 @@
+<section class="notification-inbox">
+  <header class="notification-inbox__hero">
+    <div>
+      <p class="notification-inbox__eyebrow">{{ eyebrow() }}</p>
+      <h2>{{ pageTitle() }}</h2>
+      <p class="notification-inbox__lead">
+        Уведомления по заявкам, платежам и сервису. Клик по карточке отмечает её прочитанной.
+      </p>
+    </div>
+
+    <div class="notification-inbox__actions">
+      <div class="notification-inbox__action-row">
+        @if (settingsLink(); as link) {
+          <a
+            [routerLink]="link"
+            [relativeTo]="parentRoute"
+            class="notification-inbox__btn notification-inbox__btn--secondary">
+            Настройки каналов
+          </a>
+        }
+        <button type="button" class="notification-inbox__btn notification-inbox__btn--secondary" (click)="markAllAsRead()">
+          Прочитать все
+        </button>
+      </div>
+      @if (inboxCount(); as c) {
+        <span class="notification-inbox__badge">Непрочитанных: {{ c }}</span>
+      }
+    </div>
+  </header>
+
+  <section class="notification-inbox__filters">
+    <label class="notification-inbox__field">
+      <span>Тип</span>
+      <select [value]="filters().type" (change)="setTypeFilter($any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="application">Заявки</option>
+        <option value="document">Документы</option>
+        <option value="payment">Платежи</option>
+        <option value="system">Системные</option>
+      </select>
+    </label>
+
+    <label class="notification-inbox__field">
+      <span>Канал</span>
+      <select [value]="filters().channel" (change)="setChannelFilter($any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="in-app">In-app</option>
+        <option value="email">Email</option>
+        <option value="push">Push</option>
+      </select>
+    </label>
+
+    <label class="notification-inbox__field">
+      <span>Статус</span>
+      <select [value]="filters().status" (change)="setStatusFilter($any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="unread">Непрочитанные</option>
+        <option value="read">Прочитанные</option>
+      </select>
+    </label>
+  </section>
+
+  @if (loadError(); as err) {
+    <p class="notification-inbox__error">{{ err }}</p>
+  }
+
+  @if (filtered().length) {
+    <section class="notification-inbox__list">
+      @for (item of filtered(); track item.id) {
+        <article
+          class="notification-inbox__card"
+          [class.notification-inbox__card--attention]="item.isUnread"
+          tabindex="0"
+          role="button"
+          (click)="toggleReadOnCard(item.id)"
+          (keydown.enter)="toggleReadOnCard(item.id)"
+          (keydown.space)="toggleReadOnCard(item.id)">
+          <div class="notification-inbox__card-main">
+            <h3>{{ item.title }}</h3>
+            @if (item.description) {
+              <p>{{ item.description }}</p>
+            }
+            <div class="notification-inbox__chips">
+              <span class="chip chip--type">{{ typeLabel(item.type) }}</span>
+              <span class="chip chip--channel">{{ channelLabel(item.channel) }}</span>
+              <span
+                class="chip chip--status"
+                [class.chip--status-unread]="item.isUnread"
+                [class.chip--status-read]="!item.isUnread">
+                {{ statusLabel(item.isUnread) }}
+              </span>
+            </div>
+          </div>
+          <div class="notification-inbox__card-aside">
+            <div class="notification-inbox__datetime">
+              <span class="notification-inbox__time">{{ relativeTime(item.createdAt) }}</span>
+              <span class="notification-inbox__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
+            </div>
+            <button type="button" class="notification-inbox__btn-delete" (click)="removeOne(item.id, $event)">
+              Удалить
+            </button>
+          </div>
+        </article>
+      }
+    </section>
+  } @else if (!loadError()) {
+    <div class="notification-inbox__empty">
+      <strong>Уведомлений нет.</strong>
+      <p>История пуста или выбранные фильтры ничего не показывают.</p>
+    </div>
+  }
+
+  @if (showAuditSource() && auditEvents().length) {
+    <section class="notification-inbox__audit">
+      <div class="notification-inbox__audit-header">
+        <h3>История событий</h3>
+        @if (hiddenAuditCount() > 0 || auditExpanded()) {
+          <button type="button" class="notification-inbox__btn-ghost" (click)="toggleAuditExpanded()">
+            @if (auditExpanded()) {
+              Свернуть
+            } @else {
+              Показать ещё {{ hiddenAuditCount() }}
+            }
+          </button>
+        }
+      </div>
+
+      <ul class="notification-inbox__audit-list">
+        @for (event of visibleAuditEvents(); track event.id) {
+          <li class="notification-inbox__audit-item">
+            <div class="notification-inbox__audit-main">
+              <strong>{{ event.actionTitle }}</strong>
+              @if (auditSummary(event); as summary) {
+                <span>{{ summary }}</span>
+              }
+            </div>
+            <time>{{ event.occurredAt | date: 'dd.MM.yyyy, HH:mm' }}</time>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+</section>
+
+@if (showPopupOnUnread() && popupNotification(); as popup) {
+  <div class="notification-inbox__popup-backdrop" (click)="closePopup()">
+    <div class="notification-inbox__popup" (click)="$event.stopPropagation()">
+      <h3>{{ popup.title }}</h3>
+      @if (popup.description) {
+        <p>{{ popup.description }}</p>
+      }
+      <button type="button" class="notification-inbox__btn notification-inbox__btn--secondary" (click)="closePopup()">
+        Понятно
+      </button>
+    </div>
+  </div>
+}
