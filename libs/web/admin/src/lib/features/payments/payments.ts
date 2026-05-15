@@ -3,12 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { inject } from '@angular/core';
+import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
 import { buildRpcBaseUrl, TokenStore } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUS_OPTIONS,
   PAYMENT_TYPE_LABELS,
   PAYMENT_TYPE_OPTIONS,
   Payment,
@@ -16,7 +18,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from './payments.shared';
-import { AdminPaymentsApiService } from './payments-api.service';
+import { AdminPaymentsApiService, type PaymentQuery } from '../../api/admin-payments-api.service';
 import { PaymentDeleteModalComponent } from './payment-delete-modal.component';
 
 type FilterColumn =
@@ -50,6 +52,8 @@ export class Payments implements OnInit, OnDestroy {
   });
 
   payments: Payment[] = [];
+  totalItems = 0;
+  serverTotalPages = 1;
   loading = true;
   loadError: string | null = null;
 
@@ -112,7 +116,8 @@ export class Payments implements OnInit, OnDestroy {
   private router = inject(Router);
   private readonly api = inject(AdminPaymentsApiService);
   private readonly tokenStore = inject(TokenStore);
-  private dataSub?: Subscription;
+  private loadSub?: Subscription;
+  private filterReloadTimer?: ReturnType<typeof setTimeout>;
 
   async openReceipt(paymentId: string | number): Promise<void> {
     const token = this.tokenStore.getAccessToken();
@@ -159,56 +164,26 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loading = true;
-    this.loadError = null;
-    this.api.preload();
-    this.dataSub = this.api.payments$.subscribe({
-      next: (data) => {
-        if (data !== null) {
-          this.payments = data;
-          this.loading = false;
-        }
-      },
-      error: (err) => {
-        console.error('Failed to load admin payments', err);
-        this.payments = [];
-        this.loadError = 'Не удалось загрузить данные платежей с сервера';
-        this.loading = false;
-      },
-    });
+    this.loadPayments();
   }
 
   ngOnDestroy(): void {
-    this.dataSub?.unsubscribe();
+    this.loadSub?.unsubscribe();
+    if (this.filterReloadTimer) {
+      clearTimeout(this.filterReloadTimer);
+    }
   }
 
   get filteredPayments(): Payment[] {
-    const term = this.searchTerm.trim().toLowerCase();
-    const status = this.statusFilter;
-
-    const filtered = this.payments.filter((p) => {
-      const matchesStatus = !status || p.status === status;
-      const matchesTerm =
-        !term ||
-        p.payer.toLowerCase().includes(term) ||
-        p.id.toString().includes(term) ||
-        (p.transactionId?.toLowerCase().includes(term) ?? false);
-      const matchesColumnFilters = this.matchesColumnFilters(p);
-
-      return matchesStatus && matchesTerm && matchesColumnFilters;
-    });
-
-    return [...filtered].sort((a, b) => this.compareByActiveSort(a, b));
+    return this.applyLocalFilters(this.payments);
   }
 
   get paginatedPayments(): Payment[] {
-    const start = (this.currentPage - 1) * this.pageSize;
-    const end = start + this.pageSize;
-    return this.filteredPayments.slice(start, end);
+    return this.filteredPayments;
   }
 
   get totalPages(): number {
-    return Math.max(1, Math.ceil(this.filteredPayments.length / this.pageSize));
+    return Math.max(1, this.serverTotalPages);
   }
 
   get pages(): number[] {
@@ -250,6 +225,7 @@ export class Payments implements OnInit, OnDestroy {
   setPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
+    this.loadPayments();
   }
 
   prevPage(): void {
@@ -262,14 +238,17 @@ export class Payments implements OnInit, OnDestroy {
 
   onFiltersChanged(): void {
     this.currentPage = 1;
+    this.schedulePaymentsLoad();
   }
 
   private resetPayment(): Payment {
     return {
       id: 0,
+      userId: '',
       paymentDate: this.today,
       payer: '',
       amount: 0,
+      currency: 'RUB',
       fee: 0,
       status: 'pending',
       statusText: PAYMENT_STATUS_LABELS.pending,
@@ -318,7 +297,7 @@ export class Payments implements OnInit, OnDestroy {
 
     try {
       await this.api.deletePayment(String(deleted.id));
-      this.payments = this.payments.filter((p) => String(p.id) !== String(deleted.id));
+      this.loadPayments();
     } catch (err) {
       this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
     }
@@ -358,9 +337,9 @@ export class Payments implements OnInit, OnDestroy {
     try {
       await this.api.deletePayment(String(this.currentPayment.id));
       this.closeModals();
+      this.loadPayments();
     } catch (err) {
       this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
-    } finally {
       this.loading = false;
     }
   }
@@ -372,8 +351,16 @@ export class Payments implements OnInit, OnDestroy {
     this.router.navigate(['/admin', 'applications'], extras);
   }
 
-  exportToCsv(): void {
-    const csvContent = this.buildCsvContent(this.filteredPayments);
+  async exportToCsv(): Promise<void> {
+    let csvContent: string;
+    try {
+      const payments = await this.api.getAllPayments(this.buildQueryFilters());
+      csvContent = this.buildCsvContent(this.applyLocalFilters(payments));
+    } catch (err) {
+      this.loadError = err instanceof Error ? err.message : 'Не удалось экспортировать платежи';
+      return;
+    }
+
     const blob = new Blob([`\uFEFF${csvContent}`], {
       type: 'text/csv;charset=utf-8',
     });
@@ -399,7 +386,7 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   getMethodLabel(method?: PaymentMethod): string {
-    return method ? PAYMENT_METHOD_LABELS[method] : '—';
+    return method ? (PAYMENT_METHOD_LABELS[method] ?? method) : '—';
   }
 
   getStatusLabel(status: PaymentStatus): string {
@@ -464,6 +451,7 @@ export class Payments implements OnInit, OnDestroy {
 
   clearCurrentColumnFilter(): void {
     if (!this.activeFilterColumn) return;
+    const shouldReload = this.usesServerFilter(this.activeFilterColumn);
     this.columnSelectedValues[this.activeFilterColumn] = [];
     if (this.currentSortColumn === this.activeFilterColumn) {
       this.currentSortColumn = null;
@@ -473,6 +461,9 @@ export class Payments implements OnInit, OnDestroy {
     this.filterSearch = '';
     this.filterSelectedDraft = new Set(this.getUniqueColumnValues(this.activeFilterColumn));
     this.currentPage = 1;
+    if (shouldReload) {
+      this.loadPayments();
+    }
   }
 
   get filterValues(): string[] {
@@ -519,6 +510,7 @@ export class Payments implements OnInit, OnDestroy {
   applyColumnFilter(): void {
     if (!this.activeFilterColumn) return;
     const column = this.activeFilterColumn;
+    const shouldReload = this.usesServerFilter(column);
     const values = this.getUniqueColumnValues(column);
     const selected = values.filter((value) => this.filterSelectedDraft.has(value));
     this.columnSelectedValues[column] = selected.length === values.length ? [] : selected;
@@ -533,6 +525,9 @@ export class Payments implements OnInit, OnDestroy {
 
     this.currentPage = 1;
     this.closeColumnFilter();
+    if (shouldReload) {
+      this.loadPayments();
+    }
   }
 
   cancelColumnFilter(): void {
@@ -557,7 +552,7 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   get statusOptions(): PaymentStatus[] {
-    return Object.keys(PAYMENT_STATUS_LABELS) as PaymentStatus[];
+    return PAYMENT_STATUS_OPTIONS;
   }
 
   get assessmentIdOptions(): string[] {
@@ -609,6 +604,95 @@ export class Payments implements OnInit, OnDestroy {
     }
   }
 
+  private loadPayments(): void {
+    if (this.filterReloadTimer) {
+      clearTimeout(this.filterReloadTimer);
+      this.filterReloadTimer = undefined;
+    }
+
+    this.loadSub?.unsubscribe();
+    this.loading = true;
+    this.loadError = null;
+
+    this.loadSub = this.api.listPayments(this.buildQuery()).subscribe({
+      next: (page) => {
+        this.payments = page.payments;
+        this.totalItems = page.meta?.totalItems ?? page.payments.length;
+        this.serverTotalPages = page.meta?.totalPages ?? 1;
+        this.currentPage = page.meta?.currentPage ?? this.currentPage;
+        this.loading = false;
+      },
+      error: (err) => {
+        this.payments = [];
+        this.totalItems = 0;
+        this.serverTotalPages = 1;
+        this.loadError = err instanceof Error ? err.message : 'Не удалось загрузить данные платежей с сервера';
+        this.loading = false;
+      },
+    });
+  }
+
+  private schedulePaymentsLoad(): void {
+    if (this.filterReloadTimer) {
+      clearTimeout(this.filterReloadTimer);
+    }
+
+    this.filterReloadTimer = setTimeout(() => this.loadPayments(), 250);
+  }
+
+  private buildQuery(): PaymentQuery {
+    return {
+      ...this.buildQueryFilters(),
+      page: this.currentPage,
+      limit: this.pageSize,
+    };
+  }
+
+  private buildQueryFilters(): Partial<Omit<PaymentQuery, 'page' | 'limit'>> {
+    const searchQuery = this.searchTerm.trim();
+
+    return {
+      searchQuery: searchQuery || undefined,
+      statuses: this.resolveStatusFilters(),
+      types: this.resolveTypeFilters(),
+    };
+  }
+
+  private resolveStatusFilters(): RpcPaymentStatus[] {
+    if (this.statusFilter) {
+      return [toRpcPaymentStatus(this.statusFilter)];
+    }
+
+    const selectedLabels = this.columnSelectedValues.status;
+    if (!selectedLabels.length) {
+      return [];
+    }
+
+    return PAYMENT_STATUS_OPTIONS.filter((status) =>
+      selectedLabels.includes(this.getStatusLabel(status)),
+    ).map((status) => toRpcPaymentStatus(status));
+  }
+
+  private resolveTypeFilters(): RpcPaymentType[] {
+    const selectedLabels = this.columnSelectedValues.type;
+    if (!selectedLabels.length) {
+      return [];
+    }
+
+    return PAYMENT_TYPE_OPTIONS.filter((type) => selectedLabels.includes(this.getTypeLabel(type))).map(
+      (type) => toRpcPaymentType(type),
+    );
+  }
+
+  private applyLocalFilters(payments: Payment[]): Payment[] {
+    const filtered = payments.filter((payment) => this.matchesColumnFilters(payment));
+    return [...filtered].sort((a, b) => this.compareByActiveSort(a, b));
+  }
+
+  private usesServerFilter(column: FilterColumn): boolean {
+    return column === 'type' || column === 'status';
+  }
+
   private matchesColumnFilters(payment: Payment): boolean {
     for (const column of this.headerColumns.map((item) => item.key)) {
       const selected = this.columnSelectedValues[column];
@@ -620,6 +704,14 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   private getUniqueColumnValues(column: FilterColumn): string[] {
+    if (column === 'type') {
+      return PAYMENT_TYPE_OPTIONS.map((type) => this.getTypeLabel(type));
+    }
+
+    if (column === 'status') {
+      return PAYMENT_STATUS_OPTIONS.map((status) => this.getStatusLabel(status));
+    }
+
     const values = new Set<string>();
     for (const payment of this.payments) {
       values.add(this.getCellValue(payment, column));
@@ -640,9 +732,18 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   private formatCsvDate(value: string): string {
-    const [year, month, day] = value.split('-');
-    if (!year || !month || !day) return value;
-    return `${day}.${month}.${year}`;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
   }
 
   private buildCsvContent(payments: Payment[]): string {
@@ -651,7 +752,7 @@ export class Payments implements OnInit, OnDestroy {
       this.formatCsvDate(payment.paymentDate),
       payment.payer,
       this.getTypeLabel(payment.type),
-      this.csvNumberFormatter.format(payment.amount),
+      `${this.csvNumberFormatter.format(payment.amount)} ${payment.currency || 'RUB'}`,
       this.csvNumberFormatter.format(payment.fee ?? 0),
       this.getMethodLabel(payment.paymentMethod),
       payment.transactionId || '—',
@@ -677,5 +778,31 @@ export class Payments implements OnInit, OnDestroy {
     return [header, ...rows]
       .map((row) => row.map((value) => this.escapeCsvValue(value)).join(this.csvSeparator))
       .join('\r\n');
+  }
+}
+
+function toRpcPaymentStatus(status: PaymentStatus): RpcPaymentStatus {
+  switch (status) {
+    case 'completed':
+      return RpcPaymentStatus.COMPLETED;
+    case 'failed':
+      return RpcPaymentStatus.FAILED;
+    case 'refunded':
+      return RpcPaymentStatus.REFUNDED;
+    case 'pending':
+    default:
+      return RpcPaymentStatus.PENDING;
+  }
+}
+
+function toRpcPaymentType(type: PaymentType): RpcPaymentType {
+  switch (type) {
+    case 'Subscription':
+      return RpcPaymentType.SUBSCRIPTION;
+    case 'DocumentCopy':
+      return RpcPaymentType.DOCUMENT_COPY;
+    case 'Assessment':
+    default:
+      return RpcPaymentType.ASSESSMENT;
   }
 }
