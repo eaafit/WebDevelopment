@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { buildRpcBaseUrl } from '@notary-portal/ui';
 
 /** DTO тарифного плана (ответ REST `/api/tariff-plans`). */
@@ -17,14 +18,24 @@ export interface TariffPlan {
 }
 
 export interface TariffPlanQueryParams {
-  skip?: number | string;
-  take?: number | string;
+  page?: number | string;
+  limit?: number | string;
   filterName?: string;
   filterStatus?: string;
   filterDateFrom?: string;
   filterDateTo?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  meta: {
+    totalItems: number;
+    totalPages: number;
+    currentPage: number;
+    perPage: number;
+  };
 }
 
 export interface TariffPlanCreatePayload {
@@ -53,7 +64,9 @@ export class TariffPlanService {
         }
       });
     }
-    return this.http.get<TariffPlan[]>(this.apiUrl, { params: httpParams });
+    return this.http
+      .get<PaginatedResponse<TariffPlan>>(this.apiUrl, { params: httpParams })
+      .pipe(map((res) => res.items));
   }
 
   getOne(id: number): Observable<TariffPlan> {

@@ -42,7 +42,7 @@ export class PromoCodesComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     this.promocodeService
-      .getAll({ sortField: 'id', sortDirection: 'desc', take: 500 })
+      .getAll({ sortField: 'id', sortDirection: 'desc', limit: 500 })
       .pipe(
         catchError((err) => {
           this.error.set(err?.message ?? 'Не удалось загрузить промокоды');

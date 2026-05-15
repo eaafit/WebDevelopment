@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { buildRpcBaseUrl } from '@notary-portal/ui';
 
 /** Промокод из таблицы `promocodes` (REST `/api/promocodes`). */
@@ -20,14 +21,24 @@ export interface PromocodeDto {
 }
 
 export interface PromocodeQueryParams {
-  skip?: number | string;
-  take?: number | string;
+  page?: number | string;
+  limit?: number | string;
   filterName?: string;
   filterStatus?: string;
   filterDateFrom?: string;
   filterDateTo?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  meta: {
+    totalItems: number;
+    totalPages: number;
+    currentPage: number;
+    perPage: number;
+  };
 }
 
 export interface PromocodeCreatePayload {
@@ -58,7 +69,9 @@ export class PromocodeService {
         }
       });
     }
-    return this.http.get<PromocodeDto[]>(this.apiUrl, { params: httpParams });
+    return this.http
+      .get<PaginatedResponse<PromocodeDto>>(this.apiUrl, { params: httpParams })
+      .pipe(map((res) => res.items));
   }
 
   create(data: PromocodeCreatePayload): Observable<PromocodeDto> {

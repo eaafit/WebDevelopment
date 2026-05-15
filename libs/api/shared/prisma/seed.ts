@@ -56,6 +56,9 @@ async function main(): Promise<void> {
   await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
+  await upsertTariffPlans();
+  await upsertDiscounts();
+  await upsertPromocodes();
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
@@ -78,6 +81,9 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    tariffPlanCount,
+    discountCount,
+    promocodeCount,
     cityCount,
     districtCount,
   ] = await prisma.$transaction([
@@ -92,6 +98,9 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.tariffPlan.count(),
+    prisma.discount.count(),
+    prisma.promocode.count(),
     prisma.city.count(),
     prisma.district.count(),
   ]);
@@ -110,12 +119,123 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `TariffPlans: ${tariffPlanCount}`,
+      `Discounts: ${discountCount}`,
+      `Promocodes: ${promocodeCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
   );
+}
+
+async function upsertTariffPlans(): Promise<void> {
+  const plans = [
+    {
+      name: 'Базовый',
+      price: 1990,
+      description: 'Базовая поддержка, личный кабинет, ограниченные отчёты',
+      isActive: true,
+    },
+    {
+      name: 'Премиум',
+      price: 4990,
+      description: 'Приоритетная поддержка, расширенная аналитика, экспорт данных',
+      isActive: true,
+    },
+    {
+      name: 'Корпоративный',
+      price: 14990,
+      description: 'SLA, интеграции, роли и доступы',
+      isActive: true,
+    },
+  ];
+  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
+  const baseTo = new Date('2026-12-31T23:59:59.000Z');
+  for (let i = 0; i < plans.length; i++) {
+    await prisma.tariffPlan.upsert({
+      where: { id: i + 1 },
+      update: { ...plans[i], validFrom: baseFrom, validTo: baseTo },
+      create: { id: i + 1, ...plans[i], validFrom: baseFrom, validTo: baseTo },
+    });
+  }
+}
+
+async function upsertDiscounts(): Promise<void> {
+  const discounts = [
+    {
+      name: 'Новая клиентская скидка',
+      percentage: 10,
+      description: 'Скидка для новых клиентов',
+      isActive: true,
+      minOrderAmount: null,
+      maxDiscountAmount: null,
+    },
+    {
+      name: 'Сезонная скидка',
+      percentage: 15,
+      description: 'Сезонная акция',
+      isActive: true,
+      minOrderAmount: 3000,
+      maxDiscountAmount: 2000,
+    },
+    {
+      name: 'Постоянный клиент',
+      percentage: 20,
+      description: 'Скидка для постоянных клиентов',
+      isActive: true,
+      minOrderAmount: 5000,
+      maxDiscountAmount: 5000,
+    },
+  ];
+  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
+  const baseTo = new Date('2026-12-31T23:59:59.000Z');
+  for (let i = 0; i < discounts.length; i++) {
+    await prisma.discount.upsert({
+      where: { id: i + 1 },
+      update: { ...discounts[i], validFrom: baseFrom, validTo: baseTo },
+      create: { id: i + 1, ...discounts[i], validFrom: baseFrom, validTo: baseTo },
+    });
+  }
+}
+
+async function upsertPromocodes(): Promise<void> {
+  const codes = [
+    {
+      code: 'WELCOME10',
+      discountType: 'percentage',
+      discountValue: 10,
+      description: 'Приветственный промокод',
+      isActive: true,
+      maxUses: 500,
+    },
+    {
+      code: 'SPRING25',
+      discountType: 'percentage',
+      discountValue: 25,
+      description: 'Весенняя акция',
+      isActive: true,
+      maxUses: 200,
+    },
+    {
+      code: 'FIXED500',
+      discountType: 'fixed',
+      discountValue: 500,
+      description: 'Фиксированная скидка 500₽',
+      isActive: true,
+      maxUses: 100,
+    },
+  ];
+  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
+  const baseTo = new Date('2026-12-31T23:59:59.000Z');
+  for (let i = 0; i < codes.length; i++) {
+    await prisma.promocode.upsert({
+      where: { id: i + 1 },
+      update: { ...codes[i], validFrom: baseFrom, validTo: baseTo },
+      create: { id: i + 1, ...codes[i], usedCount: 0, validFrom: baseFrom, validTo: baseTo },
+    });
+  }
 }
 
 async function upsertUsers(count: number, passwordHash: string): Promise<string[]> {

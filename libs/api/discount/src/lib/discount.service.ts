@@ -23,8 +23,33 @@ export class DiscountService {
     });
   }
 
-  async findAll(params: { skip?: number; take?: number; where?: any; orderBy?: any }) {
-    return this.prisma.discount.findMany(params);
+  async findAll(params: { page?: number; limit?: number; where?: any; orderBy?: any }): Promise<{
+    items: any[];
+    meta: { totalItems: number; totalPages: number; currentPage: number; perPage: number };
+  }> {
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await Promise.all([
+      this.prisma.discount.findMany({
+        where: params.where,
+        orderBy: params.orderBy,
+        skip,
+        take: limit,
+      }),
+      this.prisma.discount.count({ where: params.where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        perPage: limit,
+      },
+    };
   }
 
   async findOne(id: number) {

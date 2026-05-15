@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { buildRpcBaseUrl } from '@notary-portal/ui';
 
 /** DTO скидки (REST `/api/discounts`). */
@@ -19,14 +20,24 @@ export interface Discount {
 }
 
 export interface DiscountQueryParams {
-  skip?: number | string;
-  take?: number | string;
+  page?: number | string;
+  limit?: number | string;
   filterName?: string;
   filterStatus?: string;
   filterDateFrom?: string;
   filterDateTo?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  meta: {
+    totalItems: number;
+    totalPages: number;
+    currentPage: number;
+    perPage: number;
+  };
 }
 
 export interface DiscountCreatePayload {
@@ -57,7 +68,9 @@ export class DiscountService {
         }
       });
     }
-    return this.http.get<Discount[]>(this.apiUrl, { params: httpParams });
+    return this.http
+      .get<PaginatedResponse<Discount>>(this.apiUrl, { params: httpParams })
+      .pipe(map((res) => res.items));
   }
 
   getOne(id: number): Observable<Discount> {

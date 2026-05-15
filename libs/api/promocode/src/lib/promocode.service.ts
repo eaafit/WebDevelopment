@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
-import type { Prisma } from '@internal/prisma-client';
+import { Prisma } from '@internal/prisma-client';
 import { CreatePromocodeDto } from './dto/create-promocode.dto';
 import { UpdatePromocodeDto } from './dto/update-promocode.dto';
 
@@ -9,23 +9,55 @@ export class PromocodeService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreatePromocodeDto) {
-    return this.prisma.promocode.create({
-      data: {
-        code: dto.code,
-        discountType: dto.discountType,
-        discountValue: dto.discountValue,
-        description: dto.description,
-        isActive: dto.isActive,
-        validFrom: new Date(dto.validFrom),
-        validTo: new Date(dto.validTo),
-        maxUses: dto.maxUses,
-        usedCount: 0,
-      },
-    });
+    try {
+      return await this.prisma.promocode.create({
+        data: {
+          code: dto.code,
+          discountType: dto.discountType,
+          discountValue: dto.discountValue,
+          description: dto.description,
+          isActive: dto.isActive,
+          validFrom: new Date(dto.validFrom),
+          validTo: new Date(dto.validTo),
+          maxUses: dto.maxUses,
+          usedCount: 0,
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Промокод с таким кодом уже существует');
+      }
+      throw e;
+    }
   }
 
-  async findAll(params: { skip?: number; take?: number; where?: any; orderBy?: any }) {
-    return this.prisma.promocode.findMany(params);
+  async findAll(params: { page?: number; limit?: number; where?: any; orderBy?: any }): Promise<{
+    items: any[];
+    meta: { totalItems: number; totalPages: number; currentPage: number; perPage: number };
+  }> {
+    const page = params.page ?? 1;
+    const limit = params.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const [items, totalItems] = await Promise.all([
+      this.prisma.promocode.findMany({
+        where: params.where,
+        orderBy: params.orderBy,
+        skip,
+        take: limit,
+      }),
+      this.prisma.promocode.count({ where: params.where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        currentPage: page,
+        perPage: limit,
+      },
+    };
   }
 
   async findOne(id: number) {

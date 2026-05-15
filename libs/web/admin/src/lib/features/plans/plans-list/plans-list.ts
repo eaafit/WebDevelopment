@@ -62,7 +62,7 @@ export class PlansListComponent {
   loadTariffPlans(): void {
     this.error.set(null);
     this.tariffPlanService
-      .getAll({ sortField: 'id', sortDirection: 'desc', take: 100 })
+      .getAll({ sortField: 'id', sortDirection: 'desc', limit: 100 })
       .pipe(
         catchError((err) => {
           this.error.set(err?.message ?? 'Не удалось загрузить тарифные планы');

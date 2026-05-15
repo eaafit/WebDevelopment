@@ -44,7 +44,7 @@ export class SaleComponent implements OnInit {
   loadDiscounts(): void {
     this.error.set(null);
     this.discountService
-      .getAll({ sortField: 'id', sortDirection: 'desc', take: 200 })
+      .getAll({ sortField: 'id', sortDirection: 'desc', limit: 200 })
       .pipe(
         catchError((err) => {
           this.error.set(err?.message ?? 'Не удалось загрузить скидки');

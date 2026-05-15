@@ -14,8 +14,8 @@ export class PromocodeController {
 
   @Get()
   findAll(
-    @Query('skip') skip?: string,
-    @Query('take') take?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('filterName') filterName?: string,
     @Query('filterStatus') filterStatus?: string,
     @Query('filterDateFrom') filterDateFrom?: string,
@@ -31,8 +31,8 @@ export class PromocodeController {
     if (filterDateTo) where.validTo = { lte: new Date(filterDateTo) };
     const orderBy = sortField ? { [sortField]: sortDirection || 'asc' } : undefined;
     return this.service.findAll({
-      skip: skip ? parseInt(skip, 10) : undefined,
-      take: take ? parseInt(take, 10) : undefined,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
       where,
       orderBy,
     });

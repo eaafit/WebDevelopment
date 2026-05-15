@@ -47,7 +47,7 @@ async function bootstrap() {
           : (requestOrigin: string | undefined, cb) => {
               cb(null, requestOrigin ? requestOrigin : true);
             },
-      methods: [...connectCors.allowedMethods],
+      methods: [...connectCors.allowedMethods, 'PUT', 'DELETE', 'PATCH'],
       allowedHeaders: [...connectCors.allowedHeaders, 'Authorization'],
       exposedHeaders: [...connectCors.exposedHeaders],
     }),
