@@ -22,6 +22,40 @@ export interface Payment {
   description?: string;
 }
 
+export const MOCK_PAYMENTS: Payment[] = [
+  {
+    id: 'payment-1',
+    userId: 'user-1',
+    paymentDate: '2026-03-06T08:45:00.000Z',
+    payer: 'user-1',
+    amount: 12500,
+    currency: 'RUB',
+    fee: 0,
+    status: 'completed',
+    statusText: 'Завершен',
+    type: 'Assessment',
+    assessmentId: 'assessment-1',
+    paymentMethod: 'bank_card',
+    transactionId: 'txn_abc123',
+    attachmentFileName: 'check_1001.pdf',
+    attachmentFileUrl: '/receipts/check_1001.pdf',
+  },
+  {
+    id: 'payment-2',
+    userId: 'user-2',
+    paymentDate: '2026-03-05T10:15:00.000Z',
+    payer: 'user-2',
+    amount: 5400.5,
+    currency: 'RUB',
+    fee: 0,
+    status: 'pending',
+    statusText: 'В обработке',
+    type: 'Subscription',
+    subscriptionId: 'sub_xyz789',
+    paymentMethod: 'invoice',
+  },
+];
+
 export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   Subscription: 'Подписка',
   Assessment: 'Оценка',
