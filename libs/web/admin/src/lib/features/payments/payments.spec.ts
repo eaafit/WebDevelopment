@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { Payment } from './payments.shared';
 import { Payments } from './payments';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
 
 describe('Payments', () => {
   let component: Payments;
@@ -65,6 +66,10 @@ describe('Payments', () => {
       imports: [Payments],
       providers: [
         provideRouter([]),
+        {
+          provide: RPC_TRANSPORT,
+          useValue: {},
+        },
         {
           provide: AdminPaymentsApiService,
           useValue: {
