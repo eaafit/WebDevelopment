@@ -1,101 +1,277 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
-import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
-import { Payment } from './payments.shared';
+import { provideRouter, Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { WebLoggerService, TokenStore } from '@notary-portal/ui';
+import { AdminPaymentsApiService } from './payments-api.service';
+import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
+
+function createMockProviders(
+  payments$: BehaviorSubject<Payment[] | null>,
+  loggerMock: Record<string, jest.Mock>,
+  deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
+) {
+  return [
+    provideRouter([]),
+    {
+      provide: Router,
+      useValue: { navigate: jest.fn().mockResolvedValue(true) },
+    },
+    {
+      provide: TokenStore,
+      useValue: { getAccessToken: jest.fn(() => 'test-token') },
+    },
+    {
+      provide: AdminPaymentsApiService,
+      useValue: {
+        preload: () => {
+          payments$.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
+        },
+        payments$: payments$.asObservable(),
+        getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
+        deletePayment: deletePaymentMock,
+      },
+    },
+    {
+      provide: WebLoggerService,
+      useValue: loggerMock,
+    },
+  ];
+}
 
 describe('Payments', () => {
   let component: Payments;
   let fixture: ComponentFixture<Payments>;
-  let listPayments: jest.Mock;
-  let getAllPayments: jest.Mock;
-
-  const paymentsFixture: Payment[] = [
-    {
-      id: 'payment-1',
-      userId: 'user-1',
-      paymentDate: '2026-03-06T08:45:00.000Z',
-      payer: 'user-1',
-      amount: 12500,
-      currency: 'RUB',
-      fee: 0,
-      status: 'completed',
-      statusText: 'Завершен',
-      type: 'Assessment',
-      assessmentId: 'assessment-1',
-      paymentMethod: 'bank_card',
-      transactionId: 'txn_abc123',
-      attachmentFileName: 'check_1001.pdf',
-      attachmentFileUrl: '/receipts/check_1001.pdf',
-    },
-    {
-      id: 'payment-2',
-      userId: 'user-2',
-      paymentDate: '2026-03-05T10:15:00.000Z',
-      payer: 'user-2',
-      amount: 5400.5,
-      currency: 'RUB',
-      fee: 0,
-      status: 'pending',
-      statusText: 'В обработке',
-      type: 'Subscription',
-      subscriptionId: 'sub_xyz789',
-      paymentMethod: 'invoice',
-    },
-  ];
+  let logger: {
+    info: jest.Mock;
+    warn: jest.Mock;
+    error: jest.Mock;
+  };
+  let paymentsSubject: BehaviorSubject<Payment[] | null>;
 
   beforeEach(async () => {
-    listPayments = jest.fn().mockReturnValue(
-      of({
-        payments: paymentsFixture.map((payment) => ({ ...payment })),
-        meta: {
-          totalItems: paymentsFixture.length,
-          totalPages: 1,
-          currentPage: 1,
-          perPage: 7,
-        },
-      }),
-    );
-    getAllPayments = jest
-      .fn()
-      .mockResolvedValue(paymentsFixture.map((payment) => ({ ...payment })));
+    logger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
+    const globalRecord = globalThis as unknown as Record<string, unknown>;
+    const existingUrl = globalRecord['URL'] as Record<string, unknown> | undefined;
+    globalRecord['URL'] = {
+      ...(existingUrl ?? {}),
+      createObjectURL: jest.fn(() => 'blob:http://localhost/fake-url'),
+      revokeObjectURL: jest.fn(),
+    };
 
     await TestBed.configureTestingModule({
       imports: [Payments],
-      providers: [
-        provideRouter([]),
-        {
-          provide: AdminPaymentsApiService,
-          useValue: {
-            listPayments,
-            getAllPayments,
-            deletePayment: jest.fn().mockResolvedValue(true),
-          },
-        },
-      ],
+      providers: createMockProviders(paymentsSubject, logger),
     }).compileComponents();
 
     fixture = TestBed.createComponent(Payments);
     component = fixture.componentInstance;
     fixture.detectChanges();
-    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    paymentsSubject.complete();
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should load payments from API with server pagination', () => {
-    expect(listPayments).toHaveBeenCalledWith({
-      page: 1,
-      limit: 7,
-      searchQuery: undefined,
-      statuses: [],
-      types: [],
-    });
-    expect(component.payments).toHaveLength(2);
-    expect(component.totalPages).toBe(1);
+  it('should log list init and loaded when payments arrive', () => {
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.list_init_started',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.list_loaded',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        total: MOCK_PAYMENTS.length,
+      }),
+    );
+  });
+
+  it('should log error when payments stream fails', async () => {
+    const failLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    const failSubject = new BehaviorSubject<Payment[] | null>(null);
+
+    TestBed.resetTestingModule();
+
+    await TestBed.configureTestingModule({
+      imports: [Payments],
+      providers: createMockProviders(failSubject, failLogger),
+    }).compileComponents();
+
+    const failFixture = TestBed.createComponent(Payments);
+    const failComponent = failFixture.componentInstance;
+    failFixture.detectChanges();
+
+    failSubject.error(new Error('Network failure'));
+
+    expect(failLogger.error).toHaveBeenCalledWith(
+      'payment.admin.list_load_failed',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        error: expect.any(Error),
+      }),
+    );
+    expect(failComponent.loadError).toBeTruthy();
+    failSubject.complete();
+  });
+
+  it('should log list destroyed on ngOnDestroy', () => {
+    component.ngOnDestroy();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.list_destroyed',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should log receipt open blocked when no token', async () => {
+    const tokenStore = TestBed.inject(TokenStore);
+    (tokenStore.getAccessToken as jest.Mock).mockReturnValue(null);
+
+    await component.openReceipt(1001);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.admin.receipt_open_blocked_no_token',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: '1001',
+      }),
+    );
+  });
+
+  it('should log receipt download blocked when no token', async () => {
+    const tokenStore = TestBed.inject(TokenStore);
+    (tokenStore.getAccessToken as jest.Mock).mockReturnValue(null);
+
+    await component.downloadReceipt(1001);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.admin.receipt_download_blocked_no_token',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: '1001',
+      }),
+    );
+  });
+
+  it('should log delete modal opened and delete requested on confirm', async () => {
+    const payment = MOCK_PAYMENTS[0];
+
+    component.openDeleteModal(payment);
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.delete_modal_opened',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+      }),
+    );
+
+    await component.onDeleteConfirmed();
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.delete_requested',
+      expect.objectContaining({ paymentId: String(payment.id) }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.delete_succeeded',
+      expect.objectContaining({ paymentId: String(payment.id) }),
+    );
+  });
+
+  it('should log delete failed when api rejects', async () => {
+    const api = TestBed.inject(AdminPaymentsApiService);
+    (api.deletePayment as jest.Mock).mockRejectedValue(new Error('RPC error'));
+
+    const payment = MOCK_PAYMENTS[0];
+    component.openDeleteModal(payment);
+    await component.onDeleteConfirmed();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'payment.admin.delete_failed',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+        error: expect.any(Error),
+      }),
+    );
+  });
+
+  it('should log delete cancelled', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openDeleteModal(payment);
+    component.onDeleteCancelled();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.delete_cancelled',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should log edit open requested', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openEditModal(payment);
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.edit_open_requested',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+      }),
+    );
+  });
+
+  it('should log view opened', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openViewModal(payment);
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.view_opened',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+      }),
+    );
+  });
+
+  it('should log create form opened', () => {
+    component.goToCreateForm();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.create_form_opened',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should log export csv started and succeeded', () => {
+    component.exportToCsv();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.export_csv_started',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        rows: component.filteredPayments.length,
+      }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.export_csv_succeeded',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        rows: component.filteredPayments.length,
+      }),
+    );
   });
 
   it('should build csv content for filtered payments', () => {

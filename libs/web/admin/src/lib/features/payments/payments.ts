@@ -3,8 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { inject } from '@angular/core';
-import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
-import { buildRpcBaseUrl, TokenStore } from '@notary-portal/ui';
+import { buildRpcBaseUrl, TokenStore, WebLoggerService } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
 import {
   PAYMENT_METHOD_LABELS,
@@ -116,38 +115,64 @@ export class Payments implements OnInit, OnDestroy {
   private router = inject(Router);
   private readonly api = inject(AdminPaymentsApiService);
   private readonly tokenStore = inject(TokenStore);
-  private loadSub?: Subscription;
-  private filterReloadTimer?: ReturnType<typeof setTimeout>;
+  private readonly logger = inject(WebLoggerService);
+  private dataSub?: Subscription;
 
   async openReceipt(paymentId: string | number): Promise<void> {
+    this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
     const token = this.tokenStore.getAccessToken();
-    if (!token) return;
+    if (!token) {
+      this.logWarn('payment.admin.receipt_open_blocked_no_token', { paymentId: String(paymentId) });
+      return;
+    }
 
     try {
       const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        this.logWarn('payment.admin.receipt_open_rejected', {
+          paymentId: String(paymentId),
+          status: response.status,
+        });
+        return;
+      }
 
       const blob = await response.blob();
       const htmlBlob = blob.type === 'application/octet-stream' ? new Blob([blob], { type: 'text/html' }) : blob;
       const objectUrl = URL.createObjectURL(htmlBlob);
       window.open(objectUrl, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    } catch {
-      // ignore
+      this.logInfo('payment.admin.receipt_open_succeeded', { paymentId: String(paymentId) });
+    } catch (error) {
+      this.logError('payment.admin.receipt_open_failed', error, { paymentId: String(paymentId) });
     }
   }
 
   async downloadReceipt(paymentId: string | number, fileName?: string): Promise<void> {
+    this.logInfo('payment.admin.receipt_download_requested', {
+      paymentId: String(paymentId),
+      fileName: fileName ?? null,
+    });
     const token = this.tokenStore.getAccessToken();
-    if (!token) return;
+    if (!token) {
+      this.logWarn('payment.admin.receipt_download_blocked_no_token', {
+        paymentId: String(paymentId),
+      });
+      return;
+    }
 
     try {
       const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        this.logWarn('payment.admin.receipt_download_rejected', {
+          paymentId: String(paymentId),
+          status: response.status,
+        });
+        return;
+      }
 
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -158,20 +183,41 @@ export class Payments implements OnInit, OnDestroy {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    } catch {
-      // ignore
+      this.logInfo('payment.admin.receipt_download_succeeded', {
+        paymentId: String(paymentId),
+      });
+    } catch (error) {
+      this.logError('payment.admin.receipt_download_failed', error, {
+        paymentId: String(paymentId),
+      });
     }
   }
 
   ngOnInit(): void {
-    this.loadPayments();
+    this.logInfo('payment.admin.list_init_started');
+    this.loading = true;
+    this.loadError = null;
+    this.api.preload();
+    this.dataSub = this.api.payments$.subscribe({
+      next: (data) => {
+        if (data !== null) {
+          this.payments = data;
+          this.loading = false;
+          this.logInfo('payment.admin.list_loaded', { total: data.length });
+        }
+      },
+      error: (err) => {
+        this.logError('payment.admin.list_load_failed', err);
+        this.payments = [];
+        this.loadError = 'Не удалось загрузить данные платежей с сервера';
+        this.loading = false;
+      },
+    });
   }
 
   ngOnDestroy(): void {
-    this.loadSub?.unsubscribe();
-    if (this.filterReloadTimer) {
-      clearTimeout(this.filterReloadTimer);
-    }
+    this.logInfo('payment.admin.list_destroyed');
+    this.dataSub?.unsubscribe();
   }
 
   get filteredPayments(): Payment[] {
@@ -264,6 +310,9 @@ export class Payments implements OnInit, OnDestroy {
     this.currentPayment.id = this.getNextLocalId();
     this.fee = 0;
     this.isCreateEditModalOpen = true;
+    this.logInfo('payment.admin.create_modal_opened', {
+      draftPaymentId: String(this.currentPayment.id),
+    });
   }
 
   private getNextLocalId(): number {
@@ -275,6 +324,7 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   openEditModal(payment: Payment): void {
+    this.logInfo('payment.admin.edit_open_requested', { paymentId: String(payment.id) });
     this.router.navigate(['/admin', 'payments', payment.id, 'edit']);
   }
 
@@ -282,29 +332,38 @@ export class Payments implements OnInit, OnDestroy {
     this.closeModals();
     this.currentPayment = { ...payment };
     this.isViewModalOpen = true;
+    this.logInfo('payment.admin.view_opened', { paymentId: String(payment.id) });
   }
 
   openDeleteModal(payment: Payment): void {
     this.closeModals();
     this.paymentToDelete = { ...payment };
+    this.logInfo('payment.admin.delete_modal_opened', { paymentId: String(payment.id) });
   }
 
   async onDeleteConfirmed(): Promise<void> {
-    if (!this.paymentToDelete) return;
+    if (!this.paymentToDelete) {
+      this.logWarn('payment.admin.delete_confirmed_without_target');
+      return;
+    }
 
     const deleted = this.paymentToDelete;
     this.paymentToDelete = null;
+    this.logInfo('payment.admin.delete_requested', { paymentId: String(deleted.id) });
 
     try {
       await this.api.deletePayment(String(deleted.id));
-      this.loadPayments();
+      this.payments = this.payments.filter((p) => String(p.id) !== String(deleted.id));
+      this.logInfo('payment.admin.delete_succeeded', { paymentId: String(deleted.id) });
     } catch (err) {
+      this.logError('payment.admin.delete_failed', err, { paymentId: String(deleted.id) });
       this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
     }
   }
 
   onDeleteCancelled(): void {
     this.paymentToDelete = null;
+    this.logInfo('payment.admin.delete_cancelled');
   }
 
   closeModals(): void {
@@ -326,19 +385,30 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   savePayment(): void {
+    this.logInfo('payment.admin.save_redirect_to_form', {
+      paymentId: String(this.currentPayment.id),
+    });
     this.closeModals();
     this.router.navigate(['/admin', 'payments', this.currentPayment.id, 'edit']);
   }
 
   async deletePayment(): Promise<void> {
+    this.logInfo('payment.admin.delete_from_view_requested', {
+      paymentId: String(this.currentPayment.id),
+    });
     this.loading = true;
     this.loadError = null;
 
     try {
       await this.api.deletePayment(String(this.currentPayment.id));
       this.closeModals();
-      this.loadPayments();
+      this.logInfo('payment.admin.delete_from_view_succeeded', {
+        paymentId: String(this.currentPayment.id),
+      });
     } catch (err) {
+      this.logError('payment.admin.delete_from_view_failed', err, {
+        paymentId: String(this.currentPayment.id),
+      });
       this.loadError = err instanceof Error ? err.message : 'Ошибка при удалении платежа';
       this.loading = false;
     }
@@ -348,19 +418,19 @@ export class Payments implements OnInit, OnDestroy {
     const extras = payment?.assessmentId
       ? { queryParams: { assessmentId: payment.assessmentId } }
       : undefined;
+    this.logInfo('payment.admin.navigate_applications', {
+      paymentId: payment ? String(payment.id) : null,
+      assessmentId: payment?.assessmentId ?? null,
+    });
     this.router.navigate(['/admin', 'applications'], extras);
   }
 
-  async exportToCsv(): Promise<void> {
-    let csvContent: string;
-    try {
-      const payments = await this.api.getAllPayments(this.buildQueryFilters());
-      csvContent = this.buildCsvContent(this.applyLocalFilters(payments));
-    } catch (err) {
-      this.loadError = err instanceof Error ? err.message : 'Не удалось экспортировать платежи';
-      return;
-    }
-
+  exportToCsv(): void {
+    this.logInfo('payment.admin.export_csv_started', {
+      rows: this.filteredPayments.length,
+      page: this.currentPage,
+    });
+    const csvContent = this.buildCsvContent(this.filteredPayments);
     const blob = new Blob([`\uFEFF${csvContent}`], {
       type: 'text/csv;charset=utf-8',
     });
@@ -373,9 +443,13 @@ export class Payments implements OnInit, OnDestroy {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    this.logInfo('payment.admin.export_csv_succeeded', {
+      rows: this.filteredPayments.length,
+    });
   }
 
   goToApplication(assessmentId: string): void {
+    this.logInfo('payment.admin.navigate_application', { assessmentId });
     this.router.navigate(['/admin', 'applications'], {
       queryParams: { assessmentId },
     });
@@ -568,7 +642,32 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   goToCreateForm(): void {
+    this.logInfo('payment.admin.create_form_opened');
     this.router.navigate(['/admin', 'payments', 'new']);
+  }
+
+  private logInfo(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.info(event, this.buildLogContext(context));
+  }
+
+  private logWarn(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.warn(event, this.buildLogContext(context));
+  }
+
+  private logError(event: string, error: unknown, context: Record<string, unknown> = {}): void {
+    this.logger.error(event, this.buildLogContext({ ...context, error }));
+  }
+
+  private buildLogContext(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      area: 'admin_payments_list',
+      route: '/admin/payments',
+      totalPayments: this.payments.length,
+      filteredPayments: this.filteredPayments.length,
+      currentPage: this.currentPage,
+      pageSize: this.pageSize,
+      ...extra,
+    };
   }
 
   getCellValue(payment: Payment, column: FilterColumn): string {
