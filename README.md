@@ -22,7 +22,7 @@
 
 ### Запуск проекта
 
-- `docker-compose up` - запустить PostgreSQL
+- `docker-compose up` - запустить PostgreSQL, MinIO, Prometheus, Loki, Promtail и Grafana
 - `pnpm nx prune` - очистка nx
 - `docker system prune` - Глубокая чистка и освободить максимум места
 - `docker container prune` - Удаляет только остановленные контейнеры
@@ -53,6 +53,20 @@
 | **`ENOSPC` / no space left on device** при сборке | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`. |
 | **`i/o timeout`** у `docker compose` | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
 | **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`. |
+
+---
+
+### Логи в Grafana
+
+Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki** и **Promtail** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступен datasource **Loki** и дашборд **Container logs**.
+
+Для API, запущенного в Docker, структурированные JSON-логи фильтруются по `app`, `environment`, `level` и `requestId`. В Explore можно использовать запрос:
+
+```logql
+{job="docker", app="api"} | json | requestId="<id запроса>"
+```
+
+Если API запущен локально через `pnpm nx serve api`, его stdout не читается Promtail; для логов в Grafana запускайте API как контейнер, например через [`apps/web/docker-compose.portal.yml`](apps/web/docker-compose.portal.yml).
 
 ---
 
@@ -100,4 +114,3 @@
 - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
 - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
 - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
-
