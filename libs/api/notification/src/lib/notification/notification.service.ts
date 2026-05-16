@@ -12,8 +12,11 @@ import {
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
   NotificationStatus,
+  NotificationStatus as RpcNotificationStatus,
   NotificationType,
+  NotificationType as RpcNotificationType,
   UpdateNotificationSettingsResponseSchema,
+  type Notification as RpcNotification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type GetNotificationSettingsRequest,
@@ -84,8 +87,8 @@ export class NotificationService {
     await this.notificationRepository.createNotification({
       userId: params.userId,
       message: params.message,
-      type: toPrismaType(params.type),
-      status: toPrismaStatus(params.status),
+      type: params.type,
+      status: params.status,
     });
   }
 
@@ -190,6 +193,14 @@ function validateUuid(value: string | undefined, fieldName: string): void {
   if (!value || !UUID_PATTERN.test(value)) {
     throw new ConnectError(`${fieldName} must be a valid UUID`, Code.InvalidArgument);
   }
+}
+
+function normalizeMessage(message: string): string {
+  const normalized = message.trim();
+  if (!normalized) {
+    throw new ConnectError('message is required', Code.InvalidArgument);
+  }
+  return normalized;
 }
 
 function toPrismaType(type: NotificationType | undefined): PrismaNotificationType | undefined {
