@@ -1,0 +1,89 @@
+<div class="assessment-container">
+  <div class="page-header">
+    <h1>Заказы на оценку</h1>
+    <p class="subtitle">Список заявок от заявителей</p>
+  </div>
+
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" placeholder="Поиск по адресу..." />
+  </div>
+
+  <div class="filters-section">
+    <button class="filter-chip active">Все</button>
+    <button class="filter-chip">Новая</button>
+    <button class="filter-chip">В работе</button>
+    <button class="filter-chip">Принято</button>
+    <button class="filter-chip">Отклонено</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Адрес</th>
+          <th>Тип объекта</th>
+          <th>Площадь</th>
+          <th>Заявитель</th>
+          <th>Статус</th>
+          <th>Дата подачи</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="address-cell">
+            <strong>г. Москва, ул. Тверская, 15-45</strong>
+            <span class="address-hint">3-комнатная, 5 этаж</span>
+          </td>
+          <td>Квартира</td>
+          <td>68.5 м²</td>
+          <td>Иванов И.И.</td>
+          <td><span class="status-badge status-new">Новая</span></td>
+          <td>15.03.2024</td>
+          <td><button class="action-btn view" title="Просмотр">👁</button></td>
+        </tr>
+        <tr>
+          <td class="address-cell">
+            <strong>г. Екатеринбург, ул. Ленина, 10</strong>
+            <span class="address-hint">5-комнатный дом, 1 этаж</span>
+          </td>
+          <td>Дом</td>
+          <td>220.0 м²</td>
+          <td>Петров П.П.</td>
+          <td><span class="status-badge status-progress">В работе</span></td>
+          <td>10.03.2024</td>
+          <td><button class="action-btn view" title="Просмотр">👁</button></td>
+        </tr>
+        <tr>
+          <td class="address-cell">
+            <strong>г. Санкт-Петербург, Невский пр., 100</strong>
+            <span class="address-hint">коммерческое помещение</span>
+          </td>
+          <td>Коммерческая</td>
+          <td>150.0 м²</td>
+          <td>Сидоров С.С.</td>
+          <td><span class="status-badge status-success">Принято</span></td>
+          <td>01.03.2024</td>
+          <td><button class="action-btn view" title="Просмотр">👁</button></td>
+        </tr>
+        <tr>
+          <td class="address-cell">
+            <strong>г. Новосибирск, Красный пр., 50</strong>
+            <span class="address-hint">2-комнатная, 3 этаж</span>
+          </td>
+          <td>Квартира</td>
+          <td>45.2 м²</td>
+          <td>Кузнецова А.В.</td>
+          <td><span class="status-badge status-rejected">Отклонено</span></td>
+          <td>28.02.2024</td>
+          <td><button class="action-btn view" title="Просмотр">👁</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-footer">
+    <span>Показано 4 из 4 заказов</span>
+  </div>
+</div>
