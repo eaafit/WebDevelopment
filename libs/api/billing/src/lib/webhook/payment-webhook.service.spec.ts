@@ -186,7 +186,9 @@ describe('PaymentWebhookService', () => {
     expect(storeGeneratedReceipt).toHaveBeenCalledWith(
       'payment-1',
       expect.objectContaining({
-        id: 'yk-payment-1',
+        capturedAt: '2026-03-06T08:45:00.000Z',
+        paymentMethodType: 'bank_card',
+        paymentMethodTitle: 'Bank card *4477',
         receiptRegistration: 'succeeded',
       }),
     );
@@ -666,9 +668,16 @@ describe('PaymentWebhookService', () => {
       data: {
         status: PaymentStatus.Completed,
         paymentMethod: 'robokassa_redirect',
-        receiptStatus: PaymentReceiptStatus.Available,
       },
     });
+    expect(storeGeneratedReceipt).toHaveBeenCalledWith(
+      'payment-1',
+      expect.objectContaining({
+        paymentMethodType: 'robokassa_redirect',
+        paymentMethodTitle: 'Robokassa',
+        receiptRegistration: 'succeeded',
+      }),
+    );
     expect(response).toBe('OKpayment-1');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({

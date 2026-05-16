@@ -18,6 +18,10 @@ import { PaymentAttachmentService } from '../payment-attachment/payment-attachme
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
 import { RobokassaClient } from '../robokassa/robokassa.client';
+import {
+  toProviderPaymentDetails,
+  toRobokassaProviderPaymentDetails,
+} from '../payment-receipt/payment-receipt.renderer';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -201,7 +205,6 @@ export class PaymentWebhookService {
         data: {
           status: PrismaPaymentStatus.Completed,
           paymentMethod: payment.paymentMethod ?? 'robokassa_redirect',
-          receiptStatus: PrismaPaymentReceiptStatus.Available,
         },
       });
 
@@ -250,6 +253,26 @@ export class PaymentWebhookService {
       'Статус обновлён по Robokassa callback',
     );
 
+    const shouldStoreReceipt =
+      payment.receiptStatus !== PrismaPaymentReceiptStatus.Available ||
+      !payment.attachmentFileUrl;
+
+    if (shouldStoreReceipt) {
+      try {
+        await this.paymentAttachmentService.storeGeneratedReceipt(
+          payment.id,
+          toRobokassaProviderPaymentDetails(normalizedOutSum, payload.invoiceId),
+        );
+        this.logger.log(`Stored receipt copy for payment ${payment.id}; provider=Robokassa`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to store receipt copy for payment ${payment.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.paymentAttachmentService.markReceiptFailed(payment.id);
+      }
+    }
+
     return `OK${payload.invoiceId}`;
   }
 
@@ -297,7 +320,10 @@ export class PaymentWebhookService {
 
     if (shouldStoreReceipt) {
       try {
-        await this.paymentAttachmentService.storeGeneratedReceipt(payment.id, providerPayment);
+        await this.paymentAttachmentService.storeGeneratedReceipt(
+          payment.id,
+          toProviderPaymentDetails(providerPayment),
+        );
         this.logger.log(
           `Stored receipt copy for payment ${payment.id}; YooKassa receipt status=${providerPayment.receiptRegistration ?? 'unknown'}`,
         );

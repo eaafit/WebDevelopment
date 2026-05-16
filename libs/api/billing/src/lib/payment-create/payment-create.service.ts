@@ -83,7 +83,7 @@ export class PaymentCreateService {
     const prismaType = this.toPrismaType(request.type);
     const metricContext = resolveBillingPaymentMetricContext(prismaType);
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const provider = resolvePaymentProvider();
+    const provider = resolvePaymentProvider(request.paymentProvider);
 
     this.assertReturnUrlConfigured();
     if (provider === 'yookassa') {
@@ -644,7 +644,12 @@ function getPaymentReturnUrlBase(): string {
   return (process.env['PAYMENT_RETURN_URL_BASE'] ?? process.env['FRONTEND_URL'] ?? '').trim();
 }
 
-function resolvePaymentProvider(): PaymentProvider {
+function resolvePaymentProvider(requestProvider?: string): PaymentProvider {
+  const explicit = requestProvider?.trim().toLowerCase();
+  if (explicit === 'robokassa' || explicit === 'yookassa') {
+    return explicit;
+  }
+
   const provider = (process.env['PAYMENT_PROVIDER'] ?? 'yookassa').trim().toLowerCase();
   if (provider === 'robokassa') {
     return 'robokassa';

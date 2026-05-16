@@ -236,6 +236,7 @@ export class Checkout implements OnDestroy {
         amount: this.selectedPlan().price,
         subscriptionId,
         promoCode: this.appliedPromoCode().trim(),
+        paymentProvider: 'yookassa',
       });
 
       this.paymentId.set(response.paymentId);
@@ -249,22 +250,9 @@ export class Checkout implements OnDestroy {
         promoApplied: Boolean(this.appliedPromoCode().trim()),
       });
 
-      const paymentUrl = response.paymentUrl?.trim();
-      if (paymentUrl) {
-        this.logInfo('payment.checkout.notary.robokassa_redirect', {
-          actorUserId: userId,
-          paymentId: response.paymentId,
-          paymentUrl,
-        });
-        this.state.set('processing');
-        this.cdr.detectChanges();
-        window.location.href = paymentUrl;
-        return;
-      }
-
       const confirmationToken = response.widget?.confirmationToken?.trim();
       if (!confirmationToken) {
-        throw new Error('Backend did not return a payment URL or confirmation token');
+        throw new Error('Backend did not return a YooKassa confirmation token');
       }
 
       this.state.set('widget');
@@ -304,6 +292,109 @@ export class Checkout implements OnDestroy {
         'Не получилось открыть оплату',
         'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
         'payment.checkout.notary.start_failed',
+        error,
+      );
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected async startRobokassaPayment(): Promise<void> {
+    this.logInfo('payment.checkout.notary.robokassa_start_requested');
+    if (this.hasPendingPromoChanges()) {
+      this.setPromoFeedback(
+        'error',
+        'Промокод ещё не применён. Нажмите «Применить» или очистите поле.',
+      );
+      this.logWarn('payment.checkout.notary.robokassa_start_blocked_pending_promo', {
+        promoCodeLength: this.promoInput().trim().length,
+      });
+      return;
+    }
+
+    const userId = this.requireUserId();
+    if (!userId) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
+    this.notice.set('');
+    this.clearPromoFeedback();
+    this.confirmedAmount.set(null);
+    this.state.set('ready');
+    this.destroyWidget();
+    this.widgetResultHandled = false;
+
+    try {
+      this.logInfo('payment.checkout.notary.robokassa_subscription_draft_requested', {
+        actorUserId: userId,
+        planCode: this.selectedPlanCode(),
+      });
+      const subscriptionId = await this.checkoutApi.createSubscriptionDraft({
+        userId,
+        planCode: this.selectedPlanCode(),
+      });
+      this.logInfo('payment.checkout.notary.robokassa_subscription_draft_created', {
+        actorUserId: userId,
+        subscriptionId,
+        planCode: this.selectedPlanCode(),
+      });
+
+      this.logInfo('payment.checkout.notary.robokassa_create_payment_requested', {
+        actorUserId: userId,
+        subscriptionId,
+        requestedAmount: this.selectedPlan().price,
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
+      });
+      const response = await this.checkoutApi.createPayment({
+        userId,
+        amount: this.selectedPlan().price,
+        subscriptionId,
+        promoCode: this.appliedPromoCode().trim(),
+        paymentProvider: 'robokassa',
+      });
+
+      this.paymentId.set(response.paymentId);
+      this.confirmedAmount.set(response.amount?.amount?.trim() || this.selectedPlan().price);
+      this.logInfo('payment.checkout.notary.robokassa_create_payment_succeeded', {
+        actorUserId: userId,
+        subscriptionId,
+        paymentId: response.paymentId,
+        confirmedAmount: this.confirmedAmount(),
+        currency: response.amount?.currency ?? 'RUB',
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
+      });
+
+      const paymentUrl = response.paymentUrl?.trim();
+      if (!paymentUrl) {
+        throw new Error('Backend did not return a Robokassa payment URL');
+      }
+
+      this.logInfo('payment.checkout.notary.robokassa_redirect', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+        paymentUrl,
+      });
+      this.state.set('processing');
+      this.cdr.detectChanges();
+      window.location.href = paymentUrl;
+    } catch (error) {
+      const promoErrorMessage = readPromoErrorMessage(error);
+      if (promoErrorMessage) {
+        this.clearAppliedPromoState();
+        this.setPromoFeedback('error', promoErrorMessage);
+        this.logWarn('payment.checkout.notary.robokassa_start_rejected_by_promo', {
+          promoErrorMessage,
+        });
+        return;
+      }
+
+      this.showErrorState(
+        'Не получилось открыть оплату',
+        'Мы не смогли подготовить платёж через Robokassa. Попробуйте ещё раз через несколько секунд.',
+        'payment.checkout.notary.robokassa_start_failed',
         error,
       );
     } finally {

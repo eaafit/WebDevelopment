@@ -33,15 +33,16 @@ export class RobokassaClient {
   private readonly merchantLogin = (process.env['ROBOKASSA_MERCHANT_LOGIN'] ?? '').trim();
   private readonly password1 = (process.env['ROBOKASSA_PASSWORD_1'] ?? '').trim();
   private readonly password2 = (process.env['ROBOKASSA_PASSWORD_2'] ?? '').trim();
+
   private readonly isTestMode = (process.env['ROBOKASSA_TEST_MODE'] ?? 'true').trim() !== 'false';
 
   createPayment(params: RobokassaCreatePaymentParams): RobokassaCreatePaymentResult {
     this.assertPaymentConfig();
 
     const outSum = normalizeAmount(params.amount);
-    const signatureValue = md5(
-      `${this.merchantLogin}:${outSum}:${params.invoiceId}:${this.password1}`,
-    );
+    const signatureValue = createHash('md5')
+      .update(`${this.merchantLogin}:${outSum}:${params.invoiceId}:${this.password1}`)
+      .digest('hex');
 
     const searchParams = new URLSearchParams({
       MerchantLogin: this.merchantLogin,
@@ -65,7 +66,9 @@ export class RobokassaClient {
   verifyResultSignature(params: RobokassaVerifyResultSignatureParams): boolean {
     this.assertResultConfig();
 
-    const expected = md5(`${params.outSum}:${params.invoiceId}:${this.password2}`);
+    const expected = createHash('md5')
+      .update(`${params.outSum}:${params.invoiceId}:${this.password2}`)
+      .digest('hex');
     const actual = params.signatureValue.trim().toLowerCase();
 
     const expectedBuffer = Buffer.from(expected);
@@ -91,10 +94,6 @@ export class RobokassaClient {
       );
     }
   }
-}
-
-function md5(value: string): string {
-  return createHash('md5').update(value).digest('hex');
 }
 
 function normalizeAmount(value: string): string {
