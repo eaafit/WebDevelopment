@@ -241,6 +241,17 @@ export class AssessmentRepository {
     };
   }
 
+  async getUserDisplayName(id: string): Promise<string | null> {
+    const user = await this.runDatabaseOperation('getUserDisplayName', { userId: id }, () =>
+      this.prisma.user.findUnique({
+        where: { id },
+        select: { fullName: true },
+      }),
+    );
+
+    return user?.fullName ?? null;
+  }
+
   async createAssessment(data: CreateAssessmentData): Promise<RpcAssessment> {
     const assessment = await this.runDatabaseOperation(
       'createAssessment',

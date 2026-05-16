@@ -10,6 +10,7 @@ import {
   NewsletterCampaignStatus,
   NewsletterDeliveryStatus,
   NewsletterSubscriptionStatus,
+  NotificationCategory,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -891,13 +892,30 @@ async function upsertReports(
 }
 
 async function upsertNotifications(count: number, userIds: string[]): Promise<void> {
-  const types = [NotificationType.Email, NotificationType.SMS, NotificationType.Push];
+  const types = [
+    NotificationType.Email,
+    NotificationType.SMS,
+    NotificationType.Push,
+    NotificationType.InApp,
+  ];
+  const categories = [
+    NotificationCategory.Application,
+    NotificationCategory.Document,
+    NotificationCategory.Payment,
+    NotificationCategory.System,
+    NotificationCategory.Assessment,
+  ];
   const statuses = [NotificationStatus.Pending, NotificationStatus.Sent, NotificationStatus.Failed];
   const baseSent = new Date('2026-02-01T12:00:00.000Z');
   for (let i = 0; i < count; i++) {
     const id = seedId('notification', i);
     const userId = userIds[i % userIds.length];
-    const type = types[i % 3];
+    const type = types[i % types.length];
+    const category = categories[i % categories.length];
+    const title =
+      category === NotificationCategory.Assessment
+        ? 'Создана новая заявка на оценку'
+        : `Seed уведомление ${i + 1}`;
     const message = `Seed уведомление ${i + 1}: тестовое сообщение.`;
     const status = statuses[i % 3];
     const sentAt = new Date(baseSent);
@@ -905,8 +923,8 @@ async function upsertNotifications(count: number, userIds: string[]): Promise<vo
     const readAt = i % 5 === 0 ? new Date(sentAt.getTime() + 3600000) : null;
     await prisma.notification.upsert({
       where: { id },
-      update: { userId, type, message, sentAt, readAt, status },
-      create: { id, userId, type, message, sentAt, readAt, status },
+      update: { userId, title, category, type, message, sentAt, readAt, status },
+      create: { id, userId, title, category, type, message, sentAt, readAt, status },
     });
   }
 }

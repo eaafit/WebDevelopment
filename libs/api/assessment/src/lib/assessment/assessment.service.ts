@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { NotificationService } from '@internal/notification';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -29,13 +30,18 @@ import {
   type UpdateAssessmentResponse,
   type VerifyAssessmentRequest,
   type VerifyAssessmentResponse,
+  NotificationCategory as RpcNotificationCategory,
+  NotificationType as RpcNotificationType,
   UpdateAssessmentResponseSchema,
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentStatus as PrismaAssessmentStatus,
+  Role as PrismaRole,
+} from '@internal/prisma-client';
 import {
   AssessmentRepository,
   type AssessmentAuditSnapshot,
@@ -64,6 +70,7 @@ export class AssessmentService {
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -156,6 +163,12 @@ export class AssessmentService {
         targetContext: snapshot.address,
         after: toAuditSnapshot(snapshot),
       });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Создана новая заявка на оценку',
+        message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+          assessment.id,
+        )}: ${formatAssessmentAddress(snapshot.address)}.`,
+      });
 
       this.logger.log(
         `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
@@ -209,6 +222,15 @@ export class AssessmentService {
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
       });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Обновлена заявка на оценку',
+        message: `${await this.getActorDisplayName(
+          getCurrentUser()?.sub ?? before.userId,
+          'Исполнитель',
+        )} изменил данные заявки ${shortId(assessment.id)}: ${formatAssessmentAddress(
+          after.address,
+        )}.`,
+      });
 
       this.logger.log(
         `Updated assessment assessmentId=${assessment.id}` +
@@ -256,6 +278,13 @@ export class AssessmentService {
           before: toAuditSnapshot(before),
           after: toAuditSnapshot(after),
         });
+        await this.createAdminAssessmentNotificationBestEffort({
+          title: 'Заявка назначена нотариусу',
+          message: buildAssignedToNotaryMessage(
+            assessment.id,
+            await this.assessmentRepository.getUserDisplayName(after.notaryId),
+          ),
+        });
       }
 
       await this.auditService.record({
@@ -269,6 +298,13 @@ export class AssessmentService {
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка взята в работу',
+        message: buildInProgressMessage(
+          assessment.id,
+          await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
+        ),
       });
 
       this.logger.log(
@@ -321,6 +357,10 @@ export class AssessmentService {
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
       });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Оценка заявки завершена',
+        message: buildCompletedMessage(assessment.id, after.estimatedValue),
+      });
 
       this.logger.log(
         `Completed assessment assessmentId=${assessment.id}` +
@@ -358,6 +398,10 @@ export class AssessmentService {
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка на оценку отменена',
+        message: buildCancelledMessage(assessment.id, after.cancelReason),
       });
 
       this.logger.log(
@@ -401,6 +445,32 @@ export class AssessmentService {
       `Assessment operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
       errorStack(error),
     );
+  }
+
+  private async getActorDisplayName(
+    userId: string | undefined,
+    fallback?: string,
+  ): Promise<string | undefined> {
+    if (!userId) return fallback;
+    return (await this.assessmentRepository.getUserDisplayName(userId)) ?? fallback;
+  }
+
+  private async createAdminAssessmentNotificationBestEffort(input: {
+    title: string;
+    message: string;
+  }): Promise<void> {
+    try {
+      await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+        title: input.title,
+        message: input.message,
+        category: RpcNotificationCategory.ASSESSMENT,
+        type: RpcNotificationType.IN_APP,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create admin assessment notification: ${errorMessage(error)}`,
+      );
+    }
   }
 }
 
@@ -729,6 +799,44 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function formatAssessmentAddress(address: string | null | undefined): string {
+  const normalized = address?.trim();
+  return normalized || 'адрес объекта не указан';
+}
+
+function buildAssignedToNotaryMessage(assessmentId: string, notaryName: string | null): string {
+  return notaryName
+    ? `Заявка ${shortId(assessmentId)} передана нотариусу ${notaryName}.`
+    : `Заявка ${shortId(assessmentId)} передана нотариусу.`;
+}
+
+function buildInProgressMessage(assessmentId: string, actorName: string | undefined): string {
+  return actorName
+    ? `${actorName} начал работу по заявке ${shortId(assessmentId)}.`
+    : `По заявке ${shortId(assessmentId)} начата работа.`;
+}
+
+function buildCompletedMessage(assessmentId: string, estimatedValue: string | null): string {
+  return estimatedValue
+    ? `По заявке ${shortId(assessmentId)} завершена оценка объекта. Итоговая стоимость: ${formatRubles(
+        estimatedValue,
+      )} ₽.`
+    : `По заявке ${shortId(assessmentId)} завершена оценка объекта.`;
+}
+
+function buildCancelledMessage(assessmentId: string, cancelReason: string | null): string {
+  const reason = cancelReason?.trim();
+  return reason
+    ? `Заявка ${shortId(assessmentId)} была отменена. Причина: ${reason}.`
+    : `Заявка ${shortId(assessmentId)} была отменена.`;
+}
+
+function formatRubles(value: string): string {
+  const [integerPart, fractionPart] = value.split('.');
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fractionPart ? `${formattedInteger},${fractionPart}` : formattedInteger;
 }
 
 function formatOptionalId(value: string | null): string {

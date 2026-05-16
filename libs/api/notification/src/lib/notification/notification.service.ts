@@ -4,6 +4,7 @@ import {
   DeleteNotificationResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
+  NotificationCategory as RpcNotificationCategory,
   NotificationStatus as RpcNotificationStatus,
   NotificationType as RpcNotificationType,
   type Notification as RpcNotification,
@@ -17,12 +18,15 @@ import {
   type MarkAsReadResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { Role as PrismaRole } from '@internal/prisma-client';
 import { NotificationRepository } from './notification.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface CreateNotificationInput {
   userId: string;
+  title?: string;
+  category?: RpcNotificationCategory;
   type: RpcNotificationType;
   message: string;
   status?: RpcNotificationStatus;
@@ -41,7 +45,9 @@ export class NotificationService {
 
     return this.notificationRepository.createNotification({
       userId: request.userId,
+      title: normalizeOptionalTitle(request.title),
       type: request.type,
+      category: request.category,
       message,
       status: request.status,
       sentAt: request.sentAt,
@@ -51,6 +57,8 @@ export class NotificationService {
 
   async createInternalNotification(params: {
     userId: string;
+    title?: string;
+    category?: RpcNotificationCategory;
     message: string;
     type?: RpcNotificationType;
     status?: RpcNotificationStatus;
@@ -59,10 +67,28 @@ export class NotificationService {
 
     await this.notificationRepository.createNotification({
       userId: params.userId,
+      title: normalizeOptionalTitle(params.title),
+      category: params.category ?? RpcNotificationCategory.SYSTEM,
       message: normalizeMessage(params.message),
       type: params.type ?? RpcNotificationType.PUSH,
       status: params.status ?? RpcNotificationStatus.SENT,
     });
+  }
+
+  async createInternalNotificationsForRole(
+    role: PrismaRole,
+    params: Omit<Parameters<NotificationService['createInternalNotification']>[0], 'userId'>,
+  ): Promise<void> {
+    const userIds = await this.notificationRepository.listActiveUserIdsByRole(role);
+
+    await Promise.all(
+      userIds.map((userId) =>
+        this.createInternalNotification({
+          userId,
+          ...params,
+        }),
+      ),
+    );
   }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
@@ -110,4 +136,9 @@ function normalizeMessage(value: string): string {
   }
 
   return normalized;
+}
+
+function normalizeOptionalTitle(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }
