@@ -1,9 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
+import {
+  NotificationCategory as RpcNotificationCategory,
+  NotificationStatus as RpcNotificationStatus,
+  NotificationType as RpcNotificationType,
+  type Notification as RpcNotification,
+} from '@notary-portal/api-contracts';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { TokenStore } from '@notary-portal/ui';
+import { AdminNotificationsApiService } from './notifications-api.service';
 
-export type NotificationLifecycle = 'created' | 'sent' | 'read' | 'deleted';
-type NotificationChannel = 'in-app' | 'email' | 'push';
-type NotificationType = 'application' | 'document' | 'payment' | 'system';
+export type NotificationLifecycle = 'created' | 'sent' | 'failed' | 'read' | 'deleted';
+type NotificationChannel = 'in-app' | 'email' | 'sms' | 'push';
+type NotificationCategory = 'application' | 'document' | 'payment' | 'system' | 'assessment';
 
 interface AdminNotification {
   id: string;
@@ -11,7 +20,7 @@ interface AdminNotification {
   description: string;
   createdAt: string;
   relativeTime: string;
-  type: NotificationType;
+  category: NotificationCategory;
   channel: NotificationChannel;
   lifecycle: NotificationLifecycle;
 }
@@ -19,109 +28,16 @@ interface AdminNotification {
 type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
 
 interface AdminNotificationFilters {
-  type: 'all' | NotificationType;
+  category: 'all' | NotificationCategory;
   channel: 'all' | NotificationChannel;
   lifecycle: LifecycleFilter;
 }
 
 const DEFAULT_FILTERS: AdminNotificationFilters = {
-  type: 'all',
+  category: 'all',
   channel: 'all',
   lifecycle: 'active',
 };
-
-const MOCK_NOTIFICATIONS: AdminNotification[] = [
-  {
-    id: 'n-1',
-    title: 'Новый пользователь требует модерации',
-    description: 'Профиль заявителя #U-2043 создан и ожидает проверки документов.',
-    createdAt: '2026-03-10T10:24:00+03:00',
-    relativeTime: '10 мин назад',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-2',
-    title: 'Платёж по подписке успешно проведён',
-    description: 'Нотариус Петров П.П. оплатил продление подписки по счёту №9823.',
-    createdAt: '2026-03-10T09:05:00+03:00',
-    relativeTime: '1 ч назад',
-    type: 'payment',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-3',
-    title: 'Импорт рассылочного списка завершён',
-    description: 'Список для рассылки «Новости сервиса» успешно обновлён (1 245 адресов).',
-    createdAt: '2026-03-09T16:40:00+03:00',
-    relativeTime: 'вчера',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-4',
-    title: 'Отчёт по мониторингу доступен',
-    description: 'Сформирован еженедельный отчёт по событиям аудита и безопасности.',
-    createdAt: '2026-03-08T11:10:00+03:00',
-    relativeTime: '2 дн назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-5',
-    title: 'Ошибка доставки письма',
-    description: 'Не удалось отправить email-рассылку на 14 адресов (bounce).',
-    createdAt: '2026-03-10T08:15:00+03:00',
-    relativeTime: '2 ч назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-6',
-    title: 'Изменение прав доступа',
-    description: 'Для пользователя #U-2011 обновлена роль: Заявитель → Нотариус.',
-    createdAt: '2026-03-09T09:10:00+03:00',
-    relativeTime: 'вчера',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-7',
-    title: 'Подозрительная активность входа',
-    description: 'Зафиксировано 5 неуспешных попыток входа подряд с IP 91.214.44.18.',
-    createdAt: '2026-03-10T07:50:00+03:00',
-    relativeTime: '2 ч назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-8',
-    title: 'Ручная корректировка платежа',
-    description: 'Администратор исправил сумму по платёжному документу #P-5104.',
-    createdAt: '2026-03-07T16:15:00+03:00',
-    relativeTime: '3 дн назад',
-    type: 'payment',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-9',
-    title: 'Черновик служебного уведомления',
-    description: 'Уведомление создано в системе, ожидает отправки по расписанию.',
-    createdAt: '2026-03-10T11:00:00+03:00',
-    relativeTime: '5 мин назад',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'created',
-  },
-];
 
 @Component({
   selector: 'lib-notifications',
@@ -130,16 +46,21 @@ const MOCK_NOTIFICATIONS: AdminNotification[] = [
   templateUrl: './notifications.html',
   styleUrl: './notifications.scss',
 })
-export class AdminNotifications {
-  protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
+export class AdminNotifications implements OnInit {
+  private readonly api = inject(AdminNotificationsApiService);
+  private readonly tokenStore = inject(TokenStore);
 
-  protected readonly notifications = signal<AdminNotification[]>([...MOCK_NOTIFICATIONS]);
+  protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
+  protected readonly isLoading = signal(true);
+  protected readonly hasLoadError = signal(false);
+
+  protected readonly notifications = signal<AdminNotification[]>([]);
 
   protected readonly filtered = computed(() => {
-    const { type, channel, lifecycle } = this.filters();
+    const { category, channel, lifecycle } = this.filters();
 
     return this.notifications().filter((n) => {
-      if (type !== 'all' && n.type !== type) return false;
+      if (category !== 'all' && n.category !== category) return false;
       if (channel !== 'all' && n.channel !== channel) return false;
 
       if (lifecycle === 'active') {
@@ -156,9 +77,14 @@ export class AdminNotifications {
 
   protected readonly inboxCount = computed(
     () =>
-      this.notifications().filter((n) => n.lifecycle === 'sent' || n.lifecycle === 'created')
-        .length,
+      this.notifications().filter(
+        (n) => n.lifecycle === 'sent' || n.lifecycle === 'created' || n.lifecycle === 'failed',
+      ).length,
   );
+
+  async ngOnInit(): Promise<void> {
+    await this.loadNotifications();
+  }
 
   protected setFilter<K extends keyof AdminNotificationFilters>(
     key: K,
@@ -173,6 +99,8 @@ export class AdminNotifications {
         return 'Создано';
       case 'sent':
         return 'Отправлено';
+      case 'failed':
+        return 'Ошибка';
       case 'read':
         return 'Прочитано';
       case 'deleted':
@@ -180,7 +108,41 @@ export class AdminNotifications {
     }
   }
 
-  protected markAllAsRead(): void {
+  protected categoryLabel(category: NotificationCategory): string {
+    switch (category) {
+      case 'application':
+        return 'Заявки';
+      case 'document':
+        return 'Документы';
+      case 'payment':
+        return 'Платежи';
+      case 'assessment':
+        return 'Оценки';
+      case 'system':
+      default:
+        return 'Система';
+    }
+  }
+
+  protected channelLabel(channel: NotificationChannel): string {
+    switch (channel) {
+      case 'email':
+        return 'Email';
+      case 'sms':
+        return 'SMS';
+      case 'push':
+        return 'Push';
+      case 'in-app':
+      default:
+        return 'In-app';
+    }
+  }
+
+  protected async markAllAsRead(): Promise<void> {
+    const userId = this.tokenStore.user()?.id?.trim();
+    if (!userId) return;
+
+    await this.api.markAllAsRead(userId);
     this.notifications.update((items) =>
       items.map((n) =>
         n.lifecycle === 'deleted'
@@ -193,38 +155,131 @@ export class AdminNotifications {
     );
   }
 
-  protected toggleReadOnCard(id: string): void {
+  protected async markReadOnCard(id: string): Promise<void> {
+    const current = this.notifications().find((n) => n.id === id);
+    if (!current || current.lifecycle === 'deleted' || current.lifecycle === 'read') return;
+
+    await this.api.markAsRead(id);
     this.notifications.update((items) =>
       items.map((n) => {
         if (n.id !== id || n.lifecycle === 'deleted') return n;
-        if (n.lifecycle === 'read') {
-          return { ...n, lifecycle: 'sent' };
-        }
         return { ...n, lifecycle: 'read' };
       }),
     );
   }
 
-  protected deleteOne(id: string, event: Event): void {
+  protected async deleteOne(id: string, event: Event): Promise<void> {
     event.stopPropagation();
+    await this.api.deleteNotification(id);
     this.notifications.update((items) =>
       items.map((n) => (n.id === id ? { ...n, lifecycle: 'deleted' as const } : n)),
     );
   }
 
-  protected clearAllHistory(): void {
-    if (
-      !confirm(
-        'Удалить всю историю уведомлений из списка? (демо: записи будут очищены локально в браузере.)',
-      )
-    ) {
+  protected async clearAllHistory(): Promise<void> {
+    if (!confirm('Удалить всю историю уведомлений из списка?')) {
       return;
     }
+
+    await Promise.all(
+      this.notifications()
+        .filter((item) => item.lifecycle !== 'deleted')
+        .map((item) => this.api.deleteNotification(item.id)),
+    );
     this.notifications.set([]);
   }
 
-  protected restoreDemoData(): void {
-    this.notifications.set([...MOCK_NOTIFICATIONS]);
-    this.filters.set({ ...DEFAULT_FILTERS });
+  private async loadNotifications(): Promise<void> {
+    const userId = this.tokenStore.user()?.id?.trim();
+    if (!userId) {
+      this.isLoading.set(false);
+      return;
+    }
+
+    try {
+      const notifications = await this.api.listNotifications(userId);
+      this.notifications.set(notifications.map((item) => toAdminNotification(item)));
+    } catch {
+      this.hasLoadError.set(true);
+    } finally {
+      this.isLoading.set(false);
+    }
   }
+}
+
+function toAdminNotification(notification: RpcNotification): AdminNotification {
+  const createdAt = notification.sentAt ? timestampDate(notification.sentAt) : new Date();
+
+  return {
+    id: notification.id,
+    title: notification.title || 'Уведомление',
+    description: notification.message,
+    createdAt: createdAt.toISOString(),
+    relativeTime: formatRelativeTime(createdAt),
+    category: fromRpcCategory(notification.category),
+    channel: fromRpcChannel(notification.type),
+    lifecycle: fromRpcLifecycle(notification),
+  };
+}
+
+function fromRpcCategory(category: RpcNotificationCategory): NotificationCategory {
+  switch (category) {
+    case RpcNotificationCategory.APPLICATION:
+      return 'application';
+    case RpcNotificationCategory.DOCUMENT:
+      return 'document';
+    case RpcNotificationCategory.PAYMENT:
+      return 'payment';
+    case RpcNotificationCategory.ASSESSMENT:
+      return 'assessment';
+    case RpcNotificationCategory.SYSTEM:
+    case RpcNotificationCategory.UNSPECIFIED:
+    default:
+      return 'system';
+  }
+}
+
+function fromRpcChannel(type: RpcNotificationType): NotificationChannel {
+  switch (type) {
+    case RpcNotificationType.EMAIL:
+      return 'email';
+    case RpcNotificationType.SMS:
+      return 'sms';
+    case RpcNotificationType.PUSH:
+      return 'push';
+    case RpcNotificationType.IN_APP:
+    case RpcNotificationType.UNSPECIFIED:
+    default:
+      return 'in-app';
+  }
+}
+
+function fromRpcLifecycle(notification: RpcNotification): NotificationLifecycle {
+  if (notification.readAt) {
+    return 'read';
+  }
+
+  switch (notification.status) {
+    case RpcNotificationStatus.PENDING:
+      return 'created';
+    case RpcNotificationStatus.FAILED:
+      return 'failed';
+    case RpcNotificationStatus.SENT:
+    case RpcNotificationStatus.UNSPECIFIED:
+    default:
+      return 'sent';
+  }
+}
+
+function formatRelativeTime(date: Date): string {
+  const diffMs = Math.max(0, Date.now() - date.getTime());
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return 'только что';
+  if (minutes < 60) return `${minutes} мин назад`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ч назад`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} дн назад`;
 }

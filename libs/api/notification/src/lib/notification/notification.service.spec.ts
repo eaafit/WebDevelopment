@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import {
+  NotificationCategory as RpcNotificationCategory,
   NotificationSchema,
   NotificationStatus as RpcNotificationStatus,
   NotificationType as RpcNotificationType,
@@ -25,6 +26,8 @@ describe('NotificationService', () => {
       create(NotificationSchema, {
         id: 'notification-1',
         userId: '11111111-1111-4111-a111-111111111111',
+        title: 'Рассылка завершена',
+        category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
         message: 'Рассылка завершена',
         sentAt: timestampFromDate(new Date('2026-05-15T10:00:00.000Z')),
@@ -36,12 +39,16 @@ describe('NotificationService', () => {
   it('normalizes internal notification payloads before creating them', async () => {
     await service.createNotification({
       userId: '11111111-1111-4111-a111-111111111111',
+      title: '  Рассылка завершена  ',
+      category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
       message: '  Рассылка завершена  ',
     });
 
     expect(repository.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
+      title: 'Рассылка завершена',
+      category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
       message: 'Рассылка завершена',
       status: undefined,
@@ -54,6 +61,8 @@ describe('NotificationService', () => {
     await expect(
       service.createNotification({
         userId: 'invalid-user',
+        title: 'Рассылка завершена',
+        category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
         message: 'Рассылка завершена',
       }),
@@ -66,6 +75,8 @@ describe('NotificationService', () => {
     await expect(
       service.createNotification({
         userId: '11111111-1111-4111-a111-111111111111',
+        title: 'Рассылка завершена',
+        category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
         message: '   ',
       }),
