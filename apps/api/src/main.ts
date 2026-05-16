@@ -7,6 +7,7 @@ import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
+import { registerWebLogIngestion } from './app/logging/web-log-ingest';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -92,6 +93,8 @@ async function bootstrap() {
       res.status(500).end();
     }
   });
+
+  registerWebLogIngestion(expressInstance);
 
   expressInstance.get(
     '/api/documents/:documentId/content',

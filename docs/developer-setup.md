@@ -37,7 +37,7 @@ docker info
 
    Для мониторинга метрик вместе с БД поднимаются сервисы **Prometheus** (порт 9090), **Grafana** (порт 3001) и **postgres_exporter** (порт 9187, метрики PostgreSQL). Источник данных Prometheus и дашборды «System metrics», «Business metrics» и «PostgreSQL» подключаются автоматически (provisioning). Логин Grafana по умолчанию: `admin`, пароль задаётся переменной `GF_ADMIN_PASSWORD` (по умолчанию `admin`). Чтобы Prometheus собирал метрики с API, запустите API на хосте (`pnpm nx serve api`); в конфиге используется `host.docker.internal:3000`.
 
-   Для просмотра технических логов поднимаются **Loki** (порт 3100) и **Promtail**. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, отправляет логи в Loki и добавляет метки `job`, `app`, `environment`, `level`, `service`. В Grafana автоматически появляется datasource **Loki** и дашборд **Container logs**. Если API запущен в Docker (`apps/web/docker-compose.portal.yml`), его JSON-логи можно фильтровать по уровню и `requestId`; если API запущен на хосте через `pnpm nx serve api`, эти stdout-логи в Loki не попадут.
+   Для просмотра технических логов поднимаются **Loki** (порт 3100) и **Promtail**. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, отправляет логи в Loki и добавляет метки `job`, `app`, `environment`, `level`, `service`. В Grafana автоматически появляется datasource **Loki** и дашборд **Container logs**. API-логи идут с `service="api"`, а web-логи проходят через `/api/logs/web` и попадают в Loki с `service="web"`. Если API запущен в Docker (`apps/web/docker-compose.portal.yml`), JSON-логи можно фильтровать по уровню, сервису и `requestId`; если API запущен на хосте через `pnpm nx serve api`, эти stdout-логи в Loki не попадут.
 
 3. В отдельном терминале запустите Front-end:
 
@@ -48,7 +48,7 @@ pnpm nx serve web
 ## Примечания
 
 - Если порт `5432` занят (например, установлен PostgreSQL вне Docker), измените порт в `docker-compose.yaml` на свободный.
-- **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics», «PostgreSQL» и «Container logs» (логи через Loki/Promtail). В Explore можно выбрать datasource **Loki** и выполнить запрос `{job="docker", app="api"} | json | requestId="<id запроса>"`.
+- **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics», «PostgreSQL» и «Container logs» (логи через Loki/Promtail). В Explore можно выбрать datasource **Loki** и выполнить запрос `{job="docker", service=~"api|web"} | json | requestId="<id запроса>"`.
 
 ## Создание компонента
 

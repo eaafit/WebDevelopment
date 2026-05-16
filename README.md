@@ -60,10 +60,12 @@
 
 Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki** и **Promtail** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступен datasource **Loki** и дашборд **Container logs**.
 
-Для API, запущенного в Docker, структурированные JSON-логи фильтруются по `app`, `environment`, `level` и `requestId`. В Explore можно использовать запрос:
+API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует payload и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
+
+В Explore можно использовать запрос:
 
 ```logql
-{job="docker", app="api"} | json | requestId="<id запроса>"
+{job="docker", service=~"api|web"} | json | requestId="<id запроса>"
 ```
 
 Если API запущен локально через `pnpm nx serve api`, его stdout не читается Promtail; для логов в Grafana запускайте API как контейнер, например через [`apps/web/docker-compose.portal.yml`](apps/web/docker-compose.portal.yml).

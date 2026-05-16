@@ -61,7 +61,7 @@ export class WebLoggerService {
   }
 
   private write(level: WebLogLevel, message: string, context?: unknown): void {
-    if (!this.shouldWrite(level)) {
+    if (!this.shouldWriteToConsole(level) && !this.shouldSendRemote(level)) {
       return;
     }
 
@@ -70,6 +70,7 @@ export class WebLoggerService {
       env: this.options.env,
       level,
       message: sanitizeLogString(message),
+      requestId: createWebLogRequestId(),
       timestamp: new Date().toISOString(),
     };
 
@@ -79,11 +80,46 @@ export class WebLoggerService {
       });
     }
 
-    console[level](entry);
+    if (this.shouldWriteToConsole(level)) {
+      console[level](entry);
+    }
+
+    if (this.shouldSendRemote(level)) {
+      this.sendRemote(entry);
+    }
   }
 
-  private shouldWrite(level: WebLogLevel): boolean {
+  private shouldWriteToConsole(level: WebLogLevel): boolean {
     return !this.options.production || level === 'warn' || level === 'error';
+  }
+
+  private shouldSendRemote(level: WebLogLevel): boolean {
+    return Boolean(this.options.remoteEndpoint) && (!this.options.production || level !== 'debug');
+  }
+
+  private sendRemote(entry: WebLogEntry): void {
+    const endpoint = this.options.remoteEndpoint;
+    if (!endpoint || typeof fetch !== 'function') {
+      return;
+    }
+
+    let body: string;
+    try {
+      body = JSON.stringify(entry);
+    } catch {
+      return;
+    }
+
+    void fetch(endpoint, {
+      body,
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-Id': entry.requestId,
+      },
+      keepalive: true,
+      method: 'POST',
+    }).catch(() => undefined);
   }
 }
 
@@ -99,8 +135,12 @@ export function sanitizeLogValue(value: unknown, options: SanitizeOptions): unkn
     return sanitizeLogString(value);
   }
 
-  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+  if (typeof value === 'number' || typeof value === 'boolean') {
     return value;
+  }
+
+  if (typeof value === 'bigint') {
+    return value.toString();
   }
 
   if (typeof value === 'symbol' || typeof value === 'function') {
@@ -179,4 +219,12 @@ function isSensitiveKey(key: string): boolean {
 
 function normalizeKey(key: string): string {
   return key.replace(/[-_]/g, '').toLowerCase();
+}
+
+export function createWebLogRequestId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
