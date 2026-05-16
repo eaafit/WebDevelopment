@@ -34,6 +34,9 @@ describe('PaymentCreateService', () => {
   const auditService = {
     record: jest.fn(),
   };
+  const notificationService = {
+    notifyUser: jest.fn(),
+  };
   const prisma = {
     payment: {
       create: createPaymentRecord,
@@ -64,6 +67,7 @@ describe('PaymentCreateService', () => {
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
     auditService.record.mockReset();
+    notificationService.notifyUser.mockReset();
 
     paymentSubscriptionService.resolveSubscriptionForPayment.mockResolvedValue({
       id: 'subscription-1',
@@ -112,6 +116,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -184,6 +189,12 @@ describe('PaymentCreateService', () => {
     expect(metrics.recordPromoValidation).toHaveBeenCalledWith('payment_create', 'valid');
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
     expect(auditService.record).not.toHaveBeenCalled();
+    expect(notificationService.notifyUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        message: expect.stringContaining('Создан платёж #payment-1'),
+      }),
+    );
   });
 
   it('should mark assessment service payments as applicant billing metrics', async () => {
@@ -197,6 +208,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -256,6 +268,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -313,6 +326,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -340,6 +354,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(ValidateSubscriptionPromoRequestSchema, {
@@ -378,6 +393,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      notificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {

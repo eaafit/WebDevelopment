@@ -26,9 +26,29 @@ export interface NotificationQuery {
   unreadOnly?: boolean;
 }
 
+export interface CreateNotificationData {
+  userId: string;
+  message: string;
+  type?: PrismaNotificationType;
+  status?: PrismaNotificationStatus;
+}
+
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async createNotification(data: CreateNotificationData): Promise<RpcNotification> {
+    const notification = await this.prisma.notification.create({
+      data: {
+        userId: data.userId,
+        message: data.message,
+        type: data.type ?? PrismaNotificationType.Push,
+        status: data.status ?? PrismaNotificationStatus.Sent,
+      },
+    });
+
+    return this.toMessage(notification);
+  }
 
   async listNotifications(query: NotificationQuery): Promise<ListNotificationsResponse> {
     const { page, limit } = query;
@@ -119,8 +139,8 @@ export class NotificationRepository {
   private toPrismaType(t: RpcNotificationType): PrismaNotificationType {
     const map: Record<number, PrismaNotificationType> = {
       [RpcNotificationType.EMAIL]: PrismaNotificationType.Email,
-      [RpcNotificationType.SMS]:   PrismaNotificationType.SMS,
-      [RpcNotificationType.PUSH]:  PrismaNotificationType.Push,
+      [RpcNotificationType.SMS]: PrismaNotificationType.SMS,
+      [RpcNotificationType.PUSH]: PrismaNotificationType.Push,
     };
     return map[t] ?? PrismaNotificationType.Push;
   }
@@ -128,8 +148,8 @@ export class NotificationRepository {
   private fromPrismaType(t: PrismaNotificationType): RpcNotificationType {
     const map: Record<PrismaNotificationType, RpcNotificationType> = {
       [PrismaNotificationType.Email]: RpcNotificationType.EMAIL,
-      [PrismaNotificationType.SMS]:   RpcNotificationType.SMS,
-      [PrismaNotificationType.Push]:  RpcNotificationType.PUSH,
+      [PrismaNotificationType.SMS]: RpcNotificationType.SMS,
+      [PrismaNotificationType.Push]: RpcNotificationType.PUSH,
     };
     return map[t];
   }
@@ -137,8 +157,8 @@ export class NotificationRepository {
   private toPrismaStatus(s: RpcNotificationStatus): PrismaNotificationStatus {
     const map: Record<number, PrismaNotificationStatus> = {
       [RpcNotificationStatus.PENDING]: PrismaNotificationStatus.Pending,
-      [RpcNotificationStatus.SENT]:    PrismaNotificationStatus.Sent,
-      [RpcNotificationStatus.FAILED]:  PrismaNotificationStatus.Failed,
+      [RpcNotificationStatus.SENT]: PrismaNotificationStatus.Sent,
+      [RpcNotificationStatus.FAILED]: PrismaNotificationStatus.Failed,
     };
     return map[s] ?? PrismaNotificationStatus.Pending;
   }
@@ -146,8 +166,8 @@ export class NotificationRepository {
   private fromPrismaStatus(s: PrismaNotificationStatus): RpcNotificationStatus {
     const map: Record<PrismaNotificationStatus, RpcNotificationStatus> = {
       [PrismaNotificationStatus.Pending]: RpcNotificationStatus.PENDING,
-      [PrismaNotificationStatus.Sent]:    RpcNotificationStatus.SENT,
-      [PrismaNotificationStatus.Failed]:  RpcNotificationStatus.FAILED,
+      [PrismaNotificationStatus.Sent]: RpcNotificationStatus.SENT,
+      [PrismaNotificationStatus.Failed]: RpcNotificationStatus.FAILED,
     };
     return map[s];
   }

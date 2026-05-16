@@ -1,4 +1,5 @@
 import { AuditModule } from '@internal/audit';
+import { NotificationModule } from '@internal/notification';
 import { StorageModule } from '@internal/storage';
 import { Module } from '@nestjs/common';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
@@ -8,7 +9,7 @@ import { YooKassaClient } from '../yookassa/yookassa.client';
 import { PaymentCreateService } from './payment-create.service';
 
 @Module({
-  imports: [StorageModule, AuditModule],
+  imports: [StorageModule, AuditModule, NotificationModule],
   providers: [
     YooKassaClient,
     PaymentCreateService,

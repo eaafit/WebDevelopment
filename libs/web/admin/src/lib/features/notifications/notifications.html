@@ -4,8 +4,8 @@
       <p class="admin-notifications__eyebrow">Панель администратора</p>
       <h2>Уведомления</h2>
       <p class="admin-notifications__lead">
-        In-app уведомления по событиям системы. Статусы жизненного цикла: создано → отправлено → прочитано → удалено.
-        Можно удалить запись или очистить всю историю.
+        Уведомления по событиям системы загружаются из backend. Статусы жизненного цикла: создано → отправлено →
+        прочитано → ошибка доставки. Можно удалить запись или очистить всю историю.
       </p>
     </div>
 
@@ -20,15 +20,14 @@
         <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
       @if (!notifications().length) {
-        <button
-          type="button"
-          class="admin-notifications__btn admin-notifications__btn--ghost"
-          (click)="restoreDemoData()">
-          Вернуть демо-данные
-        </button>
-      }
-      @if (inboxCount(); as c) {
-        <span class="admin-notifications__badge"> В очереди / непрочитано: {{ c }} </span>
+      <button
+        type="button"
+        class="admin-notifications__btn admin-notifications__btn--ghost"
+        (click)="reloadNotifications()">
+        Обновить
+      </button>
+      } @if (inboxCount(); as c) {
+      <span class="admin-notifications__badge"> В очереди / непрочитано: {{ c }} </span>
       }
     </div>
   </header>
@@ -49,8 +48,8 @@
       <span>Канал</span>
       <select (change)="setFilter('channel', $any($event.target).value)">
         <option value="all">Все</option>
-        <option value="in-app">In-app</option>
         <option value="email">Email</option>
+        <option value="sms">SMS</option>
         <option value="push">Push</option>
       </select>
     </label>
@@ -58,22 +57,32 @@
     <label class="admin-notifications__field">
       <span>Статус уведомления</span>
       <select (change)="setFilter('lifecycle', $any($event.target).value)">
-        <option value="active">Все активные (без удалённых)</option>
-        <option value="all">Все, включая удалённые</option>
+        <option value="active">Все активные</option>
+        <option value="all">Все</option>
         <option value="created">Создано</option>
         <option value="sent">Отправлено</option>
         <option value="read">Прочитано</option>
-        <option value="deleted">Удалено</option>
+        <option value="failed">Ошибка доставки</option>
       </select>
     </label>
   </section>
 
   <p class="admin-notifications__hint">
-    Клик по карточке переключает «прочитано / отправлено». Кнопка «Удалить» помечает запись статусом «Удалено» (скрыта
-    при фильтре «активные»). «Очистить историю» убирает все строки.
+    Клик по новой карточке отмечает уведомление прочитанным. Кнопка «Удалить» удаляет запись через API. «Очистить
+    историю» убирает все строки.
   </p>
 
-  @if (filtered().length) {
+  @if (loading()) {
+  <div class="admin-notifications__empty">
+    <strong>Загружаем уведомления.</strong>
+    <p>Получаем актуальную историю из backend.</p>
+  </div>
+  } @else if (error()) {
+  <div class="admin-notifications__empty">
+    <strong>Не удалось загрузить уведомления.</strong>
+    <p>{{ error() }}</p>
+  </div>
+  } @else if (filtered().length) {
   <section class="admin-notifications__list">
     @for (item of filtered(); track item.id) {
     <article
@@ -81,7 +90,7 @@
       [class.admin-notifications__card--attention]="
         item.lifecycle === 'sent' || item.lifecycle === 'created'
       "
-      [class.admin-notifications__card--deleted]="item.lifecycle === 'deleted'"
+      [class.admin-notifications__card--deleted]="item.lifecycle === 'failed'"
       tabindex="0"
       role="button"
       (click)="toggleReadOnCard(item.id)"
@@ -97,14 +106,14 @@
             ? 'Платежи' : 'Система' }}
           </span>
           <span class="chip chip--channel">
-            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+            {{ item.channel === 'email' ? 'Email' : item.channel === 'sms' ? 'SMS' : 'Push' }}
           </span>
           <span
             class="chip chip--lifecycle"
             [class.chip--lifecycle-created]="item.lifecycle === 'created'"
             [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
             [class.chip--lifecycle-read]="item.lifecycle === 'read'"
-            [class.chip--lifecycle-deleted]="item.lifecycle === 'deleted'">
+            [class.chip--lifecycle-deleted]="item.lifecycle === 'failed'">
             {{ lifecycleLabel(item.lifecycle) }}
           </span>
         </div>

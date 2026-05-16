@@ -4,6 +4,7 @@ import {
   DeleteNotificationResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
+  type Notification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type ListNotificationsRequest,
@@ -15,20 +16,44 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { NotificationRepository } from './notification.repository';
+import {
+  NotificationStatus as PrismaNotificationStatus,
+  NotificationType as PrismaNotificationType,
+} from '@internal/prisma-client';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_NOTIFICATION_MESSAGE_LENGTH = 1000;
+
+export interface NotifyUserInput {
+  userId: string;
+  message: string;
+  type?: PrismaNotificationType;
+  status?: PrismaNotificationStatus;
+}
 
 @Injectable()
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
+  notifyUser(input: NotifyUserInput): Promise<Notification> {
+    validateUuid(input.userId, 'user_id');
+    const message = normalizeNotificationMessage(input.message);
+
+    return this.notificationRepository.createNotification({
+      userId: input.userId,
+      message,
+      type: input.type,
+      status: input.status,
+    });
+  }
+
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
     validateUuid(request.userId, 'user_id');
     return this.notificationRepository.listNotifications({
-      page:     request.pagination?.page  || 1,
-      limit:    request.pagination?.limit || 10,
-      userId:   request.userId,
-      types:    request.filters?.types?.length    ? request.filters.types    : undefined,
+      page: request.pagination?.page || 1,
+      limit: request.pagination?.limit || 10,
+      userId: request.userId,
+      types: request.filters?.types?.length ? request.filters.types : undefined,
       statuses: request.filters?.statuses?.length ? request.filters.statuses : undefined,
       unreadOnly: request.filters?.unreadOnly ?? false,
     });
@@ -46,11 +71,22 @@ export class NotificationService {
     return create(MarkAllAsReadResponseSchema, { updatedCount });
   }
 
-  async deleteNotification(request: DeleteNotificationRequest): Promise<DeleteNotificationResponse> {
+  async deleteNotification(
+    request: DeleteNotificationRequest,
+  ): Promise<DeleteNotificationResponse> {
     validateUuid(request.id, 'id');
     const success = await this.notificationRepository.deleteNotification(request.id);
     return create(DeleteNotificationResponseSchema, { success });
   }
+}
+
+function normalizeNotificationMessage(value: string | undefined): string {
+  const normalized = value?.trim();
+  if (!normalized) {
+    throw new ConnectError('message is required', Code.InvalidArgument);
+  }
+
+  return normalized.slice(0, MAX_NOTIFICATION_MESSAGE_LENGTH);
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {

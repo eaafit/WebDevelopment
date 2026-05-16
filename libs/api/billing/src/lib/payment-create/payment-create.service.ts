@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { getCurrentUser } from '@internal/auth-shared';
+import { NotificationService } from '@internal/notification';
 import {
   CreatePaymentResponseSchema,
   PromoValidationStatus,
@@ -21,6 +22,7 @@ import {
   PaymentStatus as PrismaPaymentStatus,
   SubscriptionPlan as PrismaSubscriptionPlan,
   PaymentType as PrismaPaymentType,
+  NotificationType as PrismaNotificationType,
   type Promo,
 } from '@internal/prisma-client';
 import {
@@ -66,6 +68,7 @@ export class PaymentCreateService {
     private readonly metrics: MetricsService,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
@@ -142,6 +145,10 @@ export class PaymentCreateService {
       this.logger.log(
         `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
       );
+      await this.notifyPaymentUser(
+        request.userId,
+        `Создан платёж ${shortId(payment.id)} на сумму ${resolved.amount} ${SUBSCRIPTION_CURRENCY}.`,
+      );
 
       return create(CreatePaymentResponseSchema, {
         paymentId: payment.id,
@@ -164,9 +171,29 @@ export class PaymentCreateService {
           where: { id: payment.id },
           data: { status: PrismaPaymentStatus.Failed },
         });
+        await this.notifyPaymentUser(
+          request.userId,
+          `Не удалось создать платёж ${shortId(payment.id)} через YooKassa: ${err.message}`,
+        );
         throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
       }
       throw err;
+    }
+  }
+
+  private async notifyPaymentUser(userId: string, message: string): Promise<void> {
+    try {
+      await this.notificationService.notifyUser({
+        userId,
+        message,
+        type: PrismaNotificationType.Push,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create payment notification for user ${userId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
     }
   }
 

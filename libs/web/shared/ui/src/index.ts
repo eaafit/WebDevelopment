@@ -7,6 +7,7 @@ export * from './lib/logging/provide-web-logging';
 export * from './lib/logging/web-error-handler';
 export * from './lib/logging/web-logger.service';
 export * from './lib/logging/web-logging.models';
+export * from './lib/notifications/notification-center-api.service';
 export * from './lib/dashboard-layout/dashboard-layout';
 export * from './lib/placeholder-page/placeholder-page';
 export * from './lib/placeholder-page/placeholder-page-route';

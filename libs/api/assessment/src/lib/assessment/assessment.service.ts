@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { NotificationService } from '@internal/notification';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -33,9 +34,12 @@ import {
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentStatus as PrismaAssessmentStatus,
+  NotificationType as PrismaNotificationType,
+} from '@internal/prisma-client';
 import {
   AssessmentRepository,
   type AssessmentAuditSnapshot,
@@ -50,10 +54,13 @@ const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 @Injectable()
 export class AssessmentService {
+  private readonly logger = new Logger(AssessmentService.name);
+
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -102,6 +109,10 @@ export class AssessmentService {
       targetContext: snapshot.address,
       after: toAuditSnapshot(snapshot),
     });
+    await this.notifyAssessmentUser(
+      request.userId,
+      `Заявка ${shortId(assessment.id)} создана и отправлена в работу.`,
+    );
 
     return create(CreateAssessmentResponseSchema, { assessment });
   }
@@ -129,6 +140,10 @@ export class AssessmentService {
       before: toAuditSnapshot(before),
       after: toAuditSnapshot(after),
     });
+    await this.notifyAssessmentUser(
+      after.userId,
+      `По заявке ${shortId(assessment.id)} обновлены данные.`,
+    );
 
     return create(UpdateAssessmentResponseSchema, { assessment });
   }
@@ -155,6 +170,16 @@ export class AssessmentService {
       before: toAuditSnapshot(before),
       after: toAuditSnapshot(after),
     });
+    await this.notifyAssessmentUser(
+      after.userId,
+      `Заявка ${shortId(assessment.id)} взята в работу нотариусом.`,
+    );
+    if (after.notaryId) {
+      await this.notifyAssessmentUser(
+        after.notaryId,
+        `Вы взяли в работу заявку ${shortId(assessment.id)}.`,
+      );
+    }
 
     return create(VerifyAssessmentResponseSchema, { assessment });
   }
@@ -190,6 +215,10 @@ export class AssessmentService {
       before: toAuditSnapshot(before),
       after: toAuditSnapshot(after),
     });
+    await this.notifyAssessmentUser(
+      after.userId,
+      `Заявка ${shortId(assessment.id)} завершена. Результаты оценки доступны в личном кабинете.`,
+    );
 
     return create(CompleteAssessmentResponseSchema, { assessment });
   }
@@ -216,8 +245,35 @@ export class AssessmentService {
       before: toAuditSnapshot(before),
       after: toAuditSnapshot(after),
     });
+    await this.notifyAssessmentUser(
+      after.userId,
+      `Заявка ${shortId(assessment.id)} отменена${after.cancelReason ? `: ${after.cancelReason}` : '.'}`,
+    );
 
     return create(CancelAssessmentResponseSchema, { assessment });
+  }
+
+  private async notifyAssessmentUser(
+    userId: string | null | undefined,
+    message: string,
+  ): Promise<void> {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      await this.notificationService.notifyUser({
+        userId,
+        message,
+        type: PrismaNotificationType.Push,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create assessment notification for user ${userId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 
   private normalizeListRequest(request: ListAssessmentsRequest): AssessmentQuery {

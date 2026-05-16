@@ -5,12 +5,14 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
+import { NotificationService } from '@internal/notification';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
   PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   PaymentType as PrismaPaymentType,
+  NotificationType as PrismaNotificationType,
   type Prisma,
 } from '@internal/prisma-client';
 import { timingSafeEqual } from 'node:crypto';
@@ -73,6 +75,7 @@ export class PaymentWebhookService {
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly paymentAttachmentService: PaymentAttachmentService,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async processWebhook(request: ProcessWebhookRequest) {
@@ -223,6 +226,10 @@ export class PaymentWebhookService {
         receiptRegistration: providerPayment.receiptRegistration,
       },
     );
+    await this.notifyPaymentUser(
+      payment.userId,
+      `Платёж ${shortId(payment.id)} успешно проведён на сумму ${payment.amount.toString()}.`,
+    );
   }
 
   private async handlePaymentCanceled(
@@ -253,6 +260,26 @@ export class PaymentWebhookService {
       paymentProvider: 'YooKassa',
       paymentMethodTitle: providerPayment.paymentMethodTitle,
     });
+    await this.notifyPaymentUser(
+      payment.userId,
+      `Платёж ${shortId(payment.id)} отклонён платёжным провайдером.`,
+    );
+  }
+
+  private async notifyPaymentUser(userId: string, message: string): Promise<void> {
+    try {
+      await this.notificationService.notifyUser({
+        userId,
+        message,
+        type: PrismaNotificationType.Push,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create webhook payment notification for user ${userId}: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 
   private async recordPaymentStatusAudit(

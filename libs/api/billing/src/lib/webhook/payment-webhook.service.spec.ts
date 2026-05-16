@@ -29,6 +29,9 @@ describe('PaymentWebhookService', () => {
   const auditService = {
     record: jest.fn(),
   };
+  const notificationService = {
+    notifyUser: jest.fn(),
+  };
   const prisma = {
     payment: {
       findFirst: findPayment,
@@ -61,6 +64,7 @@ describe('PaymentWebhookService', () => {
     yookassa.getPayment.mockReset();
     paymentSubscriptionService.activateSubscription.mockReset();
     auditService.record.mockReset();
+    notificationService.notifyUser.mockReset();
 
     findPayment.mockResolvedValue({
       id: 'payment-1',
@@ -129,6 +133,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -205,6 +210,12 @@ describe('PaymentWebhookService', () => {
         }),
       }),
     );
+    expect(notificationService.notifyUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        message: expect.stringContaining('успешно проведён'),
+      }),
+    );
   });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
@@ -248,6 +259,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -286,7 +298,7 @@ describe('PaymentWebhookService', () => {
           paymentId: 'payment-1',
           assessmentId: 'assessment-1',
         }),
-      })
+      }),
     );
   });
 
@@ -331,6 +343,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -371,6 +384,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -392,6 +406,7 @@ describe('PaymentWebhookService', () => {
     expect(metrics.recordPromoApplied).not.toHaveBeenCalled();
     expect(storeGeneratedReceipt).toHaveBeenCalled();
     expect(auditService.record).not.toHaveBeenCalled();
+    expect(notificationService.notifyUser).not.toHaveBeenCalled();
   });
 
   it('should audit canceled payments only after a real status transition', async () => {
@@ -418,6 +433,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -459,6 +475,12 @@ describe('PaymentWebhookService', () => {
         }),
       }),
     );
+    expect(notificationService.notifyUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-1',
+        message: expect.stringContaining('отклонён'),
+      }),
+    );
   });
 
   it('should not audit duplicate canceled notifications', async () => {
@@ -486,6 +508,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -502,6 +525,7 @@ describe('PaymentWebhookService', () => {
 
     expect(metrics.recordPayment).not.toHaveBeenCalled();
     expect(auditService.record).not.toHaveBeenCalled();
+    expect(notificationService.notifyUser).not.toHaveBeenCalled();
   });
 
   it('should mark canceled applicant service payments as failed billing metrics', async () => {
@@ -545,6 +569,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await service.handleYooKassaNotification(
@@ -584,6 +609,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      notificationService as never,
     );
 
     await expect(
