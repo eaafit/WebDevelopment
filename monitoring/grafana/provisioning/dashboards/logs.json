@@ -9,6 +9,7 @@
   "panels": [
     {
       "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Counts log lines that match the Request ID regex variable. With the default .* value, this is the total count for the selected filters and time range.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -82,7 +83,7 @@
           "refId": "A"
         }
       ],
-      "title": "Logs matching request ID",
+      "title": "Logs matching request ID filter",
       "type": "stat"
     },
     {
