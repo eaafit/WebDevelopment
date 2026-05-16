@@ -42,6 +42,15 @@ describe('Login', () => {
     expect(link?.getAttribute('href')).toContain('/auth/password-recovery');
   });
 
+  it('should expose the register link', () => {
+    fixture.detectChanges();
+
+    const link = fixture.nativeElement.querySelector('[data-testid="register-link"]') as HTMLAnchorElement | null;
+
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toContain('/auth/register');
+  });
+
   it('should fill the form and mark credentials as copied', async () => {
     jest.useFakeTimers();
     const writeText = jest.fn().mockResolvedValue(undefined);
