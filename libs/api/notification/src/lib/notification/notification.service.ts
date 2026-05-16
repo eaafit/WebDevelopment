@@ -38,9 +38,33 @@ import {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export interface CreateNotificationInput {
+  userId: string;
+  type: RpcNotificationType;
+  message: string;
+  status?: RpcNotificationStatus;
+  sentAt?: Date;
+  readAt?: Date | null;
+}
+
 @Injectable()
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
+
+  async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
+    validateUuid(request.userId, 'user_id');
+
+    const message = normalizeMessage(request.message);
+
+    return this.notificationRepository.createNotification({
+      userId: request.userId,
+      type: request.type,
+      message,
+      status: request.status,
+      sentAt: request.sentAt,
+      readAt: request.readAt,
+    });
+  }
 
   async createInternalNotification(params: {
     userId: string;
