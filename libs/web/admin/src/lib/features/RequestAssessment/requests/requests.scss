@@ -2,8 +2,7 @@
   display: block;
 }
 
-/* ========== КОНТЕЙНЕР ========== */
-.request-assessment-container {
+.requests-container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 2rem;
@@ -21,14 +20,60 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.top-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
+  gap: 1rem;
+  align-items: end;
+
   margin-bottom: 2rem;
+  padding: 1rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-xs);
+
+  background: var(--admin-surface-alt);
+}
+
+.top-filters__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  label {
+    font-size: 0.85rem;
+    color: var(--admin-text-muted);
+  }
+
+  input,
+  select {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius-xs);
+
+    font-size: 0.95rem;
+
+    background: var(--admin-surface);
+  }
+}
+
+.top-filters__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+@media (width <= 720px) {
+  .top-filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .search-box {
   flex: 1;
   min-width: 200px;
   max-width: 400px;
-  margin-right: auto;
 
   input {
     width: 100%;
@@ -71,6 +116,13 @@
     outline: none;
     box-shadow: 0 0 0 4px rgb(220 38 38 / 10%);
   }
+}
+
+/* ========== ID CELL ========== */
+.id-cell {
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--admin-text-muted);
 }
 
 /* ========== BADGES ========== */
@@ -151,63 +203,6 @@
   }
 }
 
-/* ========== TOGGLE ========== */
-.toggle-switch {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 50px;
-  height: 26px;
-
-  input {
-    width: 0;
-    height: 0;
-    opacity: 0;
-  }
-}
-
-.slider {
-  cursor: pointer;
-
-  position: absolute;
-  inset: 0;
-
-  border-radius: 26px;
-
-  background-color: #ccc;
-
-  transition: 0.4s;
-
-  &::before {
-    content: '';
-
-    position: absolute;
-    bottom: 3px;
-    left: 3px;
-
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-
-    background-color: white;
-
-    transition: 0.4s;
-  }
-}
-
-input:checked + .slider {
-  background-color: #10b981;
-
-  &::before {
-    transform: translateX(24px);
-  }
-}
-
 /* ========== VIEW CARD ========== */
 .view-card {
   max-width: 700px;
@@ -264,39 +259,6 @@ input:checked + .slider {
   &:hover {
     border-color: var(--admin-accent);
     color: var(--admin-accent);
-  }
-}
-
-/* ========== FORM MODAL (wider) ========== */
-.modal-form {
-  overflow-y: auto;
-  width: min(100%, 560px);
-  max-height: 90vh;
-}
-
-/* ========== EMAIL / TEL inputs ========== */
-.form-group {
-  input[type='email'],
-  input[type='tel'] {
-    width: 100%;
-    padding: 0.82rem 0.95rem;
-    border: 1px solid var(--admin-border-strong);
-    border-radius: var(--admin-radius-xs);
-
-    font-size: 1rem;
-    color: var(--admin-text);
-
-    background: #fff;
-
-    transition:
-      border-color 0.18s ease,
-      box-shadow 0.18s ease;
-
-    &:focus {
-      border-color: rgb(220 38 38 / 38%);
-      outline: none;
-      box-shadow: 0 0 0 4px rgb(220 38 38 / 10%);
-    }
   }
 }
 
@@ -442,6 +404,12 @@ input:checked + .slider {
   }
 }
 
+/* ========== ОШИБКА ЗАГРУЗКИ ========== */
+.admin-toolbar--error {
+  border-color: var(--admin-danger, #d33);
+  color: var(--admin-danger, #d33);
+}
+
 /* ========== АДАПТИВНОСТЬ ========== */
 @media (width <= 768px) {
   .filters {
@@ -450,5 +418,6 @@ input:checked + .slider {
 
   .search-box {
     width: 100%;
+    max-width: 100%;
   }
 }
