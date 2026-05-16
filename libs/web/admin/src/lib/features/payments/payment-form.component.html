@@ -18,7 +18,12 @@
       ID пользователя (userId)
       <input type="text" formControlName="userId" />
       @if (form.get('userId')?.invalid && form.get('userId')?.touched) {
-        <span class="field-error">Обязательное поле</span>
+        @if (form.get('userId')?.errors?.['required']) {
+          <span class="field-error">Обязательное поле</span>
+        }
+        @if (form.get('userId')?.errors?.['pattern']) {
+          <span class="field-error">Должен быть в формате UUID (8-4-4-4-12)</span>
+        }
       }
     </label>
 
@@ -87,11 +92,17 @@
     <label>
       ID подписки
       <input type="text" formControlName="subscriptionId" />
+      @if (form.get('subscriptionId')?.errors?.['pattern'] && form.get('subscriptionId')?.touched) {
+        <span class="field-error">Должен быть в формате UUID</span>
+      }
     </label>
 
     <label>
       ID заявки
       <input type="text" formControlName="assessmentId" />
+      @if (form.get('assessmentId')?.errors?.['pattern'] && form.get('assessmentId')?.touched) {
+        <span class="field-error">Должен быть в формате UUID</span>
+      }
     </label>
 
     <label>

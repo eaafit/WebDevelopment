@@ -20,6 +20,8 @@ import { AdminPaymentsApiService } from './payments-api.service';
 const CURRENCY_OPTIONS = ['RUB', 'USD', 'EUR'] as const;
 type Currency = (typeof CURRENCY_OPTIONS)[number];
 
+const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
 @Component({
   selector: 'lib-payment-form',
   standalone: true,
@@ -41,7 +43,7 @@ export class PaymentFormComponent implements OnInit {
   successMessage: string | null = null;
 
   readonly form = this.fb.group({
-    userId: ['', [Validators.required]],
+    userId: ['', [Validators.required, Validators.pattern(UUID_PATTERN)]],
     payer: ['', [Validators.required, Validators.maxLength(200)]],
     amount: [0, [Validators.required, Validators.min(0.01)]],
     currency: ['RUB' as Currency, [Validators.required]],
@@ -51,8 +53,8 @@ export class PaymentFormComponent implements OnInit {
     paymentMethod: ['card' as PaymentMethod, [Validators.required]],
     status: ['pending' as PaymentStatus, [Validators.required]],
     description: [''],
-    subscriptionId: [''],
-    assessmentId: [''],
+    subscriptionId: ['', [Validators.pattern(UUID_PATTERN)]],
+    assessmentId: ['', [Validators.pattern(UUID_PATTERN)]],
     transactionId: [''],
     attachmentFileName: [''],
     attachmentFileUrl: [''],
@@ -138,7 +140,7 @@ export class PaymentFormComponent implements OnInit {
         });
         await this.api.createPayment({
           userId: data.userId ?? '',
-          amount: String(data.amount ?? 0),
+          amount: Number(data.amount ?? 0).toFixed(2),
           type: this.toRpcPaymentType(data.type as PaymentType),
           targetId: targetId || (data.userId ?? ''),
         });

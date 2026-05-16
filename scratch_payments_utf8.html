@@ -1,0 +1,443 @@
+﻿<link
+  rel="stylesheet"
+  href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+
+<section class="admin-page payments-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">╨Ы╨╕╤З╨╜╤Л╨╣ ╨║╨░╨▒╨╕╨╜╨╡╤В ╨░╨┤╨╝╨╕╨╜╨╕╤Б╤В╤А╨░╤В╨╛╤А╨░ / ╨Я╨╗╨░╤В╨╡╨╢╨╕</p>
+      <h2>╨г╨┐╤А╨░╨▓╨╗╨╡╨╜╨╕╨╡ ╨┐╨╗╨░╤В╨╡╨╢╨░╨╝╨╕</h2>
+      <p class="admin-page__lead">
+        ╨Ю╤В╤Б╨╗╨╡╨╢╨╕╨▓╨░╨╣╤В╨╡ ╨┐╨╛╤Б╤В╤Г╨┐╨╗╨╡╨╜╨╕╤П, ╨▒╤Л╤Б╤В╤А╨╛ ╨╜╨░╤Е╨╛╨┤╨╕╤В╨╡ ╨╜╤Г╨╢╨╜╤Л╨╡ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╨╕ ╨╕ ╨▓╤Л╨│╤А╤Г╨╢╨░╨╣╤В╨╡ ╤В╨╡╨║╤Г╤Й╤Г╤О ╨▓╤Л╨▒╨╛╤А╨║╤Г ╨▓ CSV ╨▓ ╤В╨╛╨╝ ╨╢╨╡
+        ╨╕╨╜╤В╨╡╤А╤Д╨╡╨╣╤Б╨╡.
+      </p>
+    </div>
+
+    <div class="admin-page__actions">
+      <button
+        type="button"
+        class="admin-btn admin-btn--primary"
+        (click)="exportToCsv()"
+        [disabled]="!filteredPayments.length">
+        ╨н╨║╤Б╨┐╨╛╤А╤В CSV
+      </button>
+      <button type="button" class="admin-btn admin-btn--secondary" (click)="goToCreateForm()">+ ╨б╨╛╨╖╨┤╨░╤В╤М ╨┐╨╗╨░╤В╤С╨╢</button>
+      <button type="button" class="admin-btn admin-btn--ghost" (click)="goToApplications()">╨Я╨╡╤А╨╡╨╣╤В╨╕ ╨║ ╨╖╨░╤П╨▓╨║╨░╨╝</button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar">
+    <div class="admin-toolbar__copy">
+      <p>
+        ╨н╨║╤Б╨┐╨╛╤А╤В ╨▓╤Л╨│╤А╤Г╨╢╨░╨╡╤В ╤В╨╛╨╗╤М╨║╨╛ ╤В╨╡╨║╤Г╤Й╤Г╤О ╨╛╤В╤Д╨╕╨╗╤М╤В╤А╨╛╨▓╨░╨╜╨╜╤Г╤О ╨▓╤Л╨▒╨╛╤А╨║╤Г. ╨Я╨░╨│╨╕╨╜╨░╤Ж╨╕╤П, ╤Д╨╕╨╗╤М╤В╤А╤Л ╨┐╨╛ ╨║╨╛╨╗╨╛╨╜╨║╨░╨╝ ╨╕ ╨┤╨╡╨╣╤Б╤В╨▓╨╕╤П ╨▓ ╤В╨░╨▒╨╗╨╕╤Ж╨╡
+        ╤А╨░╨▒╨╛╤В╨░╤О╤В ╨║╨░╨║ ╨┐╤А╨╡╨╢╨┤╨╡.
+      </p>
+      <small class="admin-toolbar__status">
+        ╨Э╨░╨╣╨┤╨╡╨╜╨╛: {{ filteredPayments.length }} ┬╖ ╨б╤В╤А╨░╨╜╨╕╤Ж╨░ {{ currentPage }} ╨╕╨╖ {{ totalPages }}
+      </small>
+      @if (loadError) {
+      <small class="admin-toolbar__status">{{ loadError }}</small>
+      }
+    </div>
+    <span class="admin-toolbar__meta">╨Т╤Б╨╡╨│╨╛ ╨┐╨╗╨░╤В╨╡╨╢╨╡╨╣: {{ payments.length }}</span>
+  </section>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>╨д╨╕╨╗╤М╤В╤А╤Л ╨╕ ╨┐╨╛╨╕╤Б╨║</h3>
+        <p>╨С╤Л╤Б╤В╤А╤Л╨╣ ╨┐╨╛╨╕╤Б╨║ ╨┐╨╛ ╨┐╨╗╨░╤В╨╡╨╗╤М╤Й╨╕╨║╤Г, ID ╨┐╨╗╨░╤В╨╡╨╢╨░ ╨╕ ID ╤В╤А╨░╨╜╨╖╨░╨║╤Ж╨╕╨╕ ╤Б ╨┤╨╛╨┐╨╛╨╗╨╜╨╕╤В╨╡╨╗╤М╨╜╤Л╨╝ ╨╛╤В╨▒╨╛╤А╨╛╨╝ ╨┐╨╛ ╤Б╤В╨░╤В╤Г╤Б╤Г.</p>
+      </div>
+    </div>
+
+    <div class="payments-filters">
+      <label class="admin-field payments-field payments-field--search">
+        <span>╨Я╨╛╨╕╤Б╨║</span>
+        <input
+          type="text"
+          placeholder="╨Я╨╗╨░╤В╨╡╨╗╤М╤Й╨╕╨║, ID ╨┐╨╗╨░╤В╨╡╨╢╨░ ╨╕╨╗╨╕ ID ╤В╤А╨░╨╜╨╖╨░╨║╤Ж╨╕╨╕"
+          [(ngModel)]="searchTerm"
+          (ngModelChange)="onFiltersChanged()" />
+      </label>
+
+      <label class="admin-field payments-field payments-field--status">
+        <span>╨б╤В╨░╤В╤Г╤Б</span>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
+          <option value="">╨Т╤Б╨╡ ╤Б╤В╨░╤В╤Г╤Б╤Л</option>
+          <option value="completed">╨Ч╨░╨▓╨╡╤А╤И╤С╨╜</option>
+          <option value="pending">╨Т ╨╛╨▒╤А╨░╨▒╨╛╤В╨║╨╡</option>
+          <option value="failed">╨Ю╤И╨╕╨▒╨║╨░</option>
+          <option value="refunded">╨Т╨╛╨╖╨▓╤А╨░╤В</option>
+        </select>
+      </label>
+
+      <div class="payments-filters__actions">
+        <button type="button" class="admin-btn admin-btn--secondary">╨Я╤А╨╕╨╝╨╡╨╜╨╕╤В╤М</button>
+      </div>
+    </div>
+  </article>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>╨б╨┐╨╕╤Б╨╛╨║ ╨┐╨╗╨░╤В╨╡╨╢╨╡╨╣</h3>
+        <p>╨Я╤А╨╛╤Б╨╝╨╛╤В╤А, ╤А╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╨╜╨╕╨╡, ╤Г╨┤╨░╨╗╨╡╨╜╨╕╨╡ ╨╕ ╨┐╨╡╤А╨╡╤Е╨╛╨┤ ╨║ ╤Б╨▓╤П╨╖╨░╨╜╨╜╨╛╨╣ ╨╖╨░╤П╨▓╨║╨╡ ╨┤╨╛╤Б╤В╤Г╨┐╨╜╤Л ╨┐╤А╤П╨╝╨╛ ╨╕╨╖ ╤Б╤В╤А╨╛╨║╨╕ ╤В╨░╨▒╨╗╨╕╤Ж╤Л.</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">╨Э╨░ ╤Б╤В╤А╨░╨╜╨╕╤Ж╨╡: {{ paginatedPayments.length }}</span>
+    </div>
+
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        <table class="payments-table">
+          <thead>
+            <tr>
+              @for (column of headerColumns; track column.key) {
+              <th class="filterable no-wrap-col">
+                <div class="header-cell">
+                  <span>{{ column.label }}</span>
+                  <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
+                    тЦ╝
+                  </button>
+                </div>
+                @if (activeFilterColumn === column.key) {
+                <div
+                  class="column-filter-menu"
+                  [ngStyle]="filterMenuStyle"
+                  (click)="$event.stopPropagation()"
+                  (keydown)="$event.stopPropagation()"
+                  tabindex="-1"
+                  role="menu"
+                  aria-label="╨Ь╨╡╨╜╤О ╤Д╨╕╨╗╤М╤В╤А╨░╤Ж╨╕╨╕">
+                  <div class="menu-section">
+                    <button
+                      type="button"
+                      class="menu-btn"
+                      [class.active]="isSortDraftActive('asc')"
+                      (click)="setDraftSort('asc')">
+                      ╨Я╨╛ ╨▓╨╛╨╖╤А╨░╤Б╤В╨░╨╜╨╕╤О
+                    </button>
+                    <button
+                      type="button"
+                      class="menu-btn"
+                      [class.active]="isSortDraftActive('desc')"
+                      (click)="setDraftSort('desc')">
+                      ╨Я╨╛ ╤Г╨▒╤Л╨▓╨░╨╜╨╕╤О
+                    </button>
+                  </div>
+
+                  <div class="menu-section">
+                    <button type="button" class="menu-btn clear-btn" (click)="clearCurrentColumnFilter()">
+                      ╨б╨╜╤П╤В╤М ╤Д╨╕╨╗╤М╤В╤А ╤Б ╤В╨╡╨║╤Г╤Й╨╡╨│╨╛ ╤Б╤В╨╛╨╗╨▒╤Ж╨░
+                    </button>
+                  </div>
+
+                  <div class="menu-section">
+                    <input type="text" [(ngModel)]="filterSearch" placeholder="╨Я╨╛╨╕╤Б╨║" />
+                  </div>
+
+                  <div class="menu-section value-list">
+                    <label class="checkbox-row">
+                      <input type="checkbox" [checked]="isAllChecked" (change)="onToggleAllChange($event)" />
+                      <span>╨Т╤Л╨┤╨╡╨╗╨╕╤В╤М ╨▓╤Б╨╡</span>
+                    </label>
+                    @for (value of filterValues; track value) {
+                    <label class="checkbox-row">
+                      <input
+                        type="checkbox"
+                        [checked]="isValueChecked(value)"
+                        (change)="onToggleValueChange(value, $event)" />
+                      <span>{{ value }}</span>
+                    </label>
+                    }
+                  </div>
+
+                  <div class="menu-actions">
+                    <button type="button" class="btn btn-primary btn-sm" (click)="applyColumnFilter()">OK</button>
+                    <button type="button" class="btn btn-secondary btn-sm" (click)="cancelColumnFilter()">
+                      ╨Ю╤В╨╝╨╡╨╜╨░
+                    </button>
+                  </div>
+                </div>
+                }
+              </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @if (loading) { @for (row of skeletonRows; track row) {
+            <tr class="skeleton-row">
+              @for (column of headerColumns; track column.key) {
+              <td><span class="skeleton-cell"></span></td>
+              }
+            </tr>
+            } } @else if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
+            <tr>
+              <td>{{ payment.id }}</td>
+              <td>{{ payment.paymentDate | date:'dd.MM.yyyy' }}</td>
+              <td>{{ payment.payer }}</td>
+              <td>{{ getTypeLabel(payment.type) }}</td>
+              <td>{{ payment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
+              <td>{{ payment.fee | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
+              <td>{{ getMethodLabel(payment.paymentMethod) }}</td>
+              <td>{{ payment.transactionId || 'тАФ' }}</td>
+              <td>
+                @if (payment.attachmentFileName && payment.attachmentFileUrl) {
+                <div class="receipt-actions">
+                  <button type="button" class="icon-btn receipt" (click)="openReceipt(payment.id)" title="╨Ю╤В╨║╤А╤Л╤В╤М ╤З╨╡╨║">
+                    <i class="las la-file-alt"></i>
+                  </button>
+                  <button
+                    type="button"
+                    class="icon-btn download"
+                    (click)="downloadReceipt(payment.id, payment.attachmentFileName)"
+                    title="╨б╨║╨░╤З╨░╤В╤М ╤З╨╡╨║">
+                    <i class="las la-download"></i>
+                  </button>
+                </div>
+                } @else { тАФ }
+              </td>
+              <td>
+                @if (payment.assessmentId) {
+                <button
+                  type="button"
+                  class="link-btn"
+                  (click)="goToApplication(payment.assessmentId!)"
+                  title="╨Я╨╡╤А╨╡╨╣╤В╨╕ ╨║ ╨╖╨░╤П╨▓╨║╨╡">
+                  {{ payment.assessmentId }}
+                </button>
+                } @else { тАФ }
+              </td>
+              <td>
+                <span class="status-badge" [ngClass]="'status-' + payment.status">
+                  {{ getStatusLabel(payment.status) }}
+                </span>
+              </td>
+              <td class="actions">
+                <button type="button" class="icon-btn view" (click)="openViewModal(payment)" title="╨Я╤А╨╛╤Б╨╝╨╛╤В╤А">
+                  <i class="las la-eye"></i>
+                </button>
+                <button type="button" class="icon-btn edit" (click)="openEditModal(payment)" title="╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М">
+                  <i class="las la-pencil-alt"></i>
+                </button>
+                <button type="button" class="icon-btn delete" (click)="openDeleteModal(payment)" title="╨г╨┤╨░╨╗╨╕╤В╤М">
+                  <i class="las la-trash"></i>
+                </button>
+                @if (payment.assessmentId) {
+                <button
+                  type="button"
+                  class="icon-btn applications"
+                  (click)="goToApplication(payment.assessmentId!)"
+                  title="╨Я╨╡╤А╨╡╨╣╤В╨╕ ╨║ ╨╖╨░╤П╨▓╨║╨╡">
+                  <i class="las la-list"></i>
+                </button>
+                }
+              </td>
+            </tr>
+            } } @else {
+            <tr>
+              <td class="payments-table__empty" colspan="12">
+                @if (loadError) { {{ loadError }} } @else { ╨Я╨╛ ╤В╨╡╨║╤Г╤Й╨╕╨╝ ╤Д╨╕╨╗╤М╤В╤А╨░╨╝ ╨┐╨╗╨░╤В╨╡╨╢╨╕ ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜╤Л. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╨╕╨╖╨╝╨╡╨╜╨╕╤В╤М
+                ╨┐╨░╤А╨░╨╝╨╡╤В╤А╤Л ╨┐╨╛╨╕╤Б╨║╨░. }
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    @if (totalPages > 1) {
+    <div class="pagination">
+      <button type="button" class="page-btn" (click)="prevPage()" [disabled]="currentPage === 1">┬л</button>
+      @for (page of paginationItems; track $index) { @if (isPageItem(page)) {
+      <button type="button" class="page-btn" [class.active]="page === currentPage" (click)="setPage(page)">
+        {{ page }}
+      </button>
+      } @else {
+      <span class="page-ellipsis">тАж</span>
+      } }
+      <button type="button" class="page-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">┬╗</button>
+    </div>
+    }
+  </article>
+</section>
+
+@if (isCreateEditModalOpen) {
+<div
+  class="modal show"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="╨Ч╨░╨║╤А╤Л╤В╤М ╨╝╨╛╨┤╨░╨╗╤М╨╜╨╛╨╡ ╨╛╨║╨╜╨╛">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>{{ isEditMode ? '╨а╨╡╨┤╨░╨║╤В╨╕╤А╨╛╨▓╨░╤В╤М ╨┐╨╗╨░╤В╤С╨╢' : '╨б╨╛╨╖╨┤╨░╤В╤М ╨┐╨╗╨░╤В╤С╨╢' }}</h3>
+      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form #paymentForm="ngForm">
+        <div class="form-group">
+          <label for="payer">╨Я╨╗╨░╤В╨╡╨╗╤М╤Й╨╕╨║</label>
+          <input type="text" id="payer" [(ngModel)]="currentPayment.payer" name="payer" required />
+        </div>
+        <div class="form-group">
+          <label for="amount">╨б╤Г╨╝╨╝╨░ (RUB)</label>
+          <input
+            type="number"
+            id="amount"
+            [(ngModel)]="currentPayment.amount"
+            name="amount"
+            required
+            min="0"
+            step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="fee">╨Ъ╨╛╨╝╨╕╤Б╤Б╨╕╤П (RUB)</label>
+          <input type="number" id="fee" name="fee" min="0" step="0.01" [(ngModel)]="fee" />
+        </div>
+        <div class="form-group">
+          <label for="type">╨в╨╕╨┐</label>
+          <select id="type" [(ngModel)]="currentPayment.type" name="type" required>
+            @for (type of typeOptions; track type) {
+            <option [value]="type">{{ getTypeLabel(type) }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="subscriptionId">ID ╨┐╨╛╨┤╨┐╨╕╤Б╨║╨╕</label>
+          <select id="subscriptionId" [(ngModel)]="currentPayment.subscriptionId" name="subscriptionId">
+            <option [ngValue]="null">╨Э╨╡ ╨▓╤Л╨▒╤А╨░╨╜╨╛</option>
+            @for (subscriptionId of subscriptionIdOptions; track subscriptionId) {
+            <option [ngValue]="subscriptionId">{{ subscriptionId }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="assessmentId">ID ╨╖╨░╤П╨▓╨║╨╕</label>
+          <select id="assessmentId" [(ngModel)]="currentPayment.assessmentId" name="assessmentId">
+            <option [ngValue]="null">╨Э╨╡ ╨▓╤Л╨▒╤А╨░╨╜╨╛</option>
+            @for (assessmentId of assessmentIdOptions; track assessmentId) {
+            <option [ngValue]="assessmentId">{{ assessmentId }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="paymentMethod">╨Ь╨╡╤В╨╛╨┤ ╨╛╨┐╨╗╨░╤В╤Л</label>
+          <select id="paymentMethod" [(ngModel)]="currentPayment.paymentMethod" name="paymentMethod" required>
+            @for (method of paymentMethodOptions; track method) {
+            <option [value]="method">{{ getMethodLabel(method) }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="transactionId">ID ╤В╤А╨░╨╜╨╖╨░╨║╤Ж╨╕╨╕</label>
+          <input
+            type="text"
+            id="transactionId"
+            [(ngModel)]="currentPayment.transactionId"
+            name="transactionId"
+            placeholder="╨Т╨╜╨╡╤И╨╜╨╕╨╣ ID ╨╛╤В ╨┐╨╗╨░╤В╤С╨╢╨╜╨╛╨│╨╛ ╤И╨╗╤О╨╖╨░" />
+        </div>
+        <div class="form-group">
+          <label for="attachmentFileName">╨Э╨░╨╖╨▓╨░╨╜╨╕╨╡ ╤Д╨░╨╣╨╗╨░ ╤З╨╡╨║╨░</label>
+          <input
+            type="text"
+            id="attachmentFileName"
+            [(ngModel)]="currentPayment.attachmentFileName"
+            name="attachmentFileName" />
+        </div>
+        <div class="form-group">
+          <label for="attachmentFileUrl">╨б╤Б╤Л╨╗╨║╨░ ╨╜╨░ ╤З╨╡╨║</label>
+          <input
+            type="text"
+            id="attachmentFileUrl"
+            [(ngModel)]="currentPayment.attachmentFileUrl"
+            name="attachmentFileUrl"
+            placeholder="https://..." />
+        </div>
+        <div class="form-group">
+          <label for="paymentDate">╨Ф╨░╤В╨░ ╨┐╨╗╨░╤В╨╡╨╢╨░</label>
+          <input
+            type="date"
+            id="paymentDate"
+            [(ngModel)]="currentPayment.paymentDate"
+            name="paymentDate"
+            [max]="today"
+            required />
+        </div>
+        <div class="form-group">
+          <label for="status">╨б╤В╨░╤В╤Г╤Б</label>
+          <select id="status" [(ngModel)]="currentPayment.status" name="status">
+            @for (status of statusOptions; track status) {
+            <option [value]="status">{{ getStatusLabel(status) }}</option>
+            }
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" (click)="closeModals()">╨Ю╤В╨╝╨╡╨╜╨░</button>
+      <button type="button" class="btn btn-primary" (click)="savePayment()" [disabled]="!paymentForm?.form?.valid">
+        {{ isEditMode ? '╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М ╨╕╨╖╨╝╨╡╨╜╨╡╨╜╨╕╤П' : '╨б╨╛╤Е╤А╨░╨╜╨╕╤В╤М' }}
+      </button>
+    </div>
+  </div>
+</div>
+} @if (isViewModalOpen) {
+<div
+  class="modal show"
+  (click)="onModalBackdropClick($event)"
+  (keydown)="onBackdropKeyDown($event)"
+  role="button"
+  tabindex="0"
+  aria-label="╨Ч╨░╨║╤А╤Л╤В╤М ╨╝╨╛╨┤╨░╨╗╤М╨╜╨╛╨╡ ╨╛╨║╨╜╨╛">
+  <div class="modal-content view-modal">
+    <div class="modal-header">
+      <h3>╨Ф╨╡╤В╨░╨╗╨╕ ╨┐╨╗╨░╤В╨╡╨╢╨░ #{{ currentPayment.id }}</h3>
+      <button type="button" class="close-btn" (click)="closeModals()">&times;</button>
+    </div>
+    <div class="modal-body view-details">
+      <p><strong>ID:</strong> {{ currentPayment.id }}</p>
+      <p><strong>╨Я╨╗╨░╤В╨╡╨╗╤М╤Й╨╕╨║:</strong> {{ currentPayment.payer }}</p>
+      <p><strong>╨в╨╕╨┐:</strong> {{ getTypeLabel(currentPayment.type) }}</p>
+      <p><strong>╨б╤Г╨╝╨╝╨░:</strong> {{ currentPayment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</p>
+      <p><strong>╨Ф╨░╤В╨░ ╨┐╨╗╨░╤В╨╡╨╢╨░:</strong> {{ currentPayment.paymentDate | date:'dd.MM.yyyy' }}</p>
+      <p><strong>╨Ь╨╡╤В╨╛╨┤ ╨╛╨┐╨╗╨░╤В╤Л:</strong> {{ getMethodLabel(currentPayment.paymentMethod) }}</p>
+      <p><strong>ID ╤В╤А╨░╨╜╨╖╨░╨║╤Ж╨╕╨╕:</strong> {{ currentPayment.transactionId || 'тАФ' }}</p>
+      <p><strong>ID ╨┐╨╛╨┤╨┐╨╕╤Б╨║╨╕:</strong> {{ currentPayment.subscriptionId || 'тАФ' }}</p>
+      <p><strong>ID ╨╖╨░╤П╨▓╨║╨╕:</strong> {{ currentPayment.assessmentId || 'тАФ' }}</p>
+      @if (currentPayment.attachmentFileName && currentPayment.attachmentFileUrl) {
+      <p>
+        <strong>╨з╨╡╨║:</strong>
+        <button type="button" class="receipt-link" (click)="openReceipt(currentPayment.id)">
+          <i class="las la-file-alt"></i> {{ currentPayment.attachmentFileName }}
+        </button>
+        <button
+          type="button"
+          class="receipt-download"
+          (click)="downloadReceipt(currentPayment.id, currentPayment.attachmentFileName)"
+          title="╨б╨║╨░╤З╨░╤В╤М">
+          <i class="las la-download"></i>
+        </button>
+      </p>
+      }
+      <p>
+        <strong>╨б╤В╨░╤В╤Г╤Б:</strong>
+        <span class="status-badge" [ngClass]="'status-' + currentPayment.status">
+          {{ getStatusLabel(currentPayment.status) }}
+        </span>
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-primary" (click)="closeModals()">╨Ч╨░╨║╤А╤Л╤В╤М</button>
+    </div>
+  </div>
+</div>
+} @if (paymentToDelete) {
+<lib-payment-delete-modal
+  [payment]="paymentToDelete"
+  (confirmed)="onDeleteConfirmed()"
+  (cancelled)="onDeleteCancelled()">
+</lib-payment-delete-modal>
+}
