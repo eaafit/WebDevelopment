@@ -55,7 +55,17 @@ select {
 
 .btn-primary {
   color: #fff;
-  background: #4361ee;
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+
+  &:hover {
+    background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+    box-shadow: 0 10px 20px rgb(185 28 28 / 28%);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    box-shadow: 0 4px 10px rgb(185 28 28 / 28%);
+  }
 }
 
 .btn-secondary {

@@ -2,7 +2,6 @@ import { Route } from '@angular/router';
 import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
-import { Applications } from './features/applications/applications';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
 import { PlansListComponent } from './features/plans/plans-list/plans-list';
 import { PromoCodesComponent } from './features/promo-codes/promo-codes';
@@ -20,15 +19,10 @@ export const adminRoutes: Route[] = [
     children: [
       { path: '', ...placeholder('Главное меню', ['Обзор панели администратора']) } as Route,
       {
-        path: 'users',
+        path: 'applications',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
-      } as Route,
-      {
-        path: 'orders',
-        loadComponent: () =>
-          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
-      } as Route,
+      },
       {
         path: 'order-status-history',
         loadComponent: () =>
@@ -36,27 +30,6 @@ export const adminRoutes: Route[] = [
             (m) => m.OrderStatusHistory,
           ),
       },
-      {
-        path: 'orders/statuses',
-        ...placeholder('Управление статусами', [
-          'Изменение статусов заказов',
-          'Отслеживание переходов между этапами',
-        ]),
-      } as Route,
-      {
-        path: 'orders/queue',
-        ...placeholder('Очередь оценок', [
-          'Список заявок, ожидающих оценки',
-          'Распределение по нотариусам',
-        ]),
-      } as Route,
-      {
-        path: 'orders/moderation',
-        ...placeholder('Ручная модерация', [
-          'Проверка и модерация спорных заявок',
-          'Ручные корректировки',
-        ]),
-      } as Route,
       {
         path: 'payments/new',
         component: PaymentFormComponent,
@@ -70,10 +43,6 @@ export const adminRoutes: Route[] = [
         component: Payments,
       },
 
-      {
-        path: 'applications',
-        component: Applications,
-      },
       {
         path: 'subscriptions',
         component: SubscriptionsListComponent,
@@ -97,6 +66,11 @@ export const adminRoutes: Route[] = [
           'Статусы «принято/на проверке»',
         ]),
       } as Route,
+      {
+        path: 'newsletter/new',
+        loadComponent: () =>
+          import('./features/newsletter/newsletter-new').then((m) => m.NewsletterNew),
+      },
       {
         path: 'newsletter',
         loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
@@ -122,6 +96,16 @@ export const adminRoutes: Route[] = [
         path: 'settings',
         loadComponent: () =>
           import('./features/smtp-settings/smtp-settings').then((m) => m.SmtpSettings),
+      },
+      {
+        path: 'bitrix/config',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-config.component').then((m) => m.BitrixConfigComponent),
+      },
+      {
+        path: 'bitrix/sync',
+        loadComponent: () =>
+          import('./features/bitrix/bitrix-sync.component').then((m) => m.BitrixSyncComponent),
       },
     ],
   },

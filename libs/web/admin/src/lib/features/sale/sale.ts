@@ -66,6 +66,15 @@ export class SaleComponent implements OnInit {
     );
   }
 
+  isDiscountActive(discount: Discount): boolean {
+    const now = new Date();
+    return (
+      discount.isActive &&
+      new Date(discount.validFrom).getTime() <= now.getTime() &&
+      new Date(discount.validTo).getTime() >= now.getTime()
+    );
+  }
+
   openCreateModal(): void {
     this.error.set(null);
     this.modalMode.set('create');

@@ -124,7 +124,7 @@ const MOCK_NOTIFICATIONS: AdminNotification[] = [
 ];
 
 @Component({
-  selector: 'admin-notifications',
+  selector: 'lib-notifications',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './notifications.html',

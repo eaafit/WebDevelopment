@@ -19,14 +19,17 @@
         </button>
         <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
-      <button
-        type="button"
-        class="admin-notifications__btn admin-notifications__btn--ghost"
-        *ngIf="!notifications().length"
-        (click)="restoreDemoData()">
-        Вернуть демо-данные
-      </button>
-      <span class="admin-notifications__badge" *ngIf="inboxCount() as c"> В очереди / непрочитано: {{ c }} </span>
+      @if (!notifications().length) {
+        <button
+          type="button"
+          class="admin-notifications__btn admin-notifications__btn--ghost"
+          (click)="restoreDemoData()">
+          Вернуть демо-данные
+        </button>
+      }
+      @if (inboxCount(); as c) {
+        <span class="admin-notifications__badge"> В очереди / непрочитано: {{ c }} </span>
+      }
     </div>
   </header>
 
@@ -70,15 +73,20 @@
     при фильтре «активные»). «Очистить историю» убирает все строки.
   </p>
 
-  <section class="admin-notifications__list" *ngIf="filtered().length; else emptyState">
+  @if (filtered().length) {
+  <section class="admin-notifications__list">
+    @for (item of filtered(); track item.id) {
     <article
       class="admin-notifications__card"
       [class.admin-notifications__card--attention]="
         item.lifecycle === 'sent' || item.lifecycle === 'created'
       "
       [class.admin-notifications__card--deleted]="item.lifecycle === 'deleted'"
-      *ngFor="let item of filtered()"
-      (click)="toggleReadOnCard(item.id)">
+      tabindex="0"
+      role="button"
+      (click)="toggleReadOnCard(item.id)"
+      (keydown.enter)="toggleReadOnCard(item.id)"
+      (keydown.space)="toggleReadOnCard(item.id)">
       <div class="admin-notifications__card-main">
         <h3>{{ item.title }}</h3>
         <p>{{ item.description }}</p>
@@ -116,12 +124,12 @@
         </button>
       </div>
     </article>
+    }
   </section>
-
-  <ng-template #emptyState>
-    <div class="admin-notifications__empty">
-      <strong>Уведомлений нет.</strong>
-      <p>История пуста или по фильтрам ничего не найдено. Можно вернуть демо-данные кнопкой выше.</p>
-    </div>
-  </ng-template>
+  } @else {
+  <div class="admin-notifications__empty">
+    <strong>Уведомлений нет.</strong>
+    <p>История пуста или по фильтрам ничего не найдено. Можно вернуть демо-данные кнопкой выше.</p>
+  </div>
+  }
 </section>

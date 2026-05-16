@@ -4,6 +4,7 @@ import {
   type ProcessWebhookRequest,
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
+import { AuditService } from '@internal/audit';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
@@ -14,6 +15,8 @@ import {
 } from '@internal/prisma-client';
 import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
+import { resolveBillingPaymentMetricContext } from '../payment-metrics';
+import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -50,6 +53,7 @@ type PaymentRecord = Prisma.PaymentGetPayload<{
     status: true;
     type: true;
     promoId: true;
+    discountAmount: true;
     subscriptionId: true;
     assessmentId: true;
     paymentMethod: true;
@@ -69,6 +73,7 @@ export class PaymentWebhookService {
     private readonly yookassa: YooKassaClient,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly paymentAttachmentService: PaymentAttachmentService,
+    private readonly auditService: AuditService,
   ) {}
 
   async processWebhook(request: ProcessWebhookRequest) {
@@ -125,7 +130,7 @@ export class PaymentWebhookService {
         return;
 
       case 'payment.canceled':
-        await this.handlePaymentCanceled(payment, providerPayment.paymentMethodType);
+        await this.handlePaymentCanceled(payment, providerPayment);
         return;
 
       default:
@@ -196,11 +201,34 @@ export class PaymentWebhookService {
 
     this.metrics.recordPayment('completed');
     this.metrics.recordPaymentAmount(Number(payment.amount));
+    const metricContext = resolveBillingPaymentMetricContext(payment.type);
+    this.metrics.recordBillingPayment('completed', metricContext);
+    this.metrics.recordBillingPaymentAmount(Number(payment.amount), metricContext);
+
+    if (payment.promoId) {
+      this.metrics.recordPromoApplied(
+        metricContext,
+        'percent',
+        Number(payment.discountAmount ?? 0),
+      );
+    }
+    await this.recordPaymentStatusAudit(
+      payment,
+      'payment.completed',
+      PrismaPaymentStatus.Completed,
+      {
+        paymentMethod:
+          providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+        paymentProvider: 'YooKassa',
+        paymentMethodTitle: providerPayment.paymentMethodTitle,
+        receiptRegistration: providerPayment.receiptRegistration,
+      },
+    );
   }
 
   private async handlePaymentCanceled(
     payment: PaymentRecord,
-    paymentMethodType: string | null,
+    providerPayment: Awaited<ReturnType<YooKassaClient['getPayment']>>,
   ): Promise<void> {
     const result = await this.prisma.payment.updateMany({
       where: {
@@ -209,7 +237,8 @@ export class PaymentWebhookService {
       },
       data: {
         status: PrismaPaymentStatus.Failed,
-        paymentMethod: paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+        paymentMethod:
+          providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
       },
     });
 
@@ -218,6 +247,39 @@ export class PaymentWebhookService {
     }
 
     this.metrics.recordPayment('failed');
+    this.metrics.recordBillingPayment('failed', resolveBillingPaymentMetricContext(payment.type));
+    await this.recordPaymentStatusAudit(payment, 'payment.failed', PrismaPaymentStatus.Failed, {
+      paymentMethod:
+        providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+      paymentProvider: 'YooKassa',
+      paymentMethodTitle: providerPayment.paymentMethodTitle,
+    });
+  }
+
+  private async recordPaymentStatusAudit(
+    payment: PaymentRecord,
+    eventType: 'payment.completed' | 'payment.failed',
+    status: PrismaPaymentStatus,
+    providerDetails: {
+      paymentMethod: string;
+      paymentProvider: string;
+      paymentMethodTitle?: string | null;
+      receiptRegistration?: string | null;
+    },
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId: payment.userId,
+      eventType,
+      ...target,
+      actionTitle: status === PrismaPaymentStatus.Completed ? 'Платёж завершён' : 'Платёж отклонён',
+      actionContext: 'Статус обновлён по YooKassa webhook',
+      after: buildPaymentAuditSnapshot(payment, {
+        status,
+        ...providerDetails,
+      }),
+    });
   }
 
   private async findPayment(
@@ -238,6 +300,7 @@ export class PaymentWebhookService {
         status: true,
         type: true,
         promoId: true,
+        discountAmount: true,
         subscriptionId: true,
         assessmentId: true,
         paymentMethod: true,

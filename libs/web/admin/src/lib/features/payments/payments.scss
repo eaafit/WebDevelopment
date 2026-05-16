@@ -3,6 +3,21 @@
   min-width: 0;
 }
 
+.actions,
+td.actions {
+  white-space: nowrap;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
 .payments-page {
   display: grid;
   gap: 1.5rem;
@@ -29,6 +44,21 @@
 .payments-filters__actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.receipt-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.receipt-download {
+  margin-left: 0.5rem;
+  color: var(--admin-primary, #4f46e5);
+  text-decoration: none;
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .payments-table-shell {
@@ -75,9 +105,13 @@
   }
 
   td {
+    overflow: hidden;
+
     padding: 1rem 0.95rem;
     border-bottom: 1px solid rgb(148 163 184 / 18%);
+
     color: var(--admin-text);
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -140,14 +174,12 @@
 }
 
 .column-filter-menu {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 0.55rem);
-  right: 0;
+  position: fixed;
+  z-index: 9999;
 
   overflow: auto;
 
-  width: min(270px, 88vw);
+  width: min(auto, 90vw);
   padding: 0.8rem;
   border: 1px solid var(--admin-border);
   border-radius: 18px;
@@ -237,9 +269,10 @@
 }
 
 .checkbox-row {
-  display: flex;
-  gap: 0.6rem;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
 
   padding: 0.5rem 0.4rem;
   border-radius: 10px;
@@ -256,9 +289,27 @@
 
   input {
     flex: 0 0 auto;
-    margin-top: 0.15rem;
+    margin: 0;
     accent-color: var(--admin-accent);
   }
+}
+
+.skeleton-row td {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.skeleton-cell {
+  display: block;
+
+  width: 100%;
+  height: 0.92rem;
+  border-radius: 999px;
+
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 37%, #e2e8f0 63%);
+  background-size: 400% 100%;
+
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
 }
 
 .menu-actions {
@@ -430,9 +481,24 @@
 
 .pagination {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  align-items: center;
   justify-content: flex-end;
+
   padding: 0 1.15rem 1.15rem;
+}
+
+.page-ellipsis {
+  user-select: none;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 26px;
+
+  color: var(--admin-text-muted);
 }
 
 .page-btn {
@@ -497,8 +563,8 @@
   display: flex;
   flex-direction: column;
 
-  width: min(860px, calc(100vw - 2rem));
-  max-height: 88vh;
+  width: min(1080px, calc(100vw - 2rem));
+  max-height: 92vh;
   border: 1px solid rgb(220 38 38 / 10%);
   border-radius: 24px;
 
@@ -508,11 +574,11 @@
   animation: modal-slide-in 0.25s ease;
 
   &.view-modal {
-    max-width: 680px;
+    max-width: 860px;
   }
 
   &.delete-modal {
-    max-width: 520px;
+    max-width: 640px;
   }
 }
 
@@ -555,8 +621,14 @@
   overflow-y: auto;
   padding: 1.4rem 1.5rem;
 
+  form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.95rem 1rem;
+  }
+
   .form-group {
-    margin-bottom: 1.2rem;
+    margin-bottom: 0;
 
     label {
       display: block;
@@ -683,6 +755,10 @@
 
   .modal-content {
     width: calc(100vw - 1.5rem);
+  }
+
+  .modal-body form {
+    grid-template-columns: 1fr;
   }
 
   .modal-header,

@@ -10,9 +10,11 @@ import {
 import {
   PaymentReceiptStatus,
   PaymentStatus,
+  PaymentType as PrismaPaymentType,
   SubscriptionPlan as PrismaSubscriptionPlan,
 } from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
+import { YooKassaClientError } from '../yookassa/yookassa.client';
 
 describe('PaymentCreateService', () => {
   const createPaymentRecord = jest.fn();
@@ -21,12 +23,17 @@ describe('PaymentCreateService', () => {
   const findUser = jest.fn();
   const metrics = {
     recordPayment: jest.fn(),
+    recordBillingPayment: jest.fn(),
+    recordPromoValidation: jest.fn(),
   };
   const yookassa = {
     createPayment: jest.fn(),
   };
   const paymentSubscriptionService = {
     resolveSubscriptionForPayment: jest.fn(),
+  };
+  const auditService = {
+    record: jest.fn(),
   };
   const prisma = {
     payment: {
@@ -53,8 +60,11 @@ describe('PaymentCreateService', () => {
     findPromo.mockReset();
     findUser.mockReset();
     metrics.recordPayment.mockReset();
+    metrics.recordBillingPayment.mockReset();
+    metrics.recordPromoValidation.mockReset();
     yookassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
+    auditService.record.mockReset();
 
     paymentSubscriptionService.resolveSubscriptionForPayment.mockResolvedValue({
       id: 'subscription-1',
@@ -102,6 +112,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -167,7 +178,166 @@ describe('PaymentCreateService', () => {
       }),
     );
     expect(metrics.recordPayment).toHaveBeenCalledWith('pending');
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'notary',
+      scenario: 'subscription',
+    });
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('payment_create', 'valid');
     expect(yookassa.createPayment.mock.calls[0][0].receipt).not.toHaveProperty('timezone');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.created',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        targetContext: 'Подписка #subscrip',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          type: PrismaPaymentType.Subscription,
+          status: PaymentStatus.Pending,
+          amount: '1350.00',
+          discountAmount: '150.00',
+          transactionId: 'yk-payment-1',
+          subscriptionId: 'subscription-1',
+          promoId: 'promo-1',
+          paymentProvider: 'YooKassa',
+        }),
+      }),
+    );
+  });
+
+  it('should mark assessment service payments as applicant billing metrics', async () => {
+    findUser.mockResolvedValueOnce({
+      email: 'applicant@example.com',
+    });
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(paymentSubscriptionService.resolveSubscriptionForPayment).not.toHaveBeenCalled();
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.Assessment,
+        amount: '2500.00',
+        status: PaymentStatus.Pending,
+        assessmentId: 'assessment-1',
+        receiptStatus: PaymentReceiptStatus.Pending,
+      }),
+    });
+    expect(yookassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: {
+            email: 'applicant@example.com',
+          },
+          items: [
+            expect.objectContaining({
+              description: 'Оплата оценки имущества',
+              amount: {
+                value: '2500.00',
+                currency: 'RUB',
+              },
+              vatCode: 4,
+              paymentMode: 'full_prepayment',
+              paymentSubject: 'service',
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'applicant',
+      scenario: 'assessment_service',
+    });
+  });
+
+  it('should send receipt data for document copy payments', async () => {
+    findUser.mockResolvedValueOnce({
+      email: 'applicant@example.com',
+    });
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '900.00',
+      type: PaymentType.DOCUMENT_COPY,
+      targetId: 'document-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.DocumentCopy,
+        amount: '900.00',
+        status: PaymentStatus.Pending,
+        subscriptionId: null,
+        assessmentId: null,
+        receiptStatus: PaymentReceiptStatus.Pending,
+      }),
+    });
+    expect(yookassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: {
+            email: 'applicant@example.com',
+          },
+          items: [
+            expect.objectContaining({
+              description: 'Оплата копии нотариального документа',
+              amount: {
+                value: '900.00',
+                currency: 'RUB',
+              },
+              vatCode: 4,
+              paymentMode: 'full_prepayment',
+              paymentSubject: 'service',
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(metrics.recordBillingPayment).toHaveBeenCalledWith('pending', {
+      actor: 'applicant',
+      scenario: 'document_copy_service',
+    });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.created',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        targetContext: 'Копия нотариального документа',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          type: PrismaPaymentType.DocumentCopy,
+          status: PaymentStatus.Pending,
+          amount: '900.00',
+          transactionId: 'yk-payment-1',
+          paymentProvider: 'YooKassa',
+        }),
+      }),
+    );
   });
 
   it('should fail before payment creation when YOOKASSA_RECEIPT_VAT_CODE is missing', async () => {
@@ -178,6 +348,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -195,6 +366,7 @@ describe('PaymentCreateService', () => {
 
     expect(createPaymentRecord).not.toHaveBeenCalled();
     expect(yookassa.createPayment).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('should validate a subscription promo and return discounted preview data', async () => {
@@ -203,6 +375,7 @@ describe('PaymentCreateService', () => {
       yookassa as never,
       metrics as never,
       paymentSubscriptionService as never,
+      auditService as never,
     );
 
     const request = create(ValidateSubscriptionPromoRequestSchema, {
@@ -229,6 +402,85 @@ describe('PaymentCreateService', () => {
           currency: 'RUB',
         }),
         discountPercent: '10.00',
+      }),
+    );
+    expect(metrics.recordPromoValidation).toHaveBeenCalledWith('preview', 'valid');
+  });
+
+  it('should record audit event for assessment payment creation', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+    });
+
+    await service.createPayment(request);
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.created',
+        targetType: 'Assessment',
+        targetId: 'assessment-1',
+        targetContext: 'Платёж #payment-',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+        }),
+      }),
+    );
+  });
+
+  it('should record audit event when provider rejects payment creation', async () => {
+    const providerError = new YooKassaClientError('Provider is unavailable', 503);
+    yookassa.createPayment.mockRejectedValue(providerError);
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '1500.00',
+      type: PaymentType.SUBSCRIPTION,
+      targetId: 'subscription-1',
+    });
+
+    await expect(service.createPayment(request)).rejects.toEqual(
+      expect.objectContaining({
+        code: Code.Internal,
+      }),
+    );
+
+    expect(updatePaymentRecord).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: { status: PaymentStatus.Failed },
+    });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionContext: 'Ошибка при создании платежа в YooKassa',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          status: PaymentStatus.Failed,
+          amount: '1500.00',
+          errorMessage: 'Provider is unavailable',
+          providerStatusCode: 503,
+        }),
       }),
     );
   });

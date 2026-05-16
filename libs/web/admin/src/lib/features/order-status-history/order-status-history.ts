@@ -166,7 +166,7 @@ const MOCK_ROWS: OrderStatusHistoryRow[] = [
 type SortDir = 'asc' | 'desc';
 
 @Component({
-  selector: 'admin-order-status-history',
+  selector: 'lib-order-status-history',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './order-status-history.html',

@@ -1,6 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { AssessmentApiService } from '../estimation-form/assessment-api.service';
+import { EstimationFormLocalDraftService } from '../estimation-form/estimation-form-local-draft.service';
+import { EstimationFormSessionService } from '../estimation-form/estimation-form-session.service';
 import { AssessmentStatus } from './assessment-status';
 
 describe('AssessmentStatus', () => {
@@ -10,7 +13,27 @@ describe('AssessmentStatus', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AssessmentStatus],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AssessmentApiService,
+          useValue: {
+            getAssessment: jest.fn(),
+          },
+        },
+        {
+          provide: EstimationFormSessionService,
+          useValue: {
+            ensureUserId: jest.fn().mockResolvedValue('user-1'),
+          },
+        },
+        {
+          provide: EstimationFormLocalDraftService,
+          useValue: {
+            clear: jest.fn(),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AssessmentStatus);

@@ -142,6 +142,8 @@
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
 
+Сервис доступа: `AuditService.ListAuditEvents` и `AuditService.ExportAuditEvents`. Фильтры: тип события, имя/email исполнителя, точный `actor_user_id`, `target_id`, диапазон дат. Для событий заявки используется `EntityName = Assessment`, `EntityId = id заявки`; UI-фильтр «ID заявки» отправляет `target_id`. `/admin/monitoring` использует полный scope, `/notary/monitoring` ограничен заявками текущего нотариуса через список его assessments и `EntityId`.
+
 ## 11. Промокод (Promo)
 
 - `Id` (UUID, PK) — идентификатор промокода
@@ -211,6 +213,17 @@
 - `CreatedBy` (UUID, FK) — пользователь, создавший группу
 - `CreatedAt` (timestamp) — дата создания
 - `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 15. Заказ (Lead)
+
+- `Id` (UUID, PK) — уникальный идентификатор заказа
+- `ApplicantUserId` (UUID, FK) — кто заказал (заявитель, ссылка на User.Id)
+- `ExecutorUserId` (UUID, FK) — кто исполнитель (нотариус, ссылка на User.Id)
+- `AssessmentId` (UUID, FK) — ID заявки на оценку (Assessment.Id)
+- `StartDate` (date) — дата начала работ
+- `ActualCompletionDate` (date, nullable) — фактическая дата окончания
+- `PlannedCompletionDate` (date) — планируемая дата окончания
+- `TransactionId` (varchar, nullable) — идентификатор транзакции (оплата)
 
 ---
 

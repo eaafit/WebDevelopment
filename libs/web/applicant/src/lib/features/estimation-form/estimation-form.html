@@ -6,12 +6,14 @@
         <p class="card-subtitle m-0">
           Укажите адрес и характеристики недвижимости. Черновик сохраняется автоматически.
         </p>
+        @if (autosaveStatus().message) {
         <p
           class="estimation-form-status"
           [class.estimation-form-status-progress]="autosaveStatus().tone === 'progress'"
           [class.estimation-form-status-saved]="autosaveStatus().tone === 'saved'">
           {{ autosaveStatus().message }}
         </p>
+        }
       </header>
 
       @if (loadError()) {
@@ -93,11 +95,15 @@
                   class="form-input"
                   id="cadastralNumber"
                   formControlName="cadastralNumber"
-                  maxlength="64"
-                  placeholder="Например: 66:41:0101021:37" />
-                <div class="form-help">
-                  Поле сохраняется в черновик. Внешние API для автозаполнения не используются.
-                </div>
+                  inputmode="numeric"
+                  maxlength="12"
+                  placeholder="Например: 123456789012"
+                  [class.form-input-invalid]="isControlInvalid(formControls.cadastralNumber)"
+                  (input)="onCadastralNumberInput($event)" />
+                @if (isControlInvalid(formControls.cadastralNumber) &&
+                formControls.cadastralNumber.hasError('cadastralNumber')) {
+                <p class="field-error">Кадастровый номер должен содержать 12 цифр.</p>
+                }
               </div>
             </div>
           </fieldset>
@@ -121,7 +127,7 @@
                 } @if (isControlInvalid(formControls.area) && formControls.area.hasError('decimal')) {
                 <p class="field-error">Введите площадь положительным числом, например 54.6.</p>
                 } @if (isControlInvalid(formControls.area) && formControls.area.hasError('range')) {
-                <p class="field-error">Площадь должна быть в диапазоне от 1 до 100000 м².</p>
+                <p class="field-error">Укажите площадь в допустимом диапазоне для выбранного типа объекта.</p>
                 }
               </div>
 
@@ -155,7 +161,7 @@
                 @if (isControlInvalid(formControls.rooms) && formControls.rooms.hasError('integer')) {
                 <p class="field-error">Количество комнат должно быть целым числом.</p>
                 } @if (isControlInvalid(formControls.rooms) && formControls.rooms.hasError('range')) {
-                <p class="field-error">Количество комнат должно быть от 0 до 50.</p>
+                <p class="field-error">Количество комнат должно быть от 1 до {{ getRoomsMaximum() }}.</p>
                 }
               </div>
             </div>
@@ -214,7 +220,7 @@
                 } @if ( isControlInvalid(formControls.floorsTotal) && formControls.floorsTotal.hasError('integer') ) {
                 <p class="field-error">Этажность должна быть целым числом.</p>
                 } @if ( isControlInvalid(formControls.floorsTotal) && formControls.floorsTotal.hasError('range') ) {
-                <p class="field-error">Этажность должна быть в диапазоне от 1 до 200.</p>
+                <p class="field-error">Этажность должна быть в диапазоне от 1 до 100.</p>
                 }
               </div>
 
@@ -230,7 +236,9 @@
                 @if (isControlInvalid(formControls.floor) && formControls.floor.hasError('integer')) {
                 <p class="field-error">Этаж должен быть целым числом.</p>
                 } @if (isControlInvalid(formControls.floor) && formControls.floor.hasError('range')) {
-                <p class="field-error">Этаж должен быть в диапазоне от 0 до 200.</p>
+                <p class="field-error">Этаж должен быть в диапазоне от 1 до 100.</p>
+                } @if (isControlInvalid(formControls.floor) && formControls.floor.hasError('floorAboveTotal')) {
+                <p class="field-error">Этаж не может быть больше этажности здания.</p>
                 }
               </div>
 
@@ -264,7 +272,7 @@
                 @if (isControlInvalid(formControls.yearBuilt) && formControls.yearBuilt.hasError('integer')) {
                 <p class="field-error">Год постройки должен быть целым числом.</p>
                 } @if (isControlInvalid(formControls.yearBuilt) && formControls.yearBuilt.hasError('range')) {
-                <p class="field-error">Год постройки должен быть в диапазоне от 1700 до 2100.</p>
+                <p class="field-error">Проверьте год постройки объекта.</p>
                 }
               </div>
 
@@ -387,7 +395,9 @@
                       <button
                         class="upload-list-remove"
                         type="button"
-                        [disabled]="isGroupUploading('documents') || isStoredDocumentDeleting(document.id)"
+                        [disabled]="
+                          isReadOnlyMode() || isGroupUploading('documents') || isStoredDocumentDeleting(document.id)
+                        "
                         [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                         (click)="removeStoredDocument(document)">
                         <span aria-hidden="true">×</span>
@@ -436,7 +446,7 @@
                       <button
                         class="upload-list-remove"
                         type="button"
-                        [disabled]="isGroupUploading('documents')"
+                        [disabled]="isReadOnlyMode() || isGroupUploading('documents')"
                         [attr.aria-label]="'Удалить файл ' + file.name"
                         (click)="removeFile(documentFilesField, 'documents', $index)">
                         <span aria-hidden="true">×</span>
@@ -461,8 +471,8 @@
                   [class.form-input-invalid]="showValidationErrors && isRequiredUploadMissing('photos')"
                   (change)="onFilesSelected($event, 'photos')" />
                 <div class="form-help">
-                  @if (!hasAssessmentId()) { Фото можно будет прикрепить после автоматического создания заявки. } @else {
-                  Добавьте фото фасада, комнат и состояния объекта. Новые файлы добавляются к уже выбранным. }
+                  @if (!hasAssessmentId()) { Фото можно будет прикрепить после автоматического создания заявки. } @else
+                  { Добавьте фото фасада, комнат и состояния объекта. Новые файлы добавляются к уже выбранным. }
                 </div>
                 @if (showValidationErrors && isRequiredUploadMissing('photos')) {
                 <p class="field-error">Загрузите хотя бы одно фото объекта.</p>
@@ -477,7 +487,7 @@
                     <button
                       class="photo-card-remove"
                       type="button"
-                      [disabled]="isGroupUploading('photos') || isStoredDocumentDeleting(document.id)"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('photos') || isStoredDocumentDeleting(document.id)"
                       [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                       (click)="removeStoredDocument(document)">
                       <span aria-hidden="true">×</span>
@@ -488,7 +498,10 @@
                       type="button"
                       [attr.aria-label]="'Открыть фото ' + document.fileName"
                       (click)="previewStoredDocument(document)">
-                      <img class="photo-card-image" [src]="getStoredDocumentSource(document)" [alt]="document.fileName" />
+                      <img
+                        class="photo-card-image"
+                        [src]="getStoredDocumentSource(document)"
+                        [alt]="document.fileName" />
                     </button>
 
                     <div class="photo-card-caption">
@@ -520,7 +533,7 @@
                     <button
                       class="photo-card-remove"
                       type="button"
-                      [disabled]="isGroupUploading('photos')"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('photos')"
                       [attr.aria-label]="'Удалить файл ' + file.name"
                       (click)="removeFile(photoFilesField, 'photos', $index)">
                       <span aria-hidden="true">×</span>
@@ -544,7 +557,9 @@
                         <button class="btn btn-ghost btn-sm" type="button" (click)="previewFile(file)">
                           Просмотреть
                         </button>
-                        <button class="btn btn-outline btn-sm" type="button" (click)="downloadFile(file)">Скачать</button>
+                        <button class="btn btn-outline btn-sm" type="button" (click)="downloadFile(file)">
+                          Скачать
+                        </button>
                       </div>
                     </div>
                   </li>
@@ -618,7 +633,9 @@
                     <button
                       class="upload-list-remove"
                       type="button"
-                      [disabled]="isGroupUploading('additional') || isStoredDocumentDeleting(document.id)"
+                      [disabled]="
+                        isReadOnlyMode() || isGroupUploading('additional') || isStoredDocumentDeleting(document.id)
+                      "
                       [attr.aria-label]="'Удалить сохранённый файл ' + document.fileName"
                       (click)="removeStoredDocument(document)">
                       <span aria-hidden="true">×</span>
@@ -665,7 +682,7 @@
                     <button
                       class="upload-list-remove"
                       type="button"
-                      [disabled]="isGroupUploading('additional')"
+                      [disabled]="isReadOnlyMode() || isGroupUploading('additional')"
                       [attr.aria-label]="'Удалить файл ' + file.name"
                       (click)="removeFile(additionalFilesField, 'additional', $index)">
                       <span aria-hidden="true">×</span>
@@ -679,9 +696,11 @@
           </fieldset>
 
           <div class="form-actions">
+            @if (!isReadOnlyMode()) {
             <button class="btn btn-primary" type="submit" [disabled]="isBusy()">
               {{ saving() ? 'Сохраняем...' : 'Сохранить и перейти к статусу' }}
             </button>
+            }
           </div>
 
           @if (imagePreviewState; as preview) {
