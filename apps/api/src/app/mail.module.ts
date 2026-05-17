@@ -11,6 +11,6 @@ import { MailSenderService } from './mail-sender.service';
     { provide: TRANSACTIONAL_MAILER, useExisting: MailSenderService },
     { provide: NEWSLETTER_MAILER, useExisting: MailSenderService },
   ],
-  exports: [PASSWORD_RESET_MAILER, TRANSACTIONAL_MAILER, NEWSLETTER_MAILER],
+  exports: [MailSenderService, PASSWORD_RESET_MAILER, TRANSACTIONAL_MAILER, NEWSLETTER_MAILER],
 })
 export class MailModule {}

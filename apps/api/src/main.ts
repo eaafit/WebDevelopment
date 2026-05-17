@@ -7,6 +7,7 @@ import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
+import { MailSenderService } from './app/mail-sender.service';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -79,6 +80,34 @@ async function bootstrap() {
     } catch {
       res.status(503).json({ status: 'error', database: 'error' });
     }
+  });
+
+  expressInstance.get('/api/mail/sender-profile', (_req: express.Request, res: express.Response) => {
+    const host = process.env['SMTP_HOST']?.trim() || '';
+    const portRaw = process.env['SMTP_PORT']?.trim();
+    const user = process.env['SMTP_USER']?.trim() || '';
+    const pass = process.env['SMTP_PASS'] ?? '';
+    const appName = process.env['APP_NAME']?.trim() || 'Notary portal';
+    const fromEmail =
+      process.env['MAIL_FROM']?.trim() || process.env['SMTP_USER']?.trim() || 'noreply@notary-portal.local';
+
+    res.status(200).json({
+      appName,
+      fromEmail,
+      host: host || 'smtp.example.com',
+      port: portRaw ? Number(portRaw) : 587,
+      transport: process.env['MAIL_TRANSPORT']?.trim() || 'auto',
+      configured: Boolean(host && user && pass),
+    });
+  });
+
+  expressInstance.get('/api/mail/messages', (_req: express.Request, res: express.Response) => {
+    const mailSender = app.get(MailSenderService);
+
+    res.status(200).json({
+      configured: true,
+      messages: mailSender.listSentMailJournal(),
+    });
   });
 
   expressInstance.get('/metrics', async (_req: express.Request, res: express.Response) => {
