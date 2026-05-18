@@ -259,12 +259,12 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(notary_newsletter_campaigns_total[24h])",
+          "expr": "notary_newsletter_campaigns_total",
           "legendFormat": "{{audience_type}} / {{status}}",
           "refId": "A"
         }
       ],
-      "title": "Newsletter campaigns (24h)",
+      "title": "Newsletter campaigns total",
       "type": "timeseries"
     },
     {
@@ -279,12 +279,12 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(notary_newsletter_deliveries_total[24h])",
+          "expr": "notary_newsletter_deliveries_total",
           "legendFormat": "{{outcome}}",
           "refId": "A"
         }
       ],
-      "title": "Newsletter deliveries (24h)",
+      "title": "Newsletter deliveries total",
       "type": "timeseries"
     },
     {
@@ -299,12 +299,12 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "increase(notary_newsletter_recipients_total[24h])",
+          "expr": "notary_newsletter_recipients_total",
           "legendFormat": "{{audience_type}}",
           "refId": "A"
         }
       ],
-      "title": "Newsletter recipients (24h)",
+      "title": "Newsletter recipients total",
       "type": "timeseries"
     }
   ],
