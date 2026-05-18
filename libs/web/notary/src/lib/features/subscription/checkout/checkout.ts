@@ -377,6 +377,7 @@ export class Checkout implements OnDestroy {
         paymentId: response.paymentId,
         paymentUrl,
       });
+      console.log('[Robokassa] Redirecting to:', paymentUrl);
       this.state.set('processing');
       this.cdr.detectChanges();
       window.location.href = paymentUrl;

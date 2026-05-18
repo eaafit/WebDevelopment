@@ -12,6 +12,7 @@ type CheckoutTestApi = Checkout & {
     set: (value: string) => void;
   };
   startPayment: () => Promise<void>;
+  startRobokassaPayment: () => Promise<void>;
   state: () => string;
   displayAmount: () => string;
   errorMessage: () => string;
@@ -142,6 +143,7 @@ describe('Checkout', () => {
       amount: '1500.00',
       subscriptionId: 'subscription-1',
       promoCode: '',
+      paymentProvider: 'yookassa',
     });
     expect(widgetService.mount).toHaveBeenCalledWith(
       'yookassa-widget-host',
@@ -290,7 +292,7 @@ describe('Checkout', () => {
     expect(element.textContent).toContain('Проверяем подтверждение платежа');
   });
 
-  it('should redirect to Robokassa payment URL when the backend returns paymentUrl', async () => {
+  it('should redirect to Robokassa payment URL when startRobokassaPayment is called', async () => {
     const robokassaUrl =
       'https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=notary_platform&InvId=payment-1&OutSum=1350.00';
     checkoutApi.createPayment.mockResolvedValue({
@@ -302,9 +304,16 @@ describe('Checkout', () => {
       },
     });
 
-    await checkout.startPayment();
+    await checkout.startRobokassaPayment();
     fixture.detectChanges();
 
+    expect(checkoutApi.createPayment).toHaveBeenCalledWith({
+      userId: 'user-1',
+      amount: '1500.00',
+      subscriptionId: 'subscription-1',
+      promoCode: '',
+      paymentProvider: 'robokassa',
+    });
     expect(checkout.state()).toBe('processing');
     expect(widgetService.mount).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(

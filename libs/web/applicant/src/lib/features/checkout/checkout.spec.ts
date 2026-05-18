@@ -9,6 +9,7 @@ import { YooKassaWidgetService, type YooKassaWidgetHandlers } from './yookassa-w
 
 type CheckoutTestApi = Checkout & {
   startPayment: () => Promise<void>;
+  startRobokassaPayment: () => Promise<void>;
   state: () => string;
   displayAmount: () => string;
   errorMessage: () => string;
@@ -147,6 +148,7 @@ describe('Checkout', () => {
       amount: '2500.00',
       type: PaymentType.ASSESSMENT,
       targetId: 'assessment-1',
+      paymentProvider: 'yookassa',
     });
     expect(widgetService.mount).toHaveBeenCalledWith(
       'yookassa-widget-host',
@@ -256,7 +258,7 @@ describe('Checkout', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('.success-card')).not.toBeNull();
   });
 
-  it('should redirect to Robokassa payment URL when the backend returns paymentUrl', async () => {
+  it('should redirect to Robokassa payment URL when startRobokassaPayment is called', async () => {
     const robokassaUrl =
       'https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=notary_platform&InvId=payment-1&OutSum=2500.00';
     checkoutApi.createPayment.mockResolvedValue({
@@ -268,9 +270,16 @@ describe('Checkout', () => {
       },
     });
 
-    await checkout.startPayment();
+    await checkout.startRobokassaPayment();
     fixture.detectChanges();
 
+    expect(checkoutApi.createPayment).toHaveBeenCalledWith({
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'assessment-1',
+      paymentProvider: 'robokassa',
+    });
     expect(checkout.state()).toBe('processing');
     expect(widgetService.mount).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
@@ -342,6 +351,7 @@ describe('Checkout', () => {
       amount: '900.00',
       type: PaymentType.DOCUMENT_COPY,
       targetId: 'document-request-1',
+      paymentProvider: 'yookassa',
     });
   });
 });
