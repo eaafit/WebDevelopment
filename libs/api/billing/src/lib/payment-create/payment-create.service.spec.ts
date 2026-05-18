@@ -29,6 +29,9 @@ describe('PaymentCreateService', () => {
   const yookassa = {
     createPayment: jest.fn(),
   };
+  const robokassa = {
+    createPayment: jest.fn(),
+  };
   const paymentSubscriptionService = {
     resolveSubscriptionForPayment: jest.fn(),
   };
@@ -50,10 +53,12 @@ describe('PaymentCreateService', () => {
 
   const originalReturnUrl = process.env['PAYMENT_RETURN_URL_BASE'];
   const originalReceiptVatCode = process.env['YOOKASSA_RECEIPT_VAT_CODE'];
+  const originalPaymentProvider = process.env['PAYMENT_PROVIDER'];
 
   beforeEach(() => {
     process.env['PAYMENT_RETURN_URL_BASE'] = 'https://portal.example.com';
     process.env['YOOKASSA_RECEIPT_VAT_CODE'] = '4';
+    process.env['PAYMENT_PROVIDER'] = 'yookassa';
 
     createPaymentRecord.mockReset();
     updatePaymentRecord.mockReset();
@@ -63,6 +68,7 @@ describe('PaymentCreateService', () => {
     metrics.recordBillingPayment.mockReset();
     metrics.recordPromoValidation.mockReset();
     yookassa.createPayment.mockReset();
+    robokassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
     auditService.record.mockReset();
 
@@ -99,17 +105,23 @@ describe('PaymentCreateService', () => {
       status: 'pending',
       receiptRegistration: 'pending',
     });
+    robokassa.createPayment.mockReturnValue({
+      paymentUrl: 'https://auth.robokassa.ru/Merchant/Index.aspx?InvId=payment-1',
+      signatureValue: 'test-signature',
+    });
   });
 
   afterAll(() => {
     process.env['PAYMENT_RETURN_URL_BASE'] = originalReturnUrl;
     process.env['YOOKASSA_RECEIPT_VAT_CODE'] = originalReceiptVatCode;
+    process.env['PAYMENT_PROVIDER'] = originalPaymentProvider;
   });
 
   it('should create a pending payment and return YooKassa widget init data', async () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -214,6 +226,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -273,6 +286,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -346,6 +360,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -373,6 +388,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -411,6 +427,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -445,6 +462,7 @@ describe('PaymentCreateService', () => {
     const service = new PaymentCreateService(
       prisma as never,
       yookassa as never,
+      robokassa as never,
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
@@ -480,6 +498,58 @@ describe('PaymentCreateService', () => {
           amount: '1500.00',
           errorMessage: 'Provider is unavailable',
           providerStatusCode: 503,
+        }),
+      }),
+    );
+  });
+
+  it('should create a Robokassa redirect payment without YooKassa widget', async () => {
+    process.env['PAYMENT_PROVIDER'] = 'robokassa';
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      robokassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '1500.00',
+      type: PaymentType.SUBSCRIPTION,
+      targetId: 'subscription-1',
+      promoCode: 'SPRING10',
+    });
+
+    const response = await service.createPayment(request);
+
+    expect(robokassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: 'payment-1',
+        amount: '1350.00',
+      }),
+    );
+    expect(yookassa.createPayment).not.toHaveBeenCalled();
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        paymentMethod: 'robokassa_redirect',
+        receiptStatus: PaymentReceiptStatus.Available,
+      }),
+    });
+    expect(response).toEqual(
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: 'https://auth.robokassa.ru/Merchant/Index.aspx?InvId=payment-1',
+      }),
+    );
+    expect(response).not.toHaveProperty('widget');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'payment.created',
+        after: expect.objectContaining({
+          paymentProvider: 'Robokassa',
         }),
       }),
     );
