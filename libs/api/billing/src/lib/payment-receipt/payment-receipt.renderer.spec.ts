@@ -22,17 +22,11 @@ describe('payment receipt renderer', () => {
       },
       assessment: null,
       providerPayment: {
-        id: 'yookassa-1',
-        status: 'succeeded',
-        paid: true,
-        amountValue: '1500.00',
-        amountCurrency: 'RUB',
         paymentMethodType: 'bank_card',
         paymentMethodTitle: 'mir',
         receiptRegistration: 'succeeded',
         createdAt: '2026-04-11T09:30:00.000Z',
         capturedAt: '2026-04-11T09:35:00.000Z',
-        metadata: {},
       },
     }).toString('utf8');
 

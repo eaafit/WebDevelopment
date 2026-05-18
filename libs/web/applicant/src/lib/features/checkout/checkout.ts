@@ -1,5 +1,6 @@
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ChangeDetectorRef, Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { TokenStore, WebLoggerService } from '@notary-portal/ui';
 import {
   APPLICANT_CHECKOUT_SERVICES,
@@ -16,7 +17,7 @@ type CheckoutState = 'ready' | 'widget' | 'processing' | 'success' | 'cancelled'
 
 @Component({
   selector: 'lib-checkout',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './checkout.html',
   styleUrl: './checkout.scss',
 })
@@ -52,19 +53,37 @@ export class Checkout implements OnDestroy {
     const override = this.route.snapshot.queryParamMap.get('description')?.trim();
     return override || this.selectedService().description;
   });
-  protected readonly targetId = computed(() => this.resolveTargetId(this.selectedService()));
-  protected readonly baseAmount = computed(() =>
-    resolveCheckoutAmount(
+  protected readonly manualTargetId = signal('');
+  protected readonly manualAmount = signal('');
+  protected readonly targetId = computed(() => {
+    const fromUrl = this.resolveTargetId(this.selectedService());
+    if (fromUrl) return fromUrl;
+    const manual = this.manualTargetId().trim();
+    if (manual) return manual;
+    if (this.selectedService().code === 'balance') {
+      return this.tokenStore.user()?.id?.trim() || null;
+    }
+    return null;
+  });
+  protected readonly baseAmount = computed(() => {
+    const fromUrl = resolveCheckoutAmount(
       this.route.snapshot.queryParamMap.get('amount'),
       this.selectedService().price,
-    ),
-  );
+    );
+    const manual = this.manualAmount().trim();
+    if (manual) {
+      const num = Number(manual);
+      if (Number.isFinite(num) && num > 0) return num.toFixed(2);
+    }
+    return fromUrl;
+  });
   protected readonly displayAmount = computed(() => this.confirmedAmount() ?? this.baseAmount());
   protected readonly displayAmountLabel = computed(() => formatPrice(this.displayAmount()));
   protected readonly isBusy = computed(
     () => this.loading() || this.state() === 'widget' || this.state() === 'processing',
   );
   protected readonly canStartPayment = computed(() => !this.isBusy() && Boolean(this.targetId()));
+  protected readonly needsManualContext = signal(false);
   protected readonly cabinetLink = '/applicant/payments';
 
   private widgetSession: YooKassaWidgetSession | null = null;
@@ -113,12 +132,8 @@ export class Checkout implements OnDestroy {
         amount: this.baseAmount(),
         type: this.selectedService().rpcType,
         targetId,
+        paymentProvider: 'yookassa',
       });
-
-      const confirmationToken = response.widget?.confirmationToken?.trim();
-      if (!confirmationToken) {
-        throw new Error('Backend did not return a YooKassa confirmation token');
-      }
 
       this.paymentId.set(response.paymentId);
       this.confirmedAmount.set(response.amount?.amount?.trim() || this.baseAmount());
@@ -128,6 +143,12 @@ export class Checkout implements OnDestroy {
         confirmedAmount: this.confirmedAmount(),
         currency: response.amount?.currency ?? 'RUB',
       });
+
+      const confirmationToken = response.widget?.confirmationToken?.trim();
+      if (!confirmationToken) {
+        throw new Error('Backend did not return a YooKassa confirmation token');
+      }
+
       this.state.set('widget');
       this.cdr.detectChanges();
 
@@ -153,6 +174,81 @@ export class Checkout implements OnDestroy {
         'Не получилось открыть оплату',
         'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
         'payment.checkout.applicant.start_failed',
+        error,
+      );
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected async startRobokassaPayment(): Promise<void> {
+    this.logInfo('payment.checkout.applicant.robokassa_start_requested');
+    const userId = this.requireUserId();
+    const targetId = this.targetId();
+    if (!userId) {
+      return;
+    }
+
+    if (!targetId) {
+      this.logWarn('payment.checkout.applicant.robokassa_start_blocked_missing_target');
+      this.showErrorState(
+        'Не получилось определить услугу',
+        'Для этой оплаты не хватает идентификатора заказа. Откройте checkout из карточки услуги и попробуйте снова.',
+      );
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
+    this.notice.set('');
+    this.confirmedAmount.set(null);
+    this.state.set('ready');
+    this.destroyWidget();
+    this.widgetResultHandled = false;
+
+    try {
+      this.logInfo('payment.checkout.applicant.robokassa_create_payment_requested', {
+        actorUserId: userId,
+        requestedAmount: this.baseAmount(),
+      });
+      const response = await this.checkoutApi.createPayment({
+        userId,
+        amount: this.baseAmount(),
+        type: this.selectedService().rpcType,
+        targetId,
+        paymentProvider: 'robokassa',
+      });
+
+      this.paymentId.set(response.paymentId);
+      this.confirmedAmount.set(response.amount?.amount?.trim() || this.baseAmount());
+      this.logInfo('payment.checkout.applicant.robokassa_create_payment_succeeded', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+        confirmedAmount: this.confirmedAmount(),
+        currency: response.amount?.currency ?? 'RUB',
+      });
+
+      const paymentUrl = response.paymentUrl?.trim();
+      if (!paymentUrl) {
+        throw new Error('Backend did not return a Robokassa payment URL');
+      }
+
+      this.logInfo('payment.checkout.applicant.robokassa_redirect', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+        paymentUrl,
+      });
+      console.log('[Robokassa] Redirecting to:', paymentUrl);
+      this.state.set('processing');
+      this.cdr.detectChanges();
+      window.location.href = paymentUrl;
+    } catch (error) {
+      console.error('[Robokassa] Payment failed:', error);
+      this.showErrorState(
+        'Не получилось открыть оплату',
+        'Мы не смогли подготовить платёж через Robokassa. Попробуйте ещё раз через несколько секунд.',
+        'payment.checkout.applicant.robokassa_start_failed',
         error,
       );
     } finally {

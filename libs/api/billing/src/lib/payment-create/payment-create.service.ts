@@ -28,6 +28,7 @@ import {
   YooKassaClientError,
   type YooKassaReceipt,
 } from '../yookassa/yookassa.client';
+import { RobokassaClient, RobokassaClientError } from '../robokassa/robokassa.client';
 import {
   SUBSCRIPTION_CURRENCY,
   getSubscriptionPlanByPrisma,
@@ -63,6 +64,8 @@ interface PromoValidationResult {
   status: PromoValidationStatus;
 }
 
+type PaymentProvider = 'yookassa' | 'robokassa';
+
 @Injectable()
 export class PaymentCreateService {
   private readonly logger = new Logger(PaymentCreateService.name);
@@ -70,6 +73,7 @@ export class PaymentCreateService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly yookassa: YooKassaClient,
+    private readonly robokassa: RobokassaClient,
     private readonly metrics: MetricsService,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly auditService: AuditService,
@@ -81,9 +85,12 @@ export class PaymentCreateService {
     const prismaType = this.toPrismaType(request.type);
     const metricContext = resolveBillingPaymentMetricContext(prismaType);
     const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
+    const provider = resolvePaymentProvider(request.paymentProvider);
 
     this.assertReturnUrlConfigured();
-    resolveReceiptVatCode();
+    if (provider === 'yookassa') {
+      resolveReceiptVatCode();
+    }
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -95,8 +102,11 @@ export class PaymentCreateService {
         status: PrismaPaymentStatus.Pending,
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
-        paymentMethod: 'yookassa_widget',
-        receiptStatus: PrismaPaymentReceiptStatus.Pending,
+        paymentMethod: provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget',
+        receiptStatus:
+          provider === 'robokassa'
+            ? PrismaPaymentReceiptStatus.Available
+            : PrismaPaymentReceiptStatus.Pending,
       },
     });
 
@@ -104,6 +114,47 @@ export class PaymentCreateService {
     this.metrics.recordBillingPayment('pending', metricContext);
 
     try {
+      if (provider === 'robokassa') {
+        const result = this.robokassa.createPayment({
+          invoiceId: payment.id,
+          amount: resolved.amount,
+          description: resolved.description,
+        });
+
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { transactionId: payment.id },
+        });
+
+        await this.recordPaymentCreatedAudit(
+          request.userId,
+          {
+            id: payment.id,
+            type: prismaType,
+            amount: resolved.amount,
+            discountAmount: resolved.discountAmount,
+            status: PrismaPaymentStatus.Pending,
+            transactionId: payment.id,
+            paymentMethod: 'robokassa_redirect',
+            subscriptionId: resolved.subscriptionId,
+            assessmentId: resolved.assessmentId,
+            promoId: resolved.promo?.id ?? null,
+          },
+          'Robokassa',
+        );
+
+        this.logger.log(`Created Robokassa payment link for local payment ${payment.id}`);
+
+        return create(CreatePaymentResponseSchema, {
+          paymentId: payment.id,
+          paymentUrl: result.paymentUrl,
+          amount: {
+            amount: resolved.amount,
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+        });
+      }
+
       const receipt = await this.buildPaymentReceipt(request.userId, resolved);
       const returnUrl = this.buildReturnUrl(prismaType, payment.id);
 
@@ -129,18 +180,22 @@ export class PaymentCreateService {
         data: { transactionId: result.id },
       });
 
-      await this.recordPaymentCreatedAudit(request.userId, {
-        id: payment.id,
-        type: prismaType,
-        amount: resolved.amount,
-        discountAmount: resolved.discountAmount,
-        status: PrismaPaymentStatus.Pending,
-        transactionId: result.id,
-        paymentMethod: 'yookassa_widget',
-        subscriptionId: resolved.subscriptionId,
-        assessmentId: resolved.assessmentId,
-        promoId: resolved.promo?.id ?? null,
-      });
+      await this.recordPaymentCreatedAudit(
+        request.userId,
+        {
+          id: payment.id,
+          type: prismaType,
+          amount: resolved.amount,
+          discountAmount: resolved.discountAmount,
+          status: PrismaPaymentStatus.Pending,
+          transactionId: result.id,
+          paymentMethod: 'yookassa_widget',
+          subscriptionId: resolved.subscriptionId,
+          assessmentId: resolved.assessmentId,
+          promoId: resolved.promo?.id ?? null,
+        },
+        'YooKassa',
+      );
       await this.paymentNotificationService.notifyPaymentCreated({
         id: payment.id,
         userId: request.userId,
@@ -171,28 +226,37 @@ export class PaymentCreateService {
         },
       });
     } catch (err) {
-      if (err instanceof YooKassaClientError) {
+      if (err instanceof YooKassaClientError || err instanceof RobokassaClientError) {
         this.metrics.recordPayment('failed');
         this.metrics.recordBillingPayment('failed', metricContext);
+
+        const paymentProvider = provider === 'robokassa' ? 'Robokassa' : 'YooKassa';
 
         await this.prisma.payment.update({
           where: { id: payment.id },
           data: { status: PrismaPaymentStatus.Failed },
         });
 
-        await this.recordPaymentCreationFailedAudit(request.userId, {
-          id: payment.id,
-          type: prismaType,
-          amount: resolved.amount,
-          discountAmount: resolved.discountAmount,
-          status: PrismaPaymentStatus.Failed,
-          paymentMethod: 'yookassa_widget',
-          subscriptionId: resolved.subscriptionId,
-          assessmentId: resolved.assessmentId,
-          promoId: resolved.promo?.id ?? null,
-          errorMessage: err.message || 'Payment provider error',
-          providerStatusCode: err.statusCode ?? null,
-        });
+        const failedPaymentMethod =
+          provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget';
+
+        await this.recordPaymentCreationFailedAudit(
+          request.userId,
+          {
+            id: payment.id,
+            type: prismaType,
+            amount: resolved.amount,
+            discountAmount: resolved.discountAmount,
+            status: PrismaPaymentStatus.Failed,
+            paymentMethod: failedPaymentMethod,
+            subscriptionId: resolved.subscriptionId,
+            assessmentId: resolved.assessmentId,
+            promoId: resolved.promo?.id ?? null,
+            errorMessage: err.message || 'Payment provider error',
+            providerStatusCode: 'statusCode' in err ? (err.statusCode ?? null) : null,
+          },
+          paymentProvider,
+        );
         await this.paymentNotificationService.notifyPaymentCreationFailed(
           {
             id: payment.id,
@@ -200,7 +264,7 @@ export class PaymentCreateService {
             type: prismaType,
             amount: resolved.amount,
             status: PrismaPaymentStatus.Failed,
-            paymentMethod: 'yookassa_widget',
+            paymentMethod: failedPaymentMethod,
             subscriptionId: resolved.subscriptionId,
             assessmentId: resolved.assessmentId,
           },
@@ -227,17 +291,21 @@ export class PaymentCreateService {
         },
       });
 
-      await this.recordPaymentCreatedAudit(request.userId, {
-        id: payment.id,
-        type: prismaType,
-        amount: resolved.amount,
-        discountAmount: resolved.discountAmount,
-        status: PrismaPaymentStatus.Pending,
-        paymentMethod: 'direct',
-        subscriptionId: resolved.subscriptionId,
-        assessmentId: resolved.assessmentId,
-        promoId: resolved.promo?.id ?? null,
-      });
+      await this.recordPaymentCreatedAudit(
+        request.userId,
+        {
+          id: payment.id,
+          type: prismaType,
+          amount: resolved.amount,
+          discountAmount: resolved.discountAmount,
+          status: PrismaPaymentStatus.Pending,
+          paymentMethod: 'direct',
+          subscriptionId: resolved.subscriptionId,
+          assessmentId: resolved.assessmentId,
+          promoId: resolved.promo?.id ?? null,
+        },
+        'Direct',
+      );
       await this.paymentNotificationService.notifyPaymentCreated({
         id: payment.id,
         userId: request.userId,
@@ -399,15 +467,18 @@ export class PaymentCreateService {
         };
       }
 
-      case PrismaPaymentType.Assessment:
+      case PrismaPaymentType.Assessment: {
+        const isApplicantBalanceTopUp = request.targetId === request.userId;
+
         return {
           amount: centsToAmount(requestAmountCents),
-          description: 'Оплата оценки имущества',
+          description: isApplicantBalanceTopUp ? 'Пополнение баланса' : 'Оплата оценки имущества',
           subscriptionId: null,
-          assessmentId: request.targetId,
+          assessmentId: isApplicantBalanceTopUp ? null : request.targetId,
           promo: null,
           discountAmount: null,
         };
+      }
 
       case PrismaPaymentType.DocumentCopy:
         return {
@@ -453,6 +524,7 @@ export class PaymentCreateService {
   private async recordPaymentCreatedAudit(
     actorUserId: string,
     payment: PaymentAuditSnapshotInput,
+    paymentProvider: string,
   ): Promise<void> {
     const target = buildPaymentAuditTarget(payment);
 
@@ -463,7 +535,7 @@ export class PaymentCreateService {
       actionTitle: 'Создан платёж',
       actionContext: buildPaymentActionContext(payment),
       after: buildPaymentAuditSnapshot(payment, {
-        paymentProvider: 'YooKassa',
+        paymentProvider,
       }),
     });
   }
@@ -474,6 +546,7 @@ export class PaymentCreateService {
       errorMessage: string;
       providerStatusCode?: number | null;
     },
+    paymentProvider: string,
   ): Promise<void> {
     const target = buildPaymentAuditTarget(payment);
 
@@ -482,9 +555,9 @@ export class PaymentCreateService {
       eventType: 'payment.failed',
       ...target,
       actionTitle: 'Платёж отклонён',
-      actionContext: 'Ошибка при создании платежа в YooKassa',
+      actionContext: `Ошибка при создании платежа в ${paymentProvider}`,
       after: buildPaymentAuditSnapshot(payment, {
-        paymentProvider: 'YooKassa',
+        paymentProvider,
         errorMessage: payment.errorMessage,
         providerStatusCode: payment.providerStatusCode,
       }),
@@ -611,6 +684,20 @@ function calculateDiscountAmount(baseAmountCents: number, percent: string): numb
 
 function getPaymentReturnUrlBase(): string {
   return (process.env['PAYMENT_RETURN_URL_BASE'] ?? process.env['FRONTEND_URL'] ?? '').trim();
+}
+
+function resolvePaymentProvider(requestProvider?: string): PaymentProvider {
+  const explicit = requestProvider?.trim().toLowerCase();
+  if (explicit === 'robokassa' || explicit === 'yookassa') {
+    return explicit;
+  }
+
+  const provider = (process.env['PAYMENT_PROVIDER'] ?? 'yookassa').trim().toLowerCase();
+  if (provider === 'robokassa') {
+    return 'robokassa';
+  }
+
+  return 'yookassa';
 }
 
 function resolveReceiptVatCode(): number {

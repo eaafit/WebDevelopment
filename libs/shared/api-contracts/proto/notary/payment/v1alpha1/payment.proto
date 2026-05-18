@@ -96,6 +96,10 @@ message CreatePaymentRequest {
 
   string target_id = 4 [(buf.validate.field).string.uuid = true];
   string promo_code = 5 [(buf.validate.field).string.max_len = 20];
+  string payment_provider = 6 [(buf.validate.field).string = {
+    min_len: 0
+    max_len: 32
+  }];
 }
 
 message PaymentWidgetInit {

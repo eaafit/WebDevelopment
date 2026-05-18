@@ -6,6 +6,7 @@ import { PaymentNotificationService } from '../payment-notification.service';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { PaymentWebhookService } from '../webhook/payment-webhook.service';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
+import { RobokassaClient } from '../robokassa/robokassa.client';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 import { PaymentCreateService } from './payment-create.service';
 
@@ -13,6 +14,7 @@ import { PaymentCreateService } from './payment-create.service';
   imports: [StorageModule, AuditModule, NotificationModule],
   providers: [
     YooKassaClient,
+    RobokassaClient,
     PaymentCreateService,
     PaymentWebhookService,
     PaymentSubscriptionService,
