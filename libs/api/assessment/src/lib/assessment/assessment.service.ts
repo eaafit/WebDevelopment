@@ -251,7 +251,9 @@ export class AssessmentService {
     try {
       validateUuid(request.userId, 'user_id');
 
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+      );
       const address =
         realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
 
@@ -315,7 +317,9 @@ export class AssessmentService {
       validateUuid(request.id, 'id');
       const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
+      );
       const assessment = await this.assessmentRepository.updateAssessment(request.id, {
         address: realEstateObject?.address ?? normalizeOptionalText(request.address),
         description: request.description.trim(),
@@ -599,6 +603,61 @@ export class AssessmentService {
       districtId: resolvedIds.districtId,
     };
   }
+
+  private async normalizeRealEstateObjectGeography(
+    realEstateObject: AssessmentRealEstateObjectData | undefined,
+  ): Promise<AssessmentRealEstateObjectData | undefined> {
+    if (!realEstateObject) {
+      return undefined;
+    }
+
+    const existingIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: realEstateObject.cityId,
+      districtId: realEstateObject.districtId ?? undefined,
+    });
+    const fallbackItem = existingIds.cityId
+      ? undefined
+      : await this.findExactFiasAddressItem(realEstateObject.address);
+    const resolvedIds = existingIds.cityId
+      ? existingIds
+      : await this.assessmentRepository.resolveGeographyIds({
+          cityId: realEstateObject.cityId,
+          districtId: realEstateObject.districtId ?? undefined,
+          cityName: fallbackItem?.addressDetails?.city,
+          districtName: fallbackItem?.addressDetails?.district,
+        });
+
+    if (!resolvedIds.cityId) {
+      throw new ConnectError(
+        'real_estate_object.city_id does not match a known city',
+        Code.InvalidArgument,
+      );
+    }
+
+    return {
+      ...realEstateObject,
+      cityId: resolvedIds.cityId,
+      ...(resolvedIds.districtId !== undefined && { districtId: resolvedIds.districtId }),
+      ...(resolvedIds.districtId === undefined &&
+        realEstateObject.districtId !== undefined && { districtId: null }),
+    };
+  }
+
+  private async findExactFiasAddressItem(
+    address: string | undefined,
+  ): Promise<FiasAddressItem | undefined> {
+    if (!address) {
+      return undefined;
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query: address,
+      limit: FIAS_LIMITS.maximum,
+    });
+    const normalizedAddress = normalizeAddressMatchKey(address);
+
+    return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
+  }
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {
@@ -667,6 +726,14 @@ function normalizeFiasAddressType(value: number | undefined): number | undefined
     throw new ConnectError('address_type must be a positive integer', Code.InvalidArgument);
   }
   return value;
+}
+
+function normalizeAddressMatchKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ');
 }
 
 function normalizeOptionalRequiredText(
