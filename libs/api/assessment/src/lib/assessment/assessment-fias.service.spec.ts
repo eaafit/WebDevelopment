@@ -7,13 +7,24 @@ import { AssessmentService } from './assessment.service';
 import { StubFiasProvider } from '../fias/stub-fias.provider';
 
 describe('AssessmentService FIAS flow', () => {
+  const assessmentRepository = {
+    resolveGeographyIds: jest.fn(),
+  };
   const service = new AssessmentService(
-    {} as never,
+    assessmentRepository as never,
     {} as never,
     {} as never,
     new StubFiasProvider(),
     {} as never,
   );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    assessmentRepository.resolveGeographyIds.mockResolvedValue({
+      cityId: 'resolved-city-id',
+      districtId: 'resolved-district-id',
+    });
+  });
 
   it('should map FIAS provider hints to RPC response DTO', async () => {
     const response = await service.getFiasAddressHints(
@@ -54,6 +65,8 @@ describe('AssessmentService FIAS flow', () => {
         objectId: '6600000100000000000000001',
         objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1001',
         fullName: 'Свердловская обл, г Екатеринбург, ул Малышева, д 16',
+        cityId: 'resolved-city-id',
+        districtId: 'resolved-district-id',
       }),
     );
     expect(response.item?.addressDetails).toEqual(
@@ -63,5 +76,20 @@ describe('AssessmentService FIAS flow', () => {
         house: 'д 16',
       }),
     );
+  });
+
+  it('should resolve internal geography ids for a selected FIAS item', async () => {
+    await service.getFiasAddressItemById(
+      create(GetFiasAddressItemByIdRequestSchema, {
+        objectId: '6600000100000000000000001',
+      }),
+    );
+
+    expect(assessmentRepository.resolveGeographyIds).toHaveBeenCalledWith({
+      cityId: 'c097f53d-e513-47c4-a72b-07a304711ce3',
+      districtId: '30448518-de64-4b0f-a080-79a4e7ac1c86',
+      cityName: 'Екатеринбург',
+      districtName: 'Ленинский',
+    });
   });
 });

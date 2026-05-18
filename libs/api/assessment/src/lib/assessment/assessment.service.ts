@@ -27,6 +27,7 @@ import {
   type GetFiasAddressDetailsResponse,
   type GetFiasAddressHintsRequest,
   type GetFiasAddressHintsResponse,
+  type FiasAddressItem,
   type GetFiasAddressItemByGuidRequest,
   type GetFiasAddressItemByGuidResponse,
   type GetFiasAddressItemByIdRequest,
@@ -143,8 +144,10 @@ export class AssessmentService {
   async getFiasAddressItemById(
     request: GetFiasAddressItemByIdRequest,
   ): Promise<GetFiasAddressItemByIdResponse> {
-    const item = await this.fiasProvider.getAddressItemById(
-      normalizeRequiredText(request.objectId, 'object_id'),
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemById(
+        normalizeRequiredText(request.objectId, 'object_id'),
+      ),
     );
     return create(GetFiasAddressItemByIdResponseSchema, { item });
   }
@@ -152,8 +155,10 @@ export class AssessmentService {
   async getFiasAddressItemByGuid(
     request: GetFiasAddressItemByGuidRequest,
   ): Promise<GetFiasAddressItemByGuidResponse> {
-    const item = await this.fiasProvider.getAddressItemByGuid(
-      normalizeRequiredText(request.objectGuid, 'object_guid'),
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemByGuid(
+        normalizeRequiredText(request.objectGuid, 'object_guid'),
+      ),
     );
     return create(GetFiasAddressItemByGuidResponseSchema, { item });
   }
@@ -578,6 +583,21 @@ export class AssessmentService {
         `Failed to create admin assessment notification: ${errorMessage(error)}`,
       );
     }
+  }
+
+  private async resolveFiasItemGeography(item: FiasAddressItem): Promise<FiasAddressItem> {
+    const resolvedIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: item.cityId,
+      districtId: item.districtId,
+      cityName: item.addressDetails?.city,
+      districtName: item.addressDetails?.district,
+    });
+
+    return {
+      ...item,
+      cityId: resolvedIds.cityId,
+      districtId: resolvedIds.districtId,
+    };
   }
 }
 

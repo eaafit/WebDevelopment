@@ -19,6 +19,7 @@ describe('AssessmentService audit events', () => {
     getAssessment: jest.fn(),
     getAssessmentSnapshot: jest.fn(),
     getUserDisplayName: jest.fn(),
+    resolveGeographyIds: jest.fn(),
     createAssessment: jest.fn(),
     updateAssessment: jest.fn(),
     verifyAssessment: jest.fn(),
@@ -46,6 +47,7 @@ describe('AssessmentService audit events', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     assessmentRepository.getUserDisplayName.mockResolvedValue(null);
+    assessmentRepository.resolveGeographyIds.mockResolvedValue({});
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
   });
 
