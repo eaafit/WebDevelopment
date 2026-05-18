@@ -90,6 +90,7 @@ message NewsletterCampaignDetail {
   NewsletterCampaign campaign = 1;
   string preview_text = 2;
   repeated NewsletterCampaignRecipient recipients = 3;
+  string body_html = 4;
 }
 
 message ListNewsletterSubscribersRequest {

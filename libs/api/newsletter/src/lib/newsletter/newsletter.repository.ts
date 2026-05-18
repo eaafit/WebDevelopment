@@ -388,6 +388,7 @@ export class NewsletterRepository {
           status: this.fromPrismaDeliveryStatus(delivery.status),
         }),
       ),
+      bodyHtml: row.bodyHtml,
     });
   }
 

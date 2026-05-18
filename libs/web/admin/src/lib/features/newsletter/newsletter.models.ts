@@ -40,6 +40,7 @@ export interface NewsletterCampaignView {
 export interface NewsletterCampaignDetailView {
   campaign: NewsletterCampaignView;
   previewText: string;
+  bodyHtml: string;
   recipients: NewsletterCampaignRecipientView[];
 }
 
@@ -54,4 +55,10 @@ export interface NewsletterAudienceInput {
   mode: NewsletterAudienceMode;
   role: Exclude<NewsletterRoleFilter, 'all'>;
   selectedUserIds: string[];
+}
+
+export interface NewsletterDraftTemplate {
+  subject: string;
+  bodyHtml: string;
+  sourceCampaignId: string;
 }

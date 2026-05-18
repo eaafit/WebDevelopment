@@ -244,6 +244,7 @@ function toCampaignDetailView(detail: NewsletterCampaignDetail): NewsletterCampa
   return {
     campaign: toCampaignView(detail.campaign),
     previewText: detail.previewText,
+    bodyHtml: detail.bodyHtml,
     recipients: detail.recipients.map(toRecipientView),
   };
 }

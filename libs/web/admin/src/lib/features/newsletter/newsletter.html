@@ -20,6 +20,24 @@
     <strong>Выбрано: {{ selectedCount() }}</strong>
   </section>
 
+  <nav class="newsletter-tabs" aria-label="Разделы рассылки">
+    <button
+      type="button"
+      class="newsletter-tabs__button"
+      [class.newsletter-tabs__button--active]="activeTab() === 'subscribers'"
+      (click)="setTab('subscribers')">
+      Подписчики
+    </button>
+    <button
+      type="button"
+      class="newsletter-tabs__button"
+      [class.newsletter-tabs__button--active]="activeTab() === 'history'"
+      (click)="setTab('history')">
+      История кампаний
+    </button>
+  </nav>
+
+  @if (activeTab() === 'subscribers') {
   <section class="newsletter-panel" aria-label="Список подписчиков">
     <div class="newsletter-panel__header">
       <div>
@@ -141,4 +159,99 @@
       </div>
     </footer>
   </section>
+  } @else {
+  <section class="newsletter-panel" aria-label="История кампаний">
+    <div class="newsletter-panel__header">
+      <div>
+        <h3>История рассылок</h3>
+        <p>Кампании с количеством получателей и итоговым статусом доставки.</p>
+      </div>
+    </div>
+
+    <div class="newsletter-filters newsletter-filters--history">
+      <label class="newsletter-field newsletter-field--search">
+        <span>Поиск</span>
+        <input
+          type="search"
+          placeholder="Тема или аудитория"
+          [value]="historyQuery()"
+          (input)="updateHistoryQuery($any($event.target).value)"
+          (keydown.enter)="applyHistoryFilters()" />
+      </label>
+
+      <div class="newsletter-actions">
+        <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="applyHistoryFilters()">
+          Найти
+        </button>
+        <button type="button" class="newsletter-btn newsletter-btn--ghost" (click)="resetHistoryFilters()">
+          Сбросить
+        </button>
+      </div>
+    </div>
+
+    <div class="newsletter-table-wrap">
+      <table class="newsletter-table newsletter-table--campaigns">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Тема</th>
+            <th>Аудитория</th>
+            <th>Получатели</th>
+            <th>Доставлено</th>
+            <th>Статус</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (campaignsLoading()) {
+          <tr>
+            <td colspan="7" class="newsletter-empty">Загрузка истории рассылок...</td>
+          </tr>
+          } @else if (campaigns().length) { @for (campaign of campaigns(); track campaign.id) {
+          <tr>
+            <td>{{ campaign.createdAt }}</td>
+            <td class="newsletter-table__subject">{{ campaign.subject }}</td>
+            <td>{{ campaign.audienceLabel }}</td>
+            <td>{{ campaign.recipientsCount }}</td>
+            <td>{{ campaign.sentCount }} / {{ campaign.failedCount }}</td>
+            <td>
+              <span
+                class="newsletter-badge"
+                [class.newsletter-badge--warning]="campaign.status === 'partialFailed' || campaign.status === 'sending'"
+                [class.newsletter-badge--danger]="campaign.status === 'failed'">
+                {{ campaign.statusLabel }}
+              </span>
+            </td>
+            <td class="newsletter-table__action">
+              <button
+                type="button"
+                class="newsletter-link"
+                [disabled]="templateLoadingId() === campaign.id"
+                (click)="useCampaignAsTemplate(campaign)">
+                {{ templateLoadingId() === campaign.id ? 'Загрузка...' : 'Использовать как шаблон' }}
+              </button>
+            </td>
+          </tr>
+          } } @else {
+          <tr>
+            <td colspan="7" class="newsletter-empty">История рассылок не найдена.</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="newsletter-panel__footer newsletter-panel__footer--end">
+      <div class="newsletter-pagination">
+        <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="campaignPage() <= 1" (click)="previousCampaignsPage()">
+          Назад
+        </button>
+        <span>{{ campaignsMeta().currentPage }} / {{ campaignsMeta().totalPages }}</span>
+        <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="campaignPage() >= campaignsMeta().totalPages" (click)="nextCampaignsPage()">
+          Вперёд
+        </button>
+      </div>
+    </footer>
+  </section>
+  }
 </section>
