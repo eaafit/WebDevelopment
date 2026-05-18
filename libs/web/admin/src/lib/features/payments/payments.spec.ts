@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { WebLoggerService, TokenStore } from '@notary-portal/ui';
-import { AdminPaymentsApiService } from './payments-api.service';
+import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
@@ -10,46 +10,6 @@ import { RPC_TRANSPORT } from '@notary-portal/ui';
 // Mock URL for Jest environment
 if (typeof global.URL === 'undefined') {
   global.URL = require('url').URL;
-}
-
-function createMockProviders(
-  payments$: BehaviorSubject<Payment[] | null>,
-  loggerMock: Record<string, jest.Mock>,
-  deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
-) {
-  return [
-    provideRouter([]),
-    {
-      provide: Router,
-      useValue: { navigate: jest.fn().mockResolvedValue(true) },
-    },
-    {
-      provide: TokenStore,
-      useValue: { getAccessToken: jest.fn(() => 'test-token') },
-    },
-    {
-      provide: RPC_TRANSPORT,
-      useValue: {},
-    },
-    {
-      provide: AdminPaymentsApiService,
-      useValue: {
-        preload: () => {
-          // Emit data asynchronously to mimic real behavior
-          Promise.resolve().then(() => {
-            paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
-          });
-        },
-        payments$: paymentsSubject.asObservable(),
-        getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
-        deletePayment: deletePaymentMock,
-      },
-    },
-    {
-      provide: WebLoggerService,
-      useValue: loggerMock,
-    },
-  ];
 }
 
 describe('Payments', () => {
@@ -63,7 +23,7 @@ describe('Payments', () => {
   let paymentsSubject: BehaviorSubject<Payment[] | null>;
 
   function createMockProviders(
-    payments$: BehaviorSubject<Payment[] | null>,
+    paymentsStream: BehaviorSubject<Payment[] | null>,
     loggerMock: Record<string, jest.Mock>,
     deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
   ) {
@@ -85,10 +45,9 @@ describe('Payments', () => {
         provide: AdminPaymentsApiService,
         useValue: {
           preload: () => {
-            // Emit data immediately for testing
-            paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
+            paymentsStream.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
           },
-          payments$: paymentsSubject.asObservable(),
+          payments$: paymentsStream.asObservable(),
           getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
           deletePayment: deletePaymentMock,
         },
@@ -100,38 +59,37 @@ describe('Payments', () => {
     ];
   }
 
-    beforeEach(async () => {
-      logger = {
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-      };
-      paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
-      const globalRecord = globalThis as unknown as Record<string, unknown>;
-      const existingUrl = globalRecord['URL'] as Record<string, unknown> | undefined;
-      globalRecord['URL'] = {
-        ...(existingUrl ?? {}),
-        createObjectURL: jest.fn(() => 'blob:http://localhost/fake-url'),
-        revokeObjectURL: jest.fn(),
-      };
+  beforeEach(async () => {
+    logger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
+    const urlCtor = globalThis.URL as typeof URL & {
+      createObjectURL?: jest.Mock;
+      revokeObjectURL?: jest.Mock;
+    };
+    urlCtor.createObjectURL = jest.fn(() => 'blob:http://localhost/fake-url');
+    urlCtor.revokeObjectURL = jest.fn();
 
-      await TestBed.configureTestingModule({
-        imports: [Payments],
-        providers: createMockProviders(paymentsSubject, logger),
-      }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [Payments],
+      providers: createMockProviders(paymentsSubject, logger),
+    }).compileComponents();
 
-      fixture = TestBed.createComponent(Payments);
-      component = fixture.componentInstance;
-      
-      // Trigger ngOnInit
-      fixture.detectChanges();
-      
-      // Manually trigger the payments data emission
-      paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
-      
-      // Detect changes to update the component with the new data
-      fixture.detectChanges();
-    });
+    fixture = TestBed.createComponent(Payments);
+    component = fixture.componentInstance;
+
+    // Trigger ngOnInit
+    fixture.detectChanges();
+
+    // Manually trigger the payments data emission
+    paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
+
+    // Detect changes to update the component with the new data
+    fixture.detectChanges();
+  });
 
   afterEach(() => {
     paymentsSubject.complete();
@@ -156,59 +114,60 @@ describe('Payments', () => {
     );
   });
 
-   it('should log error when payments stream fails', async () => {
-     const failLogger = {
-       info: jest.fn(),
-       warn: jest.fn(),
-       error: jest.fn(),
-     };
-     const failSubject = new BehaviorSubject<Payment[] | null>(null);
+  it('should log error when payments stream fails', async () => {
+    const failLogger = {
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    const failSubject = new BehaviorSubject<Payment[] | null>(null);
 
-     // Reset TestBed and create a fresh instance for this test
-     TestBed.resetTestingModule();
-     
-     await TestBed.configureTestingModule({
-       imports: [Payments],
-       providers: [
-         {
-           provide: TokenStore,
-           useValue: { getAccessToken: jest.fn(() => 'test-token') },
-         },
-         {
-           provide: RPC_TRANSPORT,
-           useValue: {},
-         },
-         {
-           provide: AdminPaymentsApiService,
-           useValue: {
-             payments$: paymentsSubject.asObservable(),
-             getAllPayments: async () => [],
-             deletePayment: jest.fn().mockResolvedValue(true),
-           },
-         },
-         {
-           provide: WebLoggerService,
-           useValue: loggerMock,
-         },
-       ],
-     }).compileComponents();
+    // Reset TestBed and create a fresh instance for this test
+    TestBed.resetTestingModule();
 
-     const failFixture = TestBed.createComponent(Payments);
-     const failComponent = failFixture.componentInstance;
-     failFixture.detectChanges(); // Trigger ngOnInit
+    await TestBed.configureTestingModule({
+      imports: [Payments],
+      providers: [
+        {
+          provide: TokenStore,
+          useValue: { getAccessToken: jest.fn(() => 'test-token') },
+        },
+        {
+          provide: RPC_TRANSPORT,
+          useValue: {},
+        },
+        {
+          provide: AdminPaymentsApiService,
+          useValue: {
+            preload: jest.fn(),
+            payments$: failSubject.asObservable(),
+            getAllPayments: async () => [],
+            deletePayment: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: failLogger,
+        },
+      ],
+    }).compileComponents();
 
-     failSubject.error(new Error('Network failure'));
+    const failFixture = TestBed.createComponent(Payments);
+    const failComponent = failFixture.componentInstance;
+    failFixture.detectChanges(); // Trigger ngOnInit
 
-     expect(failLogger.error).toHaveBeenCalledWith(
-       'payment.admin.list_load_failed',
-       expect.objectContaining({
-         area: 'admin_payments_list',
-         error: expect.any(Error),
-       }),
-     );
-     expect(failComponent.loadError).toBeTruthy();
-     failSubject.complete();
-   });
+    failSubject.error(new Error('Network failure'));
+
+    expect(failLogger.error).toHaveBeenCalledWith(
+      'payment.admin.list_load_failed',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        error: expect.any(Error),
+      }),
+    );
+    expect(failComponent.loadError).toBeTruthy();
+    failSubject.complete();
+  });
 
   it('should log list destroyed on ngOnDestroy', () => {
     component.ngOnDestroy();
