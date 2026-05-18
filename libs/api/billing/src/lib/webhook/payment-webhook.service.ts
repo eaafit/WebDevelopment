@@ -17,6 +17,11 @@ import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
+import { RobokassaClient } from '../robokassa/robokassa.client';
+import {
+  toProviderPaymentDetails,
+  toRobokassaProviderPaymentDetails,
+} from '../payment-receipt/payment-receipt.renderer';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -31,8 +36,37 @@ export interface YooKassaNotificationPayload {
   };
 }
 
+function parseRobokassaResultPayload(value: unknown): RobokassaResultPayload {
+  const source =
+    typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)
+      : ({} as Record<string, unknown>);
+
+  const outSum = asNonEmptyString(source['OutSum'] ?? source['outSum']);
+  const invoiceId = asNonEmptyString(source['InvId'] ?? source['invoiceId']);
+  const signatureValue = asNonEmptyString(
+    source['SignatureValue'] ?? source['signatureValue'] ?? source['signature'],
+  );
+
+  if (!outSum || !invoiceId || !signatureValue) {
+    throw new PaymentWebhookError('Robokassa payload is invalid', 400);
+  }
+
+  return {
+    outSum,
+    invoiceId,
+    signatureValue,
+  };
+}
+
 export interface PaymentWebhookContext {
   signature?: string;
+}
+
+interface RobokassaResultPayload {
+  outSum: string;
+  invoiceId: string;
+  signatureValue: string;
 }
 
 export class PaymentWebhookError extends Error {
@@ -71,6 +105,7 @@ export class PaymentWebhookService {
     private readonly prisma: PrismaService,
     private readonly metrics: MetricsService,
     private readonly yookassa: YooKassaClient,
+    private readonly robokassa: RobokassaClient,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly paymentAttachmentService: PaymentAttachmentService,
     private readonly auditService: AuditService,
@@ -138,6 +173,109 @@ export class PaymentWebhookService {
     }
   }
 
+  async handleRobokassaResult(body: unknown): Promise<string> {
+    const payload = parseRobokassaResultPayload(body);
+    const normalizedOutSum = payload.outSum.replace(',', '.');
+
+    const signatureValid = this.robokassa.verifyResultSignature({
+      outSum: normalizedOutSum,
+      invoiceId: payload.invoiceId,
+      signatureValue: payload.signatureValue,
+    });
+
+    if (!signatureValid) {
+      throw new PaymentWebhookError('Robokassa signature is invalid', 401);
+    }
+
+    const payment = await this.findPaymentById(payload.invoiceId);
+    if (!payment) {
+      return `OK${payload.invoiceId}`;
+    }
+
+    if (parseMoneyToCents(payment.amount.toString()) !== parseMoneyToCents(normalizedOutSum)) {
+      throw new PaymentWebhookError('Robokassa amount mismatch', 401);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.payment.updateMany({
+        where: {
+          id: payment.id,
+          status: PrismaPaymentStatus.Pending,
+        },
+        data: {
+          status: PrismaPaymentStatus.Completed,
+          paymentMethod: payment.paymentMethod ?? 'robokassa_redirect',
+        },
+      });
+
+      if (result.count === 0) {
+        return false;
+      }
+
+      await this.runCompletedPaymentHooks(tx, payment);
+
+      if (payment.promoId) {
+        await tx.promo.update({
+          where: { id: payment.promoId },
+          data: {
+            usedCount: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
+      return true;
+    });
+
+    if (!updated) {
+      return `OK${payload.invoiceId}`;
+    }
+
+    this.metrics.recordPayment('completed');
+    this.metrics.recordPaymentAmount(Number(payment.amount));
+    const metricContext = resolveBillingPaymentMetricContext(payment.type);
+    this.metrics.recordBillingPayment('completed', metricContext);
+    this.metrics.recordBillingPaymentAmount(Number(payment.amount), metricContext);
+
+    if (payment.promoId) {
+      this.metrics.recordPromoApplied(metricContext, 'percent', Number(payment.discountAmount ?? 0));
+    }
+
+    await this.recordPaymentStatusAudit(
+      payment,
+      'payment.completed',
+      PrismaPaymentStatus.Completed,
+      {
+        paymentMethod: payment.paymentMethod ?? 'robokassa_redirect',
+        paymentProvider: 'Robokassa',
+      },
+      'Статус обновлён по Robokassa callback',
+    );
+
+    const shouldStoreReceipt =
+      payment.receiptStatus !== PrismaPaymentReceiptStatus.Available ||
+      !payment.attachmentFileUrl;
+
+    if (shouldStoreReceipt) {
+      try {
+        await this.paymentAttachmentService.storeGeneratedReceipt(
+          payment.id,
+          toRobokassaProviderPaymentDetails(normalizedOutSum, payload.invoiceId),
+        );
+        this.logger.log(`Stored receipt copy for payment ${payment.id}; provider=Robokassa`);
+      } catch (error) {
+        this.logger.error(
+          `Failed to store receipt copy for payment ${payment.id}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        await this.paymentAttachmentService.markReceiptFailed(payment.id);
+      }
+    }
+
+    return `OK${payload.invoiceId}`;
+  }
+
   private async handlePaymentSucceeded(
     payment: PaymentRecord,
     providerPayment: Awaited<ReturnType<YooKassaClient['getPayment']>>,
@@ -182,7 +320,10 @@ export class PaymentWebhookService {
 
     if (shouldStoreReceipt) {
       try {
-        await this.paymentAttachmentService.storeGeneratedReceipt(payment.id, providerPayment);
+        await this.paymentAttachmentService.storeGeneratedReceipt(
+          payment.id,
+          toProviderPaymentDetails(providerPayment),
+        );
         this.logger.log(
           `Stored receipt copy for payment ${payment.id}; YooKassa receipt status=${providerPayment.receiptRegistration ?? 'unknown'}`,
         );
@@ -223,6 +364,7 @@ export class PaymentWebhookService {
         paymentMethodTitle: providerPayment.paymentMethodTitle,
         receiptRegistration: providerPayment.receiptRegistration,
       },
+      'Статус обновлён по YooKassa webhook',
     );
   }
 
@@ -248,12 +390,18 @@ export class PaymentWebhookService {
 
     this.metrics.recordPayment('failed');
     this.metrics.recordBillingPayment('failed', resolveBillingPaymentMetricContext(payment.type));
-    await this.recordPaymentStatusAudit(payment, 'payment.failed', PrismaPaymentStatus.Failed, {
-      paymentMethod:
-        providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
-      paymentProvider: 'YooKassa',
-      paymentMethodTitle: providerPayment.paymentMethodTitle,
-    });
+    await this.recordPaymentStatusAudit(
+      payment,
+      'payment.failed',
+      PrismaPaymentStatus.Failed,
+      {
+        paymentMethod:
+          providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+        paymentProvider: 'YooKassa',
+        paymentMethodTitle: providerPayment.paymentMethodTitle,
+      },
+      'Статус обновлён по YooKassa webhook',
+    );
   }
 
   private async recordPaymentStatusAudit(
@@ -266,6 +414,7 @@ export class PaymentWebhookService {
       paymentMethodTitle?: string | null;
       receiptRegistration?: string | null;
     },
+    actionContext: string,
   ): Promise<void> {
     const target = buildPaymentAuditTarget(payment);
 
@@ -274,11 +423,32 @@ export class PaymentWebhookService {
       eventType,
       ...target,
       actionTitle: status === PrismaPaymentStatus.Completed ? 'Платёж завершён' : 'Платёж отклонён',
-      actionContext: 'Статус обновлён по YooKassa webhook',
+      actionContext,
       after: buildPaymentAuditSnapshot(payment, {
         status,
         ...providerDetails,
       }),
+    });
+  }
+
+  private async findPaymentById(paymentId: string): Promise<PaymentRecord | null> {
+    return this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      select: {
+        id: true,
+        userId: true,
+        amount: true,
+        status: true,
+        type: true,
+        promoId: true,
+        discountAmount: true,
+        subscriptionId: true,
+        assessmentId: true,
+        paymentMethod: true,
+        transactionId: true,
+        attachmentFileUrl: true,
+        receiptStatus: true,
+      },
     });
   }
 
@@ -383,4 +553,13 @@ function isYooKassaNotificationPayload(value: unknown): value is YooKassaNotific
 
 function parseMoneyToCents(value: string): number {
   return Math.round(Number(value) * 100);
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
 }

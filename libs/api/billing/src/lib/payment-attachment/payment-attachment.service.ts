@@ -19,7 +19,7 @@ import {
   renderStoredPaymentReceipt,
 } from '../payment-receipt/payment-receipt.renderer';
 import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
-import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
+import type { ProviderPaymentDetails } from '../payment-receipt/payment-receipt.renderer';
 
 export interface PaymentAttachmentUpload {
   paymentId: string;
@@ -97,7 +97,7 @@ export class PaymentAttachmentService {
 
   async storeGeneratedReceipt(
     paymentId: string,
-    providerPayment: YooKassaPaymentDetails,
+    providerPayment: ProviderPaymentDetails,
   ): Promise<{ objectKey: string; fileName: string }> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -351,7 +351,7 @@ function isMissingObjectError(error: unknown): boolean {
   );
 }
 
-function mapReceiptStatus(providerPayment: YooKassaPaymentDetails): PaymentReceiptStatus {
+function mapReceiptStatus(providerPayment: ProviderPaymentDetails): PaymentReceiptStatus {
   switch (providerPayment.receiptRegistration) {
     case 'succeeded':
       return PaymentReceiptStatus.Available;
@@ -360,10 +360,6 @@ function mapReceiptStatus(providerPayment: YooKassaPaymentDetails): PaymentRecei
     case 'pending':
       return PaymentReceiptStatus.Pending;
     default:
-      if (providerPayment.paid && providerPayment.status === 'succeeded') {
-        return PaymentReceiptStatus.Available;
-      }
-
       return PaymentReceiptStatus.Pending;
   }
 }
