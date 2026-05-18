@@ -1,5 +1,6 @@
 export * from './lib/transaction-table/transaction-table';
 export * from './lib/transaction-table/transaction-table.models';
+export * from './lib/payments/payment-history-mapper';
 export * from './lib/audit-monitoring/audit-monitoring-api.service';
 export * from './lib/audit-monitoring/audit-monitoring-page';
 export * from './lib/audit-monitoring/audit-monitoring.models';

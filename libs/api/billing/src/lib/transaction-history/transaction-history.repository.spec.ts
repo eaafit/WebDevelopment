@@ -156,6 +156,25 @@ describe('TransactionHistoryRepository', () => {
     );
   });
 
+  it('should search by payment id or user id when query is UUID', async () => {
+    const id = 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890';
+
+    await repository.getTransactionHistory({
+      page: 1,
+      limit: 10,
+      searchQuery: id,
+    });
+
+    const where = findMany.mock.calls[0][0].where;
+
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        { id },
+        { userId: id },
+      ]),
+    );
+  });
+
   describe('updatePayment', () => {
     const updatedRecord = {
       id: 'a1b2c3d4-e5f6-4bcd-abcd-ef1234567890',
