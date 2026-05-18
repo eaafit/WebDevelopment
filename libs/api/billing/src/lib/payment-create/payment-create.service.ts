@@ -40,6 +40,7 @@ import {
   buildPaymentAuditTarget,
   type PaymentAuditSnapshotInput,
 } from '../payment-audit';
+import { PaymentNotificationService } from '../payment-notification.service';
 
 const PAYMENT_RETURN_PATH_BY_TYPE: Record<PrismaPaymentType, string> = {
   [PrismaPaymentType.Subscription]: '/notary/subscription/checkout/success',
@@ -72,6 +73,7 @@ export class PaymentCreateService {
     private readonly metrics: MetricsService,
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly auditService: AuditService,
+    private readonly paymentNotificationService: PaymentNotificationService,
   ) {}
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
@@ -139,6 +141,17 @@ export class PaymentCreateService {
         assessmentId: resolved.assessmentId,
         promoId: resolved.promo?.id ?? null,
       });
+      await this.paymentNotificationService.notifyPaymentCreated({
+        id: payment.id,
+        userId: request.userId,
+        type: prismaType,
+        amount: resolved.amount,
+        status: PrismaPaymentStatus.Pending,
+        transactionId: result.id,
+        paymentMethod: 'yookassa_widget',
+        subscriptionId: resolved.subscriptionId,
+        assessmentId: resolved.assessmentId,
+      });
 
       this.logger.log(
         `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
@@ -180,6 +193,19 @@ export class PaymentCreateService {
           errorMessage: err.message || 'Payment provider error',
           providerStatusCode: err.statusCode ?? null,
         });
+        await this.paymentNotificationService.notifyPaymentCreationFailed(
+          {
+            id: payment.id,
+            userId: request.userId,
+            type: prismaType,
+            amount: resolved.amount,
+            status: PrismaPaymentStatus.Failed,
+            paymentMethod: 'yookassa_widget',
+            subscriptionId: resolved.subscriptionId,
+            assessmentId: resolved.assessmentId,
+          },
+          err.message || 'Payment provider error',
+        );
 
         throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
       }
@@ -211,6 +237,16 @@ export class PaymentCreateService {
         subscriptionId: resolved.subscriptionId,
         assessmentId: resolved.assessmentId,
         promoId: resolved.promo?.id ?? null,
+      });
+      await this.paymentNotificationService.notifyPaymentCreated({
+        id: payment.id,
+        userId: request.userId,
+        type: prismaType,
+        amount: resolved.amount,
+        status: PrismaPaymentStatus.Pending,
+        paymentMethod: 'direct',
+        subscriptionId: resolved.subscriptionId,
+        assessmentId: resolved.assessmentId,
       });
 
       return create(CreatePaymentResponseSchema, {

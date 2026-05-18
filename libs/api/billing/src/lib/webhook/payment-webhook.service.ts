@@ -17,6 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
+import { PaymentNotificationService } from '../payment-notification.service';
 import { PaymentSubscriptionService } from '../subscription/payment-subscription.service';
 import { YooKassaClient } from '../yookassa/yookassa.client';
 
@@ -74,6 +75,7 @@ export class PaymentWebhookService {
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly paymentAttachmentService: PaymentAttachmentService,
     private readonly auditService: AuditService,
+    private readonly paymentNotificationService: PaymentNotificationService,
   ) {}
 
   async processWebhook(request: ProcessWebhookRequest) {
@@ -224,6 +226,12 @@ export class PaymentWebhookService {
         receiptRegistration: providerPayment.receiptRegistration,
       },
     );
+    await this.paymentNotificationService.notifyPaymentCompleted({
+      ...payment,
+      status: PrismaPaymentStatus.Completed,
+      paymentMethod:
+        providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+    });
   }
 
   private async handlePaymentCanceled(
@@ -253,6 +261,12 @@ export class PaymentWebhookService {
         providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
       paymentProvider: 'YooKassa',
       paymentMethodTitle: providerPayment.paymentMethodTitle,
+    });
+    await this.paymentNotificationService.notifyPaymentFailed({
+      ...payment,
+      status: PrismaPaymentStatus.Failed,
+      paymentMethod:
+        providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
     });
   }
 
