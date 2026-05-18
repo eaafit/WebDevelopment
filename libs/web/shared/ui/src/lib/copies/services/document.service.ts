@@ -1,0 +1,69 @@
+import { Injectable, inject } from '@angular/core';
+import { createClient } from '@connectrpc/connect';
+import { DocumentService as RPCDocumentService } from '@notary-portal/api-contracts';
+import { buildRpcBaseUrl, RPC_TRANSPORT, TokenStore } from '@notary-portal/ui';
+
+export type Document = {
+  id: string;
+  assessmentId: string;
+  fileName: string;
+  fileType: string;
+  version: number;
+  uploadedAt?: { seconds: bigint, nanos: number };
+  uploadedById: string;
+  downloadUrl: string;
+};
+export type PageInfo = {
+  totalItems: number,
+  totalPages: number,
+  currentPage: number,
+  perPage: number,
+}
+@Injectable({ providedIn: 'root' })
+export class DocumentService {
+  private readonly tokenStore = inject(TokenStore);
+  private readonly transport = inject(RPC_TRANSPORT);
+
+  private readonly client = createClient(RPCDocumentService, this.transport);
+
+  readonly role = this.tokenStore.role;
+
+  async createDocument(assessmentId: string, fileName: string, fileType: string, uploadedById: string, fileContent: Uint8Array<ArrayBuffer>): Promise<Document> {
+    const res = await this.client.createDocument({ assessmentId, fileName, fileType, uploadedById, fileContent });
+    if (!res.document) throw new Error('Не удалось создать документ');
+    return res.document
+  }
+
+  async getDocument(id: string): Promise<Document> {
+    const res = await this.client.getDocument({ id });
+    if (!res.document) throw new Error('Несуществующий документ');
+    return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
+  }
+
+  async listDocumentsByAssessment(assessmentId?: string, pagination?: { page: number, limit: number }): Promise<{
+    documents: Document[],
+    meta?: PageInfo
+  }> {
+    const res = await this.client.listDocumentsByAssessment({ assessmentId, pagination });
+    return {
+      documents: res.documents.map(v => ({ ...v, downloadUrl: resolveStoredDocumentUrl(v.downloadUrl) })),
+      meta: res.meta
+    }
+  }
+}
+
+function resolveStoredDocumentUrl(fileUrl: string): string {
+  const normalizedPath = fileUrl.trim();
+  if (!normalizedPath) {
+    return '';
+  }
+
+  try {
+    return new URL(normalizedPath, ensureTrailingSlash(buildRpcBaseUrl())).toString();
+  } catch {
+    return normalizedPath;
+  }
+}
+function ensureTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url : `${url}/`;
+}

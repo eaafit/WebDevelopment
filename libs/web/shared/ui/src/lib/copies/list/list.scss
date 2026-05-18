@@ -1,0 +1,152 @@
+:host {
+  // Цветовая палитра и переменные
+  --primary-color: #6366f1;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  
+  display: block;
+  min-height: 100vh;
+  background-color: var(--bg-page);
+  padding: 40px 20px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+// Контейнер для всего дашборда
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+// Хедер с заголовком и кнопкой
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 32px;
+
+  .page-title {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+  }
+
+  .page-subtitle {
+    color: var(--text-muted);
+    margin: 4px 0 0;
+  }
+}
+
+// Кнопка создания
+.btn-create-action {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  &:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  }
+}
+
+// СЕТКА: Здесь настраиваем 3 элемента в ряд
+.copies-grid {
+  display: grid;
+  // grid-template-columns: repeat(3, 1fr) — строго 3 колонки
+  // auto-fill + minmax — лучше для адаптивности, но будет 3 на средних экранах
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 24px;
+  align-items: stretch;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr); // 2 колонки на планшетах
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr; // 1 колонка на мобилках
+  }
+}
+
+// Стили для компонента document-row (карточка)
+// Примечание: стили применяются к селектору тега
+document-row {
+  display: block; // Важно для корректных отступов
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-color);
+  }
+
+  // Внутренние элементы (ориентируясь на твой скриншот)
+  // Названия классов могут отличаться, подправь под document-row.html если нужно
+  h4, .doc-title {
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-main);
+    font-size: 1rem;
+    word-break: break-all;
+  }
+
+  .info-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+
+    .label { color: var(--text-muted); }
+    .value { font-weight: 600; color: var(--text-main); }
+  }
+
+  .details-link {
+    display: inline-block;
+    margin-top: 16px;
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    
+    &:hover { text-decoration: underline; }
+  }
+}
+
+// Пустое состояние
+.empty-dashboard-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px;
+  background: white;
+  border: 2px dashed var(--border-color);
+  border-radius: 16px;
+  color: var(--text-muted);
+
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+}
+
+// Пагинация
+pagination {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  margin-top: 32px;
+}

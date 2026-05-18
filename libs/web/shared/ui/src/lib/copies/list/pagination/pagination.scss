@@ -1,0 +1,19 @@
+.pagination{
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+
+  div:first-of-type:not(.disabled):hover {
+    cursor: pointer;
+  }
+
+
+  div:last-of-type:not(.disabled):hover {
+    cursor: pointer;
+  }
+
+  .disabled {
+    cursor:not-allowed;
+  }
+}

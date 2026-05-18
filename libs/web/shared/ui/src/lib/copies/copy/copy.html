@@ -1,0 +1,63 @@
+<div class="status-container">
+  <div class="status-header">
+    <div class="header-content">
+      <h3 class="status-title">Информация о заявке</h3>
+      <p class="status-subtitle">Отслеживание состояния в реальном времени</p>
+    </div>
+    @if (doc !== null) {
+    <span class="id-badge">#{{ doc.id.split('-')[0] }}</span>
+    }
+  </div>
+
+  <div class="info-grid">
+    <div class="info-item">
+      <span class="info-label">Тип документа</span>
+      <span class="info-value">{{ doc?.fileType || '—' }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">Дата создания</span>
+      <span class="info-value">{{ createDate() }}</span>
+    </div>
+  </div>
+
+  <div class="progress-section">
+    <div class="progress-track">
+      <div class="step-item" [class.active]="assesment?.status !== 4" [class.completed]="assesment?.status === 4">
+        <div class="step-indicator">
+          <span class="step-icon"></span>
+        </div>
+        <span class="step-text">В обработке</span>
+      </div>
+
+      <div class="step-connector"></div>
+
+      <div class="step-item" [class.active]="assesment?.status === 4">
+        <div class="step-indicator">
+          <span class="step-icon"></span>
+        </div>
+        <span class="step-text">Готово</span>
+      </div>
+    </div>
+  </div>
+
+  @if (assesment !== null && doc !== null) {
+  <div class="action-footer">
+    @if (assesment.status !== 4) {
+    <div class="timer-display">
+      <span class="pulse-dot"></span>
+      Осталось времени: <strong>{{ timer() }} мин.</strong>
+    </div>
+    } @else {
+    <a [href]="doc.downloadUrl" class="download-button" target="_blank">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      Скачать результат
+    </a>
+    }
+  </div>
+  }
+</div>

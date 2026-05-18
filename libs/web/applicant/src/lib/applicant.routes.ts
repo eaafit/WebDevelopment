@@ -82,12 +82,19 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Форма запроса',
-          'Прикрепление оснований',
-          'Расчёт стоимости',
-          'Оплата и выдача копий',
-        ]),
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('./features/copies/list/list').then((m) => m.List),
+            data: { role: 'applicant' },
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('./features/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
       },
       {
         path: 'notifications',

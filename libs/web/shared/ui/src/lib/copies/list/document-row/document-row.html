@@ -1,0 +1,24 @@
+<div class="document-row">
+  <div class="row">
+    <span class="value">{{ document().fileName }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Тип файла</span>
+    <span class="value">{{ document().fileType | slice:0:3 }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Версия файла</span>
+    <span class="value">{{ document().version }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Заявка</span>
+    <span class="value"></span>
+  </div>
+  <div class="row">
+    <span class="param">Дата загрузки</span>
+    <span class="value">{{ uploaded() }}</span>
+  </div>
+  <div class="card-footer" (click)="navigateToDocumentPage()">
+    <span class="action-text">Открыть детали</span>
+  </div>
+</div>

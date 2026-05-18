@@ -63,11 +63,25 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Запрос, оплата и получение копий',
-          'Статус «в обработке/готово»',
-        ]),
-      } as Route,
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            data: { role: 'notary' },
+          },
+          {
+            path: 'new',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/new/new').then((m) => m.New),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
+      },
       {
         path: 'notifications',
         loadComponent: () =>
