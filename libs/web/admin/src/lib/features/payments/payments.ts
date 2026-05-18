@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { inject } from '@angular/core';
+import {
+  PaymentStatus as RpcPaymentStatus,
+  PaymentType as RpcPaymentType,
+} from '@notary-portal/api-contracts';
 import { buildRpcBaseUrl, TokenStore, WebLoggerService } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
 import {
@@ -117,6 +121,8 @@ export class Payments implements OnInit, OnDestroy {
   private readonly tokenStore = inject(TokenStore);
   private readonly logger = inject(WebLoggerService);
   private dataSub?: Subscription;
+  private loadSub?: Subscription;
+  private filterReloadTimer?: ReturnType<typeof setTimeout>;
 
   async openReceipt(paymentId: string | number): Promise<void> {
     this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
@@ -139,7 +145,8 @@ export class Payments implements OnInit, OnDestroy {
       }
 
       const blob = await response.blob();
-      const htmlBlob = blob.type === 'application/octet-stream' ? new Blob([blob], { type: 'text/html' }) : blob;
+      const htmlBlob =
+        blob.type === 'application/octet-stream' ? new Blob([blob], { type: 'text/html' }) : blob;
       const objectUrl = URL.createObjectURL(htmlBlob);
       window.open(objectUrl, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
@@ -218,6 +225,10 @@ export class Payments implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.logInfo('payment.admin.list_destroyed');
     this.dataSub?.unsubscribe();
+    this.loadSub?.unsubscribe();
+    if (this.filterReloadTimer) {
+      clearTimeout(this.filterReloadTimer);
+    }
   }
 
   get filteredPayments(): Payment[] {
@@ -725,7 +736,8 @@ export class Payments implements OnInit, OnDestroy {
         this.payments = [];
         this.totalItems = 0;
         this.serverTotalPages = 1;
-        this.loadError = err instanceof Error ? err.message : 'Не удалось загрузить данные платежей с сервера';
+        this.loadError =
+          err instanceof Error ? err.message : 'Не удалось загрузить данные платежей с сервера';
         this.loading = false;
       },
     });
@@ -778,9 +790,9 @@ export class Payments implements OnInit, OnDestroy {
       return [];
     }
 
-    return PAYMENT_TYPE_OPTIONS.filter((type) => selectedLabels.includes(this.getTypeLabel(type))).map(
-      (type) => toRpcPaymentType(type),
-    );
+    return PAYMENT_TYPE_OPTIONS.filter((type) =>
+      selectedLabels.includes(this.getTypeLabel(type)),
+    ).map((type) => toRpcPaymentType(type));
   }
 
   private applyLocalFilters(payments: Payment[]): Payment[] {
