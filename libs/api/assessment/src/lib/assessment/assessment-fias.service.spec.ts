@@ -12,6 +12,7 @@ describe('AssessmentService FIAS flow', () => {
     {} as never,
     {} as never,
     new StubFiasProvider(),
+    {} as never,
   );
 
   it('should map FIAS provider hints to RPC response DTO', async () => {

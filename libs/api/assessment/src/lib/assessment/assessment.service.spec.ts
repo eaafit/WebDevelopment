@@ -39,6 +39,7 @@ describe('AssessmentService audit events', () => {
     assessmentRepository as never,
     auditService as never,
     metrics as never,
+    {} as never,
     notificationService as never,
   );
 
