@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { TransactionHistoryPage } from '@notary-portal/ui';
+import { WebLoggerService, type TransactionHistoryPage } from '@notary-portal/ui';
 import { of, Subject } from 'rxjs';
 import { Transactions } from './transactions';
 import { TransactionsApiService, type TransactionsHistoryQuery } from './transactions-api.service';
@@ -9,8 +9,17 @@ describe('Transactions', () => {
   let component: Transactions;
   let fixture: ComponentFixture<Transactions>;
   let getTransactionHistory: jest.Mock;
+  let openReceipt: jest.Mock;
+  let logger: {
+    info: jest.Mock;
+    error: jest.Mock;
+  };
 
   beforeEach(async () => {
+    logger = {
+      info: jest.fn(),
+      error: jest.fn(),
+    };
     getTransactionHistory = jest.fn().mockImplementation((query: TransactionsHistoryQuery) =>
       of<TransactionHistoryPage>({
         transactions: [
@@ -41,6 +50,7 @@ describe('Transactions', () => {
         },
       }),
     );
+    openReceipt = jest.fn().mockResolvedValue(undefined);
 
     await TestBed.configureTestingModule({
       imports: [Transactions],
@@ -50,7 +60,12 @@ describe('Transactions', () => {
           provide: TransactionsApiService,
           useValue: {
             getTransactionHistory,
+            openReceipt,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -75,6 +90,17 @@ describe('Transactions', () => {
     });
     expect(component.transactions()).toHaveLength(1);
     expect(component.meta()?.currentPage).toBe(1);
+    expect(logger.info).toHaveBeenCalledWith(
+      'transaction.history.notary.load_succeeded',
+      expect.objectContaining({
+        area: 'notary_transactions_history',
+        query: expect.objectContaining({
+          page: 1,
+          hasSearchQuery: false,
+        }),
+        returnedItems: 1,
+      }),
+    );
   });
 
   it('should request the selected page without appending transactions', async () => {
@@ -119,6 +145,16 @@ describe('Transactions', () => {
       dateFrom: '2026-03-01',
       dateTo: '2026-03-06',
     });
+    expect(logger.info).toHaveBeenCalledWith(
+      'transaction.history.notary.filters_applied',
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          hasSearchQuery: true,
+          searchQueryLength: 3,
+          status: 'pending',
+        }),
+      }),
+    );
   });
 
   it('should keep the current filters visible until the next response is ready', async () => {

@@ -8,39 +8,36 @@
     <section class="status-card" id="application-status" aria-labelledby="application-status-title">
       <h2 class="card-title status-card-title" id="application-status-title">Текущий прогресс</h2>
       <p class="status-card-description">Статус обновляется по мере обработки заявки нотариусом.</p>
+      @if (loadError()) {
+      <p class="form-banner form-banner-error">{{ loadError() }}</p>
+      }
       <div class="status-card-current">
         <span class="text-bold">Текущий статус:</span>
-        <span class="status-badge status-badge-current">Создана</span>
+        <span class="status-badge status-badge-current">{{ currentStatusLabel }}</span>
       </div>
 
       <ol class="status-steps" role="list">
-        <li class="status-step status-step-done">
+        @for (step of statusSteps; track step.status) {
+        <li
+          class="status-step"
+          [class.status-step-done]="isStepDone(step.status)"
+          [class.status-step-current]="isStepCurrent(step.status)">
           <span class="status-step-dot" aria-hidden="true"></span>
-          <span class="status-step-label">Создана</span>
+          <span class="status-step-label">{{ step.label }}</span>
         </li>
-        <li class="status-step">
-          <span class="status-step-dot" aria-hidden="true"></span>
-          <span class="status-step-label">В проверке</span>
-        </li>
-        <li class="status-step">
-          <span class="status-step-dot" aria-hidden="true"></span>
-          <span class="status-step-label">Активна</span>
-        </li>
-        <li class="status-step">
-          <span class="status-step-dot" aria-hidden="true"></span>
-          <span class="status-step-label">В работе</span>
-        </li>
-        <li class="status-step">
-          <span class="status-step-dot" aria-hidden="true"></span>
-          <span class="status-step-label">Завершена</span>
-        </li>
+        }
       </ol>
     </section>
 
-    <div class="flex flex-wrap gap-4 justify-center mt-6">
-      <a class="btn btn-outline" routerLink="/applicant/assessment" queryParamsHandling="preserve">
-        Вернуться к параметрам
+    @if (createNewError()) {
+    <p class="form-banner form-banner-error mt-6">{{ createNewError() }}</p>
+    }
+
+    <div class="status-actions mt-6">
+      <a class="btn btn-outline" routerLink="/applicant/assessment" [queryParams]="returnQueryParams()">
+        {{ returnButtonLabel() }}
       </a>
+      <button class="btn btn-outline" type="button" (click)="createNewAssessment()">Создать новую заявку</button>
       <a class="btn btn-primary" routerLink="/applicant/assessment/history">Открыть историю заявок</a>
     </div>
   </section>

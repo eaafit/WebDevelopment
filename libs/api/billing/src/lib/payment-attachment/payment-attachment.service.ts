@@ -1,4 +1,5 @@
 import { UserRole } from '@notary-portal/api-contracts';
+import { AuditService } from '@internal/audit';
 import { PrismaService } from '@internal/prisma';
 import { PaymentReceiptStatus, type Payment } from '@internal/prisma-client';
 import { S3StorageService } from '@internal/storage';
@@ -17,7 +18,8 @@ import {
   buildStoredPaymentReceiptObjectKey,
   renderStoredPaymentReceipt,
 } from '../payment-receipt/payment-receipt.renderer';
-import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
+import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
+import type { ProviderPaymentDetails } from '../payment-receipt/payment-receipt.renderer';
 
 export interface PaymentAttachmentUpload {
   paymentId: string;
@@ -45,6 +47,7 @@ export class PaymentAttachmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3StorageService,
+    private readonly auditService: AuditService,
   ) {}
 
   async attachPdf(
@@ -88,12 +91,13 @@ export class PaymentAttachmentService {
     });
 
     this.logger.log(`Manual payment receipt saved for payment ${payment.id}`);
+    await this.recordReceiptAttachedAudit(input.userId, payment, fileName, objectKey);
     return { objectKey, fileName };
   }
 
   async storeGeneratedReceipt(
     paymentId: string,
-    providerPayment: YooKassaPaymentDetails,
+    providerPayment: ProviderPaymentDetails,
   ): Promise<{ objectKey: string; fileName: string }> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -177,26 +181,33 @@ export class PaymentAttachmentService {
     const payment = await this.requirePaymentAccess(input.paymentId, input.userId, input.role);
 
     if (payment.receiptStatus === PaymentReceiptStatus.Pending) {
+      await this.recordReceiptOpenFailedAudit(input.userId, payment, 'receipt_pending');
       throw new ConflictException('receipt is not ready yet');
     }
 
     if (payment.receiptStatus === PaymentReceiptStatus.Failed) {
+      await this.recordReceiptOpenFailedAudit(input.userId, payment, 'receipt_failed');
       throw new NotFoundException('receipt not found');
     }
 
     if (!payment.attachmentFileUrl?.trim()) {
+      await this.recordReceiptOpenFailedAudit(input.userId, payment, 'receipt_missing');
       throw new NotFoundException('receipt not found');
     }
 
     try {
       const object = await this.s3.getObject(payment.attachmentFileUrl);
+      const fileName =
+        payment.attachmentFileName?.trim() ||
+        buildStoredPaymentReceiptFileName(payment.id, payment.transactionId);
+      const contentType = object.contentType ?? guessContentType(payment.attachmentFileName);
+
+      await this.recordReceiptOpenedAudit(input.userId, payment, fileName, contentType);
 
       return {
         body: object.body,
-        fileName:
-          payment.attachmentFileName?.trim() ||
-          buildStoredPaymentReceiptFileName(payment.id, payment.transactionId),
-        contentType: object.contentType ?? guessContentType(payment.attachmentFileName),
+        fileName,
+        contentType,
       };
     } catch (error) {
       if (isMissingObjectError(error)) {
@@ -211,12 +222,77 @@ export class PaymentAttachmentService {
             attachmentFileUrl: null,
           },
         });
+        await this.recordReceiptOpenFailedAudit(input.userId, payment, 'receipt_object_missing');
         throw new NotFoundException('receipt file is missing');
       }
 
       this.logger.error(`Failed to read receipt object ${payment.attachmentFileUrl}`);
+      await this.recordReceiptOpenFailedAudit(input.userId, payment, 'object_storage_unavailable');
       throw new ServiceUnavailableException('object storage unavailable');
     }
+  }
+
+  private async recordReceiptAttachedAudit(
+    actorUserId: string,
+    payment: Payment,
+    fileName: string,
+    objectKey: string,
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId,
+      eventType: 'payment.receipt.attached',
+      ...target,
+      actionTitle: 'Чек прикреплён',
+      actionContext: 'Ручная загрузка чека платежа',
+      after: buildPaymentAuditSnapshot(payment, {
+        receiptStatus: PaymentReceiptStatus.Available,
+        attachmentFileName: fileName,
+        hasAttachment: true,
+        objectKey,
+      }),
+    });
+  }
+
+  private async recordReceiptOpenedAudit(
+    actorUserId: string,
+    payment: Payment,
+    fileName: string,
+    contentType: string,
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId,
+      eventType: 'payment.receipt.opened',
+      ...target,
+      actionTitle: 'Открыт чек платежа',
+      actionContext: 'Пользователь открыл чек из истории платежей',
+      after: buildPaymentAuditSnapshot(payment, {
+        attachmentFileName: fileName,
+        contentType,
+      }),
+    });
+  }
+
+  private async recordReceiptOpenFailedAudit(
+    actorUserId: string,
+    payment: Payment,
+    reason: string,
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+
+    await this.auditService.record({
+      actorUserId,
+      eventType: 'payment.receipt.failed',
+      ...target,
+      actionTitle: 'Чек платежа не открыт',
+      actionContext: 'Не удалось открыть чек из истории платежей',
+      after: buildPaymentAuditSnapshot(payment, {
+        failureReason: reason,
+      }),
+    });
   }
 
   private async requirePaymentAccess(
@@ -275,7 +351,7 @@ function isMissingObjectError(error: unknown): boolean {
   );
 }
 
-function mapReceiptStatus(providerPayment: YooKassaPaymentDetails): PaymentReceiptStatus {
+function mapReceiptStatus(providerPayment: ProviderPaymentDetails): PaymentReceiptStatus {
   switch (providerPayment.receiptRegistration) {
     case 'succeeded':
       return PaymentReceiptStatus.Available;
@@ -284,10 +360,6 @@ function mapReceiptStatus(providerPayment: YooKassaPaymentDetails): PaymentRecei
     case 'pending':
       return PaymentReceiptStatus.Pending;
     default:
-      if (providerPayment.paid && providerPayment.status === 'succeeded') {
-        return PaymentReceiptStatus.Available;
-      }
-
       return PaymentReceiptStatus.Pending;
   }
 }

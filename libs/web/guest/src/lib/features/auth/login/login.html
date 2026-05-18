@@ -22,6 +22,14 @@
 
   <a class="login__restore-link" routerLink="/password-restore">Восстановить пароль</a>
 
+  <p class="login__footer-link">
+    <a data-testid="email-recovery-link" routerLink="/auth/password-recovery">Восстановление пароля по email</a>
+  </p>
+
+  <p class="login__footer-link">
+    <a data-testid="register-link" routerLink="/auth/register">Регистрация</a>
+  </p>
+
   <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
     {{ loading() ? 'Вход...' : 'Войти' }}
   </button>

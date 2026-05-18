@@ -6,6 +6,11 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AssessmentStatus,
   DocumentType,
+  NewsletterAudienceType,
+  NewsletterCampaignStatus,
+  NewsletterDeliveryStatus,
+  NewsletterSubscriptionStatus,
+  NotificationCategory,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -155,6 +160,7 @@ function pad(i: number, len: number): string {
 async function main(): Promise<void> {
   const seedPasswordHash = await bcrypt.hash(SEED_USER_PASSWORD, BCRYPT_SALT_ROUNDS);
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
+  await upsertNewsletterData(userIds);
   await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
@@ -187,6 +193,8 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
+    newsletterSubscriptionCount,
+    newsletterCampaignCount,
     cityCount,
     districtCount,
   ] = await prisma.$transaction([
@@ -201,6 +209,8 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
+    prisma.newsletterSubscription.count(),
+    prisma.newsletterCampaign.count(),
     prisma.city.count(),
     prisma.district.count(),
   ]);
@@ -219,6 +229,8 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
+      `NewsletterSubscriptions: ${newsletterSubscriptionCount}`,
+      `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
@@ -266,6 +278,239 @@ async function upsertUsers(count: number, passwordHash: string): Promise<string[
     });
   }
   return userIds;
+}
+
+async function upsertNewsletterData(userIds: string[]): Promise<void> {
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, email: true, fullName: true, role: true, createdAt: true },
+  });
+
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
+    const isUnsubscribed = i % 11 === 0;
+    const unsubscribedAt = isUnsubscribed ? new Date('2026-03-18T10:00:00.000Z') : null;
+
+    await prisma.newsletterSubscription.upsert({
+      where: { userId: user.id },
+      update: {
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+      create: {
+        id: seedId('newsletter-subscription', i),
+        userId: user.id,
+        status: isUnsubscribed
+          ? NewsletterSubscriptionStatus.Unsubscribed
+          : NewsletterSubscriptionStatus.Active,
+        subscribedAt: user.createdAt,
+        unsubscribedAt,
+      },
+    });
+  }
+
+  const adminId = users.find((user) => user.role === Role.Admin)?.id ?? users[0]?.id ?? null;
+  const activeUsers = users.filter((_, i) => i % 11 !== 0);
+  const campaignSeeds = [
+    {
+      subject: 'Итоги недели: новые заявки на оценку',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-17T08:30:00.000Z'),
+      completedAt: new Date('2026-05-17T08:32:00.000Z'),
+      recipients: activeUsers.slice(0, 12),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Плановые работы в личном кабинете',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.PartialFailed,
+      createdAt: new Date('2026-05-16T18:00:00.000Z'),
+      completedAt: new Date('2026-05-16T18:02:00.000Z'),
+      recipients: activeUsers.slice(1, 11),
+      failedEmails: new Set<string>(activeUsers[3]?.email ? [activeUsers[3].email] : []),
+    },
+    {
+      subject: 'Обновление тарифов для заявителей',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Applicant,
+      audienceLabel: 'Роль: Заявитель',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-15T09:00:00.000Z'),
+      completedAt: new Date('2026-05-15T09:02:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Applicant).slice(0, 8),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Напоминание: незавершенные заявки',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Applicant,
+      audienceLabel: 'Роль: Заявитель',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-14T06:15:00.000Z'),
+      completedAt: new Date('2026-05-14T06:17:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Applicant).slice(2, 9),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Новые возможности мониторинга и логов',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-13T11:45:00.000Z'),
+      completedAt: new Date('2026-05-13T11:47:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 4),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Подборка материалов для нотариусов',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-12T07:00:00.000Z'),
+      completedAt: new Date('2026-05-12T07:02:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Реактивация неактивных пользователей',
+      audienceType: NewsletterAudienceType.Selected,
+      audienceRole: null,
+      audienceLabel: 'Выбранные вручную',
+      status: NewsletterCampaignStatus.Failed,
+      createdAt: new Date('2026-05-11T10:30:00.000Z'),
+      completedAt: new Date('2026-05-11T10:32:00.000Z'),
+      recipients: activeUsers.slice(4, 9),
+      failedEmails: new Set<string>(activeUsers.slice(4, 9).map((user) => user.email)),
+    },
+    {
+      subject: 'Изменения в обработке платежей',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-10T12:20:00.000Z'),
+      completedAt: new Date('2026-05-10T12:22:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(1, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Обновление справочника географии объектов',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-09T05:40:00.000Z'),
+      completedAt: new Date('2026-05-09T05:42:00.000Z'),
+      recipients: activeUsers.slice(6, 15),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Дайджест промокодов на май',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.PartialFailed,
+      createdAt: new Date('2026-05-08T08:00:00.000Z'),
+      completedAt: new Date('2026-05-08T08:02:00.000Z'),
+      recipients: activeUsers.slice(8, 19),
+      failedEmails: new Set<string>(
+        activeUsers
+          .slice(8, 10)
+          .map((user) => user.email),
+      ),
+    },
+    {
+      subject: 'Переход на обновленную форму уведомлений',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-07T14:10:00.000Z'),
+      completedAt: new Date('2026-05-07T14:12:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Заявки в очереди распределения',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-06T06:45:00.000Z'),
+      completedAt: new Date('2026-05-06T06:47:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(2, 9),
+      failedEmails: new Set<string>(),
+    },
+  ];
+
+  for (let i = 0; i < campaignSeeds.length; i++) {
+    const seed = campaignSeeds[i];
+    const id = seedId('newsletter-campaign', i);
+    const sentCount = seed.recipients.filter((user) => !seed.failedEmails.has(user.email)).length;
+    const failedCount = seed.recipients.length - sentCount;
+
+    await prisma.newsletterCampaign.upsert({
+      where: { id },
+      update: {
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+      create: {
+        id,
+        createdById: adminId,
+        subject: seed.subject,
+        bodyHtml: `<p>${escapeHtml(seed.subject)}</p><p>Seed-кампания для проверки истории рассылок.</p>`,
+        audienceType: seed.audienceType,
+        audienceRole: seed.audienceRole,
+        audienceLabel: seed.audienceLabel,
+        recipientsCount: seed.recipients.length,
+        sentCount,
+        failedCount,
+        status: seed.status,
+        createdAt: seed.createdAt,
+        completedAt: seed.completedAt,
+      },
+    });
+
+    await prisma.newsletterDelivery.deleteMany({ where: { campaignId: id } });
+    await prisma.newsletterDelivery.createMany({
+      data: seed.recipients.map((user, recipientIndex) => {
+        const failed = seed.failedEmails.has(user.email);
+        return {
+          id: seedId(`newsletter-delivery-${i}`, recipientIndex),
+          campaignId: id,
+          userId: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          status: failed ? NewsletterDeliveryStatus.Failed : NewsletterDeliveryStatus.Sent,
+          errorMessage: failed ? 'Seed delivery failure' : null,
+          sentAt: failed ? null : seed.completedAt,
+          createdAt: seed.createdAt,
+        };
+      }),
+    });
+  }
 }
 
 function buildSeedCredentialHints(count: number): string[] {
@@ -749,13 +994,30 @@ async function upsertReports(
 }
 
 async function upsertNotifications(count: number, userIds: string[]): Promise<void> {
-  const types = [NotificationType.Email, NotificationType.SMS, NotificationType.Push];
+  const types = [
+    NotificationType.Email,
+    NotificationType.SMS,
+    NotificationType.Push,
+    NotificationType.InApp,
+  ];
+  const categories = [
+    NotificationCategory.Application,
+    NotificationCategory.Document,
+    NotificationCategory.Payment,
+    NotificationCategory.System,
+    NotificationCategory.Assessment,
+  ];
   const statuses = [NotificationStatus.Pending, NotificationStatus.Sent, NotificationStatus.Failed];
   const baseSent = new Date('2026-02-01T12:00:00.000Z');
   for (let i = 0; i < count; i++) {
     const id = seedId('notification', i);
     const userId = userIds[i % userIds.length];
-    const type = types[i % 3];
+    const type = types[i % types.length];
+    const category = categories[i % categories.length];
+    const title =
+      category === NotificationCategory.Assessment
+        ? 'Создана новая заявка на оценку'
+        : `Seed уведомление ${i + 1}`;
     const message = `Seed уведомление ${i + 1}: тестовое сообщение.`;
     const status = statuses[i % 3];
     const sentAt = new Date(baseSent);
@@ -763,8 +1025,8 @@ async function upsertNotifications(count: number, userIds: string[]): Promise<vo
     const readAt = i % 5 === 0 ? new Date(sentAt.getTime() + 3600000) : null;
     await prisma.notification.upsert({
       where: { id },
-      update: { userId, type, message, sentAt, readAt, status },
-      create: { id, userId, type, message, sentAt, readAt, status },
+      update: { userId, title, category, type, message, sentAt, readAt, status },
+      create: { id, userId, title, category, type, message, sentAt, readAt, status },
     });
   }
 }
@@ -1000,7 +1262,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       where: { id },
       update: {
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,
@@ -1010,7 +1271,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       create: {
         id,
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,

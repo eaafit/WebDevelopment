@@ -84,12 +84,24 @@ API пишет структурированные JSON-логи напрямую
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `PAYMENT_PROVIDER` - активный провайдер создания платежей (`yookassa` по умолчанию, `robokassa` для Robokassa redirect)
 - `YOOKASSA_RECEIPT_VAT_CODE` - обязательный `vat_code` для строки чека подписки, которую мы передаём в YooKassa; значение нужно задать явно по согласованию с бухгалтерией
+
+**Переменные окружения Robokassa:**
+
+- `ROBOKASSA_MERCHANT_LOGIN` - логин магазина из кабинета Robokassa
+- `ROBOKASSA_PASSWORD_1` - пароль #1 для подписи ссылок оплаты
+- `ROBOKASSA_PASSWORD_2` - пароль #2 для проверки `ResultURL` callback
+- `ROBOKASSA_TEST_MODE` - `true`/`false`, признак тестового режима генерации ссылок оплаты
 
 **Webhook URL для кабинета ЮKassa:**
 
 - `https://<api-host>/api/payments/webhook`
 - если включён `PAYMENT_WEBHOOK_SECRET`: `https://<api-host>/api/payments/webhook?secret=<PAYMENT_WEBHOOK_SECRET>`
+
+**Result URL для Robokassa (callback):**
+
+- `https://<api-host>/api/payments/robokassa/result`
 
 **Fallback routes после внешней авторизации / 3DS:**
 

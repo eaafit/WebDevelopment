@@ -3,11 +3,12 @@ import emailjs from '@emailjs/nodejs';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { PasswordResetMailer, TransactionalMailer, WelcomeMailPayload } from '@internal/auth';
+import type { NewsletterMailer, NewsletterMailPayload } from '@internal/newsletter';
 
 type ResolvedTransport = 'smtp' | 'emailjs' | 'none';
 
 @Injectable()
-export class MailSenderService implements PasswordResetMailer, TransactionalMailer {
+export class MailSenderService implements PasswordResetMailer, TransactionalMailer, NewsletterMailer {
   private readonly transporter: Transporter | null;
   private readonly transport: ResolvedTransport;
   private readonly emailjsCore: { serviceId: string; publicKey: string; privateKey: string } | null;
@@ -22,12 +23,14 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
     const port = process.env['SMTP_PORT'] ? Number(process.env['SMTP_PORT']) : undefined;
     const user = process.env['SMTP_USER'];
     const pass = process.env['SMTP_PASS'];
-    if (host && user && pass != null && pass !== '') {
+
+    if (host) {
+      const auth = user && pass ? { auth: { user, pass } } : {};
       this.transporter = nodemailer.createTransport({
         host,
         port: port ?? 587,
         secure: port === 465,
-        auth: { user, pass },
+        ...auth,
       });
     } else {
       this.transporter = null;
@@ -336,6 +339,30 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
 
     console.warn('[MailSender] Пропуск уведомления сотруднику: почта или шаблон не настроены');
   }
+
+  async sendNewsletterEmail(payload: NewsletterMailPayload): Promise<void> {
+    if (!this.transporter) {
+      throw new Error('SMTP transport is not configured');
+    }
+
+    const appName = this.appName();
+    const from = this.mailFrom();
+    const safeFullName = payload.fullName.trim() || payload.to;
+
+    await this.transporter.sendMail({
+      from: `"${appName}" <${from}>`,
+      to: payload.to,
+      subject: payload.subject,
+      text: newsletterTextFallback(payload.bodyHtml, safeFullName, appName),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.55;color:#111827">
+          <p>Здравствуйте, ${escapeHtml(safeFullName)}!</p>
+          <div>${payload.bodyHtml}</div>
+          <p style="margin-top:24px;color:#6b7280">— ${escapeHtml(appName)}</p>
+        </div>
+      `.trim(),
+    });
+  }
 }
 
 function escapeHtml(s: string): string {
@@ -344,4 +371,20 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function newsletterTextFallback(bodyHtml: string, fullName: string, appName: string): string {
+  const text = bodyHtml
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+
+  return [`Здравствуйте, ${fullName}!`, '', text, '', `— ${appName}`].join('\n');
 }

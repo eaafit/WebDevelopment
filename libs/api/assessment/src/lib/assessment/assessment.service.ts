@@ -9,14 +9,29 @@ import {
   CompleteAssessmentResponseSchema,
   CreateAssessmentResponseSchema,
   ElevatorType,
+  GetFiasAddressDetailsResponseSchema,
+  GetFiasAddressHintsResponseSchema,
+  GetFiasAddressItemByGuidResponseSchema,
+  GetFiasAddressItemByIdResponseSchema,
   RealEstateCondition,
   RealEstateObjectType,
+  SearchFiasAddressItemsResponseSchema,
+  SearchFiasAddressByPartsResponseSchema,
   type CancelAssessmentRequest,
   type CancelAssessmentResponse,
   type CompleteAssessmentRequest,
   type CompleteAssessmentResponse,
   type CreateAssessmentRequest,
   type CreateAssessmentResponse,
+  type GetFiasAddressDetailsRequest,
+  type GetFiasAddressDetailsResponse,
+  type GetFiasAddressHintsRequest,
+  type GetFiasAddressHintsResponse,
+  type FiasAddressItem,
+  type GetFiasAddressItemByGuidRequest,
+  type GetFiasAddressItemByGuidResponse,
+  type GetFiasAddressItemByIdRequest,
+  type GetFiasAddressItemByIdResponse,
   type GetAssessmentRequest,
   type GetAssessmentResponse,
   type ListAssessmentsRequest,
@@ -26,19 +41,25 @@ import {
   type ListDistrictsRequest,
   type ListDistrictsResponse,
   type RealEstateObjectInput,
+  type SearchFiasAddressByPartsRequest,
+  type SearchFiasAddressByPartsResponse,
+  type SearchFiasAddressItemsRequest,
+  type SearchFiasAddressItemsResponse,
   type UpdateAssessmentRequest,
   type UpdateAssessmentResponse,
   type VerifyAssessmentRequest,
   type VerifyAssessmentResponse,
+  NotificationCategory as RpcNotificationCategory,
+  NotificationType as RpcNotificationType,
   UpdateAssessmentResponseSchema,
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
 import {
   AssessmentStatus as PrismaAssessmentStatus,
-  NotificationType as PrismaNotificationType,
+  Role as PrismaRole,
 } from '@internal/prisma-client';
 import {
   AssessmentRepository,
@@ -46,11 +67,22 @@ import {
   type AssessmentRealEstateObjectData,
 } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
+import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
+const CADASTRAL_NUMBER_PATTERN = /^\d{12}$/;
+const AREA_LIMITS = { minimum: 1, maximum: 10_000 } as const;
+const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as const;
+const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
+const FIAS_QUERY_MIN_LENGTH = 3;
+const FIAS_LIMITS = { default: 5, maximum: 10 } as const;
+const YEAR_BUILT_LIMITS = {
+  minimum: 1700,
+  maximum: new Date().getFullYear() + 1,
+} as const;
 
 @Injectable()
 export class AssessmentService {
@@ -60,6 +92,7 @@ export class AssessmentService {
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
+    @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -74,205 +107,428 @@ export class AssessmentService {
     );
   }
 
-  listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
-    return this.assessmentRepository.listAssessments(this.normalizeListRequest(request));
+  async getFiasAddressHints(
+    request: GetFiasAddressHintsRequest,
+  ): Promise<GetFiasAddressHintsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    if (query.length < FIAS_QUERY_MIN_LENGTH) {
+      return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+    }
+
+    const hints = await this.fiasProvider.getAddressHint({
+      query,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(GetFiasAddressHintsResponseSchema, { hints });
   }
 
-  getAssessment(request: GetAssessmentRequest): Promise<GetAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    return this.assessmentRepository.getAssessment(request.id);
+  async searchFiasAddressItems(
+    request: SearchFiasAddressItemsRequest,
+  ): Promise<SearchFiasAddressItemsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    if (query.length < FIAS_QUERY_MIN_LENGTH) {
+      return create(SearchFiasAddressItemsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressItemsResponseSchema, { items });
+  }
+
+  async getFiasAddressItemById(
+    request: GetFiasAddressItemByIdRequest,
+  ): Promise<GetFiasAddressItemByIdResponse> {
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemById(
+        normalizeRequiredText(request.objectId, 'object_id'),
+      ),
+    );
+    return create(GetFiasAddressItemByIdResponseSchema, { item });
+  }
+
+  async getFiasAddressItemByGuid(
+    request: GetFiasAddressItemByGuidRequest,
+  ): Promise<GetFiasAddressItemByGuidResponse> {
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemByGuid(
+        normalizeRequiredText(request.objectGuid, 'object_guid'),
+      ),
+    );
+    return create(GetFiasAddressItemByGuidResponseSchema, { item });
+  }
+
+  async getFiasAddressDetails(
+    request: GetFiasAddressDetailsRequest,
+  ): Promise<GetFiasAddressDetailsResponse> {
+    const details = await this.fiasProvider.getDetails(
+      normalizeRequiredText(request.objectId, 'object_id'),
+    );
+    return create(GetFiasAddressDetailsResponseSchema, { details });
+  }
+
+  async searchFiasAddressByParts(
+    request: SearchFiasAddressByPartsRequest,
+  ): Promise<SearchFiasAddressByPartsResponse> {
+    const region = normalizeOptionalText(request.region);
+    const city = normalizeOptionalText(request.city);
+    const street = normalizeOptionalText(request.street);
+    const house = normalizeOptionalText(request.house);
+
+    if (!region && !city && !street && !house) {
+      return create(SearchFiasAddressByPartsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchByParts({
+      region,
+      city,
+      street,
+      house,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressByPartsResponseSchema, { items });
+  }
+
+  async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
+    const query = this.normalizeListRequest(request);
+    this.logger.log(
+      `Starting assessment list request page=${query.page} limit=${query.limit}` +
+        formatLogFields({
+          userId: query.userId,
+          status: query.status,
+        }),
+    );
+
+    try {
+      const response = await this.assessmentRepository.listAssessments(query);
+      this.logger.log(
+        `Completed assessment list request page=${response.meta?.currentPage ?? query.page}` +
+          ` totalItems=${response.meta?.totalItems ?? response.assessments.length}`,
+      );
+      return response;
+    } catch (error) {
+      this.logOperationFailure('listAssessments', error, {
+        userId: query.userId,
+        status: query.status,
+      });
+      throw error;
+    }
+  }
+
+  async getAssessment(request: GetAssessmentRequest): Promise<GetAssessmentResponse> {
+    this.logger.log(`Starting assessment lookup assessmentId=${request.id}`);
+
+    try {
+      validateUuid(request.id, 'id');
+      const response = await this.assessmentRepository.getAssessment(request.id);
+      this.logger.log(
+        `Completed assessment lookup assessmentId=${response.assessment?.id ?? request.id}`,
+      );
+      return response;
+    } catch (error) {
+      this.logOperationFailure('getAssessment', error, { assessmentId: request.id });
+      throw error;
+    }
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    validateUuid(request.userId, 'user_id');
-
-    const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
-    const address = realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
-
-    const assessment = await this.assessmentRepository.createAssessment({
-      userId: request.userId,
-      address,
-      description: normalizeOptionalText(request.description),
-      realEstateObject,
-    });
-    const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-
-    this.metrics.recordAssessmentCreated('new');
-    await this.auditService.record({
-      actorUserId: getCurrentUser()?.sub ?? request.userId,
-      eventType: 'assessment.created',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Создана заявка',
-      actionContext: 'Создание новой заявки на оценку',
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: snapshot.address,
-      after: toAuditSnapshot(snapshot),
-    });
-    await this.notifyAssessmentUser(
-      request.userId,
-      `Заявка ${shortId(assessment.id)} создана и отправлена в работу.`,
+    this.logger.log(
+      `Starting assessment creation userId=${request.userId}` +
+        formatLogFields({
+          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+          cityId: request.realEstateObject?.cityId,
+          districtId: request.realEstateObject?.districtId,
+        }),
     );
 
-    return create(CreateAssessmentResponseSchema, { assessment });
+    try {
+      validateUuid(request.userId, 'user_id');
+
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+      );
+      const address =
+        realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
+
+      const assessment = await this.assessmentRepository.createAssessment({
+        userId: request.userId,
+        address,
+        description: normalizeOptionalText(request.description),
+        realEstateObject,
+      });
+      const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+
+      this.metrics.recordAssessmentCreated('new');
+      await this.auditService.record({
+        actorUserId: getCurrentUser()?.sub ?? request.userId,
+        eventType: 'assessment.created',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Создана заявка',
+        actionContext: 'Создание новой заявки на оценку',
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: snapshot.address,
+        after: toAuditSnapshot(snapshot),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Создана новая заявка на оценку',
+        message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+          assessment.id,
+        )}: ${formatAssessmentAddress(snapshot.address)}.`,
+      });
+
+      this.logger.log(
+        `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
+          formatLogFields({
+            status: assessment.status,
+            realEstateObjectId: assessment.realEstateObjectId,
+          }),
+      );
+
+      return create(CreateAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('createAssessment', error, {
+        userId: request.userId,
+        cityId: request.realEstateObject?.cityId,
+        districtId: request.realEstateObject?.districtId,
+      });
+      throw error;
+    }
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
-
-    const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
-    const assessment = await this.assessmentRepository.updateAssessment(request.id, {
-      address: realEstateObject?.address ?? normalizeOptionalText(request.address),
-      description: request.description.trim(),
-      realEstateObject,
-    });
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: getCurrentUser()?.sub,
-      eventType: 'assessment.updated',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Обновлена заявка',
-      actionContext: 'Изменены данные заявки на оценку',
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
-    await this.notifyAssessmentUser(
-      after.userId,
-      `По заявке ${shortId(assessment.id)} обновлены данные.`,
+    this.logger.log(
+      `Starting assessment update assessmentId=${request.id}` +
+        formatLogFields({
+          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+          cityId: request.realEstateObject?.cityId,
+          districtId: request.realEstateObject?.districtId,
+        }),
     );
 
-    return create(UpdateAssessmentResponseSchema, { assessment });
+    try {
+      validateUuid(request.id, 'id');
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
+      );
+      const assessment = await this.assessmentRepository.updateAssessment(request.id, {
+        address: realEstateObject?.address ?? normalizeOptionalText(request.address),
+        description: request.description.trim(),
+        realEstateObject,
+      });
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: getCurrentUser()?.sub,
+        eventType: 'assessment.updated',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Обновлена заявка',
+        actionContext: 'Изменены данные заявки на оценку',
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Обновлена заявка на оценку',
+        message: `${await this.getActorDisplayName(
+          getCurrentUser()?.sub ?? before.userId,
+          'Исполнитель',
+        )} изменил данные заявки ${shortId(assessment.id)}: ${formatAssessmentAddress(
+          after.address,
+        )}.`,
+      });
+
+      this.logger.log(
+        `Updated assessment assessmentId=${assessment.id}` +
+          formatLogFields({
+            status: assessment.status,
+            realEstateObjectId: assessment.realEstateObjectId,
+          }),
+      );
+
+      return create(UpdateAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('updateAssessment', error, {
+        assessmentId: request.id,
+        cityId: request.realEstateObject?.cityId,
+        districtId: request.realEstateObject?.districtId,
+      });
+      throw error;
+    }
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(`Starting assessment verification assessmentId=${request.id}`);
 
-    const assessment = await this.assessmentRepository.verifyAssessment(
-      request.id,
-      isNotaryRole(actor?.role) ? actor?.sub : undefined,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.verified',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка взята в работу',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
-    await this.notifyAssessmentUser(
-      after.userId,
-      `Заявка ${shortId(assessment.id)} взята в работу нотариусом.`,
-    );
-    if (after.notaryId) {
-      await this.notifyAssessmentUser(
-        after.notaryId,
-        `Вы взяли в работу заявку ${shortId(assessment.id)}.`,
+    try {
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+
+      const assessment = await this.assessmentRepository.verifyAssessment(
+        request.id,
+        isNotaryRole(actor?.role) ? actor?.sub : undefined,
       );
-    }
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
 
-    return create(VerifyAssessmentResponseSchema, { assessment });
+      if (before.notaryId !== after.notaryId && after.notaryId) {
+        await this.auditService.record({
+          actorUserId: actor?.sub,
+          eventType: 'assessment.assigned_to_notary',
+          targetType: 'Assessment',
+          targetId: assessment.id,
+          actionTitle: 'Заявка назначена нотариусу',
+          actionContext: `Нотариус: ${formatOptionalId(before.notaryId)} -> ${shortId(after.notaryId)}`,
+          targetTitle: `Заявка ${shortId(assessment.id)}`,
+          targetContext: after.address,
+          before: toAuditSnapshot(before),
+          after: toAuditSnapshot(after),
+        });
+        await this.createAdminAssessmentNotificationBestEffort({
+          title: 'Заявка назначена нотариусу',
+          message: buildAssignedToNotaryMessage(
+            assessment.id,
+            await this.assessmentRepository.getUserDisplayName(after.notaryId),
+          ),
+        });
+      }
+
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.status_in_progress',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка переведена в работу',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка взята в работу',
+        message: buildInProgressMessage(
+          assessment.id,
+          await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
+        ),
+      });
+
+      this.logger.log(
+        `Verified assessment assessmentId=${assessment.id}` +
+          formatLogFields({
+            status: assessment.status,
+            notaryId: isNotaryRole(actor?.role) ? actor?.sub : undefined,
+          }),
+      );
+
+      return create(VerifyAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('verifyAssessment', error, { assessmentId: request.id });
+      throw error;
+    }
   }
 
   async completeAssessment(
     request: CompleteAssessmentRequest,
   ): Promise<CompleteAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+    this.logger.log(`Starting assessment completion assessmentId=${request.id}`);
 
-    if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
-      throw new ConnectError(
-        'final_estimated_value must be a valid decimal number',
-        Code.InvalidArgument,
+    try {
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+
+      if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
+        this.logger.warn(`Invalid final estimated value assessmentId=${request.id}`);
+        throw new ConnectError(
+          'final_estimated_value must be a valid decimal number',
+          Code.InvalidArgument,
+        );
+      }
+
+      const assessment = await this.assessmentRepository.completeAssessment(
+        request.id,
+        request.finalEstimatedValue,
       );
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.completed',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка завершена',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Оценка заявки завершена',
+        message: buildCompletedMessage(assessment.id, after.estimatedValue),
+      });
+
+      this.logger.log(
+        `Completed assessment assessmentId=${assessment.id}` +
+          formatLogFields({ status: assessment.status }),
+      );
+
+      return create(CompleteAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('completeAssessment', error, { assessmentId: request.id });
+      throw error;
     }
-
-    const assessment = await this.assessmentRepository.completeAssessment(
-      request.id,
-      request.finalEstimatedValue,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.completed',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка завершена',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
-    await this.notifyAssessmentUser(
-      after.userId,
-      `Заявка ${shortId(assessment.id)} завершена. Результаты оценки доступны в личном кабинете.`,
-    );
-
-    return create(CompleteAssessmentResponseSchema, { assessment });
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
-    validateUuid(request.id, 'id');
-    const actor = getCurrentUser();
-    const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
-
-    const assessment = await this.assessmentRepository.cancelAssessment(
-      request.id,
-      request.reason?.trim() || undefined,
-    );
-    const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-    await this.auditService.record({
-      actorUserId: actor?.sub,
-      eventType: 'assessment.cancelled',
-      targetType: 'Assessment',
-      targetId: assessment.id,
-      actionTitle: 'Заявка отменена',
-      actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-      targetTitle: `Заявка ${shortId(assessment.id)}`,
-      targetContext: after.address,
-      before: toAuditSnapshot(before),
-      after: toAuditSnapshot(after),
-    });
-    await this.notifyAssessmentUser(
-      after.userId,
-      `Заявка ${shortId(assessment.id)} отменена${after.cancelReason ? `: ${after.cancelReason}` : '.'}`,
-    );
-
-    return create(CancelAssessmentResponseSchema, { assessment });
-  }
-
-  private async notifyAssessmentUser(
-    userId: string | null | undefined,
-    message: string,
-  ): Promise<void> {
-    if (!userId) {
-      return;
-    }
+    this.logger.log(`Starting assessment cancellation assessmentId=${request.id}`);
 
     try {
-      await this.notificationService.notifyUser({
-        userId,
-        message,
-        type: PrismaNotificationType.Push,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to create assessment notification for user ${userId}: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
+      validateUuid(request.id, 'id');
+      const actor = getCurrentUser();
+      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+
+      const assessment = await this.assessmentRepository.cancelAssessment(
+        request.id,
+        request.reason?.trim() || undefined,
       );
+      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+      await this.auditService.record({
+        actorUserId: actor?.sub,
+        eventType: 'assessment.cancelled',
+        targetType: 'Assessment',
+        targetId: assessment.id,
+        actionTitle: 'Заявка отменена',
+        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+        targetTitle: `Заявка ${shortId(assessment.id)}`,
+        targetContext: after.address,
+        before: toAuditSnapshot(before),
+        after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка на оценку отменена',
+        message: buildCancelledMessage(assessment.id, after.cancelReason),
+      });
+
+      this.logger.log(
+        `Cancelled assessment assessmentId=${assessment.id}` +
+          formatLogFields({ status: assessment.status }),
+      );
+
+      return create(CancelAssessmentResponseSchema, { assessment });
+    } catch (error) {
+      this.logOperationFailure('cancelAssessment', error, { assessmentId: request.id });
+      throw error;
     }
   }
 
@@ -286,6 +542,121 @@ export class AssessmentService {
       status:
         request.statusFilter === AssessmentStatus.UNSPECIFIED ? undefined : request.statusFilter,
     };
+  }
+
+  private logOperationFailure(
+    operation: string,
+    error: unknown,
+    context: Record<string, unknown>,
+  ): void {
+    const contextFields = formatLogFields(context);
+    if (isExpectedOperationError(error)) {
+      this.logger.warn(
+        `Assessment operation ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.logger.error(
+      `Assessment operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
+      errorStack(error),
+    );
+  }
+
+  private async getActorDisplayName(
+    userId: string | undefined,
+    fallback?: string,
+  ): Promise<string | undefined> {
+    if (!userId) return fallback;
+    return (await this.assessmentRepository.getUserDisplayName(userId)) ?? fallback;
+  }
+
+  private async createAdminAssessmentNotificationBestEffort(input: {
+    title: string;
+    message: string;
+  }): Promise<void> {
+    try {
+      await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+        title: input.title,
+        message: input.message,
+        category: RpcNotificationCategory.ASSESSMENT,
+        type: RpcNotificationType.IN_APP,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create admin assessment notification: ${errorMessage(error)}`,
+      );
+    }
+  }
+
+  private async resolveFiasItemGeography(item: FiasAddressItem): Promise<FiasAddressItem> {
+    const resolvedIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: item.cityId,
+      districtId: item.districtId,
+      cityName: item.addressDetails?.city,
+      districtName: item.addressDetails?.district,
+    });
+
+    return {
+      ...item,
+      cityId: resolvedIds.cityId,
+      districtId: resolvedIds.districtId,
+    };
+  }
+
+  private async normalizeRealEstateObjectGeography(
+    realEstateObject: AssessmentRealEstateObjectData | undefined,
+  ): Promise<AssessmentRealEstateObjectData | undefined> {
+    if (!realEstateObject) {
+      return undefined;
+    }
+
+    const existingIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: realEstateObject.cityId,
+      districtId: realEstateObject.districtId ?? undefined,
+    });
+    const fallbackItem = existingIds.cityId
+      ? undefined
+      : await this.findExactFiasAddressItem(realEstateObject.address);
+    const resolvedIds = existingIds.cityId
+      ? existingIds
+      : await this.assessmentRepository.resolveGeographyIds({
+          cityId: realEstateObject.cityId,
+          districtId: realEstateObject.districtId ?? undefined,
+          cityName: fallbackItem?.addressDetails?.city,
+          districtName: fallbackItem?.addressDetails?.district,
+        });
+
+    if (!resolvedIds.cityId) {
+      throw new ConnectError(
+        'real_estate_object.city_id does not match a known city',
+        Code.InvalidArgument,
+      );
+    }
+
+    return {
+      ...realEstateObject,
+      cityId: resolvedIds.cityId,
+      ...(resolvedIds.districtId !== undefined && { districtId: resolvedIds.districtId }),
+      ...(resolvedIds.districtId === undefined &&
+        realEstateObject.districtId !== undefined && { districtId: null }),
+    };
+  }
+
+  private async findExactFiasAddressItem(
+    address: string | undefined,
+  ): Promise<FiasAddressItem | undefined> {
+    if (!address) {
+      return undefined;
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query: address,
+      limit: FIAS_LIMITS.maximum,
+    });
+    const normalizedAddress = normalizeAddressMatchKey(address);
+
+    return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
   }
 }
 
@@ -334,6 +705,37 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
   return normalized ? normalized : undefined;
 }
 
+function normalizeFiasQuery(value: string | undefined): string {
+  return value?.trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function normalizeFiasLimit(value: number | undefined): number {
+  if (value === undefined || value === 0) return FIAS_LIMITS.default;
+  if (!Number.isInteger(value) || value < 1 || value > FIAS_LIMITS.maximum) {
+    throw new ConnectError(
+      `limit must be an integer from 1 to ${FIAS_LIMITS.maximum}`,
+      Code.InvalidArgument,
+    );
+  }
+  return value;
+}
+
+function normalizeFiasAddressType(value: number | undefined): number | undefined {
+  if (value === undefined || value === 0) return undefined;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new ConnectError('address_type must be a positive integer', Code.InvalidArgument);
+  }
+  return value;
+}
+
+function normalizeAddressMatchKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ');
+}
+
 function normalizeOptionalRequiredText(
   value: string | undefined,
   fieldName: string,
@@ -352,6 +754,8 @@ function normalizeNullableText(value: string | undefined): string | null | undef
 function normalizeOptionalDecimal(
   value: string | undefined,
   fieldName: string,
+  minimum: number,
+  maximum: number,
 ): string | undefined {
   if (value === undefined) return undefined;
 
@@ -360,9 +764,10 @@ function normalizeOptionalDecimal(
     throw new ConnectError(`${fieldName} is required`, Code.InvalidArgument);
   }
 
-  if (!DECIMAL_PATTERN.test(normalized) || Number(normalized) <= 0) {
+  const numericValue = Number(normalized);
+  if (!DECIMAL_PATTERN.test(normalized) || numericValue < minimum || numericValue > maximum) {
     throw new ConnectError(
-      `${fieldName} must be a valid positive decimal number`,
+      `${fieldName} must be a valid decimal number from ${minimum} to ${maximum}`,
       Code.InvalidArgument,
     );
   }
@@ -374,11 +779,12 @@ function normalizeOptionalInteger(
   value: number | undefined,
   fieldName: string,
   minimum: number,
+  maximum: number,
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (!Number.isInteger(value) || value < minimum) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
     throw new ConnectError(
-      `${fieldName} must be an integer greater than or equal to ${minimum}`,
+      `${fieldName} must be an integer from ${minimum} to ${maximum}`,
       Code.InvalidArgument,
     );
   }
@@ -425,9 +831,23 @@ function normalizeRealEstateObjectInput(
   if (address !== undefined) realEstateObject.address = address;
 
   const cadastralNumber = normalizeNullableText(input.cadastralNumber);
-  if (cadastralNumber !== undefined) realEstateObject.cadastralNumber = cadastralNumber;
+  if (cadastralNumber !== undefined) {
+    if (cadastralNumber !== null && !CADASTRAL_NUMBER_PATTERN.test(cadastralNumber)) {
+      throw new ConnectError(
+        'real_estate_object.cadastral_number must contain exactly 12 digits',
+        Code.InvalidArgument,
+      );
+    }
 
-  const area = normalizeOptionalDecimal(input.area, 'real_estate_object.area');
+    realEstateObject.cadastralNumber = cadastralNumber;
+  }
+
+  const area = normalizeOptionalDecimal(
+    input.area,
+    'real_estate_object.area',
+    AREA_LIMITS.minimum,
+    AREA_LIMITS.maximum,
+  );
   if (area !== undefined) realEstateObject.area = area;
 
   const objectType = normalizeRequiredEnum(
@@ -440,24 +860,42 @@ function normalizeRealEstateObjectInput(
   const roomsCount = normalizeOptionalInteger(
     input.roomsCount,
     'real_estate_object.rooms_count',
-    0,
+    ROOMS_LIMITS.minimum,
+    getRoomsMaximum(objectType),
   );
   if (roomsCount !== undefined) realEstateObject.roomsCount = roomsCount;
 
   const floorsTotal = normalizeOptionalInteger(
     input.floorsTotal,
     'real_estate_object.floors_total',
-    1,
+    FLOOR_LIMITS.minimum,
+    FLOOR_LIMITS.maximum,
   );
   if (floorsTotal !== undefined) realEstateObject.floorsTotal = floorsTotal;
 
-  const floor = normalizeOptionalInteger(input.floor, 'real_estate_object.floor', 0);
+  const floor = normalizeOptionalInteger(
+    input.floor,
+    'real_estate_object.floor',
+    FLOOR_LIMITS.minimum,
+    FLOOR_LIMITS.maximum,
+  );
+  if (floor !== undefined && floorsTotal !== undefined && floor > floorsTotal) {
+    throw new ConnectError(
+      'real_estate_object.floor must be less than or equal to real_estate_object.floors_total',
+      Code.InvalidArgument,
+    );
+  }
   if (floor !== undefined) realEstateObject.floor = floor;
 
   const condition = normalizeNullableEnum(input.condition, RealEstateCondition.UNSPECIFIED);
   if (condition !== undefined) realEstateObject.condition = condition;
 
-  const yearBuilt = normalizeOptionalInteger(input.yearBuilt, 'real_estate_object.year_built', 1);
+  const yearBuilt = normalizeOptionalInteger(
+    input.yearBuilt,
+    'real_estate_object.year_built',
+    YEAR_BUILT_LIMITS.minimum,
+    YEAR_BUILT_LIMITS.maximum,
+  );
   if (yearBuilt !== undefined) realEstateObject.yearBuilt = yearBuilt;
 
   const wallMaterial = normalizeNullableEnum(input.wallMaterial, WallMaterial.UNSPECIFIED);
@@ -492,7 +930,9 @@ function normalizeRealEstateObjectInput(
   return realEstateObject;
 }
 
-function hasRealEstateObjectInputData(input: RealEstateObjectInput): boolean {
+function hasRealEstateObjectInputData(input: RealEstateObjectInput | undefined): boolean {
+  if (!input) return false;
+
   return (
     input.cityId !== undefined ||
     input.districtId !== undefined ||
@@ -513,6 +953,18 @@ function hasRealEstateObjectInputData(input: RealEstateObjectInput): boolean {
     input.utilities !== undefined ||
     input.description !== undefined
   );
+}
+
+function getRoomsMaximum(objectType: RealEstateObjectType | undefined): number {
+  if (
+    objectType === RealEstateObjectType.APARTMENT ||
+    objectType === RealEstateObjectType.APARTMENTS ||
+    objectType === RealEstateObjectType.ROOM
+  ) {
+    return ROOMS_LIMITS.compactMaximum;
+  }
+
+  return ROOMS_LIMITS.commonMaximum;
 }
 
 function assertDefined<T>(value: T | undefined, fieldName: string): asserts value is T {
@@ -541,13 +993,13 @@ function statusLabel(status: PrismaAssessmentStatus): string {
     case PrismaAssessmentStatus.New:
       return 'new';
     case PrismaAssessmentStatus.Verified:
-      return 'verified';
+      return 'accepted';
     case PrismaAssessmentStatus.InProgress:
-      return 'in_progress';
+      return 'under_review';
     case PrismaAssessmentStatus.Completed:
       return 'completed';
     case PrismaAssessmentStatus.Cancelled:
-      return 'cancelled';
+      return 'rejected';
   }
 }
 
@@ -564,4 +1016,72 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function formatAssessmentAddress(address: string | null | undefined): string {
+  const normalized = address?.trim();
+  return normalized || 'адрес объекта не указан';
+}
+
+function buildAssignedToNotaryMessage(assessmentId: string, notaryName: string | null): string {
+  return notaryName
+    ? `Заявка ${shortId(assessmentId)} передана нотариусу ${notaryName}.`
+    : `Заявка ${shortId(assessmentId)} передана нотариусу.`;
+}
+
+function buildInProgressMessage(assessmentId: string, actorName: string | undefined): string {
+  return actorName
+    ? `${actorName} начал работу по заявке ${shortId(assessmentId)}.`
+    : `По заявке ${shortId(assessmentId)} начата работа.`;
+}
+
+function buildCompletedMessage(assessmentId: string, estimatedValue: string | null): string {
+  return estimatedValue
+    ? `По заявке ${shortId(assessmentId)} завершена оценка объекта. Итоговая стоимость: ${formatRubles(
+        estimatedValue,
+      )} ₽.`
+    : `По заявке ${shortId(assessmentId)} завершена оценка объекта.`;
+}
+
+function buildCancelledMessage(assessmentId: string, cancelReason: string | null): string {
+  const reason = cancelReason?.trim();
+  return reason
+    ? `Заявка ${shortId(assessmentId)} была отменена. Причина: ${reason}.`
+    : `Заявка ${shortId(assessmentId)} была отменена.`;
+}
+
+function formatRubles(value: string): string {
+  const [integerPart, fractionPart] = value.split('.');
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fractionPart ? `${formattedInteger},${fractionPart}` : formattedInteger;
+}
+
+function formatOptionalId(value: string | null): string {
+  return value ? shortId(value) : 'не назначен';
+}
+
+function isExpectedOperationError(error: unknown): boolean {
+  return (
+    (error instanceof ConnectError && error.code === Code.InvalidArgument) ||
+    isPrismaNotFoundError(error)
+  );
+}
+
+function isPrismaNotFoundError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
+}
+
+function formatLogFields(fields: Record<string, unknown>): string {
+  const entries = Object.entries(fields).filter(([, value]) => value !== undefined && value !== '');
+  return entries.length
+    ? ` ${entries.map(([key, value]) => `${key}=${String(value)}`).join(' ')}`
+    : '';
 }

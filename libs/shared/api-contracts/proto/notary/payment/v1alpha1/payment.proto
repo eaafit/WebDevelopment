@@ -8,6 +8,8 @@ import "notary/common/v1alpha1/common.proto";
 
 service PaymentService {
   rpc CreatePayment(CreatePaymentRequest) returns (CreatePaymentResponse);
+  rpc UpdatePayment(UpdatePaymentRequest) returns (UpdatePaymentResponse);
+  rpc DeletePayment(DeletePaymentRequest) returns (DeletePaymentResponse);
   rpc ValidateSubscriptionPromo(ValidateSubscriptionPromoRequest) returns (ValidateSubscriptionPromoResponse);
   rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
   rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
@@ -94,6 +96,10 @@ message CreatePaymentRequest {
 
   string target_id = 4 [(buf.validate.field).string.uuid = true];
   string promo_code = 5 [(buf.validate.field).string.max_len = 20];
+  string payment_provider = 6 [(buf.validate.field).string = {
+    min_len: 0
+    max_len: 32
+  }];
 }
 
 message PaymentWidgetInit {
@@ -182,4 +188,34 @@ message CreateSubscriptionRequest {
 
 message CreateSubscriptionResponse {
   Subscription subscription = 1;
+}
+
+message UpdatePaymentRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+
+  optional string amount = 2 [(buf.validate.field).string = {
+    pattern: "^[0-9]+(\\.[0-9]{1,2})?$"
+    min_len: 1
+  }];
+
+  optional PaymentStatus status = 3 [(buf.validate.field).enum = {
+    defined_only: true
+  }];
+
+  optional string payment_method = 4 [(buf.validate.field).string.max_len = 64];
+  optional string transaction_id = 5 [(buf.validate.field).string.max_len = 128];
+  optional string attachment_file_name = 6 [(buf.validate.field).string.max_len = 255];
+  optional string attachment_file_url = 7 [(buf.validate.field).string.uri = true];
+}
+
+message UpdatePaymentResponse {
+  Payment payment = 1;
+}
+
+message DeletePaymentRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeletePaymentResponse {
+  bool success = 1;
 }

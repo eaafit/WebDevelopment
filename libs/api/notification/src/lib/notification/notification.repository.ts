@@ -3,6 +3,7 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
 import {
+  NotificationCategory as RpcNotificationCategory,
   NotificationSchema,
   NotificationStatus as RpcNotificationStatus,
   NotificationType as RpcNotificationType,
@@ -12,8 +13,10 @@ import {
   type ListNotificationsResponse,
 } from '@notary-portal/api-contracts';
 import {
+  NotificationCategory as PrismaNotificationCategory,
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
+  Role as PrismaRole,
   type Prisma,
 } from '@internal/prisma-client';
 
@@ -26,28 +29,50 @@ export interface NotificationQuery {
   unreadOnly?: boolean;
 }
 
-export interface CreateNotificationData {
+export interface CreateNotificationInput {
   userId: string;
+  title?: string;
   message: string;
-  type?: PrismaNotificationType;
-  status?: PrismaNotificationStatus;
+  category?: RpcNotificationCategory;
+  type?: RpcNotificationType;
+  status?: RpcNotificationStatus;
+  sentAt?: Date;
+  readAt?: Date | null;
 }
 
 @Injectable()
 export class NotificationRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createNotification(data: CreateNotificationData): Promise<RpcNotification> {
+  async createNotification(input: CreateNotificationInput): Promise<RpcNotification> {
     const notification = await this.prisma.notification.create({
       data: {
-        userId: data.userId,
-        message: data.message,
-        type: data.type ?? PrismaNotificationType.Push,
-        status: data.status ?? PrismaNotificationStatus.Sent,
+        userId: input.userId,
+        title: input.title ?? 'Уведомление',
+        type: this.toPrismaType(input.type ?? RpcNotificationType.PUSH),
+        category: this.toPrismaCategory(input.category ?? RpcNotificationCategory.SYSTEM),
+        message: input.message,
+        status: this.toPrismaStatus(input.status ?? RpcNotificationStatus.SENT),
+        sentAt: input.sentAt ?? new Date(),
+        ...(input.readAt === undefined ? {} : { readAt: input.readAt }),
       },
     });
 
     return this.toMessage(notification);
+  }
+
+  async listActiveUserIdsByRole(role: PrismaRole): Promise<string[]> {
+    const users = await this.prisma.user.findMany({
+      where: {
+        role,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return users.map((user) => user.id);
   }
 
   async listNotifications(query: NotificationQuery): Promise<ListNotificationsResponse> {
@@ -119,7 +144,9 @@ export class NotificationRepository {
   private toMessage(n: {
     id: string;
     userId: string;
+    title: string;
     type: PrismaNotificationType;
+    category: PrismaNotificationCategory;
     message: string;
     sentAt: Date;
     status: PrismaNotificationStatus;
@@ -128,8 +155,10 @@ export class NotificationRepository {
     return create(NotificationSchema, {
       id: n.id,
       userId: n.userId,
+      title: n.title,
       message: n.message,
       type: this.fromPrismaType(n.type),
+      category: this.fromPrismaCategory(n.category),
       status: this.fromPrismaStatus(n.status),
       sentAt: timestampFromDate(n.sentAt),
       ...(n.readAt && { readAt: timestampFromDate(n.readAt) }),
@@ -139,8 +168,9 @@ export class NotificationRepository {
   private toPrismaType(t: RpcNotificationType): PrismaNotificationType {
     const map: Record<number, PrismaNotificationType> = {
       [RpcNotificationType.EMAIL]: PrismaNotificationType.Email,
-      [RpcNotificationType.SMS]: PrismaNotificationType.SMS,
-      [RpcNotificationType.PUSH]: PrismaNotificationType.Push,
+      [RpcNotificationType.SMS]:   PrismaNotificationType.SMS,
+      [RpcNotificationType.PUSH]:  PrismaNotificationType.Push,
+      [RpcNotificationType.IN_APP]: PrismaNotificationType.InApp,
     };
     return map[t] ?? PrismaNotificationType.Push;
   }
@@ -148,17 +178,40 @@ export class NotificationRepository {
   private fromPrismaType(t: PrismaNotificationType): RpcNotificationType {
     const map: Record<PrismaNotificationType, RpcNotificationType> = {
       [PrismaNotificationType.Email]: RpcNotificationType.EMAIL,
-      [PrismaNotificationType.SMS]: RpcNotificationType.SMS,
-      [PrismaNotificationType.Push]: RpcNotificationType.PUSH,
+      [PrismaNotificationType.SMS]:   RpcNotificationType.SMS,
+      [PrismaNotificationType.Push]:  RpcNotificationType.PUSH,
+      [PrismaNotificationType.InApp]: RpcNotificationType.IN_APP,
     };
     return map[t];
+  }
+
+  private toPrismaCategory(c: RpcNotificationCategory): PrismaNotificationCategory {
+    const map: Record<number, PrismaNotificationCategory> = {
+      [RpcNotificationCategory.APPLICATION]: PrismaNotificationCategory.Application,
+      [RpcNotificationCategory.DOCUMENT]: PrismaNotificationCategory.Document,
+      [RpcNotificationCategory.PAYMENT]: PrismaNotificationCategory.Payment,
+      [RpcNotificationCategory.SYSTEM]: PrismaNotificationCategory.System,
+      [RpcNotificationCategory.ASSESSMENT]: PrismaNotificationCategory.Assessment,
+    };
+    return map[c] ?? PrismaNotificationCategory.System;
+  }
+
+  private fromPrismaCategory(c: PrismaNotificationCategory): RpcNotificationCategory {
+    const map: Record<PrismaNotificationCategory, RpcNotificationCategory> = {
+      [PrismaNotificationCategory.Application]: RpcNotificationCategory.APPLICATION,
+      [PrismaNotificationCategory.Document]: RpcNotificationCategory.DOCUMENT,
+      [PrismaNotificationCategory.Payment]: RpcNotificationCategory.PAYMENT,
+      [PrismaNotificationCategory.System]: RpcNotificationCategory.SYSTEM,
+      [PrismaNotificationCategory.Assessment]: RpcNotificationCategory.ASSESSMENT,
+    };
+    return map[c];
   }
 
   private toPrismaStatus(s: RpcNotificationStatus): PrismaNotificationStatus {
     const map: Record<number, PrismaNotificationStatus> = {
       [RpcNotificationStatus.PENDING]: PrismaNotificationStatus.Pending,
-      [RpcNotificationStatus.SENT]: PrismaNotificationStatus.Sent,
-      [RpcNotificationStatus.FAILED]: PrismaNotificationStatus.Failed,
+      [RpcNotificationStatus.SENT]:    PrismaNotificationStatus.Sent,
+      [RpcNotificationStatus.FAILED]:  PrismaNotificationStatus.Failed,
     };
     return map[s] ?? PrismaNotificationStatus.Pending;
   }
@@ -166,8 +219,8 @@ export class NotificationRepository {
   private fromPrismaStatus(s: PrismaNotificationStatus): RpcNotificationStatus {
     const map: Record<PrismaNotificationStatus, RpcNotificationStatus> = {
       [PrismaNotificationStatus.Pending]: RpcNotificationStatus.PENDING,
-      [PrismaNotificationStatus.Sent]: RpcNotificationStatus.SENT,
-      [PrismaNotificationStatus.Failed]: RpcNotificationStatus.FAILED,
+      [PrismaNotificationStatus.Sent]:    RpcNotificationStatus.SENT,
+      [PrismaNotificationStatus.Failed]:  RpcNotificationStatus.FAILED,
     };
     return map[s];
   }

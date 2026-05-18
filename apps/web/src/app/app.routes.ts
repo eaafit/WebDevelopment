@@ -2,6 +2,7 @@ import { Route } from '@angular/router';
 import { guestRoutes } from '@notary-portal/guest';
 import { authGuard, roleGuard } from '@notary-portal/ui';
 import { UserRole } from '@notary-portal/ui';
+import { AssessmentUploadStepComponent } from '@notary-portal/ui';
 
 export const appRoutes: Route[] = [
   {
@@ -22,5 +23,9 @@ export const appRoutes: Route[] = [
     path: 'admin',
     canActivate: [authGuard, roleGuard(UserRole.Admin)],
     loadChildren: () => import('@notary-portal/admin').then((m) => m.adminRoutes),
+  },
+  {
+    path: 'assessment',
+    component: AssessmentUploadStepComponent,
   },
 ];

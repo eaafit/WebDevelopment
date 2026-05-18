@@ -2,9 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
+import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
+import { WebLoggerService } from '@notary-portal/ui';
 import {
-  MOCK_PAYMENTS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_STATUS_LABELS,
@@ -15,7 +15,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from './payments.shared';
-import { AdminPaymentsApiService } from './payments-api.service';
+import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 
 const CURRENCY_OPTIONS = ['RUB', 'USD', 'EUR'] as const;
 type Currency = (typeof CURRENCY_OPTIONS)[number];
@@ -32,6 +32,7 @@ export class PaymentFormComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private api = inject(AdminPaymentsApiService);
+  private readonly logger = inject(WebLoggerService);
 
   mode: 'create' | 'edit' = 'create';
   paymentId: string | null = null;
@@ -61,41 +62,44 @@ export class PaymentFormComponent implements OnInit {
     const idParam = this.route.snapshot.paramMap.get('id');
     this.mode = idParam ? 'edit' : 'create';
     this.paymentId = idParam;
+    this.logInfo('payment.admin.form_opened', {
+      mode: this.mode,
+      paymentId: this.paymentId,
+    });
 
     if (this.mode === 'edit' && this.paymentId) {
+      this.form.get('userId')?.disable();
       this.loadPayment(this.paymentId);
     }
   }
 
   private async loadPayment(id: string): Promise<void> {
+    this.logInfo('payment.admin.form_load_started', { paymentId: id });
     this.loading = true;
     try {
-      // Try loading from real API first
       const payment = await this.api.getPaymentById(id);
       if (payment) {
         this.patchForm(payment);
-        return;
+        this.logInfo('payment.admin.form_load_succeeded', { paymentId: id });
+      } else {
+        this.logWarn('payment.admin.form_load_not_found', { paymentId: id });
+        this.error = 'Платёж не найден';
       }
-    } catch {
-      // Fallback to mock data if API fails or returns nothing
+    } catch (err) {
+      this.logError('payment.admin.form_load_failed', err, { paymentId: id });
+      this.error = err instanceof Error ? err.message : 'Ошибка при загрузке платежа';
+    } finally {
+      this.loading = false;
     }
-
-    // TODO: remove mock fallback after backend edit endpoint is implemented
-    const numericId = Number(id);
-    const mockPayment = MOCK_PAYMENTS.find((item) => item.id === numericId);
-    if (mockPayment) {
-      this.patchForm(mockPayment);
-    } else {
-      this.error = 'Платёж не найден';
-    }
-    this.loading = false;
   }
 
   private patchForm(payment: Payment): void {
     this.form.patchValue({
+      userId: payment.userId,
       payer: payment.payer,
       amount: payment.amount,
-      paymentDate: payment.paymentDate,
+      currency: (payment.currency as Currency) || 'RUB',
+      paymentDate: toDateInputValue(payment.paymentDate),
       type: payment.type,
       paymentMethod: payment.paymentMethod ?? 'card',
       status: payment.status,
@@ -110,6 +114,9 @@ export class PaymentFormComponent implements OnInit {
 
   async submit(): Promise<void> {
     if (this.form.invalid) {
+      this.logWarn('payment.admin.form_submit_blocked_invalid', {
+        mode: this.mode,
+      });
       this.form.markAllAsTouched();
       return;
     }
@@ -117,10 +124,20 @@ export class PaymentFormComponent implements OnInit {
     this.loading = true;
     this.error = null;
     const data = this.form.getRawValue();
+    this.logInfo('payment.admin.form_submit_started', {
+      mode: this.mode,
+      paymentId: this.paymentId,
+      paymentType: data.type,
+      status: data.status,
+    });
 
     if (this.mode === 'create') {
       try {
         const targetId = this.resolveTargetId(data);
+        this.logInfo('payment.admin.form_create_requested', {
+          targetId: targetId || null,
+          paymentType: data.type,
+        });
         await this.api.createPayment({
           userId: data.userId ?? '',
           amount: String(data.amount ?? 0),
@@ -128,42 +145,70 @@ export class PaymentFormComponent implements OnInit {
           targetId: targetId || (data.userId ?? ''),
         });
         this.successMessage = 'Платёж успешно создан';
+        this.logInfo('payment.admin.form_create_succeeded');
         this.router.navigate(['/admin', 'payments']);
       } catch (err) {
+        this.logError('payment.admin.form_create_failed', err);
         this.error = err instanceof Error ? err.message : 'Ошибка при создании платежа';
         this.loading = false;
       }
     } else {
-      // TODO: replace mock update with real API call after backend edit endpoint is ready
-      const index = MOCK_PAYMENTS.findIndex((p) => String(p.id) === this.paymentId);
-      if (index !== -1) {
-        MOCK_PAYMENTS[index] = {
-          ...MOCK_PAYMENTS[index],
-          payer: data.payer ?? '',
-          amount: Number(data.amount ?? 0),
-          fee: Number(data.fee ?? 0),
-          paymentDate: data.paymentDate ?? MOCK_PAYMENTS[index].paymentDate,
-          type: (data.type ?? MOCK_PAYMENTS[index].type) as PaymentType,
-          paymentMethod: (data.paymentMethod ??
-            MOCK_PAYMENTS[index].paymentMethod ??
-            'card') as PaymentMethod,
-          status: (data.status ?? MOCK_PAYMENTS[index].status) as PaymentStatus,
-          statusText:
-            PAYMENT_STATUS_LABELS[(data.status ?? MOCK_PAYMENTS[index].status) as PaymentStatus],
-          subscriptionId: data.subscriptionId || null,
-          assessmentId: data.assessmentId || null,
-          transactionId: data.transactionId || '',
-          attachmentFileName: data.attachmentFileName || '',
-          attachmentFileUrl: data.attachmentFileUrl || '',
-        };
+      try {
+        this.logInfo('payment.admin.form_update_requested', {
+          paymentId: this.paymentId,
+        });
+        await this.api.updatePayment({
+          id: this.paymentId!,
+          amount: String(data.amount ?? 0),
+          status: this.toRpcPaymentStatus(data.status as PaymentStatus),
+          paymentMethod: data.paymentMethod ?? undefined,
+          transactionId: data.transactionId ?? undefined,
+          attachmentFileName: data.attachmentFileName ?? undefined,
+          attachmentFileUrl: data.attachmentFileUrl ?? undefined,
+        });
+        this.successMessage = 'Платёж обновлён';
+        this.logInfo('payment.admin.form_update_succeeded', {
+          paymentId: this.paymentId,
+        });
+        this.router.navigate(['/admin', 'payments']);
+      } catch (err) {
+        this.logError('payment.admin.form_update_failed', err, {
+          paymentId: this.paymentId,
+        });
+        this.error = err instanceof Error ? err.message : 'Ошибка при обновлении платежа';
+        this.loading = false;
       }
-      this.successMessage = 'Платёж обновлён (mock)';
-      this.router.navigate(['/admin', 'payments']);
     }
   }
 
   cancel(): void {
+    this.logInfo('payment.admin.form_cancelled', {
+      mode: this.mode,
+      paymentId: this.paymentId,
+    });
     this.router.navigate(['/admin', 'payments']);
+  }
+
+  private logInfo(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.info(event, this.buildLogContext(context));
+  }
+
+  private logWarn(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.warn(event, this.buildLogContext(context));
+  }
+
+  private logError(event: string, error: unknown, context: Record<string, unknown> = {}): void {
+    this.logger.error(event, this.buildLogContext({ ...context, error }));
+  }
+
+  private buildLogContext(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      area: 'admin_payments_form',
+      route: '/admin/payments/:id',
+      mode: this.mode,
+      paymentId: this.paymentId,
+      ...extra,
+    };
   }
 
   get paymentTypes(): PaymentType[] {
@@ -205,6 +250,20 @@ export class PaymentFormComponent implements OnInit {
     }
   }
 
+  private toRpcPaymentStatus(status: PaymentStatus): RpcPaymentStatus {
+    switch (status) {
+      case 'completed':
+        return RpcPaymentStatus.COMPLETED;
+      case 'failed':
+        return RpcPaymentStatus.FAILED;
+      case 'refunded':
+        return RpcPaymentStatus.REFUNDED;
+      case 'pending':
+      default:
+        return RpcPaymentStatus.PENDING;
+    }
+  }
+
   private toRpcPaymentType(type: PaymentType): RpcPaymentType {
     switch (type) {
       case 'Subscription':
@@ -216,4 +275,17 @@ export class PaymentFormComponent implements OnInit {
         return RpcPaymentType.ASSESSMENT;
     }
   }
+}
+
+function toDateInputValue(value: string): string {
+  if (!value) {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
 }

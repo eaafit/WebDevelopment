@@ -181,6 +181,13 @@
           {{ loading() ? 'Создаём платёж...' : state() === 'processing' ? 'Проверяем статус...' : 'Оплатить через
           ЮKassa' }}
         </button>
+        <button
+          type="button"
+          class="btn btn-outline w-full mt-2"
+          [disabled]="isBusy() || promoLoading()"
+          (click)="startRobokassaPayment()">
+          {{ loading() ? 'Создаём платёж...' : 'Оплатить через Robokassa' }}
+        </button>
         <p class="text-sm text-center mt-4 text-xs summary-caption">
           Нажимая кнопку, вы открываете защищённый виджет ЮKassa. Карточные данные остаются только у платёжного
           провайдера.
