@@ -6,15 +6,23 @@
 
   <div class="search-box">
     <span class="search-icon">🔍</span>
-    <input type="text" class="search-input" placeholder="Поиск по адресу..." />
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Поиск по адресу, типу или заявителю..."
+      [ngModel]="searchQuery()"
+      (ngModelChange)="onSearch($event)" />
   </div>
 
   <div class="filters-section">
-    <button class="filter-chip active">Все</button>
-    <button class="filter-chip">Новая</button>
-    <button class="filter-chip">В работе</button>
-    <button class="filter-chip">Принято</button>
-    <button class="filter-chip">Отклонено</button>
+    @for (status of statuses; track status.value) {
+    <button
+      class="filter-chip"
+      [class.active]="statusFilter() === status.value"
+      (click)="setStatusFilter(status.value)">
+      {{ status.label }}
+    </button>
+    }
   </div>
 
   <div class="table-wrapper">
@@ -31,59 +39,46 @@
         </tr>
       </thead>
       <tbody>
-        <tr>
+        @for (order of filteredOrders; track order.id) {
+        <tr [class.editing-status]="editingOrderId() === order.id">
           <td class="address-cell">
-            <strong>г. Москва, ул. Тверская, 15-45</strong>
-            <span class="address-hint">3-комнатная, 5 этаж</span>
+            <strong>{{ order.address }}</strong>
+            <span class="address-hint">{{ order.addressHint }}</span>
           </td>
-          <td>Квартира</td>
-          <td>68.5 м²</td>
-          <td>Иванов И.И.</td>
-          <td><span class="status-badge status-new">Новая</span></td>
-          <td>15.03.2024</td>
-          <td><button class="action-btn view" title="Просмотр">👁</button></td>
-        </tr>
-        <tr>
-          <td class="address-cell">
-            <strong>г. Екатеринбург, ул. Ленина, 10</strong>
-            <span class="address-hint">5-комнатный дом, 1 этаж</span>
+          <td>{{ order.propertyType }}</td>
+          <td class="area-cell">{{ order.area }} м²</td>
+          <td>{{ order.applicant }}</td>
+          <td class="status-cell">
+            @if (editingOrderId() === order.id) {
+            <div class="status-options">
+              @for (opt of statusOptions; track opt.value) {
+              <button
+                class="status-option-btn"
+                [class.selected]="order.status === opt.value"
+                (click)="updateStatus(order.id, opt.value)">
+                {{ opt.label }}
+              </button>
+              }
+              <button class="status-option-cancel" (click)="cancelEditing()">✖</button>
+            </div>
+            } @else {
+            <div class="status-display">
+              <span class="status-badge {{ getStatusClass(order.status) }}"> {{ getStatusText(order.status) }} </span>
+              <button class="edit-status-icon" (click)="startEditing(order.id)" title="Изменить статус">✏️</button>
+            </div>
+            }
           </td>
-          <td>Дом</td>
-          <td>220.0 м²</td>
-          <td>Петров П.П.</td>
-          <td><span class="status-badge status-progress">В работе</span></td>
-          <td>10.03.2024</td>
-          <td><button class="action-btn view" title="Просмотр">👁</button></td>
-        </tr>
-        <tr>
-          <td class="address-cell">
-            <strong>г. Санкт-Петербург, Невский пр., 100</strong>
-            <span class="address-hint">коммерческое помещение</span>
+          <td>{{ order.date }}</td>
+          <td class="actions-cell">
+            <button class="action-btn view" title="Просмотр" (click)="viewOrder(order.id)">👁</button>
           </td>
-          <td>Коммерческая</td>
-          <td>150.0 м²</td>
-          <td>Сидоров С.С.</td>
-          <td><span class="status-badge status-success">Принято</span></td>
-          <td>01.03.2024</td>
-          <td><button class="action-btn view" title="Просмотр">👁</button></td>
         </tr>
-        <tr>
-          <td class="address-cell">
-            <strong>г. Новосибирск, Красный пр., 50</strong>
-            <span class="address-hint">2-комнатная, 3 этаж</span>
-          </td>
-          <td>Квартира</td>
-          <td>45.2 м²</td>
-          <td>Кузнецова А.В.</td>
-          <td><span class="status-badge status-rejected">Отклонено</span></td>
-          <td>28.02.2024</td>
-          <td><button class="action-btn view" title="Просмотр">👁</button></td>
-        </tr>
+        }
       </tbody>
     </table>
   </div>
 
   <div class="table-footer">
-    <span>Показано 4 из 4 заказов</span>
+    <span>Показано {{ filteredOrders.length }} из {{ orders().length }} заказов</span>
   </div>
 </div>
