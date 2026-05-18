@@ -428,15 +428,18 @@ export class PaymentCreateService {
         };
       }
 
-      case PrismaPaymentType.Assessment:
+      case PrismaPaymentType.Assessment: {
+        const isApplicantBalanceTopUp = request.targetId === request.userId;
+
         return {
           amount: centsToAmount(requestAmountCents),
-          description: 'Оплата оценки имущества',
+          description: isApplicantBalanceTopUp ? 'Пополнение баланса' : 'Оплата оценки имущества',
           subscriptionId: null,
-          assessmentId: request.targetId,
+          assessmentId: isApplicantBalanceTopUp ? null : request.targetId,
           promo: null,
           discountAmount: null,
         };
+      }
 
       case PrismaPaymentType.DocumentCopy:
         return {

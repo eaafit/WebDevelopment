@@ -278,6 +278,53 @@ describe('PaymentCreateService', () => {
     });
   });
 
+  it('should create direct applicant top-up without assessment relation', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      robokassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'user-1',
+      paymentProvider: 'robokassa',
+    });
+
+    const response = await service.createPayment(request);
+
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.Assessment,
+        amount: '2500.00',
+        status: PaymentStatus.Pending,
+        subscriptionId: null,
+        assessmentId: null,
+        paymentMethod: 'robokassa_redirect',
+        receiptStatus: PaymentReceiptStatus.Available,
+      }),
+    });
+    expect(robokassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: 'payment-1',
+        amount: '2500.00',
+        description: 'Пополнение баланса',
+      }),
+    );
+    expect(yookassa.createPayment).not.toHaveBeenCalled();
+    expect(response).toEqual(
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: 'https://auth.robokassa.ru/Merchant/Index.aspx?InvId=payment-1',
+      }),
+    );
+  });
+
   it('should send receipt data for document copy payments', async () => {
     findUser.mockResolvedValueOnce({
       email: 'applicant@example.com',

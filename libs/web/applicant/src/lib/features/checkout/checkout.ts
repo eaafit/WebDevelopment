@@ -59,7 +59,11 @@ export class Checkout implements OnDestroy {
     const fromUrl = this.resolveTargetId(this.selectedService());
     if (fromUrl) return fromUrl;
     const manual = this.manualTargetId().trim();
-    return manual || null;
+    if (manual) return manual;
+    if (this.selectedService().code === 'balance') {
+      return this.tokenStore.user()?.id?.trim() || null;
+    }
+    return null;
   });
   protected readonly baseAmount = computed(() => {
     const fromUrl = resolveCheckoutAmount(
@@ -79,9 +83,7 @@ export class Checkout implements OnDestroy {
     () => this.loading() || this.state() === 'widget' || this.state() === 'processing',
   );
   protected readonly canStartPayment = computed(() => !this.isBusy() && Boolean(this.targetId()));
-  protected readonly needsManualContext = signal(!this.resolveTargetId(resolveApplicantCheckoutService(
-    resolveApplicantCheckoutServiceCode(inject(ActivatedRoute).snapshot.queryParamMap.get('type')),
-  )));
+  protected readonly needsManualContext = signal(false);
   protected readonly cabinetLink = '/applicant/payments';
 
   private widgetSession: YooKassaWidgetSession | null = null;
