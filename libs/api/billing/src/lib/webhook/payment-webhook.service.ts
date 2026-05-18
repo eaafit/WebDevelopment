@@ -17,6 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { PaymentAttachmentService } from '../payment-attachment/payment-attachment.service';
 import { resolveBillingPaymentMetricContext } from '../payment-metrics';
 import { buildPaymentAuditSnapshot, buildPaymentAuditTarget } from '../payment-audit';
+import { PaymentNotificationService } from '../payment-notification.service';
 import { RobokassaClient } from '../robokassa/robokassa.client';
 import {
   toProviderPaymentDetails,
@@ -109,6 +110,7 @@ export class PaymentWebhookService {
     private readonly paymentSubscriptionService: PaymentSubscriptionService,
     private readonly paymentAttachmentService: PaymentAttachmentService,
     private readonly auditService: AuditService,
+    private readonly paymentNotificationService: PaymentNotificationService,
   ) {}
 
   async processWebhook(request: ProcessWebhookRequest) {
@@ -366,6 +368,12 @@ export class PaymentWebhookService {
       },
       'Статус обновлён по YooKassa webhook',
     );
+    await this.paymentNotificationService.notifyPaymentCompleted({
+      ...payment,
+      status: PrismaPaymentStatus.Completed,
+      paymentMethod:
+        providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+    });
   }
 
   private async handlePaymentCanceled(
@@ -390,18 +398,25 @@ export class PaymentWebhookService {
 
     this.metrics.recordPayment('failed');
     this.metrics.recordBillingPayment('failed', resolveBillingPaymentMetricContext(payment.type));
+    const failedPaymentMethod =
+      providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget';
+
     await this.recordPaymentStatusAudit(
       payment,
       'payment.failed',
       PrismaPaymentStatus.Failed,
       {
-        paymentMethod:
-          providerPayment.paymentMethodType ?? payment.paymentMethod ?? 'yookassa_widget',
+        paymentMethod: failedPaymentMethod,
         paymentProvider: 'YooKassa',
         paymentMethodTitle: providerPayment.paymentMethodTitle,
       },
       'Статус обновлён по YooKassa webhook',
     );
+    await this.paymentNotificationService.notifyPaymentFailed({
+      ...payment,
+      status: PrismaPaymentStatus.Failed,
+      paymentMethod: failedPaymentMethod,
+    });
   }
 
   private async recordPaymentStatusAudit(
