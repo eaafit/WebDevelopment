@@ -81,6 +81,7 @@ export class ConnectRouterRegistry {
       getFiasAddressItemByGuid: this.assessmentRpcService.getFiasAddressItemByGuid,
       getFiasAddressDetails: this.assessmentRpcService.getFiasAddressDetails,
       searchFiasAddressByParts: this.assessmentRpcService.searchFiasAddressByParts,
+      logApplicantAssessmentAction: this.assessmentRpcService.logApplicantAssessmentAction,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,

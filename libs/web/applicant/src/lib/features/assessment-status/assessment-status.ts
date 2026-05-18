@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AssessmentStatus as RpcAssessmentStatus } from '@notary-portal/api-contracts';
 import { AssessmentApiService } from '../estimation-form/assessment-api.service';
 import { EstimationFormLocalDraftService } from '../estimation-form/estimation-form-local-draft.service';
@@ -11,7 +11,7 @@ const READONLY_QUERY_PARAM = 'readonly';
 @Component({
   selector: 'lib-assessment-status',
   standalone: true,
-  imports: [RouterLink],
+  imports: [],
   templateUrl: './assessment-status.html',
   styleUrl: './assessment-status.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -69,22 +69,59 @@ export class AssessmentStatus {
 
   async createNewAssessment(): Promise<void> {
     this.createNewError.set(null);
+    const targetRoute = '/applicant/assessment/new/params';
+    console.info('[ApplicantAssessmentStatus] create_new_assessment:click', {
+      previousAssessmentId: this.assessmentId() ?? undefined,
+      currentStatus: this.currentStatusLabel,
+      targetRoute,
+    });
+    await this.logApplicantAssessmentAction('create_new_assessment', targetRoute);
 
     try {
       const userId = await this.sessionService.ensureUserId();
       this.localDraftService.clear(userId);
     } catch (error) {
-      console.error('Failed to clear assessment draft before creating new assessment', error);
+      console.error('[ApplicantAssessmentStatus] create_new_assessment:error', error);
       this.createNewError.set(
         'Не удалось очистить локальный черновик. Обновите страницу и попробуйте ещё раз.',
       );
       return;
     }
 
-    await this.router.navigate(['/applicant/assessment/new/params'], {
+    const navigated = await this.router.navigate([targetRoute], {
       queryParams: {},
       replaceUrl: false,
     });
+    if (navigated) {
+      console.info('[ApplicantAssessmentStatus] create_new_assessment:success', {
+        targetRoute,
+      });
+    }
+  }
+
+  async returnToParams(): Promise<void> {
+    const targetRoute = '/applicant/assessment';
+    console.info('[ApplicantAssessmentStatus] return_to_params:click', {
+      assessmentId: this.assessmentId() ?? undefined,
+      currentStatus: this.currentStatusLabel,
+      targetRoute,
+      readonly: !this.isDraftStatus(),
+    });
+    await this.logApplicantAssessmentAction('return_to_params', targetRoute);
+    await this.router.navigate([targetRoute], {
+      queryParams: this.returnQueryParams(),
+    });
+  }
+
+  async openAssessmentHistory(): Promise<void> {
+    const targetRoute = '/applicant/assessment/history';
+    console.info('[ApplicantAssessmentStatus] open_history:click', {
+      assessmentId: this.assessmentId() ?? undefined,
+      currentStatus: this.currentStatusLabel,
+      targetRoute,
+    });
+    await this.logApplicantAssessmentAction('open_history', targetRoute);
+    await this.router.navigate([targetRoute]);
   }
 
   private async loadAssessmentStatus(): Promise<void> {
@@ -96,13 +133,50 @@ export class AssessmentStatus {
 
     this.assessmentId.set(assessmentId);
     this.loadError.set(null);
+    const startedAt = Date.now();
+    console.info('[ApplicantAssessmentStatus] status.load:start', {
+      assessmentId,
+    });
 
     try {
       const assessment = await this.assessmentApi.getAssessment(assessmentId);
       this.currentStatus.set(assessment.status);
+      console.info('[ApplicantAssessmentStatus] status.load:success', {
+        assessmentId,
+        status: this.currentStatusLabel,
+        durationMs: Date.now() - startedAt,
+      });
+      await this.logApplicantAssessmentAction('status_loaded', '/applicant/assessment/status');
     } catch (error) {
-      console.error('Failed to load assessment status', error);
+      console.error('[ApplicantAssessmentStatus] status.load:error', error);
+      await this.logApplicantAssessmentAction(
+        'status_load_failed',
+        '/applicant/assessment/status',
+        undefined,
+      );
       this.loadError.set('Не удалось загрузить актуальный статус заявки.');
+    }
+  }
+
+  private async logApplicantAssessmentAction(
+    action:
+      | 'status_loaded'
+      | 'status_load_failed'
+      | 'return_to_params'
+      | 'create_new_assessment'
+      | 'open_history',
+    targetRoute: string,
+    status = toBackendStatus(this.currentStatus()),
+  ): Promise<void> {
+    try {
+      await this.assessmentApi.logApplicantAssessmentAction({
+        action,
+        assessmentId: this.assessmentId() ?? undefined,
+        status,
+        targetRoute,
+      });
+    } catch (error) {
+      console.warn('[ApplicantAssessmentStatus] backend_log:warn', error);
     }
   }
 
@@ -138,5 +212,22 @@ function getStatusOrder(status: RpcAssessmentStatus): number {
       return 5;
     default:
       return 0;
+  }
+}
+
+function toBackendStatus(status: RpcAssessmentStatus): string | undefined {
+  switch (status) {
+    case RpcAssessmentStatus.NEW:
+      return 'NEW';
+    case RpcAssessmentStatus.VERIFIED:
+      return 'VERIFIED';
+    case RpcAssessmentStatus.IN_PROGRESS:
+      return 'IN_PROGRESS';
+    case RpcAssessmentStatus.COMPLETED:
+      return 'COMPLETED';
+    case RpcAssessmentStatus.CANCELLED:
+      return 'CANCELLED';
+    default:
+      return undefined;
   }
 }
