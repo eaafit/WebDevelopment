@@ -4,8 +4,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import {
   NewsletterAudienceType as RpcNewsletterAudienceType,
+  NewsletterCampaignDetailSchema,
   NewsletterCampaignSchema,
   NewsletterCampaignStatus as RpcNewsletterCampaignStatus,
+  NewsletterDeliveryStatus as RpcNewsletterDeliveryStatus,
+  NewsletterCampaignRecipientSchema,
   NewsletterSubscriberSchema,
   NewsletterSubscriberStatus as RpcNewsletterSubscriberStatus,
   PaginationMetaSchema,
@@ -15,6 +18,7 @@ import {
   type ListNewsletterSubscribersResponse,
   ListNewsletterSubscribersResponseSchema,
   type NewsletterCampaign,
+  type NewsletterCampaignDetail,
   type NewsletterSubscriber,
 } from '@notary-portal/api-contracts';
 import {
@@ -38,6 +42,7 @@ export interface NewsletterCampaignQuery {
   page: number;
   limit: number;
   search?: string;
+  status?: PrismaNewsletterCampaignStatus;
 }
 
 export interface NewsletterAudienceQuery {
@@ -47,7 +52,7 @@ export interface NewsletterAudienceQuery {
 }
 
 export interface NewsletterRecipient {
-  userId: string;
+  userId: string | null;
   email: string;
   fullName: string;
   role: PrismaRole;
@@ -64,6 +69,7 @@ export interface CreateNewsletterCampaignInput {
 
 type SubscriberRow = Prisma.NewsletterSubscriptionGetPayload<{ include: { user: true } }>;
 type CampaignRow = Prisma.NewsletterCampaignGetPayload<Record<string, never>>;
+type CampaignDetailRow = Prisma.NewsletterCampaignGetPayload<{ include: { deliveries: true } }>;
 
 @Injectable()
 export class NewsletterRepository {
@@ -108,6 +114,48 @@ export class NewsletterRepository {
       campaigns: campaigns.map((campaign) => this.toCampaignMessage(campaign)),
       meta: createPaginationMeta(totalItems, page, limit),
     });
+  }
+
+  async getCampaignDetail(campaignId: string): Promise<NewsletterCampaignDetail | null> {
+    const campaign = await this.prisma.newsletterCampaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        deliveries: {
+          orderBy: { createdAt: 'asc' },
+          take: 5,
+        },
+      },
+    });
+
+    return campaign ? this.toCampaignDetailMessage(campaign) : null;
+  }
+
+  async getCampaignForRepeat(campaignId: string): Promise<{
+    subject: string;
+    bodyHtml: string;
+    recipients: NewsletterRecipient[];
+  } | null> {
+    const campaign = await this.prisma.newsletterCampaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        deliveries: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!campaign) return null;
+
+    return {
+      subject: campaign.subject,
+      bodyHtml: campaign.bodyHtml,
+      recipients: campaign.deliveries.map((delivery) => ({
+        userId: delivery.userId,
+        email: delivery.email,
+        fullName: delivery.fullName,
+        role: PrismaRole.Applicant,
+      })),
+    };
   }
 
   async resolveAudience(query: NewsletterAudienceQuery): Promise<NewsletterRecipient[]> {
@@ -245,6 +293,19 @@ export class NewsletterRepository {
     return map[type];
   }
 
+  toPrismaCampaignStatus(
+    status: RpcNewsletterCampaignStatus,
+  ): PrismaNewsletterCampaignStatus | undefined {
+    const map: Partial<Record<RpcNewsletterCampaignStatus, PrismaNewsletterCampaignStatus>> = {
+      [RpcNewsletterCampaignStatus.SENDING]: PrismaNewsletterCampaignStatus.Sending,
+      [RpcNewsletterCampaignStatus.SENT]: PrismaNewsletterCampaignStatus.Sent,
+      [RpcNewsletterCampaignStatus.FAILED]: PrismaNewsletterCampaignStatus.Failed,
+      [RpcNewsletterCampaignStatus.PARTIAL_FAILED]: PrismaNewsletterCampaignStatus.PartialFailed,
+    };
+
+    return map[status];
+  }
+
   private buildSubscriberWhere(
     query: NewsletterSubscriberQuery,
   ): Prisma.NewsletterSubscriptionWhereInput {
@@ -272,14 +333,20 @@ export class NewsletterRepository {
 
   private buildCampaignWhere(query: NewsletterCampaignQuery): Prisma.NewsletterCampaignWhereInput {
     const search = query.search?.trim();
-    if (!search) return {};
+    const where: Prisma.NewsletterCampaignWhereInput = {};
 
-    return {
-      OR: [
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (search) {
+      where.OR = [
         { subject: { contains: search, mode: 'insensitive' } },
         { audienceLabel: { contains: search, mode: 'insensitive' } },
-      ],
-    };
+      ];
+    }
+
+    return where;
   }
 
   private toSubscriberMessage(row: SubscriberRow): NewsletterSubscriber {
@@ -307,6 +374,20 @@ export class NewsletterRepository {
       sentCount: row.sentCount,
       failedCount: row.failedCount,
       status: this.fromPrismaCampaignStatus(row.status),
+    });
+  }
+
+  private toCampaignDetailMessage(row: CampaignDetailRow): NewsletterCampaignDetail {
+    return create(NewsletterCampaignDetailSchema, {
+      campaign: this.toCampaignMessage(row),
+      previewText: toPreviewText(row.bodyHtml),
+      recipients: row.deliveries.map((delivery) =>
+        create(NewsletterCampaignRecipientSchema, {
+          email: delivery.email,
+          fullName: delivery.fullName,
+          status: this.fromPrismaDeliveryStatus(delivery.status),
+        }),
+      ),
     });
   }
 
@@ -353,6 +434,17 @@ export class NewsletterRepository {
     };
     return map[status];
   }
+
+  private fromPrismaDeliveryStatus(
+    status: PrismaNewsletterDeliveryStatus,
+  ): RpcNewsletterDeliveryStatus {
+    const map: Record<PrismaNewsletterDeliveryStatus, RpcNewsletterDeliveryStatus> = {
+      [PrismaNewsletterDeliveryStatus.Pending]: RpcNewsletterDeliveryStatus.PENDING,
+      [PrismaNewsletterDeliveryStatus.Sent]: RpcNewsletterDeliveryStatus.SENT,
+      [PrismaNewsletterDeliveryStatus.Failed]: RpcNewsletterDeliveryStatus.FAILED,
+    };
+    return map[status];
+  }
 }
 
 function createPaginationMeta(totalItems: number, page: number, limit: number) {
@@ -362,4 +454,18 @@ function createPaginationMeta(totalItems: number, page: number, limit: number) {
     currentPage: page,
     perPage: limit,
   });
+}
+
+function toPreviewText(bodyHtml: string): string {
+  return bodyHtml
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
 }

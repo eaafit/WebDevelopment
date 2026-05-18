@@ -2,11 +2,13 @@ import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import {
   NewsletterAudienceType,
+  NewsletterDeliveryStatus as RpcNewsletterDeliveryStatus,
   NewsletterCampaignStatus as RpcNewsletterCampaignStatus,
   NewsletterService,
   NewsletterSubscriberStatus,
   UserRole as RpcUserRole,
   type NewsletterCampaign,
+  type NewsletterCampaignDetail,
   type NewsletterSubscriber,
   type PaginationMeta,
 } from '@notary-portal/api-contracts';
@@ -15,6 +17,9 @@ import { RPC_TRANSPORT } from '@notary-portal/ui';
 import type {
   NewsletterAudienceInput,
   NewsletterCampaignStatus,
+  NewsletterCampaignDetailView,
+  NewsletterCampaignStatusFilter,
+  NewsletterCampaignRecipientView,
   NewsletterCampaignView,
   NewsletterPagination,
   NewsletterRoleFilter,
@@ -59,16 +64,40 @@ export class NewsletterApiService {
     page: number;
     limit: number;
     query: string;
+    status?: NewsletterCampaignStatusFilter;
   }): Promise<{ campaigns: NewsletterCampaignView[]; meta: NewsletterPagination }> {
     const response = await this.client.listNewsletterCampaigns({
       pagination: { page: params.page, limit: params.limit },
-      filters: { query: params.query.trim() },
+      filters: {
+        query: params.query.trim(),
+        status: toRpcCampaignStatus(params.status ?? 'all'),
+      },
     });
 
     return {
       campaigns: response.campaigns.map(toCampaignView),
       meta: toPagination(response.meta),
     };
+  }
+
+  async getCampaign(id: string): Promise<NewsletterCampaignDetailView> {
+    const response = await this.client.getNewsletterCampaign({ id });
+
+    if (!response.campaign) {
+      throw new Error('API вернул пустые детали рассылки.');
+    }
+
+    return toCampaignDetailView(response.campaign);
+  }
+
+  async repeatCampaign(id: string): Promise<NewsletterCampaignView> {
+    const response = await this.client.repeatNewsletterCampaign({ id });
+
+    if (!response.campaign) {
+      throw new Error('API вернул пустую повторную рассылку.');
+    }
+
+    return toCampaignView(response.campaign);
   }
 
   async estimateAudience(audience: NewsletterAudienceInput): Promise<number> {
@@ -192,10 +221,51 @@ function fromRpcRole(role: RpcUserRole): Exclude<NewsletterRoleFilter, 'all'> {
   return 'applicant';
 }
 
+function toRpcCampaignStatus(status: NewsletterCampaignStatusFilter): RpcNewsletterCampaignStatus {
+  if (status === 'sending') return RpcNewsletterCampaignStatus.SENDING;
+  if (status === 'sent') return RpcNewsletterCampaignStatus.SENT;
+  if (status === 'failed') return RpcNewsletterCampaignStatus.FAILED;
+  if (status === 'partialFailed') return RpcNewsletterCampaignStatus.PARTIAL_FAILED;
+  return RpcNewsletterCampaignStatus.UNSPECIFIED;
+}
+
 function fromRpcCampaignStatus(status: RpcNewsletterCampaignStatus): NewsletterCampaignStatus {
   if (status === RpcNewsletterCampaignStatus.FAILED) return 'failed';
   if (status === RpcNewsletterCampaignStatus.PARTIAL_FAILED) return 'partialFailed';
   if (status === RpcNewsletterCampaignStatus.SENDING) return 'sending';
+  return 'sent';
+}
+
+function toCampaignDetailView(detail: NewsletterCampaignDetail): NewsletterCampaignDetailView {
+  if (!detail.campaign) {
+    throw new Error('API вернул детали рассылки без кампании.');
+  }
+
+  return {
+    campaign: toCampaignView(detail.campaign),
+    previewText: detail.previewText,
+    recipients: detail.recipients.map(toRecipientView),
+  };
+}
+
+function toRecipientView(
+  recipient: NewsletterCampaignDetail['recipients'][number],
+): NewsletterCampaignRecipientView {
+  const status = fromRpcDeliveryStatus(recipient.status);
+
+  return {
+    email: recipient.email,
+    fullName: recipient.fullName,
+    status,
+    statusLabel: deliveryStatusLabel(status),
+  };
+}
+
+function fromRpcDeliveryStatus(
+  status: RpcNewsletterDeliveryStatus,
+): NewsletterCampaignRecipientView['status'] {
+  if (status === RpcNewsletterDeliveryStatus.FAILED) return 'failed';
+  if (status === RpcNewsletterDeliveryStatus.PENDING) return 'pending';
   return 'sent';
 }
 
@@ -210,6 +280,12 @@ function campaignStatusLabel(status: NewsletterCampaignStatus): string {
   if (status === 'partialFailed') return 'Частично отправлена';
   if (status === 'sending') return 'Отправляется';
   return 'Отправлена';
+}
+
+function deliveryStatusLabel(status: NewsletterCampaignRecipientView['status']): string {
+  if (status === 'failed') return 'Ошибка';
+  if (status === 'pending') return 'Ожидает';
+  return 'Отправлено';
 }
 
 function formatTimestamp(timestamp: NewsletterCampaign['createdAt']): string {

@@ -71,28 +71,6 @@
   white-space: nowrap;
 }
 
-.newsletter-tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--admin-border, #e2e8f0);
-}
-
-.newsletter-tab {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--admin-text-soft, #475569);
-  background: transparent;
-  cursor: pointer;
-}
-
-.newsletter-tab--active {
-  border-color: var(--admin-accent, #dc2626);
-  color: var(--admin-text, #0f172a);
-  font-weight: 700;
-}
-
 .newsletter-panel,
 .newsletter-result {
   border: 1px solid var(--admin-border, #e2e8f0);

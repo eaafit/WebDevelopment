@@ -102,6 +102,8 @@ export class ConnectRouterRegistry {
       estimateNewsletterAudience: this.newsletterRpcService.estimateNewsletterAudience,
       sendNewsletterCampaign: this.newsletterRpcService.sendNewsletterCampaign,
       listNewsletterCampaigns: this.newsletterRpcService.listNewsletterCampaigns,
+      getNewsletterCampaign: this.newsletterRpcService.getNewsletterCampaign,
+      repeatNewsletterCampaign: this.newsletterRpcService.repeatNewsletterCampaign,
     });
 
     // ─── Report ──────────────────────────────────────────────

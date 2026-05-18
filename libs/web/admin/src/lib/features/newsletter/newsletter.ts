@@ -3,14 +3,11 @@ import { Router } from '@angular/router';
 import { NewsletterApiService } from './newsletter-api.service';
 import { NewsletterSelectionService } from './newsletter-selection.service';
 import type {
-  NewsletterCampaignView,
   NewsletterPagination,
   NewsletterRoleFilter,
   NewsletterSubscriberStatusFilter,
   NewsletterSubscriberView,
 } from './newsletter.models';
-
-type NewsletterTab = 'subscribers' | 'history';
 
 const PAGE_LIMIT = 10;
 const EMPTY_META: NewsletterPagination = {
@@ -32,22 +29,16 @@ export class Newsletter {
   private readonly selection = inject(NewsletterSelectionService);
   private readonly router = inject(Router);
 
-  protected readonly activeTab = signal<NewsletterTab>('subscribers');
   protected readonly query = signal('');
   protected readonly statusFilter = signal<NewsletterSubscriberStatusFilter>('all');
   protected readonly roleFilter = signal<NewsletterRoleFilter>('all');
-  protected readonly historyQuery = signal('');
 
   protected readonly subscribers = signal<NewsletterSubscriberView[]>([]);
   protected readonly subscribersMeta = signal<NewsletterPagination>({ ...EMPTY_META });
-  protected readonly campaigns = signal<NewsletterCampaignView[]>([]);
-  protected readonly campaignsMeta = signal<NewsletterPagination>({ ...EMPTY_META });
 
   protected readonly subscriberPage = signal(1);
-  protected readonly campaignPage = signal(1);
   protected readonly subscribersLoading = signal(false);
-  protected readonly campaignsLoading = signal(false);
-  protected readonly statusMessage = signal('Загрузка списка подписчиков и истории рассылок.');
+  protected readonly statusMessage = signal('Загрузка списка подписчиков.');
 
   protected readonly selectedCount = this.selection.selectedCount;
   protected readonly selectedUserIds = this.selection.selectedUserIds;
@@ -57,19 +48,10 @@ export class Newsletter {
 
   constructor() {
     void this.loadSubscribers();
-    void this.loadCampaigns();
-  }
-
-  protected setTab(tab: NewsletterTab): void {
-    this.activeTab.set(tab);
   }
 
   protected updateQuery(value: string): void {
     this.query.set(value);
-  }
-
-  protected updateHistoryQuery(value: string): void {
-    this.historyQuery.set(value);
   }
 
   protected updateStatusFilter(value: NewsletterSubscriberStatusFilter): void {
@@ -91,17 +73,6 @@ export class Newsletter {
     this.roleFilter.set('all');
     this.subscriberPage.set(1);
     void this.loadSubscribers();
-  }
-
-  protected applyHistoryFilters(): void {
-    this.campaignPage.set(1);
-    void this.loadCampaigns();
-  }
-
-  protected resetHistoryFilters(): void {
-    this.historyQuery.set('');
-    this.campaignPage.set(1);
-    void this.loadCampaigns();
   }
 
   protected isSelected(userId: string): boolean {
@@ -146,18 +117,6 @@ export class Newsletter {
     void this.loadSubscribers();
   }
 
-  protected previousCampaignsPage(): void {
-    if (this.campaignPage() <= 1) return;
-    this.campaignPage.update((page) => page - 1);
-    void this.loadCampaigns();
-  }
-
-  protected nextCampaignsPage(): void {
-    if (this.campaignPage() >= this.campaignsMeta().totalPages) return;
-    this.campaignPage.update((page) => page + 1);
-    void this.loadCampaigns();
-  }
-
   private async loadSubscribers(): Promise<void> {
     this.subscribersLoading.set(true);
     try {
@@ -177,25 +136,6 @@ export class Newsletter {
       this.subscribersMeta.set({ ...EMPTY_META });
     } finally {
       this.subscribersLoading.set(false);
-    }
-  }
-
-  private async loadCampaigns(): Promise<void> {
-    this.campaignsLoading.set(true);
-    try {
-      const response = await this.api.listCampaigns({
-        page: this.campaignPage(),
-        limit: PAGE_LIMIT,
-        query: this.historyQuery(),
-      });
-      this.campaigns.set(response.campaigns);
-      this.campaignsMeta.set(response.meta);
-    } catch (error) {
-      this.statusMessage.set(errorMessage(error, 'Не удалось загрузить историю рассылок.'));
-      this.campaigns.set([]);
-      this.campaignsMeta.set({ ...EMPTY_META });
-    } finally {
-      this.campaignsLoading.set(false);
     }
   }
 }

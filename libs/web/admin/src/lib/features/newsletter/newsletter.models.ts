@@ -2,6 +2,7 @@ export type NewsletterSubscriberStatusFilter = 'all' | 'active' | 'unsubscribed'
 export type NewsletterRoleFilter = 'all' | 'applicant' | 'notary' | 'admin';
 export type NewsletterAudienceMode = 'all' | 'role' | 'selected';
 export type NewsletterCampaignStatus = 'sending' | 'sent' | 'failed' | 'partialFailed';
+export type NewsletterCampaignStatusFilter = NewsletterCampaignStatus | 'all';
 
 export interface NewsletterPagination {
   totalItems: number;
@@ -33,6 +34,19 @@ export interface NewsletterCampaignView {
   sentCount: number;
   failedCount: number;
   status: NewsletterCampaignStatus;
+  statusLabel: string;
+}
+
+export interface NewsletterCampaignDetailView {
+  campaign: NewsletterCampaignView;
+  previewText: string;
+  recipients: NewsletterCampaignRecipientView[];
+}
+
+export interface NewsletterCampaignRecipientView {
+  email: string;
+  fullName: string;
+  status: 'pending' | 'sent' | 'failed';
   statusLabel: string;
 }
 

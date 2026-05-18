@@ -4,14 +4,11 @@
       <p class="newsletter-page__eyebrow">Администратор / рассылка</p>
       <h2>Управление email-рассылкой</h2>
       <p class="newsletter-page__lead">
-        Рабочий список подписчиков, выбор аудитории и история кампаний из backend.
+        Рабочий список подписчиков и выбор аудитории для email-рассылки.
       </p>
     </div>
 
     <div class="newsletter-page__hero-actions">
-      <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="setTab('history')">
-        История
-      </button>
       <button type="button" class="newsletter-btn newsletter-btn--primary" (click)="createCampaignForAll()">
         Новая рассылка
       </button>
@@ -23,24 +20,6 @@
     <strong>Выбрано: {{ selectedCount() }}</strong>
   </section>
 
-  <nav class="newsletter-tabs" aria-label="Разделы рассылки">
-    <button
-      type="button"
-      class="newsletter-tab"
-      [class.newsletter-tab--active]="activeTab() === 'subscribers'"
-      (click)="setTab('subscribers')">
-      Подписчики
-    </button>
-    <button
-      type="button"
-      class="newsletter-tab"
-      [class.newsletter-tab--active]="activeTab() === 'history'"
-      (click)="setTab('history')">
-      История кампаний
-    </button>
-  </nav>
-
-  @if (activeTab() === 'subscribers') {
   <section class="newsletter-panel" aria-label="Список подписчиков">
     <div class="newsletter-panel__header">
       <div>
@@ -162,89 +141,4 @@
       </div>
     </footer>
   </section>
-  } @else {
-  <section class="newsletter-panel" aria-label="История кампаний">
-    <div class="newsletter-panel__header">
-      <div>
-        <h3>История рассылок</h3>
-        <p>Кампании с количеством получателей и итоговым статусом доставки.</p>
-      </div>
-    </div>
-
-    <div class="newsletter-filters newsletter-filters--history">
-      <label class="newsletter-field newsletter-field--search">
-        <span>Поиск</span>
-        <input
-          type="search"
-          placeholder="Тема или аудитория"
-          [value]="historyQuery()"
-          (input)="updateHistoryQuery($any($event.target).value)"
-          (keydown.enter)="applyHistoryFilters()" />
-      </label>
-      <div class="newsletter-actions">
-        <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="applyHistoryFilters()">
-          Найти
-        </button>
-        <button type="button" class="newsletter-btn newsletter-btn--ghost" (click)="resetHistoryFilters()">
-          Сбросить
-        </button>
-      </div>
-    </div>
-
-    <div class="newsletter-table-wrap">
-      <table class="newsletter-table newsletter-table--history">
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>Тема</th>
-            <th>Аудитория</th>
-            <th>Получатели</th>
-            <th>Доставлено</th>
-            <th>Статус</th>
-          </tr>
-        </thead>
-        <tbody>
-          @if (campaignsLoading()) {
-          <tr>
-            <td colspan="6" class="newsletter-empty">Загрузка истории...</td>
-          </tr>
-          } @else if (campaigns().length) { @for (campaign of campaigns(); track campaign.id) {
-          <tr>
-            <td>{{ campaign.createdAt }}</td>
-            <td class="newsletter-table__subject">{{ campaign.subject }}</td>
-            <td>{{ campaign.audienceLabel }}</td>
-            <td>{{ campaign.recipientsCount }}</td>
-            <td>{{ campaign.sentCount }} / {{ campaign.failedCount }}</td>
-            <td>
-              <span
-                class="newsletter-badge"
-                [class.newsletter-badge--danger]="campaign.status === 'failed'"
-                [class.newsletter-badge--warning]="campaign.status === 'partialFailed'"
-                [class.newsletter-badge--muted]="campaign.status === 'sending'">
-                {{ campaign.statusLabel }}
-              </span>
-            </td>
-          </tr>
-          } } @else {
-          <tr>
-            <td colspan="6" class="newsletter-empty">История рассылок пока пуста.</td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <footer class="newsletter-panel__footer newsletter-panel__footer--end">
-      <div class="newsletter-pagination">
-        <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="campaignPage() <= 1" (click)="previousCampaignsPage()">
-          Назад
-        </button>
-        <span>{{ campaignsMeta().currentPage }} / {{ campaignsMeta().totalPages }}</span>
-        <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="campaignPage() >= campaignsMeta().totalPages" (click)="nextCampaignsPage()">
-          Вперёд
-        </button>
-      </div>
-    </footer>
-  </section>
-  }
 </section>
