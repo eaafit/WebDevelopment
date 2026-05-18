@@ -47,6 +47,7 @@ export class Newsletter {
   protected readonly campaignPage = signal(1);
   protected readonly subscribersLoading = signal(false);
   protected readonly campaignsLoading = signal(false);
+  protected readonly templateLoadingId = signal<string | null>(null);
   protected readonly statusMessage = signal('Загрузка списка подписчиков и истории рассылок.');
 
   protected readonly selectedCount = this.selection.selectedCount;
@@ -132,6 +133,23 @@ export class Newsletter {
 
   protected async createCampaignForAll(): Promise<void> {
     await this.router.navigate(['/admin', 'newsletter', 'new']);
+  }
+
+  protected async useCampaignAsTemplate(campaign: NewsletterCampaignView): Promise<void> {
+    this.templateLoadingId.set(campaign.id);
+    try {
+      const detail = await this.api.getCampaign(campaign.id);
+      this.selection.setDraftTemplate({
+        sourceCampaignId: campaign.id,
+        subject: detail.campaign.subject,
+        bodyHtml: detail.bodyHtml,
+      });
+      await this.router.navigate(['/admin', 'newsletter', 'new']);
+    } catch (error) {
+      this.statusMessage.set(errorMessage(error, 'Не удалось загрузить рассылку как шаблон.'));
+    } finally {
+      this.templateLoadingId.set(null);
+    }
   }
 
   protected previousSubscribersPage(): void {
