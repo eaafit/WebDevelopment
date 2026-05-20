@@ -1,28 +1,26 @@
-<div class="content">
-  <div class="card">
+<div class="dashboard">
+  <div class="welcome">
     <h1>Добро пожаловать!</h1>
-    <p>Вот основная информация о вашей деятельности:</p>
+    <p>Основная информация о вашей деятельности</p>
+  </div>
 
-    <div class="stats">
-      <div class="stat-card">
-        <h3>Активных заказов</h3>
-        <p class="stat-number">{{ activeOrdersCount }}</p>
-      </div>
-      <div class="stat-card">
-        <h3>Новых уведомлений</h3>
-        <p class="stat-number">{{ notificationsCount }}</p>
-      </div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-title">Активных заказов</div>
+      <div class="stat-number">{{ activeOrdersCount }}</div>
+      <button class="stat-btn" [routerLink]="'/notary/orders'">Перейти к заказам</button>
     </div>
+    <div class="stat-card">
+      <div class="stat-title">Новых уведомлений</div>
+      <div class="stat-number">{{ notificationsCount }}</div>
+      <button class="stat-btn" [routerLink]="'/notary/notifications'">Перейти к уведомлениям</button>
+    </div>
+  </div>
 
-    <div class="subscription-card">
-      <h3>Тариф: Нотариус PRO</h3>
-      <p>Стоимость: 2990 ₽ / месяц</p>
-      <p>Срок действия: до 31.07.2026</p>
-      <button class="btn btn-outline" [routerLink]="'/notary/subscription'">Управление подпиской</button>
-    </div>
-
-    <div class="quick-actions">
-      <button class="btn btn-primary" [routerLink]="'/notary/orders'">Перейти к заказам</button>
-    </div>
+  <div class="subscription-card">
+    <div class="subscription-title">Тариф: Нотариус PRO</div>
+    <div class="subscription-detail">Стоимость: 2990 ₽ / месяц</div>
+    <div class="subscription-detail">Срок действия: до 31.07.2026</div>
+    <button class="btn-outline" [routerLink]="'/notary/subscription'">Управление подпиской</button>
   </div>
 </div>
