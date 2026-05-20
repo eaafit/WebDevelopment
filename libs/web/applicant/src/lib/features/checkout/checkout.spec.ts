@@ -171,7 +171,7 @@ describe('Checkout', () => {
     expect(element.querySelector('.widget-stage')).not.toBeNull();
   });
 
-  it('should block payment start when the service target is missing', async () => {
+  it('should block assessment payment start when the service target is missing', async () => {
     TestBed.resetTestingModule();
 
     await TestBed.configureTestingModule({
@@ -229,13 +229,66 @@ describe('Checkout', () => {
     expect(checkoutApi.createPayment).not.toHaveBeenCalled();
     expect(localCheckout.state()).toBe('error');
     expect(localCheckout.errorMessage()).toContain('не хватает идентификатора заказа');
-    expect(logger.warn).toHaveBeenCalledWith(
-      'payment.checkout.applicant.start_blocked_missing_target',
-      expect.objectContaining({
-        area: 'applicant_checkout',
-        targetId: null,
-      }),
-    );
+  });
+
+  it('should use balance mode for direct checkout visits', async () => {
+    TestBed.resetTestingModule();
+
+    await TestBed.configureTestingModule({
+      imports: [Checkout],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParamMap: convertToParamMap({}),
+              routeConfig: { path: 'checkout' },
+            },
+          },
+        },
+        {
+          provide: TokenStore,
+          useValue: {
+            user: signal({
+              id: 'user-1',
+              email: 'applicant@example.com',
+              fullName: 'Test Applicant',
+              role: 1,
+              phoneNumber: '',
+              isActive: true,
+            }).asReadonly(),
+          },
+        },
+        {
+          provide: CheckoutApiService,
+          useValue: checkoutApi,
+        },
+        {
+          provide: YooKassaWidgetService,
+          useValue: widgetService,
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
+        },
+      ],
+    }).compileComponents();
+
+    const localFixture = TestBed.createComponent(Checkout);
+    const localCheckout = localFixture.componentInstance as CheckoutTestApi;
+    localFixture.detectChanges();
+    await localFixture.whenStable();
+
+    await localCheckout.startRobokassaPayment();
+
+    expect(checkoutApi.createPayment).toHaveBeenCalledWith({
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.DOCUMENT_COPY,
+      targetId: 'user-1',
+      paymentProvider: 'robokassa',
+    });
   });
 
   it('should switch to the success state after widget success and confirmed webhook status', async () => {

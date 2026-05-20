@@ -197,6 +197,7 @@ export class AdminPaymentsApiService {
 
   private toAdminPayment(payment: RpcPayment): Payment {
     const status = fromRpcPaymentStatus(payment.status);
+    const userId = payment.userId || '—';
 
     return {
       id: payment.id,
@@ -204,8 +205,9 @@ export class AdminPaymentsApiService {
       paymentDate: payment.paymentDate
         ? timestampDate(payment.paymentDate).toISOString().slice(0, 10)
         : '',
-      payer: payment.userId || '—',
+      payer: userId,
       amount: Number(payment.amount?.amount ?? '0'),
+      currency: payment.amount?.currency ?? 'RUB',
       fee: 0,
       status,
       statusText: PAYMENT_STATUS_LABELS[status],

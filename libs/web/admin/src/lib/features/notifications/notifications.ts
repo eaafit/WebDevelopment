@@ -1,18 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { timestampDate } from '@bufbuild/protobuf/wkt';
-import {
-  NotificationCategory as RpcNotificationCategory,
-  NotificationStatus as RpcNotificationStatus,
-  NotificationType as RpcNotificationType,
-  type Notification as RpcNotification,
-} from '@notary-portal/api-contracts';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { TokenStore } from '@notary-portal/ui';
-import { AdminNotificationsApiService } from './notifications-api.service';
+import { WebLoggerService } from '@notary-portal/ui';
+import {
+  AdminNotificationsApiService,
+  type AdminNotificationCategory,
+  type AdminNotificationChannel,
+  type AdminNotificationRecord,
+} from './notifications-api.service';
 
 export type NotificationLifecycle = 'created' | 'sent' | 'failed' | 'read' | 'deleted';
-type NotificationChannel = 'in-app' | 'email' | 'sms' | 'push';
-type NotificationCategory = 'application' | 'document' | 'payment' | 'system' | 'assessment';
+type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
 
 interface AdminNotification {
   id: string;
@@ -20,16 +17,14 @@ interface AdminNotification {
   description: string;
   createdAt: string;
   relativeTime: string;
-  category: NotificationCategory;
-  channel: NotificationChannel;
+  category: AdminNotificationCategory;
+  channel: AdminNotificationChannel;
   lifecycle: NotificationLifecycle;
 }
 
-type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
-
 interface AdminNotificationFilters {
-  category: 'all' | NotificationCategory;
-  channel: 'all' | NotificationChannel;
+  category: 'all' | AdminNotificationCategory;
+  channel: 'all' | AdminNotificationChannel;
   lifecycle: LifecycleFilter;
 }
 
@@ -48,13 +43,12 @@ const DEFAULT_FILTERS: AdminNotificationFilters = {
 })
 export class AdminNotifications implements OnInit {
   private readonly api = inject(AdminNotificationsApiService);
-  private readonly tokenStore = inject(TokenStore);
+  private readonly logger = inject(WebLoggerService);
 
   protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
-  protected readonly isLoading = signal(true);
-  protected readonly hasLoadError = signal(false);
-
   protected readonly notifications = signal<AdminNotification[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly loadError = signal<string | null>(null);
 
   protected readonly filtered = computed(() => {
     const { category, channel, lifecycle } = this.filters();
@@ -82,8 +76,8 @@ export class AdminNotifications implements OnInit {
       ).length,
   );
 
-  async ngOnInit(): Promise<void> {
-    await this.loadNotifications();
+  ngOnInit(): void {
+    void this.loadNotifications();
   }
 
   protected setFilter<K extends keyof AdminNotificationFilters>(
@@ -108,7 +102,7 @@ export class AdminNotifications implements OnInit {
     }
   }
 
-  protected categoryLabel(category: NotificationCategory): string {
+  protected categoryLabel(category: AdminNotificationCategory): string {
     switch (category) {
       case 'application':
         return 'Заявки';
@@ -124,7 +118,7 @@ export class AdminNotifications implements OnInit {
     }
   }
 
-  protected channelLabel(channel: NotificationChannel): string {
+  protected channelLabel(channel: AdminNotificationChannel): string {
     switch (channel) {
       case 'email':
         return 'Email';
@@ -139,41 +133,58 @@ export class AdminNotifications implements OnInit {
   }
 
   protected async markAllAsRead(): Promise<void> {
-    const userId = this.tokenStore.user()?.id?.trim();
-    if (!userId) return;
-
-    await this.api.markAllAsRead(userId);
-    this.notifications.update((items) =>
-      items.map((n) =>
-        n.lifecycle === 'deleted'
-          ? n
-          : {
-              ...n,
-              lifecycle: 'read' as const,
-            },
-      ),
-    );
+    try {
+      await this.api.markAllAsRead();
+      this.notifications.update((items) =>
+        items.map((n) =>
+          n.lifecycle === 'deleted'
+            ? n
+            : {
+                ...n,
+                lifecycle: 'read' as const,
+              },
+        ),
+      );
+    } catch (error) {
+      this.handleActionError('notification.admin.mark_all_failed', error);
+    }
   }
 
   protected async markReadOnCard(id: string): Promise<void> {
-    const current = this.notifications().find((n) => n.id === id);
-    if (!current || current.lifecycle === 'deleted' || current.lifecycle === 'read') return;
+    const current = this.notifications().find((item) => item.id === id);
+    if (!current || current.lifecycle === 'read' || current.lifecycle === 'deleted') {
+      return;
+    }
 
-    await this.api.markAsRead(id);
-    this.notifications.update((items) =>
-      items.map((n) => {
-        if (n.id !== id || n.lifecycle === 'deleted') return n;
-        return { ...n, lifecycle: 'read' };
-      }),
-    );
+    try {
+      const updated = await this.api.markAsRead(id);
+      this.notifications.update((items) =>
+        items.map((n) =>
+          n.id === id
+            ? updated
+              ? toAdminNotification(updated)
+              : { ...n, lifecycle: 'read' as const }
+            : n,
+        ),
+      );
+    } catch (error) {
+      this.handleActionError('notification.admin.mark_one_failed', error, { notificationId: id });
+    }
   }
 
   protected async deleteOne(id: string, event: Event): Promise<void> {
     event.stopPropagation();
-    await this.api.deleteNotification(id);
-    this.notifications.update((items) =>
-      items.map((n) => (n.id === id ? { ...n, lifecycle: 'deleted' as const } : n)),
-    );
+
+    try {
+      const success = await this.api.deleteNotification(id);
+      if (!success) {
+        throw new Error('Сервер не подтвердил удаление уведомления');
+      }
+
+      this.notifications.update((items) => items.filter((n) => n.id !== id));
+    } catch (error) {
+      this.handleActionError('notification.admin.delete_failed', error, { notificationId: id });
+    }
   }
 
   protected async clearAllHistory(): Promise<void> {
@@ -181,105 +192,98 @@ export class AdminNotifications implements OnInit {
       return;
     }
 
-    await Promise.all(
-      this.notifications()
-        .filter((item) => item.lifecycle !== 'deleted')
-        .map((item) => this.api.deleteNotification(item.id)),
-    );
-    this.notifications.set([]);
+    try {
+      const ids = this.notifications().map((item) => item.id);
+      const results = await Promise.allSettled(ids.map((id) => this.api.deleteNotification(id)));
+      const failedCount = results.filter(
+        (result) => result.status === 'rejected' || !result.value,
+      ).length;
+
+      if (failedCount) {
+        throw new Error(`Не удалось удалить уведомлений: ${failedCount}`);
+      }
+
+      this.notifications.set([]);
+    } catch (error) {
+      this.handleActionError('notification.admin.clear_failed', error);
+    }
+  }
+
+  protected async reload(): Promise<void> {
+    await this.loadNotifications();
   }
 
   private async loadNotifications(): Promise<void> {
-    const userId = this.tokenStore.user()?.id?.trim();
-    if (!userId) {
-      this.isLoading.set(false);
-      return;
-    }
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.logger.info('notification.admin.list_load_started', {
+      area: 'admin_notifications',
+    });
 
     try {
-      const notifications = await this.api.listNotifications(userId);
-      this.notifications.set(notifications.map((item) => toAdminNotification(item)));
-    } catch {
-      this.hasLoadError.set(true);
+      const response = await this.api.listNotifications();
+      this.notifications.set(response.notifications.map(toAdminNotification));
+      this.logger.info('notification.admin.list_load_succeeded', {
+        area: 'admin_notifications',
+        total: response.notifications.length,
+        unreadCount: response.unreadCount,
+      });
+    } catch (error) {
+      this.notifications.set([]);
+      this.loadError.set('Не удалось загрузить уведомления с сервера');
+      this.handleActionError('notification.admin.list_load_failed', error);
     } finally {
-      this.isLoading.set(false);
+      this.loading.set(false);
     }
   }
+
+  private handleActionError(
+    event: string,
+    error: unknown,
+    context: Record<string, unknown> = {},
+  ): void {
+    this.logger.error(event, {
+      area: 'admin_notifications',
+      ...context,
+      error,
+    });
+  }
 }
 
-function toAdminNotification(notification: RpcNotification): AdminNotification {
-  const createdAt = notification.sentAt ? timestampDate(notification.sentAt) : new Date();
-
+function toAdminNotification(item: AdminNotificationRecord): AdminNotification {
   return {
-    id: notification.id,
-    title: notification.title || 'Уведомление',
-    description: notification.message,
-    createdAt: createdAt.toISOString(),
-    relativeTime: formatRelativeTime(createdAt),
-    category: fromRpcCategory(notification.category),
-    channel: fromRpcChannel(notification.type),
-    lifecycle: fromRpcLifecycle(notification),
+    id: item.id,
+    title: item.title,
+    description: item.message,
+    createdAt: item.sentAt.toISOString(),
+    relativeTime: formatRelativeTime(item.sentAt),
+    category: item.category,
+    channel: item.channel,
+    lifecycle: item.readAt ? 'read' : item.deliveryStatus,
   };
-}
-
-function fromRpcCategory(category: RpcNotificationCategory): NotificationCategory {
-  switch (category) {
-    case RpcNotificationCategory.APPLICATION:
-      return 'application';
-    case RpcNotificationCategory.DOCUMENT:
-      return 'document';
-    case RpcNotificationCategory.PAYMENT:
-      return 'payment';
-    case RpcNotificationCategory.ASSESSMENT:
-      return 'assessment';
-    case RpcNotificationCategory.SYSTEM:
-    case RpcNotificationCategory.UNSPECIFIED:
-    default:
-      return 'system';
-  }
-}
-
-function fromRpcChannel(type: RpcNotificationType): NotificationChannel {
-  switch (type) {
-    case RpcNotificationType.EMAIL:
-      return 'email';
-    case RpcNotificationType.SMS:
-      return 'sms';
-    case RpcNotificationType.PUSH:
-      return 'push';
-    case RpcNotificationType.IN_APP:
-    case RpcNotificationType.UNSPECIFIED:
-    default:
-      return 'in-app';
-  }
-}
-
-function fromRpcLifecycle(notification: RpcNotification): NotificationLifecycle {
-  if (notification.readAt) {
-    return 'read';
-  }
-
-  switch (notification.status) {
-    case RpcNotificationStatus.PENDING:
-      return 'created';
-    case RpcNotificationStatus.FAILED:
-      return 'failed';
-    case RpcNotificationStatus.SENT:
-    case RpcNotificationStatus.UNSPECIFIED:
-    default:
-      return 'sent';
-  }
 }
 
 function formatRelativeTime(date: Date): string {
   const diffMs = Math.max(0, Date.now() - date.getTime());
   const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 1) return 'только что';
-  if (minutes < 60) return `${minutes} мин назад`;
+
+  if (minutes < 1) {
+    return 'только что';
+  }
+
+  if (minutes < 60) {
+    return `${minutes} мин назад`;
+  }
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} ч назад`;
+  if (hours < 24) {
+    return `${hours} ч назад`;
+  }
 
   const days = Math.floor(hours / 24);
-  return `${days} дн назад`;
+  if (days < 7) {
+    return `${days} дн назад`;
+  }
+
+  return date.toLocaleDateString('ru-RU');
 }

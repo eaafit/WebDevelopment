@@ -38,6 +38,10 @@ describe('PaymentCreateService', () => {
   const auditService = {
     record: jest.fn(),
   };
+  const paymentNotificationService = {
+    notifyPaymentCreated: jest.fn(),
+    notifyPaymentCreationFailed: jest.fn(),
+  };
   const prisma = {
     payment: {
       create: createPaymentRecord,
@@ -71,6 +75,8 @@ describe('PaymentCreateService', () => {
     robokassa.createPayment.mockReset();
     paymentSubscriptionService.resolveSubscriptionForPayment.mockReset();
     auditService.record.mockReset();
+    paymentNotificationService.notifyPaymentCreated.mockReset();
+    paymentNotificationService.notifyPaymentCreationFailed.mockReset();
 
     paymentSubscriptionService.resolveSubscriptionForPayment.mockResolvedValue({
       id: 'subscription-1',
@@ -125,6 +131,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -216,6 +223,18 @@ describe('PaymentCreateService', () => {
         }),
       }),
     );
+    expect(paymentNotificationService.notifyPaymentCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PrismaPaymentType.Subscription,
+        amount: '1350.00',
+        status: PaymentStatus.Pending,
+        transactionId: 'yk-payment-1',
+        paymentMethod: 'yookassa_widget',
+        subscriptionId: 'subscription-1',
+      }),
+    );
   });
 
   it('should mark assessment service payments as applicant billing metrics', async () => {
@@ -230,6 +249,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -278,6 +298,53 @@ describe('PaymentCreateService', () => {
     });
   });
 
+  it('should create direct applicant top-up without assessment relation', async () => {
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      robokassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '2500.00',
+      type: PaymentType.ASSESSMENT,
+      targetId: 'user-1',
+      paymentProvider: 'robokassa',
+    });
+
+    const response = await service.createPayment(request);
+
+    expect(createPaymentRecord).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: PrismaPaymentType.Assessment,
+        amount: '2500.00',
+        status: PaymentStatus.Pending,
+        subscriptionId: null,
+        assessmentId: null,
+        paymentMethod: 'robokassa_redirect',
+        receiptStatus: PaymentReceiptStatus.Available,
+      }),
+    });
+    expect(robokassa.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        invoiceId: 'payment-1',
+        amount: '2500.00',
+        description: 'Пополнение баланса',
+      }),
+    );
+    expect(yookassa.createPayment).not.toHaveBeenCalled();
+    expect(response).toEqual(
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: 'https://auth.robokassa.ru/Merchant/Index.aspx?InvId=payment-1',
+      }),
+    );
+  });
+
   it('should send receipt data for document copy payments', async () => {
     findUser.mockResolvedValueOnce({
       email: 'applicant@example.com',
@@ -290,6 +357,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -364,6 +432,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -392,6 +461,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(ValidateSubscriptionPromoRequestSchema, {
@@ -431,6 +501,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -466,6 +537,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -500,6 +572,18 @@ describe('PaymentCreateService', () => {
           providerStatusCode: 503,
         }),
       }),
+    );
+    expect(paymentNotificationService.notifyPaymentCreationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PrismaPaymentType.Subscription,
+        amount: '1500.00',
+        status: PaymentStatus.Failed,
+        paymentMethod: 'yookassa_widget',
+        subscriptionId: 'subscription-1',
+      }),
+      'Provider is unavailable',
     );
   });
 

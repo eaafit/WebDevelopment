@@ -14,8 +14,8 @@ describe('EstimationForm', () => {
   let fixture: ComponentFixture<EstimationForm>;
   let router: Router;
   let navigateSpy: jest.SpiedFunction<Router['navigate']>;
-  let listCitiesMock: jest.Mock;
-  let listDistrictsMock: jest.Mock;
+  let getFiasAddressHintsMock: jest.Mock;
+  let getFiasAddressItemByIdMock: jest.Mock;
   let findLatestDraftMock: jest.Mock;
   let createDraftMock: jest.Mock;
   let updateDraftMock: jest.Mock;
@@ -24,22 +24,38 @@ describe('EstimationForm', () => {
   let localDraftIsCompletedMock: jest.Mock;
 
   beforeEach(async () => {
-    listCitiesMock = jest.fn().mockResolvedValue([
-      { id: 'city-1', name: 'Екатеринбург' },
-      { id: 'city-2', name: 'Москва' },
+    getFiasAddressHintsMock = jest.fn().mockResolvedValue([
+      {
+        objectId: '6600000100000000000000002',
+        objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+        fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+        objectLevelId: 11,
+        addressType: 2,
+        cityId: 'city-1',
+        districtId: 'district-1',
+      },
     ]);
-    listDistrictsMock = jest
-      .fn()
-      .mockResolvedValue([{ id: 'district-1', cityId: 'city-1', name: 'Ленинский' }]);
+    getFiasAddressItemByIdMock = jest.fn().mockResolvedValue({
+      objectId: '6600000100000000000000002',
+      objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
+      addressType: 2,
+      cityId: 'city-1',
+      districtId: 'district-1',
+      cadastralNumber: '660000000002',
+    });
     findLatestDraftMock = jest.fn().mockResolvedValue(null);
     createDraftMock = jest.fn().mockResolvedValue({
       id: 'assessment-1',
       status: 1,
       updatedAt: '2026-04-04T10:00:00.000Z',
       form: {
+        fiasObjectId: '6600000100000000000000002',
+        fiasObjectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
         cityId: 'city-1',
         districtId: '',
-        address: 'Екатеринбург, ул. Ленина, д. 10',
+        address: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
         cadastralNumber: '',
         area: '54.6',
         objectType: '1',
@@ -78,8 +94,8 @@ describe('EstimationForm', () => {
         {
           provide: AssessmentApiService,
           useValue: {
-            listCities: listCitiesMock,
-            listDistricts: listDistrictsMock,
+            getFiasAddressHints: getFiasAddressHintsMock,
+            getFiasAddressItemById: getFiasAddressItemByIdMock,
             findLatestDraft: findLatestDraftMock,
             getAssessment: jest.fn(),
             createDraft: createDraftMock,
@@ -152,12 +168,80 @@ describe('EstimationForm', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should load cities on init', () => {
-    expect(listCitiesMock).toHaveBeenCalled();
-    expect(component.cities()).toEqual([
-      { id: 'city-1', name: 'Екатеринбург' },
-      { id: 'city-2', name: 'Москва' },
-    ]);
+  it('should load FIAS address hints after address input', async () => {
+    component.formControls.address.setValue('Екатеринбург Ленина');
+
+    await fixture.whenStable();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+
+    expect(getFiasAddressHintsMock).toHaveBeenCalledWith('Екатеринбург Ленина');
+    expect(component.addressSuggestions()).toHaveLength(1);
+  });
+
+  it('should fill hidden geography fields from selected FIAS address', async () => {
+    const suggestion = {
+      objectId: '6600000100000000000000002',
+      objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
+      addressType: 2,
+      cityId: 'city-1',
+      districtId: 'district-1',
+    };
+
+    await component.onSelectAddressSuggestion(suggestion);
+
+    expect(getFiasAddressItemByIdMock).toHaveBeenCalledWith('6600000100000000000000002');
+    expect(component.formControls.address.value).toBe(
+      'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+    );
+    expect(component.formControls.cityId.value).toBe('city-1');
+    expect(component.formControls.districtId.value).toBe('district-1');
+    expect(component.formControls.cadastralNumber.value).toBe('660000000002');
+  });
+
+  it('should save a draft after selecting a FIAS suggestion', async () => {
+    await component.onSelectAddressSuggestion({
+      objectId: '6600000100000000000000002',
+      objectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+      fullName: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      objectLevelId: 11,
+      addressType: 2,
+      cityId: 'city-1',
+      districtId: 'district-1',
+    });
+    component.formControls.area.setValue('54.6');
+    component.formControls.objectType.setValue('1');
+    component.formControls.floorsTotal.setValue('9');
+    component.formControls.condition.setValue('2');
+
+    await (component as unknown as { handleAutosave(): Promise<void> }).handleAutosave();
+
+    expect(component.formControls.cityId.valid).toBe(true);
+    expect(component.formControls.address.valid).toBe(true);
+    expect(createDraftMock).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        fiasObjectId: '6600000100000000000000002',
+        fiasObjectGuid: 'b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002',
+        cityId: 'city-1',
+        districtId: 'district-1',
+        address: 'Свердловская обл, г Екатеринбург, ул Ленина, д 10, кв 45',
+      }),
+    );
+  });
+
+  it('should not save a draft when address text was not selected from FIAS hints', async () => {
+    component.formControls.address.setValue('Свердловская обл, г Екатеринбург, ул Ленина, д 10');
+    component.formControls.area.setValue('54.6');
+    component.formControls.objectType.setValue('1');
+    component.formControls.floorsTotal.setValue('9');
+    component.formControls.condition.setValue('2');
+
+    await (component as unknown as { handleAutosave(): Promise<void> }).handleAutosave();
+
+    expect(component.formControls.cityId.valid).toBe(false);
+    expect(createDraftMock).not.toHaveBeenCalled();
   });
 
   it('should submit and navigate to status when required fields are filled', async () => {
@@ -313,6 +397,8 @@ describe('EstimationForm', () => {
 });
 
 function fillRequiredFields(component: EstimationForm): void {
+  component.formControls.fiasObjectId.setValue('6600000100000000000000002');
+  component.formControls.fiasObjectGuid.setValue('b1f7b1a0-8a2c-4b1b-9b7f-9d764a3a1002');
   component.formControls.cityId.setValue('city-1');
   component.formControls.address.setValue('Екатеринбург, ул. Ленина, д. 10');
   component.formControls.area.setValue('54.6');

@@ -9,14 +9,29 @@ import {
   CompleteAssessmentResponseSchema,
   CreateAssessmentResponseSchema,
   ElevatorType,
+  GetFiasAddressDetailsResponseSchema,
+  GetFiasAddressHintsResponseSchema,
+  GetFiasAddressItemByGuidResponseSchema,
+  GetFiasAddressItemByIdResponseSchema,
   RealEstateCondition,
   RealEstateObjectType,
+  SearchFiasAddressItemsResponseSchema,
+  SearchFiasAddressByPartsResponseSchema,
   type CancelAssessmentRequest,
   type CancelAssessmentResponse,
   type CompleteAssessmentRequest,
   type CompleteAssessmentResponse,
   type CreateAssessmentRequest,
   type CreateAssessmentResponse,
+  type GetFiasAddressDetailsRequest,
+  type GetFiasAddressDetailsResponse,
+  type GetFiasAddressHintsRequest,
+  type GetFiasAddressHintsResponse,
+  type FiasAddressItem,
+  type GetFiasAddressItemByGuidRequest,
+  type GetFiasAddressItemByGuidResponse,
+  type GetFiasAddressItemByIdRequest,
+  type GetFiasAddressItemByIdResponse,
   type GetAssessmentRequest,
   type GetAssessmentResponse,
   type ListAssessmentsRequest,
@@ -26,6 +41,10 @@ import {
   type ListDistrictsRequest,
   type ListDistrictsResponse,
   type RealEstateObjectInput,
+  type SearchFiasAddressByPartsRequest,
+  type SearchFiasAddressByPartsResponse,
+  type SearchFiasAddressItemsRequest,
+  type SearchFiasAddressItemsResponse,
   type UpdateAssessmentRequest,
   type UpdateAssessmentResponse,
   type VerifyAssessmentRequest,
@@ -36,7 +55,7 @@ import {
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
 import {
   AssessmentStatus as PrismaAssessmentStatus,
@@ -48,6 +67,7 @@ import {
   type AssessmentRealEstateObjectData,
 } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
+import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -57,6 +77,8 @@ const CADASTRAL_NUMBER_PATTERN = /^\d{12}$/;
 const AREA_LIMITS = { minimum: 1, maximum: 10_000 } as const;
 const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as const;
 const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
+const FIAS_QUERY_MIN_LENGTH = 3;
+const FIAS_LIMITS = { default: 5, maximum: 10 } as const;
 const YEAR_BUILT_LIMITS = {
   minimum: 1700,
   maximum: new Date().getFullYear() + 1,
@@ -70,6 +92,7 @@ export class AssessmentService {
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
+    @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
   ) {}
 
@@ -82,6 +105,95 @@ export class AssessmentService {
     return this.assessmentRepository.listDistricts(
       normalizeOptionalUuid(request.cityId, 'city_id'),
     );
+  }
+
+  async getFiasAddressHints(
+    request: GetFiasAddressHintsRequest,
+  ): Promise<GetFiasAddressHintsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    if (query.length < FIAS_QUERY_MIN_LENGTH) {
+      return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+    }
+
+    const hints = await this.fiasProvider.getAddressHint({
+      query,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(GetFiasAddressHintsResponseSchema, { hints });
+  }
+
+  async searchFiasAddressItems(
+    request: SearchFiasAddressItemsRequest,
+  ): Promise<SearchFiasAddressItemsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    if (query.length < FIAS_QUERY_MIN_LENGTH) {
+      return create(SearchFiasAddressItemsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressItemsResponseSchema, { items });
+  }
+
+  async getFiasAddressItemById(
+    request: GetFiasAddressItemByIdRequest,
+  ): Promise<GetFiasAddressItemByIdResponse> {
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemById(
+        normalizeRequiredText(request.objectId, 'object_id'),
+      ),
+    );
+    return create(GetFiasAddressItemByIdResponseSchema, { item });
+  }
+
+  async getFiasAddressItemByGuid(
+    request: GetFiasAddressItemByGuidRequest,
+  ): Promise<GetFiasAddressItemByGuidResponse> {
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemByGuid(
+        normalizeRequiredText(request.objectGuid, 'object_guid'),
+      ),
+    );
+    return create(GetFiasAddressItemByGuidResponseSchema, { item });
+  }
+
+  async getFiasAddressDetails(
+    request: GetFiasAddressDetailsRequest,
+  ): Promise<GetFiasAddressDetailsResponse> {
+    const details = await this.fiasProvider.getDetails(
+      normalizeRequiredText(request.objectId, 'object_id'),
+    );
+    return create(GetFiasAddressDetailsResponseSchema, { details });
+  }
+
+  async searchFiasAddressByParts(
+    request: SearchFiasAddressByPartsRequest,
+  ): Promise<SearchFiasAddressByPartsResponse> {
+    const region = normalizeOptionalText(request.region);
+    const city = normalizeOptionalText(request.city);
+    const street = normalizeOptionalText(request.street);
+    const house = normalizeOptionalText(request.house);
+
+    if (!region && !city && !street && !house) {
+      return create(SearchFiasAddressByPartsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchByParts({
+      region,
+      city,
+      street,
+      house,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressByPartsResponseSchema, { items });
   }
 
   async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
@@ -139,7 +251,9 @@ export class AssessmentService {
     try {
       validateUuid(request.userId, 'user_id');
 
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+      );
       const address =
         realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
 
@@ -203,7 +317,9 @@ export class AssessmentService {
       validateUuid(request.id, 'id');
       const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
+      );
       const assessment = await this.assessmentRepository.updateAssessment(request.id, {
         address: realEstateObject?.address ?? normalizeOptionalText(request.address),
         description: request.description.trim(),
@@ -472,6 +588,76 @@ export class AssessmentService {
       );
     }
   }
+
+  private async resolveFiasItemGeography(item: FiasAddressItem): Promise<FiasAddressItem> {
+    const resolvedIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: item.cityId,
+      districtId: item.districtId,
+      cityName: item.addressDetails?.city,
+      districtName: item.addressDetails?.district,
+    });
+
+    return {
+      ...item,
+      cityId: resolvedIds.cityId,
+      districtId: resolvedIds.districtId,
+    };
+  }
+
+  private async normalizeRealEstateObjectGeography(
+    realEstateObject: AssessmentRealEstateObjectData | undefined,
+  ): Promise<AssessmentRealEstateObjectData | undefined> {
+    if (!realEstateObject) {
+      return undefined;
+    }
+
+    const existingIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: realEstateObject.cityId,
+      districtId: realEstateObject.districtId ?? undefined,
+    });
+    const fallbackItem = existingIds.cityId
+      ? undefined
+      : await this.findExactFiasAddressItem(realEstateObject.address);
+    const resolvedIds = existingIds.cityId
+      ? existingIds
+      : await this.assessmentRepository.resolveGeographyIds({
+          cityId: realEstateObject.cityId,
+          districtId: realEstateObject.districtId ?? undefined,
+          cityName: fallbackItem?.addressDetails?.city,
+          districtName: fallbackItem?.addressDetails?.district,
+        });
+
+    if (!resolvedIds.cityId) {
+      throw new ConnectError(
+        'real_estate_object.city_id does not match a known city',
+        Code.InvalidArgument,
+      );
+    }
+
+    return {
+      ...realEstateObject,
+      cityId: resolvedIds.cityId,
+      ...(resolvedIds.districtId !== undefined && { districtId: resolvedIds.districtId }),
+      ...(resolvedIds.districtId === undefined &&
+        realEstateObject.districtId !== undefined && { districtId: null }),
+    };
+  }
+
+  private async findExactFiasAddressItem(
+    address: string | undefined,
+  ): Promise<FiasAddressItem | undefined> {
+    if (!address) {
+      return undefined;
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query: address,
+      limit: FIAS_LIMITS.maximum,
+    });
+    const normalizedAddress = normalizeAddressMatchKey(address);
+
+    return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
+  }
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {
@@ -517,6 +703,37 @@ function normalizeRequiredText(value: string | undefined, fieldName: string): st
 function normalizeOptionalText(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeFiasQuery(value: string | undefined): string {
+  return value?.trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function normalizeFiasLimit(value: number | undefined): number {
+  if (value === undefined || value === 0) return FIAS_LIMITS.default;
+  if (!Number.isInteger(value) || value < 1 || value > FIAS_LIMITS.maximum) {
+    throw new ConnectError(
+      `limit must be an integer from 1 to ${FIAS_LIMITS.maximum}`,
+      Code.InvalidArgument,
+    );
+  }
+  return value;
+}
+
+function normalizeFiasAddressType(value: number | undefined): number | undefined {
+  if (value === undefined || value === 0) return undefined;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new ConnectError('address_type must be a positive integer', Code.InvalidArgument);
+  }
+  return value;
+}
+
+function normalizeAddressMatchKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ');
 }
 
 function normalizeOptionalRequiredText(

@@ -216,6 +216,10 @@
     font-size: 0.9rem;
     color: #6b7280;
     text-align: center;
+
+    &--error {
+      color: #991b1b;
+    }
   }
 }
 
@@ -274,6 +278,12 @@
     border-color: #bbf7d0;
     color: #166534;
     background-color: #f0fdf4;
+  }
+
+  &--lifecycle-failed {
+    border-color: #fecaca;
+    color: #991b1b;
+    background-color: #fef2f2;
   }
 
   &--lifecycle-deleted {

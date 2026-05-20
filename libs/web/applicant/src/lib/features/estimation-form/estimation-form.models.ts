@@ -11,16 +11,9 @@ export interface SelectOption {
   label: string;
 }
 
-export interface LookupOption {
-  id: string;
-  name: string;
-}
-
-export interface DistrictLookupOption extends LookupOption {
-  cityId: string;
-}
-
 export interface EstimationFormDraftData {
+  fiasObjectId: string;
+  fiasObjectGuid: string;
   cityId: string;
   districtId: string;
   address: string;
@@ -48,6 +41,20 @@ export interface AssessmentDraftModel {
   form: EstimationFormDraftData;
 }
 
+export interface FiasAddressSuggestion {
+  objectId: string;
+  objectGuid: string;
+  fullName: string;
+  objectLevelId: number;
+  addressType: number;
+  cityId: string;
+  districtId: string;
+}
+
+export interface SelectedFiasAddress extends FiasAddressSuggestion {
+  cadastralNumber: string;
+}
+
 export interface AssessmentDocumentModel {
   id: string;
   fileName: string;
@@ -61,6 +68,8 @@ export interface AssessmentDocumentModel {
 }
 
 export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormDraftData = {
+  fiasObjectId: '',
+  fiasObjectGuid: '',
   cityId: '',
   districtId: '',
   address: '',

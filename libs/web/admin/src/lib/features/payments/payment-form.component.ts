@@ -17,7 +17,7 @@ import {
   PaymentStatus,
   PaymentType,
 } from './payments.shared';
-import { AdminPaymentsApiService } from './payments-api.service';
+import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 
 const CURRENCY_OPTIONS = ['RUB', 'USD', 'EUR'] as const;
 type Currency = (typeof CURRENCY_OPTIONS)[number];
@@ -221,7 +221,8 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       userId: userId,
       payer: payment.payer,
       amount: payment.amount,
-      paymentDate: payment.paymentDate,
+      currency: (payment.currency as Currency) || 'RUB',
+      paymentDate: toDateInputValue(payment.paymentDate),
       type: payment.type,
       paymentMethod: payment.paymentMethod ?? 'card',
       status: payment.status,
@@ -434,4 +435,17 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
         return RpcPaymentType.ASSESSMENT;
     }
   }
+}
+
+function toDateInputValue(value: string): string {
+  if (!value) {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 10);
+  }
+
+  return date.toISOString().slice(0, 10);
 }
