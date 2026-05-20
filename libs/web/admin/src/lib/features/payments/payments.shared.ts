@@ -4,6 +4,7 @@ export type PaymentMethod = 'card' | 'cash' | 'invoice';
 
 export interface Payment {
   id: string | number;
+  userId?: string;
   paymentDate: string;
   payer: string;
   amount: number;

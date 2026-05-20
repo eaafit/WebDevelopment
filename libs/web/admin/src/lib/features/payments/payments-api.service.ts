@@ -200,6 +200,7 @@ export class AdminPaymentsApiService {
 
     return {
       id: payment.id,
+      userId: payment.userId || undefined,
       paymentDate: payment.paymentDate
         ? timestampDate(payment.paymentDate).toISOString().slice(0, 10)
         : '',
