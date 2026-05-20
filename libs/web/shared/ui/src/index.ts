@@ -21,6 +21,7 @@ export * from './lib/notifications/notification-audit-source.service';
 export * from './lib/notifications/notification-inbox-page';
 export * from './lib/notifications/notification-settings-page';
 export * from './lib/notifications/notification-bell';
+export * from './lib/notifications/notification-counter.service';
 export * from './lib/assessment/upload-step/upload-step';
 export * from './lib/assessment/photo-item/photo-item';
 export * from './lib/assessment/history/assessment-history';

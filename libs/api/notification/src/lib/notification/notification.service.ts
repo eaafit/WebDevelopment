@@ -33,9 +33,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { NotificationRepository } from './notification.repository';
 import {
-  fromRpcNotificationSettings,
   isInAppEnabledForCategory,
-  toRpcNotificationSettings,
   type NotificationPreferenceCategory,
 } from './notification-preferences';
 
@@ -79,8 +77,8 @@ export class NotificationService {
     validateUuid(params.userId, 'user_id');
 
     const category = params.category ?? 'system';
-    const preferences = await this.notificationRepository.getOrCreatePreferences(params.userId);
-    if (!isInAppEnabledForCategory(preferences, category)) {
+    const preferenceRows = await this.notificationRepository.getOrCreatePreferenceRows(params.userId);
+    if (!isInAppEnabledForCategory(preferenceRows, category)) {
       return;
     }
 
@@ -161,9 +159,9 @@ export class NotificationService {
       throw new ConnectError('authentication required', Code.Unauthenticated);
     }
 
-    const preferences = await this.notificationRepository.getOrCreatePreferences(userId);
+    const settings = await this.notificationRepository.getOrCreatePreferencesMatrix(userId);
     return create(GetNotificationSettingsResponseSchema, {
-      settings: toRpcNotificationSettings(preferences),
+      settings,
     });
   }
 
@@ -179,12 +177,13 @@ export class NotificationService {
       throw new ConnectError('settings is required', Code.InvalidArgument);
     }
 
-    const preferences = await this.notificationRepository.updatePreferences(
-      fromRpcNotificationSettings(userId, request.settings),
+    const settings = await this.notificationRepository.updatePreferencesMatrix(
+      userId,
+      request.settings,
     );
 
     return create(UpdateNotificationSettingsResponseSchema, {
-      settings: toRpcNotificationSettings(preferences),
+      settings,
     });
   }
 }

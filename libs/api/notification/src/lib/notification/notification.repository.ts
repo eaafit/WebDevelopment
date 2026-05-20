@@ -18,10 +18,19 @@ import {
   type Prisma,
 } from '@internal/prisma-client';
 import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
+  NotificationEntityCategory,
+  NotificationPreferenceChannel,
+  NotificationPreferenceStatus,
+} from '@internal/prisma-client';
+import {
+  defaultPreferenceRows,
+  isInAppEnabledForCategory,
+  preferenceMatrixToRows,
+  rowsToPreferenceMatrix,
   type NotificationPreferenceCategory,
-  type NotificationPreferenceRecord,
+  type NotificationPreferenceRow,
 } from './notification-preferences';
+import type { NotificationSettings } from '@notary-portal/api-contracts';
 
 export interface NotificationQuery {
   page: number;
@@ -82,39 +91,68 @@ export class NotificationRepository {
     });
   }
 
-  async getOrCreatePreferences(userId: string): Promise<NotificationPreferenceRecord> {
-    const row = await this.prisma.notificationPreference.upsert({
+  async getOrCreatePreferenceRows(userId: string): Promise<NotificationPreferenceRow[]> {
+    const existing = await this.prisma.notificationPreference.findMany({
       where: { userId },
-      create: {
-        userId,
-        ...DEFAULT_NOTIFICATION_PREFERENCES,
-      },
-      update: {},
     });
 
-    return toPreferenceRecord(row);
+    if (existing.length >= CHANNEL_CATEGORY_COMBINATIONS) {
+      return existing.map(toPreferenceRow);
+    }
+
+    const existingKeys = new Set(
+      existing.map((row) => preferenceKey(row.channel, row.entityCategory)),
+    );
+
+    const missing = defaultPreferenceRows(userId).filter(
+      (row) => !existingKeys.has(preferenceKey(row.channel, row.entityCategory)),
+    );
+
+    if (missing.length) {
+      await this.prisma.notificationPreference.createMany({
+        data: missing,
+        skipDuplicates: true,
+      });
+    }
+
+    const rows = await this.prisma.notificationPreference.findMany({
+      where: { userId },
+    });
+
+    return rows.map(toPreferenceRow);
   }
 
-  async updatePreferences(
-    record: NotificationPreferenceRecord,
-  ): Promise<NotificationPreferenceRecord> {
-    const row = await this.prisma.notificationPreference.upsert({
-      where: { userId: record.userId },
-      create: record,
-      update: {
-        assessmentEmailEnabled: record.assessmentEmailEnabled,
-        assessmentPushEnabled: record.assessmentPushEnabled,
-        assessmentInAppEnabled: record.assessmentInAppEnabled,
-        paymentEmailEnabled: record.paymentEmailEnabled,
-        paymentPushEnabled: record.paymentPushEnabled,
-        paymentInAppEnabled: record.paymentInAppEnabled,
-        systemEmailEnabled: record.systemEmailEnabled,
-        systemPushEnabled: record.systemPushEnabled,
-        systemInAppEnabled: record.systemInAppEnabled,
-      },
-    });
+  async getOrCreatePreferencesMatrix(userId: string): Promise<NotificationSettings> {
+    const rows = await this.getOrCreatePreferenceRows(userId);
+    return rowsToPreferenceMatrix(rows);
+  }
 
-    return toPreferenceRecord(row);
+  async updatePreferencesMatrix(
+    userId: string,
+    settings: NotificationSettings,
+  ): Promise<NotificationSettings> {
+    const desired = preferenceMatrixToRows(userId, settings);
+
+    await this.prisma.$transaction(
+      desired.map((row) =>
+        this.prisma.notificationPreference.upsert({
+          where: {
+            userId_channel_entityCategory: {
+              userId: row.userId,
+              channel: row.channel,
+              entityCategory: row.entityCategory,
+            },
+          },
+          create: row,
+          update: {
+            status: row.status,
+          },
+        }),
+      ),
+    );
+
+    const rows = await this.getOrCreatePreferenceRows(userId);
+    return rowsToPreferenceMatrix(rows);
   }
 
   async filterUserIdsWithInAppEnabled(
@@ -125,26 +163,24 @@ export class NotificationRepository {
       return [];
     }
 
-    const preferences = await this.prisma.notificationPreference.findMany({
+    const preferenceByUserId = new Map<string, NotificationPreferenceRow[]>();
+    for (const userId of userIds) {
+      preferenceByUserId.set(userId, []);
+    }
+
+    const allRows = await this.prisma.notificationPreference.findMany({
       where: { userId: { in: userIds } },
     });
-    const preferenceByUserId = new Map(preferences.map((row) => [row.userId, toPreferenceRecord(row)]));
+
+    for (const row of allRows) {
+      const list = preferenceByUserId.get(row.userId) ?? [];
+      list.push(toPreferenceRow(row));
+      preferenceByUserId.set(row.userId, list);
+    }
 
     return userIds.filter((userId) => {
-      const record = preferenceByUserId.get(userId);
-      if (!record) {
-        return true;
-      }
-
-      switch (category) {
-        case 'payment':
-          return record.paymentInAppEnabled;
-        case 'system':
-          return record.systemInAppEnabled;
-        case 'assessment':
-        default:
-          return record.assessmentInAppEnabled;
-      }
+      const rows = preferenceByUserId.get(userId) ?? [];
+      return isInAppEnabledForCategory(rows, category);
     });
   }
 
@@ -283,28 +319,43 @@ export class NotificationRepository {
   }
 }
 
-function toPreferenceRecord(row: {
+const CHANNEL_CATEGORY_COMBINATIONS = 12;
+
+function toPreferenceRow(row: {
+  id: string;
   userId: string;
-  assessmentEmailEnabled: boolean;
-  assessmentPushEnabled: boolean;
-  assessmentInAppEnabled: boolean;
-  paymentEmailEnabled: boolean;
-  paymentPushEnabled: boolean;
-  paymentInAppEnabled: boolean;
-  systemEmailEnabled: boolean;
-  systemPushEnabled: boolean;
-  systemInAppEnabled: boolean;
-}): NotificationPreferenceRecord {
+  channel: NotificationPreferenceChannel;
+  entityCategory: NotificationEntityCategory;
+  status: NotificationPreferenceStatus;
+  updatedAt: Date;
+}): NotificationPreferenceRow {
   return {
+    id: row.id,
     userId: row.userId,
-    assessmentEmailEnabled: row.assessmentEmailEnabled,
-    assessmentPushEnabled: row.assessmentPushEnabled,
-    assessmentInAppEnabled: row.assessmentInAppEnabled,
-    paymentEmailEnabled: row.paymentEmailEnabled,
-    paymentPushEnabled: row.paymentPushEnabled,
-    paymentInAppEnabled: row.paymentInAppEnabled,
-    systemEmailEnabled: row.systemEmailEnabled,
-    systemPushEnabled: row.systemPushEnabled,
-    systemInAppEnabled: row.systemInAppEnabled,
+    channel: row.channel,
+    entityCategory: row.entityCategory,
+    status: row.status,
+    updatedAt: row.updatedAt,
   };
+}
+
+function preferenceKey(
+  channel: NotificationPreferenceChannel,
+  entityCategory: NotificationEntityCategory,
+): string {
+  return `${channel}:${entityCategory}`;
+}
+
+function categoryToEntityCategoryPrisma(
+  category: NotificationPreferenceCategory,
+): NotificationEntityCategory {
+  switch (category) {
+    case 'payment':
+      return NotificationEntityCategory.Payment;
+    case 'system':
+      return NotificationEntityCategory.System;
+    case 'assessment':
+    default:
+      return NotificationEntityCategory.Assessment;
+  }
 }

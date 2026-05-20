@@ -125,12 +125,17 @@
 
 ## 9. Уведомление (Notification)
 
+In-app и исходящие сообщения для пользователя. Таблица `notifications`. RPC: `NotificationService` (`ListNotifications`, `MarkAsRead`, `MarkAllAsRead`, `DeleteNotification`).
+
 - `Id` (UUID, PK) — идентификатор уведомления
 - `UserId` (UUID, FK) — получатель
-- `Type` (enum: Email, SMS, Push) — тип уведомления
-- `Message` (text) — текст уведомления
-- `SentAt` (timestamp) — время отправки
-- `Status` (enum: Pending, Sent, Failed) — статус доставки
+- `Type` (enum: Email, SMS, Push) — канал доставки (для in-app в БД используется `Push`)
+- `Message` (text) — текст уведомления (многострочный: заголовок, адрес, статус)
+- `SentAt` (timestamp) — время отправки / появления в ленте
+- `ReadAt` (timestamp, nullable) — время прочтения; `null` — непрочитано
+- `Status` (enum: Pending, Sent, Failed) — статус доставки по каналу
+
+Связь с аудитом: бизнес-событие (например `assessment.created`) пишется в `audit_logs` и может порождать запись в `notifications` для затронутых пользователей.
 
 ## 10. Лог действий (AuditLog)
 
@@ -227,14 +232,20 @@
 
 ---
 
-## 9. Уведомления конфигурация (Notification Preference)
+## 16. Настройки уведомлений (NotificationPreference)
 
-- `Id` (UUID, PK) — идентификатор конфигурации
-- `UserId` (UUID, FK) — получатель
-- `Type` (enum: Email, SMS, Push) — тип уведомления
-- `TypeEntity` (enum: Assesment, Payment, System) — тип уведомления- 
-- `UpdateAt` (timestamp) — время отправки
-- `Status` (enum: Active, NoActive) — Включено уведомление
+Таблица `notification_preferences`. Одна строка на комбинацию **пользователь + канал + категория события**. RPC: `GetNotificationSettings` / `UpdateNotificationSettings` (матрица 3×3 на UI: заявки / платежи / системные × Email / Push / In-app).
+
+- `Id` (UUID, PK) — идентификатор настройки
+- `UserId` (UUID, FK) — пользователь
+- `Channel` (enum: Email, SMS, Push, InApp) — канал доставки (`InApp` — уведомления в колокольчике и на странице `/notifications`)
+- `EntityCategory` (enum: Assessment, Payment, System) — категория события (заявки на оценку, платежи, системные)
+- `Status` (enum: Active, Inactive) — включено (`Active`) или отключено (`Inactive`)
+- `UpdatedAt` (timestamp) — время последнего изменения
+
+Ограничение: `UNIQUE (user_id, channel, entity_category)` — не более одной записи на пару канал/категория для пользователя. При первом обращении создаются строки по умолчанию (все каналы `Active`).
+
+---
 
 # Краткие пояснения
 
@@ -246,5 +257,6 @@
 - Связь по данным оценки: **Assessment** (заявка) → **RealEstateAppraisalResult** (результат расчёта: стоимость, метод, аналоги) → **AssessmentReport** (сгенерированный PDF, подпись). У одной заявки может быть один или несколько результатов оценки; по результату формируется отчёт. Связь результата с отчётом задаётся полем `AssessmentReportId` в `RealEstateAppraisalResult`.
 - Поля `Latitude` и `Longitude` в Assessment используются для отображения объекта на карте в разделе «География объектов» админ-панели; при отсутствии значений координаты могут получаться путём геокодирования по полю `Address`.
 - `AuditLogs` обеспечивают прозрачность и контроль безопасности.
+- `Notifications` и `NotificationPreference` разделены: лента in-app vs настройки каналов по типам событий.
 - `RealEstateObject` хранит характеристики объекта недвижимости, а связанные сканы, фото и дополнительные файлы описываются через `Document` с разделением по категориям.
 

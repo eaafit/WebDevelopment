@@ -3,6 +3,7 @@ import { Component, OnDestroy, OnInit, computed, inject, input, signal } from '@
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { NotificationSettings } from '@notary-portal/api-contracts';
 import { InAppNotificationsApiService } from '../rpc/in-app-notifications-api.service';
+import { NotificationCounterService } from './notification-counter.service';
 import { NotificationAuditSourceService } from './notification-audit-source.service';
 import {
   mapRpcNotificationToUi,
@@ -54,6 +55,7 @@ export class NotificationInboxPage implements OnInit, OnDestroy {
   protected readonly parentRoute = this.route.parent;
 
   private readonly notificationsApi = inject(InAppNotificationsApiService);
+  private readonly notificationCounter = inject(NotificationCounterService);
   private readonly auditSourceApi = inject(NotificationAuditSourceService);
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private seenPopupIds = new Set<string>();
@@ -110,11 +112,7 @@ export class NotificationInboxPage implements OnInit, OnDestroy {
     return Math.max(0, total - visible);
   });
 
-  protected readonly inboxCount = computed(() =>
-    this.notifications().filter(
-      (item) => item.isUnread && isInAppNotificationEnabled(this.notificationSettings(), item),
-    ).length,
-  );
+  protected readonly inboxCount = this.notificationCounter.unreadCount;
 
   async ngOnInit(): Promise<void> {
     const userId = this.notificationsApi.getCurrentUserId();
@@ -169,6 +167,7 @@ export class NotificationInboxPage implements OnInit, OnDestroy {
 
   protected async markAllAsRead(): Promise<void> {
     await this.notificationsApi.markAllAsRead();
+    this.notificationCounter.markAllAsRead();
     await this.refresh();
   }
 
@@ -179,12 +178,18 @@ export class NotificationInboxPage implements OnInit, OnDestroy {
     }
 
     await this.notificationsApi.markAsRead(id);
+    this.notificationCounter.markOneAsRead();
     await this.refresh();
   }
 
   protected async removeOne(id: string, event: Event): Promise<void> {
     event.stopPropagation();
+    const target = this.notifications().find((item) => item.id === id);
+    const wasUnread = target?.isUnread ?? false;
     await this.notificationsApi.deleteNotification(id);
+    if (wasUnread) {
+      this.notificationCounter.markOneAsRead();
+    }
     await this.refresh();
   }
 
@@ -210,6 +215,7 @@ export class NotificationInboxPage implements OnInit, OnDestroy {
 
       const mapped = listResult.notifications.map((item) => mapRpcNotificationToUi(item));
       this.notifications.set(mapped);
+      this.notificationCounter.setUnreadCount(listResult.unreadCount);
       this.auditEvents.set(auditEvents);
       this.notificationSettings.set(
         settings ? normalizeNotificationSettings(settings) : null,
