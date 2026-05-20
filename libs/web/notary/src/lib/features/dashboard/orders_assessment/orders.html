@@ -1,0 +1,55 @@
+﻿<section class="orders-page">
+  <header class="orders-header">
+    <div>
+      <h1>История заказов</h1>
+      <p>Заказы, созданные нотариусом на основе заявок на оценку.</p>
+    </div>
+    <div class="orders-header__actions">
+      <button class="btn btn-outline btn-sm" type="button" (click)="reload()">Обновить</button>
+      <button class="btn btn-ghost btn-sm" type="button" (click)="restoreDemo()">Очистить демо</button>
+    </div>
+  </header>
+
+  @if (orders().length === 0) {
+  <div class="orders-empty">
+    <h2>Заказов пока нет</h2>
+    <p>Откройте модуль оценки и нажмите «Создать заказ» в строке нужной заявки.</p>
+  </div>
+  } @else {
+  <div class="orders-list">
+    @for (order of orders(); track order.id) {
+    <article class="order-card">
+      <header class="order-card__top">
+        <div>
+          <div class="order-card__title">
+            <span>Заказ №{{ order.number }}</span>
+            <span [class]="statusClass(order.status)">{{ statusLabel(order.status) }}</span>
+          </div>
+          <p class="order-card__address">{{ order.address }}</p>
+        </div>
+        <strong class="order-card__price">{{ formatPrice(order.price) }}</strong>
+      </header>
+
+      <div class="order-card__meta">
+        <span>Дата заказа: {{ formatDate(order.createdAt) }}</span>
+        <span>Заявитель: {{ order.applicantName }}</span>
+      </div>
+
+      <div class="order-steps">
+        @for (stage of order.stages; track stage.key) {
+        <div class="order-step" [class.order-step--done]="isStageDone(order, stage.key)">
+          <span class="order-step__dot"></span>
+          <span class="order-step__label">{{ stage.label }}</span>
+        </div>
+        }
+      </div>
+
+      <footer class="order-card__footer">
+        <span>Assessment: {{ order.assessmentId }}</span>
+        <button class="btn btn-outline btn-sm" type="button" (click)="deleteOrder(order.id)">Удалить</button>
+      </footer>
+    </article>
+    }
+  </div>
+  }
+</section>

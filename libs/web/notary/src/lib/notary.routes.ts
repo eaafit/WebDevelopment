@@ -1,7 +1,6 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
-import { RequestPrice } from './features/request_price/request_price';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -16,17 +15,23 @@ export const notaryRoutes: Route[] = [
       { path: '', ...placeholder('Главная', ['Обзор кабинета нотариуса']) } as Route,
       {
         path: 'orders',
-        ...placeholder('Заказы', [
-          'Просмотр заказов',
-          'Фильтры и поиск',
-          '«Взять в работу»',
-          'Управление статусами',
-        ]),
-      } as Route,
+        loadComponent: () =>
+          import('./features/dashboard/orders_assessment/orders').then((m) => m.NotaryOrders),
+      },
       {
         path: 'subscription',
         ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
       } as Route,
+      {
+        path: 'subscription/checkout/success',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
+        path: 'subscription/checkout/cancel',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
       {
         path: 'subscription/checkout',
         loadComponent: () =>
@@ -38,13 +43,19 @@ export const notaryRoutes: Route[] = [
           import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
       },
       {
-        path: 'request_price',
-        ...placeholder('Модуль оценки', [
-          'Запрос оценки с параметрами',
-          'Ввод параметров объекта',
-          'Результаты и отчёты',
-        ]),
-      } as Route,
+        path: 'assessment',
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
+      {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
+        path: 'assessment/history',
+        redirectTo: '/notary/orders',
+        pathMatch: 'full',
+      },
       {
         path: 'copies',
         ...placeholder('Копии документов', [
@@ -54,8 +65,9 @@ export const notaryRoutes: Route[] = [
       } as Route,
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),

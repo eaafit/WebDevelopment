@@ -8,6 +8,7 @@ const APPLICANT_MENU = [
   { label: 'Подать заявку', route: 'orders/new', icon: '➕' },
   { label: 'Документы', route: 'documents', icon: '📁' },
   { label: 'Модуль оценки', route: 'assessment', icon: '📐' },
+  { label: 'Запрос оценки', route: 'assessment/request-price', icon: '📝' },
   { label: 'Результаты оценки', route: 'assessment/results', icon: '📊' },
   { label: 'История заказов', route: 'assessment/history', icon: '📋' },
   { label: 'Платежи', route: 'payments', icon: '💳' },
