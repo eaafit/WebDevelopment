@@ -1,0 +1,52 @@
+<aside class="newsletter-detail-panel" aria-label="Детали рассылки">
+  <header class="newsletter-detail-panel__header">
+    <div>
+      <p class="newsletter-detail-panel__eyebrow">Детали рассылки</p>
+      <h3>{{ newsletter().campaign.subject }}</h3>
+    </div>
+    <button
+      type="button"
+      class="newsletter-detail-panel__icon-btn"
+      aria-label="Закрыть"
+      (click)="close()">
+      x
+    </button>
+  </header>
+
+  <div class="newsletter-detail-panel__content">
+    <section class="newsletter-detail-panel__section">
+      <span class="newsletter-detail-panel__label">Дата отправки</span>
+      <strong>{{ newsletter().campaign.completedAt || newsletter().campaign.createdAt }}</strong>
+    </section>
+
+    <section class="newsletter-detail-panel__section">
+      <span class="newsletter-detail-panel__label">Получатели</span>
+      <strong>{{ newsletter().campaign.recipientsCount }}</strong>
+      <ul class="newsletter-detail-panel__recipients">
+        @for (recipient of firstRecipients(); track recipient.email) {
+        <li>
+          <span>{{ recipient.email }}</span>
+          <small>{{ recipient.statusLabel }}</small>
+        </li>
+        }
+      </ul>
+      @if (hiddenRecipientsCount() > 0) {
+      <p class="newsletter-detail-panel__muted">И еще {{ hiddenRecipientsCount() }} получателей.</p>
+      }
+    </section>
+
+    <section class="newsletter-detail-panel__section">
+      <span class="newsletter-detail-panel__label">Превью текста</span>
+      <p class="newsletter-detail-panel__preview">{{ previewText() }}</p>
+    </section>
+  </div>
+
+  <footer class="newsletter-detail-panel__footer">
+    <button type="button" class="newsletter-detail-panel__btn newsletter-detail-panel__btn--primary" (click)="repeatSend()">
+      Отправить повторно
+    </button>
+    <button type="button" class="newsletter-detail-panel__btn newsletter-detail-panel__btn--secondary" (click)="close()">
+      Закрыть
+    </button>
+  </footer>
+</aside>

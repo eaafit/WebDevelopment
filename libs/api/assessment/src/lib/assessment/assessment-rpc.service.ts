@@ -8,6 +8,14 @@ import type {
   CompleteAssessmentResponse,
   CreateAssessmentRequest,
   CreateAssessmentResponse,
+  GetFiasAddressDetailsRequest,
+  GetFiasAddressDetailsResponse,
+  GetFiasAddressHintsRequest,
+  GetFiasAddressHintsResponse,
+  GetFiasAddressItemByGuidRequest,
+  GetFiasAddressItemByGuidResponse,
+  GetFiasAddressItemByIdRequest,
+  GetFiasAddressItemByIdResponse,
   GetAssessmentRequest,
   GetAssessmentResponse,
   ListCitiesRequest,
@@ -16,6 +24,10 @@ import type {
   ListAssessmentsResponse,
   ListDistrictsRequest,
   ListDistrictsResponse,
+  SearchFiasAddressByPartsRequest,
+  SearchFiasAddressByPartsResponse,
+  SearchFiasAddressItemsRequest,
+  SearchFiasAddressItemsResponse,
   UpdateAssessmentRequest,
   UpdateAssessmentResponse,
   VerifyAssessmentRequest,
@@ -33,6 +45,48 @@ export class AssessmentRpcService {
 
   readonly listDistricts = (r: ListDistrictsRequest): Promise<ListDistrictsResponse> =>
     this.handleRpcCall('listDistricts', () => this.assessmentService.listDistricts(r));
+
+  readonly getFiasAddressHints = (
+    r: GetFiasAddressHintsRequest,
+  ): Promise<GetFiasAddressHintsResponse> =>
+    this.handleRpcCall('getFiasAddressHints', () =>
+      this.assessmentService.getFiasAddressHints(r),
+    );
+
+  readonly searchFiasAddressItems = (
+    r: SearchFiasAddressItemsRequest,
+  ): Promise<SearchFiasAddressItemsResponse> =>
+    this.handleRpcCall('searchFiasAddressItems', () =>
+      this.assessmentService.searchFiasAddressItems(r),
+    );
+
+  readonly getFiasAddressItemById = (
+    r: GetFiasAddressItemByIdRequest,
+  ): Promise<GetFiasAddressItemByIdResponse> =>
+    this.handleRpcCall('getFiasAddressItemById', () =>
+      this.assessmentService.getFiasAddressItemById(r),
+    );
+
+  readonly getFiasAddressItemByGuid = (
+    r: GetFiasAddressItemByGuidRequest,
+  ): Promise<GetFiasAddressItemByGuidResponse> =>
+    this.handleRpcCall('getFiasAddressItemByGuid', () =>
+      this.assessmentService.getFiasAddressItemByGuid(r),
+    );
+
+  readonly getFiasAddressDetails = (
+    r: GetFiasAddressDetailsRequest,
+  ): Promise<GetFiasAddressDetailsResponse> =>
+    this.handleRpcCall('getFiasAddressDetails', () =>
+      this.assessmentService.getFiasAddressDetails(r),
+    );
+
+  readonly searchFiasAddressByParts = (
+    r: SearchFiasAddressByPartsRequest,
+  ): Promise<SearchFiasAddressByPartsResponse> =>
+    this.handleRpcCall('searchFiasAddressByParts', () =>
+      this.assessmentService.searchFiasAddressByParts(r),
+    );
 
   readonly listAssessments = (r: ListAssessmentsRequest): Promise<ListAssessmentsResponse> =>
     this.handleRpcCall('listAssessments', () => this.assessmentService.listAssessments(r));

@@ -85,16 +85,34 @@
         </article>
       </section>
 
-      @if (!targetId()) {
-      <section class="card state-card error-card missing-context-card">
-        <div class="state-card-copy">
-          <p class="state-card-eyebrow error-card-eyebrow">Не хватает данных</p>
-          <h2>Пока нельзя открыть оплату</h2>
-          <p class="m-0">
-            Для этой услуги нужен идентификатор заказа. Откройте checkout из карточки нужной услуги, чтобы передать
-            корректный контекст оплаты.
-          </p>
-        </div>
+      @if (needsManualContext()) {
+      <section class="card">
+        <div class="card-title">Укажите данные для оплаты</div>
+        <p class="text-sm m-0 mb-3">
+          Введите идентификатор заказа, чтобы продолжить оплату.
+        </p>
+        <label class="form-label" for="manual-target-id">{{ selectedService().targetLabel }}</label>
+        <input
+          id="manual-target-id"
+          type="text"
+          class="form-input"
+          placeholder="Например, 582aa314-1dc9-48ed-a9a1-5d65418cc4e0"
+          [ngModel]="manualTargetId()"
+          (ngModelChange)="manualTargetId.set($event)"
+          [disabled]="isBusy()" />
+        <label class="form-label mt-3" for="manual-amount">Сумма (₽)</label>
+        <input
+          id="manual-amount"
+          type="text"
+          inputmode="decimal"
+          class="form-input"
+          placeholder="2500.00"
+          [ngModel]="manualAmount()"
+          (ngModelChange)="manualAmount.set($event)"
+          [disabled]="isBusy()" />
+        <p class="text-xs mt-2" style="color: var(--color-muted)">
+          Или откройте checkout из карточки услуги: /applicant/checkout?type=assessment&amp;assessmentId=xxx&amp;amount=2500.00
+        </p>
       </section>
       }
     </div>
@@ -110,10 +128,17 @@
         <button
           type="button"
           class="btn btn-primary w-full mt-4"
-          [disabled]="!canStartPayment()"
+          [disabled]="isBusy() || !canStartPayment()"
           (click)="startPayment()">
           {{ loading() ? 'Создаём платёж...' : state() === 'processing' ? 'Проверяем статус...' : 'Оплатить через
           ЮKassa' }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline w-full mt-3"
+          [disabled]="isBusy() || !canStartPayment()"
+          (click)="startRobokassaPayment()">
+          {{ loading() ? 'Создаём платёж...' : 'Оплатить через Robokassa' }}
         </button>
         <p class="text-sm text-center mt-4 text-xs summary-caption">
           Нажимая кнопку, вы открываете защищённый виджет ЮKassa. Дальнейшая обработка услуги начинается после

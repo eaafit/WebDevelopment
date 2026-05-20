@@ -2,6 +2,20 @@ packages:
   - 'apps/*'
   - 'libs/**/*'
 
+allowBuilds:
+  '@bufbuild/buf': set this to true or false
+  '@nestjs/core': set this to true or false
+  '@parcel/watcher': set this to true or false
+  '@prisma/engines': set this to true or false
+  '@swc/core': set this to true or false
+  esbuild: set this to true or false
+  less: set this to true or false
+  lmdb: set this to true or false
+  msgpackr-extract: set this to true or false
+  nx: set this to true or false
+  prisma: set this to true or false
+  unrs-resolver: set this to true or false
+
 onlyBuiltDependencies:
   - '@bufbuild/buf'
   - '@nestjs/core'

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
@@ -7,6 +8,7 @@ import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
+import { registerWebLogIngestion } from './app/logging/web-log-ingest';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -93,6 +95,8 @@ async function bootstrap() {
     }
   });
 
+  registerWebLogIngestion(expressInstance);
+
   expressInstance.get(
     '/api/documents/:documentId/content',
     async (req: express.Request, res: express.Response) => {
@@ -152,6 +156,23 @@ async function bootstrap() {
             return;
           }
           res.status(500).end();
+        });
+    },
+  );
+
+  expressInstance.post(
+    '/api/payments/robokassa/result',
+    express.urlencoded({ extended: false }),
+    (req: express.Request, res: express.Response) => {
+      paymentWebhookService
+        .handleRobokassaResult(req.body)
+        .then((result) => res.status(200).type('text/plain').send(result))
+        .catch((error: unknown) => {
+          if (error instanceof PaymentWebhookError) {
+            res.status(error.statusCode).send(error.message);
+            return;
+          }
+          res.status(500).send('Internal server error');
         });
     },
   );

@@ -6,17 +6,23 @@ import { Role, requireRole, type AccessTokenPayload } from '@internal/auth-share
 import { NotificationService } from '@internal/notification';
 import {
   EstimateNewsletterAudienceResponseSchema,
+  GetNewsletterCampaignResponseSchema,
   NewsletterAudienceType,
   NotificationType as RpcNotificationType,
+  RepeatNewsletterCampaignResponseSchema,
   SendNewsletterCampaignResponseSchema,
   UserRole,
   type EstimateNewsletterAudienceRequest,
   type EstimateNewsletterAudienceResponse,
+  type GetNewsletterCampaignRequest,
+  type GetNewsletterCampaignResponse,
   type ListNewsletterCampaignsRequest,
   type ListNewsletterCampaignsResponse,
   type ListNewsletterSubscribersRequest,
   type ListNewsletterSubscribersResponse,
   type NewsletterAudience,
+  type RepeatNewsletterCampaignRequest,
+  type RepeatNewsletterCampaignResponse,
   type SendNewsletterCampaignRequest,
   type SendNewsletterCampaignResponse,
 } from '@notary-portal/api-contracts';
@@ -85,7 +91,24 @@ export class NewsletterService {
       page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE),
       limit: normalizePageLimit(request.pagination?.limit),
       search: normalizeOptionalString(request.filters?.query),
+      status: request.filters?.status
+        ? this.newsletterRepository.toPrismaCampaignStatus(request.filters.status)
+        : undefined,
     });
+  }
+
+  async getNewsletterCampaign(
+    request: GetNewsletterCampaignRequest,
+  ): Promise<GetNewsletterCampaignResponse> {
+    requireRole(Role.Admin);
+    const id = normalizeUuid(request.id, 'id');
+    const campaign = await this.newsletterRepository.getCampaignDetail(id);
+
+    if (!campaign) {
+      throw new ConnectError('newsletter campaign not found', Code.NotFound);
+    }
+
+    return create(GetNewsletterCampaignResponseSchema, { campaign });
   }
 
   async estimateNewsletterAudience(
@@ -209,6 +232,75 @@ export class NewsletterService {
     });
 
     return create(SendNewsletterCampaignResponseSchema, {
+      campaign: completedCampaign,
+    });
+  }
+
+  async repeatNewsletterCampaign(
+    request: RepeatNewsletterCampaignRequest,
+  ): Promise<RepeatNewsletterCampaignResponse> {
+    const actor = requireRole(Role.Admin);
+    const id = normalizeUuid(request.id, 'id');
+    const source = await this.newsletterRepository.getCampaignForRepeat(id);
+
+    if (!source) {
+      throw new ConnectError('newsletter campaign not found', Code.NotFound);
+    }
+    if (!source.recipients.length) {
+      throw new ConnectError('newsletter campaign has no recipients', Code.FailedPrecondition);
+    }
+
+    const campaign = await this.newsletterRepository.createCampaign({
+      createdById: isUuid(actor.sub) ? actor.sub : null,
+      subject: source.subject,
+      bodyHtml: source.bodyHtml,
+      audience: {
+        type: PrismaNewsletterAudienceType.Selected,
+        selectedUserIds: source.recipients
+          .map((recipient) => recipient.userId)
+          .filter((userId): userId is string => Boolean(userId)),
+      },
+      audienceLabel: `Повторная отправка (${source.recipients.length})`,
+      recipients: source.recipients,
+    });
+
+    let sentCount = 0;
+    let failedCount = 0;
+    let interruptedError: unknown = null;
+
+    try {
+      for (const recipient of source.recipients) {
+        try {
+          await this.newsletterMailer.sendNewsletterEmail({
+            to: recipient.email,
+            fullName: recipient.fullName,
+            subject: source.subject,
+            bodyHtml: source.bodyHtml,
+          });
+        } catch (error) {
+          failedCount += 1;
+          await this.newsletterRepository.markDeliveryFailed(
+            campaign.id,
+            recipient.email,
+            normalizeErrorMessage(error),
+          );
+          continue;
+        }
+
+        sentCount += 1;
+        await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
+      }
+    } catch (error) {
+      interruptedError = error;
+    }
+
+    const completedCampaign = await this.newsletterRepository.completeCampaign(campaign.id, {
+      sentCount,
+      failedCount,
+      status: resolveCampaignStatus(sentCount, failedCount, interruptedError !== null),
+    });
+
+    return create(RepeatNewsletterCampaignResponseSchema, {
       campaign: completedCampaign,
     });
   }
@@ -401,6 +493,14 @@ function normalizeRequiredString(value: string, field: string, maxLength: number
   }
   if (normalized.length > maxLength) {
     throw new ConnectError(`${field} must not exceed ${maxLength} characters`, Code.InvalidArgument);
+  }
+  return normalized;
+}
+
+function normalizeUuid(value: string, field: string): string {
+  const normalized = value.trim();
+  if (!isUuid(normalized)) {
+    throw new ConnectError(`${field} must be a valid UUID`, Code.InvalidArgument);
   }
   return normalized;
 }

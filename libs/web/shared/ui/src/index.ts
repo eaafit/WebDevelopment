@@ -1,5 +1,6 @@
 export * from './lib/transaction-table/transaction-table';
 export * from './lib/transaction-table/transaction-table.models';
+export * from './lib/payments/payment-history-mapper';
 export * from './lib/audit-monitoring/audit-monitoring-api.service';
 export * from './lib/audit-monitoring/audit-monitoring-page';
 export * from './lib/audit-monitoring/audit-monitoring.models';
@@ -7,6 +8,7 @@ export * from './lib/logging/provide-web-logging';
 export * from './lib/logging/web-error-handler';
 export * from './lib/logging/web-logger.service';
 export * from './lib/logging/web-logging.models';
+export * from './lib/notifications/notification-center-api.service';
 export * from './lib/dashboard-layout/dashboard-layout';
 export * from './lib/placeholder-page/placeholder-page';
 export * from './lib/placeholder-page/placeholder-page-route';

@@ -19,6 +19,14 @@ export function buildRpcBaseUrl(): string {
   return window.location.origin;
 }
 
+const PUBLIC_AUTH_METHODS = [
+  '/notary.auth.v1alpha1.AuthService/Register',
+  '/notary.auth.v1alpha1.AuthService/Login',
+  '/notary.auth.v1alpha1.AuthService/RefreshToken',
+  '/notary.auth.v1alpha1.AuthService/ForgotPassword',
+  '/notary.auth.v1alpha1.AuthService/ResetPassword',
+];
+
 // ─── Фабрика провайдера ──────────────────────────────────────────────────────
 // Вызывается в app.config.ts: provideRpcTransport()
 //
@@ -39,7 +47,7 @@ export type RpcTransportOptionsFactory = () => RpcTransportOptions;
 export function createAuthInterceptor(opts: RpcTransportOptions, router: Router): Interceptor {
   return (next) => async (req) => {
     // Пропускаем публичные методы auth-сервиса — у них нет токена
-    const isPublic = req.url.includes('/notary.auth.v1alpha1.AuthService/');
+    const isPublic = PUBLIC_AUTH_METHODS.some((method) => req.url.includes(method));
     if (isPublic) return next(req);
 
     let token = opts.getToken();
