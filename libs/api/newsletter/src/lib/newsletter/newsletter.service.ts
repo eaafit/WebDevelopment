@@ -264,6 +264,17 @@ export class NewsletterService {
       recipients: source.recipients,
     });
 
+    this.logCampaignStart(campaign.id, source.subject, campaign.audienceLabel, source.recipients.length);
+    await this.recordCampaignAuditBestEffort({
+      actor,
+      campaign,
+      eventType: 'newsletter.campaign.repeat_started',
+      sentCount: 0,
+      failedCount: 0,
+      status: PrismaNewsletterCampaignStatus.Sending,
+      sourceCampaignId: id,
+    });
+
     let sentCount = 0;
     let failedCount = 0;
     let interruptedError: unknown = null;
@@ -278,11 +289,13 @@ export class NewsletterService {
             bodyHtml: source.bodyHtml,
           });
         } catch (error) {
+          const deliveryErrorMessage = normalizeErrorMessage(error);
           failedCount += 1;
+          this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
           await this.newsletterRepository.markDeliveryFailed(
             campaign.id,
             recipient.email,
-            normalizeErrorMessage(error),
+            deliveryErrorMessage,
           );
           continue;
         }
@@ -294,10 +307,36 @@ export class NewsletterService {
       interruptedError = error;
     }
 
+    const finalStatus = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
+
+    if (interruptedError) {
+      this.logger.error(
+        `newsletter.campaign.repeat_flow_interrupted campaignId=${campaign.id} sourceCampaignId=${id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
+      );
+    }
+
     const completedCampaign = await this.newsletterRepository.completeCampaign(campaign.id, {
       sentCount,
       failedCount,
-      status: resolveCampaignStatus(sentCount, failedCount, interruptedError !== null),
+      status: finalStatus,
+    });
+
+    this.logCampaignCompletion(campaign.id, finalStatus, sentCount, failedCount);
+    await this.recordCampaignAuditBestEffort({
+      actor,
+      campaign: completedCampaign,
+      eventType: 'newsletter.campaign.repeat_completed',
+      sentCount,
+      failedCount,
+      status: finalStatus,
+      sourceCampaignId: id,
+    });
+    await this.createCampaignSummaryNotificationBestEffort({
+      actor,
+      campaign: completedCampaign,
+      sentCount,
+      failedCount,
+      status: finalStatus,
     });
 
     return create(RepeatNewsletterCampaignResponseSchema, {
@@ -357,10 +396,15 @@ export class NewsletterService {
   private async recordCampaignAuditBestEffort(input: {
     actor: AccessTokenPayload;
     campaign: NewsletterCampaignSummary;
-    eventType: 'newsletter.campaign.started' | 'newsletter.campaign.completed';
+    eventType:
+      | 'newsletter.campaign.started'
+      | 'newsletter.campaign.completed'
+      | 'newsletter.campaign.repeat_started'
+      | 'newsletter.campaign.repeat_completed';
     sentCount: number;
     failedCount: number;
     status: PrismaNewsletterCampaignStatus;
+    sourceCampaignId?: string;
   }): Promise<void> {
     try {
       await this.auditService.record({
@@ -368,14 +412,8 @@ export class NewsletterService {
         eventType: input.eventType,
         targetType: 'NewsletterCampaign',
         targetId: input.campaign.id,
-        actionTitle:
-          input.eventType === 'newsletter.campaign.started'
-            ? 'Запущена кампания рассылки'
-            : 'Кампания рассылки завершена',
-        actionContext:
-          input.eventType === 'newsletter.campaign.started'
-            ? `Получателей: ${input.campaign.recipientsCount}`
-            : `Отправлено: ${input.sentCount}, ошибок: ${input.failedCount}`,
+        actionTitle: newsletterAuditTitle(input.eventType),
+        actionContext: newsletterAuditContext(input),
         targetTitle: input.campaign.subject,
         targetContext: input.campaign.audienceLabel,
         after: {
@@ -385,6 +423,7 @@ export class NewsletterService {
           sentCount: input.sentCount,
           failedCount: input.failedCount,
           status: formatCampaignStatus(input.status),
+          ...(input.sourceCampaignId && { sourceCampaignId: input.sourceCampaignId }),
           actor: {
             userId: input.actor.sub,
             email: input.actor.email,
@@ -575,6 +614,39 @@ function buildCampaignSummaryNotificationMessage(
   }
 
   return `Рассылка «${subject}» завершена с ошибками: отправлено ${sentCount} из ${recipientsCount}, ошибок ${failedCount}.`;
+}
+
+function newsletterAuditTitle(
+  eventType:
+    | 'newsletter.campaign.started'
+    | 'newsletter.campaign.completed'
+    | 'newsletter.campaign.repeat_started'
+    | 'newsletter.campaign.repeat_completed',
+): string {
+  if (eventType === 'newsletter.campaign.started') return 'Запущена кампания рассылки';
+  if (eventType === 'newsletter.campaign.repeat_started') return 'Запущена повторная рассылка';
+  if (eventType === 'newsletter.campaign.repeat_completed') return 'Повторная рассылка завершена';
+  return 'Кампания рассылки завершена';
+}
+
+function newsletterAuditContext(input: {
+  eventType:
+    | 'newsletter.campaign.started'
+    | 'newsletter.campaign.completed'
+    | 'newsletter.campaign.repeat_started'
+    | 'newsletter.campaign.repeat_completed';
+  campaign: NewsletterCampaignSummary;
+  sentCount: number;
+  failedCount: number;
+  sourceCampaignId?: string;
+}): string {
+  if (input.eventType === 'newsletter.campaign.started') {
+    return `Получателей: ${input.campaign.recipientsCount}`;
+  }
+  if (input.eventType === 'newsletter.campaign.repeat_started') {
+    return `Повторная отправка по кампании ${input.sourceCampaignId ?? '—'}, получателей: ${input.campaign.recipientsCount}`;
+  }
+  return `Отправлено: ${input.sentCount}, ошибок: ${input.failedCount}`;
 }
 
 function escapeHtml(value: string): string {
