@@ -71,7 +71,8 @@ export class AuthService {
   // ─── Register ────────────────────────────────────────────────────────────
 
   async register(request: RegisterRequest): Promise<RegisterResponse> {
-    if (!EMAIL_RE.test(request.email)) {
+    const email = (request.email ?? '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
       throw new ConnectError('email is invalid', Code.InvalidArgument);
     }
     if (request.password.length < MIN_PASSWORD_LEN) {
@@ -87,14 +88,14 @@ export class AuthService {
       throw new ConnectError('cannot self-register as admin', Code.PermissionDenied);
     }
 
-    const existing = await this.authRepository.findByEmail(request.email.toLowerCase());
+    const existing = await this.authRepository.findByEmail(email);
     if (existing) {
       throw new ConnectError('email already registered', Code.AlreadyExists);
     }
 
     const passwordHash = await this.passwordService.hash(request.password);
     const user = await this.authRepository.createUser({
-      email: request.email.toLowerCase(),
+      email,
       passwordHash,
       fullName: request.fullName.trim(),
       phoneNumber: request.phoneNumber?.trim() || undefined,
@@ -134,11 +135,12 @@ export class AuthService {
   // ─── Login ───────────────────────────────────────────────────────────────
 
   async login(request: LoginRequest): Promise<LoginResponse> {
-    if (!request.email || !request.password) {
+    const email = (request.email ?? '').trim().toLowerCase();
+    if (!email || !request.password) {
       throw new ConnectError('email and password are required', Code.InvalidArgument);
     }
 
-    const record = await this.authRepository.findByEmail(request.email.toLowerCase());
+    const record = await this.authRepository.findByEmail(email);
     if (!record) {
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }

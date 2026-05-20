@@ -16,9 +16,7 @@ export const RPC_TRANSPORT = new InjectionToken<Transport>('RPC_TRANSPORT');
 
 export function buildRpcBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3000';
-  const { hostname, port, origin } = window.location;
-  const isLocal = ['localhost', '127.0.0.1'].includes(hostname);
-  return isLocal && port !== '3000' ? `http://${hostname}:3000` : origin;
+  return window.location.origin;
 }
 
 // ─── Фабрика провайдера ──────────────────────────────────────────────────────

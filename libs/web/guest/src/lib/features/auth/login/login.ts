@@ -37,8 +37,9 @@ export class Login {
   password = '';
 
   async onLogin(): Promise<void> {
-    if (!this.email || !this.password) return;
-    await this.authService.login(this.email, this.password);
+    const email = this.email.trim();
+    if (!email || !this.password) return;
+    await this.authService.login(email, this.password);
   }
 
   async onUseTestAccount(account: TestAccount): Promise<void> {

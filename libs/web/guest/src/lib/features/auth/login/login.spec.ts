@@ -7,8 +7,11 @@ import { Login } from './login';
 describe('Login', () => {
   let component: Login;
   let fixture: ComponentFixture<Login>;
+  let login: jest.Mock;
 
   beforeEach(async () => {
+    login = jest.fn();
+
     await TestBed.configureTestingModule({
       imports: [Login],
       providers: [
@@ -18,7 +21,7 @@ describe('Login', () => {
           useValue: {
             loading: signal(false).asReadonly(),
             error: signal<string | null>(null).asReadonly(),
-            login: jest.fn(),
+            login,
           },
         },
       ],
@@ -33,13 +36,14 @@ describe('Login', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should expose the additive email recovery link', () => {
+  it('should expose a single working forgot-password link', () => {
     fixture.detectChanges();
 
-    const link = fixture.nativeElement.querySelector('[data-testid="email-recovery-link"]') as HTMLAnchorElement | null;
+    const links = fixture.nativeElement.querySelectorAll('[data-testid="forgot-password-link"]');
+    const link = links[0] as HTMLAnchorElement | undefined;
 
-    expect(link).not.toBeNull();
-    expect(link?.getAttribute('href')).toContain('/auth/password-recovery');
+    expect(links.length).toBe(1);
+    expect(link?.getAttribute('href')).toContain('/auth/forgot-password');
   });
 
   it('should expose the register link', () => {
@@ -71,5 +75,14 @@ describe('Login', () => {
     jest.runAllTimers();
     expect(component.copiedAccount()).toBeNull();
     jest.useRealTimers();
+  });
+
+  it('should submit trimmed email and password', async () => {
+    component.email = ' user@example.com ';
+    component.password = 'Password123';
+
+    await component.onLogin();
+
+    expect(login).toHaveBeenCalledWith('user@example.com', 'Password123');
   });
 });

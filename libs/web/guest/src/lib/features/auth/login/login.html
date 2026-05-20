@@ -5,37 +5,40 @@
   <div class="login__error">{{ error() }}</div>
   }
 
-  <div class="login__field">
-    <label for="email">Email</label>
-    <input id="email" type="email" [(ngModel)]="email" placeholder="you@example.com" autocomplete="email" />
-  </div>
+  <form class="login__form" (ngSubmit)="onLogin()" novalidate>
+    <div class="login__field">
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        [(ngModel)]="email"
+        placeholder="you@example.com"
+        autocomplete="email" />
+    </div>
 
-  <div class="login__field">
-    <label for="password">Пароль</label>
-    <input
-      id="password"
-      type="password"
-      [(ngModel)]="password"
-      placeholder="••••••••"
-      autocomplete="current-password" />
-  </div>
+    <div class="login__field">
+      <label for="password">Пароль</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        [(ngModel)]="password"
+        placeholder="••••••••"
+        autocomplete="current-password" />
+    </div>
 
-  <a class="login__restore-link" routerLink="/password-restore">Восстановить пароль</a>
+    <a class="login__restore-link" data-testid="forgot-password-link" routerLink="/auth/forgot-password">
+      Забыли пароль?
+    </a>
 
-  <p class="login__footer-link">
-    <a data-testid="email-recovery-link" routerLink="/auth/password-recovery">Восстановление пароля по email</a>
-  </p>
+    <button class="btn-login" type="submit" [disabled]="loading()">
+      {{ loading() ? 'Вход...' : 'Войти' }}
+    </button>
+  </form>
 
   <p class="login__footer-link">
     <a data-testid="register-link" routerLink="/auth/register">Регистрация</a>
-  </p>
-
-  <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
-    {{ loading() ? 'Вход...' : 'Войти' }}
-  </button>
-
-  <p class="login__footer-link">
-    <a routerLink="/auth/forgot-password">Забыли пароль?</a>
   </p>
 
   @if (showTestAccountHints) {

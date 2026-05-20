@@ -1,6 +1,12 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
-import { LoginRequestSchema, UserRole, UserSchema, type User } from '@notary-portal/api-contracts';
+import {
+  LoginRequestSchema,
+  RegisterRequestSchema,
+  UserRole,
+  UserSchema,
+  type User,
+} from '@notary-portal/api-contracts';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -88,7 +94,7 @@ describe('AuthService', () => {
 
     const result = await service.login(
       create(LoginRequestSchema, {
-        email: 'Seed-User-000@Seed.Local',
+        email: ' Seed-User-000@Seed.Local ',
         password: 'SeedPass123!',
       }),
     );
@@ -103,6 +109,48 @@ describe('AuthService', () => {
     expect(result.result?.accessToken).toBe('access-token');
     expect(result.result?.refreshToken).toBe('refresh-token');
     expect(result.result?.user?.email).toBe('seed-user-000@seed.local');
+  });
+
+  it('registers with a normalized email address', async () => {
+    const user: User = create(UserSchema, {
+      id: 'user-2',
+      email: 'new-user@example.com',
+      fullName: 'New User',
+      role: UserRole.APPLICANT,
+      phoneNumber: '+7999000001',
+      isActive: true,
+    });
+
+    authRepository.findByEmail.mockResolvedValue(null);
+    authRepository.toPrismaRole.mockReturnValue('Applicant');
+    authRepository.createUser.mockResolvedValue(user);
+    passwordService.hash.mockResolvedValue('password-hash');
+    tokenService.generateTokenPair.mockReturnValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshExpiresAt: new Date('2026-04-12T00:00:00.000Z'),
+    });
+    refreshTokenRepository.save.mockResolvedValue(undefined);
+
+    await service.register(
+      create(RegisterRequestSchema, {
+        email: ' New-User@Example.Com ',
+        password: 'Password123',
+        fullName: ' New User ',
+        phoneNumber: ' +7999000001 ',
+        role: UserRole.APPLICANT,
+      }),
+    );
+
+    expect(authRepository.findByEmail).toHaveBeenCalledWith('new-user@example.com');
+    expect(authRepository.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'new-user@example.com',
+        passwordHash: 'password-hash',
+        fullName: 'New User',
+        phoneNumber: '+7999000001',
+      }),
+    );
   });
 
   it('rejects invalid credentials when password comparison fails', async () => {

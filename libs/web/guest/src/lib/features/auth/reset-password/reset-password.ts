@@ -27,7 +27,7 @@ export class ResetPassword implements OnInit {
   }
 
   async onSubmit(): Promise<void> {
-    if (!this.token || !this.newPassword) return;
+    if (!this.token || this.newPassword.length < 8) return;
     if (this.newPassword !== this.confirmPassword) return;
     try {
       await this.authService.resetPassword(this.token, this.newPassword);
