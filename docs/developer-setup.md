@@ -49,6 +49,7 @@ pnpm nx serve web
 
 - Если порт `5432` занят (например, установлен PostgreSQL вне Docker), измените порт в `docker-compose.yaml` на свободный.
 - **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics», «PostgreSQL», «Container logs», «Security events (Loki)» и «Failed access attempts (Loki)» (логи через Loki/Promtail). В Explore можно выбрать datasource **Loki** и выполнить запрос `{job="docker", service=~"api|web"} | json | requestId="<id запроса>"`.
+- Для проверки dashboard `Failed access attempts (Loki)` используйте smoke-инструкцию [`failed-access-loki-smoke.md`](failed-access-loki-smoke.md): она генерирует тестовые 401/404 события и сверяет их в Loki/Grafana.
 
 ## Создание компонента
 
