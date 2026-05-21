@@ -51,6 +51,35 @@ sum by (path,statusCode) (
 /codex-bot-scan-3                   404
 ```
 
+## Проверка в Prometheus
+
+Эти же ответы пишутся в метрику:
+
+```text
+notary_failed_access_total
+```
+
+Проверка через API:
+
+```bash
+curl -sS http://localhost:3000/metrics | grep notary_failed_access_total
+```
+
+PromQL-запрос для Grafana:
+
+```promql
+sum by (reason, status_code, path_group) (
+  increase(notary_failed_access_total[15m])
+)
+```
+
+Для smoke-набора ожидаются группы:
+
+```text
+auth_denied / 401 / payment_receipt
+scan_miss   / 404 / other
+```
+
 ## Проверка в Grafana
 
 Откройте dashboard:
@@ -65,5 +94,23 @@ http://localhost:3001/d/notarius-failed-access-loki/failed-access-attempts-loki
 - `401 / 403 denials`: не меньше `2`;
 - `404 scan misses`: не меньше `3`;
 - `Recent failed requests with status code`: свежие строки с `statusCode=401` и `statusCode=404`.
+- `Prometheus failed access metrics`: те же события, сгруппированные по `reason`, `status_code` и `path_group`.
 
 Панель `Failed login attempts` останется пустой, если smoke-тест не вызывает реальный endpoint `/notary.auth.v1alpha1.AuthService/Login` с неверным паролем.
+
+## Unit tests
+
+Логика метрик покрыта unit-тестами API:
+
+```bash
+pnpm nx test api --testPathPattern=failed-access
+```
+
+Проверяется:
+
+- классификация `AuthService/Login` как `failed_login`;
+- классификация закрытых receipt-запросов как `auth_denied`;
+- классификация неизвестных 404 как `scan_miss`;
+- отсутствие высококардинальных label'ов с payment id или сырым URL;
+- экспорт `notary_failed_access_total` в Prometheus format;
+- middleware, которое записывает метрику только после завершения 4xx-ответа.

@@ -62,7 +62,7 @@
 
 API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует payload и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
 
-Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём.
+Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём. Те же события дополнительно пишутся в Prometheus-метрику `notary_failed_access_total` с низкокардинальными label'ами `reason`, `status_code` и `path_group`.
 
 Smoke-проверка для этого dashboard описана в [`docs/failed-access-loki-smoke.md`](docs/failed-access-loki-smoke.md): там есть тестовые 401/404 запросы, LogQL-запрос и ожидаемые значения панелей.
 
