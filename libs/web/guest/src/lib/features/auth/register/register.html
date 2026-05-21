@@ -30,7 +30,8 @@
         id="phoneNumber"
         name="phoneNumber"
         type="tel"
-        [(ngModel)]="phoneNumber"
+        [ngModel]="phoneNumber"
+        (ngModelChange)="onPhoneNumberChange($event)"
         placeholder="+7 999 123-45-67"
         autocomplete="tel" />
     </div>

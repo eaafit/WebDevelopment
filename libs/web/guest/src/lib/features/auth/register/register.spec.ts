@@ -70,6 +70,18 @@ describe('Register', () => {
     expect(component.validationError).toBe('Укажите корректный номер телефона.');
   });
 
+  it('should format a +7 phone number while typing', () => {
+    component.onPhoneNumberChange('+79991234567');
+
+    expect(component.phoneNumber).toBe('+7 (999) 123-45-67');
+  });
+
+  it('should format an 8-prefixed phone number while typing', () => {
+    component.onPhoneNumberChange('89991234567');
+
+    expect(component.phoneNumber).toBe('8 (999) 123-45-67');
+  });
+
   it('should not submit when passwords do not match', async () => {
     fillValidForm(component);
     component.confirmPassword = 'Different123';
@@ -131,6 +143,15 @@ describe('Register', () => {
       role: UserRole.Applicant,
     });
     expect(component.validationError).toBeNull();
+  });
+
+  it('should submit the normalized phone number without mask symbols', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '8 (999) 123-45-67';
+
+    await component.onSubmit();
+
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({ phoneNumber: '89991234567' }));
   });
 
   it('should call AuthService.register with notary role', async () => {

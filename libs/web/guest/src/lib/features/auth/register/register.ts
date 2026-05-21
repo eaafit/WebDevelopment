@@ -45,10 +45,14 @@ export class Register {
     await this.authService.register({
       fullName: this.fullName.trim(),
       email: this.email.trim(),
-      phoneNumber: this.phoneNumber.trim(),
+      phoneNumber: normalizeRussianPhone(this.phoneNumber),
       password: this.password,
       role: this.role,
     });
+  }
+
+  onPhoneNumberChange(value: string): void {
+    this.phoneNumber = formatRussianPhone(value);
   }
 
   togglePasswordVisibility(): void {
@@ -62,7 +66,7 @@ export class Register {
   private getValidationError(): string | null {
     const fullName = this.fullName.trim();
     const email = this.email.trim();
-    const phoneNumber = this.phoneNumber.trim();
+    const phoneNumber = normalizeRussianPhone(this.phoneNumber);
 
     if (!FULL_NAME_RE.test(fullName)) return 'Укажите корректное ФИО.';
     if (!EMAIL_RE.test(email)) return 'Укажите корректный email.';
@@ -72,4 +76,40 @@ export class Register {
     if (!this.termsAccepted) return 'Подтвердите согласие с условиями.';
     return null;
   }
+}
+
+function formatRussianPhone(value: string): string {
+  const raw = value.trim();
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+
+  const useEightPrefix = !raw.startsWith('+') && digits.startsWith('8');
+  const prefix = useEightPrefix ? '8' : '+7';
+  let nationalNumber = digits;
+
+  if (useEightPrefix || digits.startsWith('7')) {
+    nationalNumber = digits.slice(1);
+  }
+
+  nationalNumber = nationalNumber.slice(0, 10);
+  if (!nationalNumber) return prefix;
+
+  let formatted = `${prefix} (${nationalNumber.slice(0, 3)}`;
+  if (nationalNumber.length >= 3) formatted += ')';
+  if (nationalNumber.length > 3) formatted += ` ${nationalNumber.slice(3, 6)}`;
+  if (nationalNumber.length > 6) formatted += `-${nationalNumber.slice(6, 8)}`;
+  if (nationalNumber.length > 8) formatted += `-${nationalNumber.slice(8, 10)}`;
+
+  return formatted;
+}
+
+function normalizeRussianPhone(value: string): string {
+  const formatted = formatRussianPhone(value);
+  const digits = formatted.replace(/\D/g, '');
+
+  if (!digits) return '';
+  if (formatted.startsWith('8')) return digits;
+  if (digits.startsWith('7')) return `+${digits}`;
+
+  return formatted.trim();
 }
