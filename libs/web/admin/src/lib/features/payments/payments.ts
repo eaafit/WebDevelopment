@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -121,9 +121,12 @@ export class Payments implements OnInit, OnDestroy {
   private readonly tokenStore = inject(TokenStore);
   private readonly logger = inject(WebLoggerService);
   private readonly userApi = inject(AdminUserApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private dataSub?: Subscription;
   private loadSub?: Subscription;
   private filterReloadTimer?: ReturnType<typeof setTimeout>;
+  private destroyed = false;
+  private viewRefreshQueued = false;
 
   async openReceipt(paymentId: string | number): Promise<void> {
     this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
@@ -213,6 +216,7 @@ export class Payments implements OnInit, OnDestroy {
           this.payments = data;
           this.loading = false;
           this.logInfo('payment.admin.list_loaded', { total: data.length });
+          this.requestViewRefresh();
         }
       },
       error: (err) => {
@@ -220,12 +224,14 @@ export class Payments implements OnInit, OnDestroy {
         this.payments = [];
         this.loadError = 'Не удалось загрузить данные платежей с сервера';
         this.loading = false;
+        this.requestViewRefresh();
       },
     });
     this.loadPayments();
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.logInfo('payment.admin.list_destroyed');
     this.dataSub?.unsubscribe();
     this.loadSub?.unsubscribe();
@@ -724,6 +730,7 @@ export class Payments implements OnInit, OnDestroy {
         this.serverTotalPages = page.meta?.totalPages ?? 1;
         this.currentPage = page.meta?.currentPage ?? this.currentPage;
         this.loading = false;
+        this.requestViewRefresh();
       },
       error: (err) => {
         this.payments = [];
@@ -732,7 +739,22 @@ export class Payments implements OnInit, OnDestroy {
         this.loadError =
           err instanceof Error ? err.message : 'Не удалось загрузить данные платежей с сервера';
         this.loading = false;
+        this.requestViewRefresh();
       },
+    });
+  }
+
+  private requestViewRefresh(): void {
+    if (this.viewRefreshQueued) {
+      return;
+    }
+
+    this.viewRefreshQueued = true;
+    queueMicrotask(() => {
+      this.viewRefreshQueued = false;
+      if (!this.destroyed) {
+        this.cdr.detectChanges();
+      }
     });
   }
 
