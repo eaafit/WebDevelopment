@@ -23,6 +23,7 @@ describe('Payments', () => {
   let paymentsSubject: BehaviorSubject<Payment[] | null>;
   let listPaymentsMock: jest.Mock;
   let getAllPaymentsMock: jest.Mock;
+  let anchorClickSpy: jest.SpyInstance;
 
   function createMockProviders(
     paymentsStream: BehaviorSubject<Payment[] | null>,
@@ -102,6 +103,7 @@ describe('Payments', () => {
     };
     urlCtor.createObjectURL = jest.fn(() => 'blob:http://localhost/fake-url');
     urlCtor.revokeObjectURL = jest.fn();
+    anchorClickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
 
     await TestBed.configureTestingModule({
       imports: [Payments],
@@ -122,6 +124,7 @@ describe('Payments', () => {
   });
 
   afterEach(() => {
+    anchorClickSpy.mockRestore();
     paymentsSubject.complete();
   });
 
@@ -348,15 +351,12 @@ describe('Payments', () => {
     );
   });
 
-  it('should log export csv started and succeeded', async () => {
-    await component.exportToCsv();
+  it('should log export csv started and succeeded', () => {
+    component.exportToCsv();
 
-    expect(getAllPaymentsMock).toHaveBeenCalledWith({
-      statuses: [],
-      types: [],
-      searchQuery: undefined,
-    });
+    expect(getAllPaymentsMock).not.toHaveBeenCalled();
     expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(anchorClickSpy).toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
       'payment.admin.export_csv_started',
       expect.objectContaining({

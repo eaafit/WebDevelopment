@@ -461,23 +461,21 @@ export class Payments implements OnInit, OnDestroy {
     this.router.navigate(['/admin', 'applications'], extras);
   }
 
-  async exportToCsv(): Promise<void> {
+  exportToCsv(): void {
     this.logInfo('payment.admin.export_csv_started', {
       rows: this.filteredPayments.length,
       page: this.currentPage,
     });
-    this.exporting = true;
     this.loadError = null;
 
+    const exportPayments = this.filteredPayments;
+    if (!exportPayments.length) {
+      this.logWarn('payment.admin.export_csv_skipped_empty');
+      return;
+    }
+
+    this.exporting = true;
     try {
-      const payments = await this.api.getAllPayments(this.buildQueryFilters());
-      const exportPayments = this.applyLocalFilters(payments);
-
-      if (!exportPayments.length) {
-        this.logWarn('payment.admin.export_csv_skipped_empty');
-        return;
-      }
-
       this.downloadCsv(this.buildCsvContent(exportPayments));
       this.logInfo('payment.admin.export_csv_succeeded', {
         rows: exportPayments.length,
@@ -485,9 +483,10 @@ export class Payments implements OnInit, OnDestroy {
     } catch (err) {
       this.logError('payment.admin.export_csv_failed', err);
       this.loadError =
-        err instanceof Error ? err.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ РїР»Р°С‚РµР¶Рё РІ CSV';
+        err instanceof Error ? err.message : 'Не удалось экспортировать платежи в CSV';
     } finally {
       this.exporting = false;
+      this.requestViewRefresh();
     }
   }
 
@@ -933,7 +932,7 @@ export class Payments implements OnInit, OnDestroy {
     document.body.append(link);
     link.click();
     link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 }
 
