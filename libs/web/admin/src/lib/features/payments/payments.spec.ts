@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { WebLoggerService, TokenStore } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
@@ -21,12 +21,28 @@ describe('Payments', () => {
     error: jest.Mock;
   };
   let paymentsSubject: BehaviorSubject<Payment[] | null>;
+  let listPaymentsMock: jest.Mock;
+  let getAllPaymentsMock: jest.Mock;
 
   function createMockProviders(
     paymentsStream: BehaviorSubject<Payment[] | null>,
     loggerMock: Record<string, jest.Mock>,
     deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
   ) {
+    const listPayments =
+      listPaymentsMock ??
+      jest.fn(() =>
+        of({
+          payments: MOCK_PAYMENTS.map((p) => ({ ...p })),
+          meta: {
+            currentPage: 1,
+            totalItems: MOCK_PAYMENTS.length,
+            totalPages: 1,
+            limit: 10,
+          },
+        }),
+      );
+
     return [
       provideRouter([]),
       {
@@ -48,7 +64,9 @@ describe('Payments', () => {
             paymentsStream.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
           },
           payments$: paymentsStream.asObservable(),
-          getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
+          listPayments,
+          getAllPayments:
+            getAllPaymentsMock ?? jest.fn().mockResolvedValue(MOCK_PAYMENTS.map((p) => ({ ...p }))),
           deletePayment: deletePaymentMock,
         },
       },
@@ -66,6 +84,18 @@ describe('Payments', () => {
       error: jest.fn(),
     };
     paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
+    listPaymentsMock = jest.fn(() =>
+      of({
+        payments: MOCK_PAYMENTS.map((p) => ({ ...p })),
+        meta: {
+          currentPage: 1,
+          totalItems: MOCK_PAYMENTS.length,
+          totalPages: 1,
+          limit: 10,
+        },
+      }),
+    );
+    getAllPaymentsMock = jest.fn().mockResolvedValue(MOCK_PAYMENTS.map((p) => ({ ...p })));
     const urlCtor = globalThis.URL as typeof URL & {
       createObjectURL?: jest.Mock;
       revokeObjectURL?: jest.Mock;
@@ -114,6 +144,18 @@ describe('Payments', () => {
     );
   });
 
+  it('should load payments on initial page open', () => {
+    expect(listPaymentsMock).toHaveBeenCalledWith({
+      page: 1,
+      limit: 10,
+      statuses: [],
+      types: [],
+      searchQuery: undefined,
+    });
+    expect(component.payments).toHaveLength(MOCK_PAYMENTS.length);
+    expect(component.loading).toBe(false);
+  });
+
   it('should log error when payments stream fails', async () => {
     const failLogger = {
       info: jest.fn(),
@@ -141,6 +183,17 @@ describe('Payments', () => {
           useValue: {
             preload: jest.fn(),
             payments$: failSubject.asObservable(),
+            listPayments: jest.fn(() =>
+              of({
+                payments: [],
+                meta: {
+                  currentPage: 1,
+                  totalItems: 0,
+                  totalPages: 1,
+                  limit: 10,
+                },
+              }),
+            ),
             getAllPayments: async () => [],
             deletePayment: jest.fn().mockResolvedValue(true),
           },
@@ -295,9 +348,15 @@ describe('Payments', () => {
     );
   });
 
-  it('should log export csv started and succeeded', () => {
-    component.exportToCsv();
+  it('should log export csv started and succeeded', async () => {
+    await component.exportToCsv();
 
+    expect(getAllPaymentsMock).toHaveBeenCalledWith({
+      statuses: [],
+      types: [],
+      searchQuery: undefined,
+    });
+    expect(URL.createObjectURL).toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
       'payment.admin.export_csv_started',
       expect.objectContaining({
@@ -309,7 +368,7 @@ describe('Payments', () => {
       'payment.admin.export_csv_succeeded',
       expect.objectContaining({
         area: 'admin_payments_list',
-        rows: component.filteredPayments.length,
+        rows: MOCK_PAYMENTS.length,
       }),
     );
   });

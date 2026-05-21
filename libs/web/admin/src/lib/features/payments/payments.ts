@@ -59,6 +59,7 @@ export class Payments implements OnInit, OnDestroy {
   totalItems = 0;
   serverTotalPages = 1;
   loading = true;
+  exporting = false;
   loadError: string | null = null;
 
   searchTerm = '';
@@ -221,11 +222,16 @@ export class Payments implements OnInit, OnDestroy {
         this.loading = false;
       },
     });
+    this.loadPayments();
   }
 
   ngOnDestroy(): void {
     this.logInfo('payment.admin.list_destroyed');
     this.dataSub?.unsubscribe();
+    this.loadSub?.unsubscribe();
+    if (this.filterReloadTimer) {
+      clearTimeout(this.filterReloadTimer);
+    }
     this.unlockBodyScroll();
   }
 
@@ -449,27 +455,34 @@ export class Payments implements OnInit, OnDestroy {
     this.router.navigate(['/admin', 'applications'], extras);
   }
 
-  exportToCsv(): void {
+  async exportToCsv(): Promise<void> {
     this.logInfo('payment.admin.export_csv_started', {
       rows: this.filteredPayments.length,
       page: this.currentPage,
     });
-    const csvContent = this.buildCsvContent(this.filteredPayments);
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: 'text/csv;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    this.exporting = true;
+    this.loadError = null;
 
-    link.href = url;
-    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    this.logInfo('payment.admin.export_csv_succeeded', {
-      rows: this.filteredPayments.length,
-    });
+    try {
+      const payments = await this.api.getAllPayments(this.buildQueryFilters());
+      const exportPayments = this.applyLocalFilters(payments);
+
+      if (!exportPayments.length) {
+        this.logWarn('payment.admin.export_csv_skipped_empty');
+        return;
+      }
+
+      this.downloadCsv(this.buildCsvContent(exportPayments));
+      this.logInfo('payment.admin.export_csv_succeeded', {
+        rows: exportPayments.length,
+      });
+    } catch (err) {
+      this.logError('payment.admin.export_csv_failed', err);
+      this.loadError =
+        err instanceof Error ? err.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ СЌРєСЃРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ РїР»Р°С‚РµР¶Рё РІ CSV';
+    } finally {
+      this.exporting = false;
+    }
   }
 
   goToApplication(assessmentId: string): void {
@@ -883,6 +896,22 @@ export class Payments implements OnInit, OnDestroy {
     return [header, ...rows]
       .map((row) => row.map((value) => this.escapeCsvValue(value)).join(this.csvSeparator))
       .join('\r\n');
+  }
+
+  private downloadCsv(csvContent: string): void {
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.style.display = 'none';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }
 
