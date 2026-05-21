@@ -43,6 +43,14 @@
       border-color: #4f46e5;
       box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
     }
+
+    // Стили для заблокированного селекта (когда файл загружен)
+    &:disabled {
+      background-color: #e2e8f0;
+      color: #64748b;
+      cursor: not-allowed;
+      border-color: #cbd5e1;
+    }
   }
 
   .file-input {
@@ -59,42 +67,75 @@
       transition: 0.2s;
       &:hover {
         background: #4f46e5;
-        color: white;
+        color: #fff;
       }
     }
   }
 
-  .file-card {
-    padding: 0.75rem;
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 10px;
-    .file-name {
-      font-size: 0.875rem;
-      color: #166534;
-      font-weight: 500;
+  .document-section {
+    position: relative;
+
+    // Склеиваем твои новые элементы внутрь секции документа
+    .file-uploaded-container {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 0.5rem;
+
+      .file-card {
+        flex-grow: 1;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        background: #f8fafc;
+        
+        .file-name {
+          font-size: 0.9rem;
+          color: #334155;
+          font-weight: 500;
+        }
+      }
+
+      .btn-remove {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.2s;
+
+        &:hover {
+          background: #dc2626;
+        }
+      }
     }
   }
 
   .submit-btn {
-    margin-top: 0.5rem;
-    padding: 0.9rem;
-    background: #4f46e5;
-    color: white;
-    border: none;
+    margin-top: 1rem;
+    padding: 0.85rem;
     border-radius: 10px;
-    font-weight: 700;
+    border: none;
+    background: #4f46e5;
+    color: #fff;
     font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: 0.2s;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background: #4338ca;
-      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
     }
 
-    &:active {
-      transform: scale(0.98);
+    &:disabled {
+      background: #cbd5e1;
+      color: #94a3b8;
+      cursor: not-allowed;
     }
   }
 }

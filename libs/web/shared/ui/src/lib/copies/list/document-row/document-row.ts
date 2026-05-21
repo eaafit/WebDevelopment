@@ -3,7 +3,6 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Document } from '../../services/document.service';
 
-
 @Component({
   selector: 'document-row',
   imports: [CommonModule],
@@ -17,18 +16,35 @@ export class DocumentRow {
   ) { }
   document = input.required<Document>()
 
-  // Используем computed для реактивности
+  // Настраиваем локальные форматеры по аналогии с примером
+  private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  private readonly timeFormatter = new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Используем computed для реактивности и отдаем раздельные строки для шаблона
   uploaded = computed(() => {
     const doc = this.document();
-    // Безопасно проверяем наличие всех вложенных полей
     if (doc?.uploadedAt?.seconds) {
-      return new Date(Number(doc.uploadedAt.seconds) * 1000).toDateString();
+      const parsedDate = new Date(Number(doc.uploadedAt.seconds) * 1000);
+      
+      if (!isNaN(parsedDate.getTime())) {
+        return {
+          date: this.dateFormatter.format(parsedDate).replace(/\s?г\.$/, ''), // Убираем " г." на конце
+          time: this.timeFormatter.format(parsedDate)
+        };
+      }
     }
-    return '-';
+    return null;
   });
 
   navigateToDocumentPage(): void {
     this.router.navigate([this.document().id], { relativeTo: this.route });
   }
-
 }

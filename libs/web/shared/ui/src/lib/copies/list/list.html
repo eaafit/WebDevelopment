@@ -4,7 +4,7 @@
       <h1 class="page-title">Мои копии документов</h1>
       <p class="page-subtitle">Управляйте запросами на создание копий нотариальных документов</p>
     </div>
-    @if (role() === 'notary'){
+    @if (role === 'notary'){
       <button class="btn-create-action" (click)="navigateToNew()">
         <span class="icon-plus">+</span> Заказать новую копию
       </button>
@@ -13,18 +13,24 @@
 
   <div class="copies-grid">
     @for (item of documents(); track item.id) {
-    <document-row [document]="item" />
+      <document-row [document]="item" />
     } @empty {
-    <div class="empty-dashboard-state">
-      <div class="empty-icon">📂</div>
-      <h3>У вас пока нет заказов</h3>
-      @if (role() === 'notary'){<p>Нажмите кнопку выше, чтобы заказать копию первого документа.</p>}
-    </div>
+      <div class="empty-dashboard-state">
+        <div class="empty-icon">📂</div>
+        <h3>У вас пока нет заказов</h3>
+        @if (role === 'notary'){
+          <p>Нажмите кнопку выше, чтобы заказать копию первого документа.</p>
+        }
+      </div>
     }
   </div>
 
-  <!-- @if (documents().length !== 0 && pageInfo() !== undefined) { -->
-  <pagination [hasPrev]="hasPrev()" [hasNext]="hasNext()" [current]="page()" [goToPrev]="goToPrev"
-    [goToNext]="goToNext" />
-  <!-- } -->
+  <pagination 
+    [hasPrev]="hasPrev()" 
+    [hasNext]="hasNext()" 
+    [current]="page()" 
+    [totalPages]="pageInfo().totalPages"
+    [goToPrev]="goToPrev"
+    [goToNext]="goToNext" 
+  />
 </main>

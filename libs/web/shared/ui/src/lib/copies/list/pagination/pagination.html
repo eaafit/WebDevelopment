@@ -1,5 +1,19 @@
 <div class="pagination">
-  <div class="hasPrev() && 'disabled'" (click)="goToPrev()()">Открыть предыдущую страницу</div>
-  <div class="cur">{{current()}}</div>
-  <div class="hasNext() && 'disabled'" (click)="goToNext()()">Открыть следующую страницу</div>
+  <button 
+    class="page-btn" 
+    [class.disabled]="!hasPrev()" 
+    (click)="hasPrev() && goToPrev()()">
+    &larr; Назад
+  </button>
+
+  <div class="page-info">
+    {{ current() }} из {{ totalPages() }}
+  </div>
+
+  <button 
+    class="page-btn" 
+    [class.disabled]="!hasNext()" 
+    (click)="hasNext() && goToNext()()">
+    Вперед &rarr;
+  </button>
 </div>

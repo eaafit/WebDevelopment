@@ -1,19 +1,39 @@
-.pagination{
+.pagination {
   display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  width: 100%;
+  align-items: center;
+  justify-content: center; /* Центрируем элементы вместо раскидывания по краям */
+  gap: 1.5rem;             /* Отступ между кнопками и текстом */
+  padding: 1.5rem 0;
 
-  div:first-of-type:not(.disabled):hover {
+  .page-btn {
+    background: transparent;
+    border: 1px solid #d1d5db; /* Светлая рамка */
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    color: #374151;
+    font-size: 0.9rem;
+    font-weight: 500;
     cursor: pointer;
+    transition: all 0.2s ease-in-out;
+
+    &:hover:not(.disabled) {
+      background-color: #f3f4f6;
+      border-color: #9ca3af;
+    }
+
+    &.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none; /* Защита от случайных кликов (CSS) */
+    }
   }
 
-
-  div:last-of-type:not(.disabled):hover {
-    cursor: pointer;
-  }
-
-  .disabled {
-    cursor:not-allowed;
+  .page-info {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #6b7280;
+    user-select: none;
+    min-width: 60px; /* Чтобы ширина не скачала при переходе с 9 на 10 страницу */
+    text-align: center;
   }
 }

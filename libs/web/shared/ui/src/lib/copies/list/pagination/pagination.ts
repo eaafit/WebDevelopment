@@ -8,9 +8,10 @@ import { CommonModule } from '@angular/common';
   styleUrl: './pagination.scss',
 })
 export class Pagination {
-  hasPrev = input.required<boolean>()
-  hasNext = input.required<boolean>()
-  current = input.required<number>()
-  goToPrev = input.required<() => void>()
-  goToNext = input.required<() => void>()
+  hasPrev = input.required<boolean>();
+  hasNext = input.required<boolean>();
+  current = input.required<number>();
+  totalPages = input.required<number>();
+  goToPrev = input.required<() => void>();
+  goToNext = input.required<() => void>();
 }

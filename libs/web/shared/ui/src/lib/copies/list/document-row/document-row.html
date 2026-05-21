@@ -14,10 +14,17 @@
     <span class="param">Заявка</span>
     <span class="value"></span>
   </div>
-  <div class="row">
-    <span class="param">Дата загрузки</span>
-    <span class="value">{{ uploaded() }}</span>
+  <div class="row date-row">
+  <span class="param">Дата загрузки</span>
+  <div class="value date-container">
+    @if (uploaded()) {
+      <div class="date-text">{{ uploaded()?.date }}</div>
+      <div class="time-text">{{ uploaded()?.time }}</div>
+    } @else {
+      -
+    }
   </div>
+</div>
   <div class="card-footer" (click)="navigateToDocumentPage()">
     <span class="action-text">Открыть детали</span>
   </div>

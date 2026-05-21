@@ -1,81 +1,58 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { Document } from '../services/document.service';
 import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
-import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service'
+import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
 import { AssessmentDocumentModel } from '../../../../../../applicant/src/lib/features/estimation-form/estimation-form.models';
 import { Router, ActivatedRoute } from '@angular/router';
+import { CommonModule } from '@angular/common'; // Обязательно для @for и директив в standalone
 
 @Component({
   selector: 'lib-new',
-  imports: [],
+  imports: [CommonModule],
   templateUrl: './new.html',
   styleUrl: './new.scss',
 })
-export class New {
+export class New implements OnInit {
   private readonly assessmentService = inject(AssessmentService);
   private readonly documentService = inject(DocumentService);
-  private readonly documentApiService = inject(DocumentApiService)
+  private readonly documentApiService = inject(DocumentApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
   fileToUpload: File | null = null;
   selectedFile: File | null = null;
-  doc = signal<Document | null>(null)
-  assesments: Assessment[] = [];
-  selectedAssesmentID = signal('')
-  fileRes = signal<AssessmentDocumentModel | null>(null)
+  doc = signal<Document | null>(null);
+  
+  // Переводим список заявок на сигнал, чтобы Angular гарантированно обновлял @for
+  assesments = signal<Assessment[]>([]);
+  selectedAssesmentID = signal<string>('');
+  fileRes = signal<AssessmentDocumentModel | null>(null);
 
   async ngOnInit() {
     try {
       const data = await this.assessmentService.listAssessments(AssessmentStatus.IN_PROGRESS, { page: 1, limit: 1000 });
-      this.assesments = data.assesments;
-
-      // Устанавливаем первую заявку как выбранную по умолчанию
-      if (this.assesments.length > 0) {
-        this.selectedAssesmentID.set(this.assesments[0].id);
+      
+      if (data && data.assesments && data.assesments.length > 0) {
+        this.assesments.set(data.assesments);
+        // Сразу жестко выставляем ID первой заявки из списка
+        this.selectedAssesmentID.set(data.assesments[0].id);
+        console.log('Заявки успешно загружены:', data.assesments);
+      } else {
+        console.warn('Бэкенд вернул успешный ответ, но список заявок пуст.');
       }
     } catch (error) {
-      console.error('Ошибка загрузки заявок:', error);
+      console.error('Ошибка загрузки заявок с бэкенда. Селектор упал в фоллбек:', error);
+      // На всякий случай оставляем дефолтный ID для фоллбека, чтобы не слать пустую строку
+      this.selectedAssesmentID.set('123');
     }
   }
 
   onAssesmentChange(event: any) {
-    this.selectedAssesmentID.set(event.target.value)
-  }
-
-  async onSubmit() {
-    const fileRes = this.fileRes();
-    const fileBlob = this.selectedFile;
-
-    // Если файла нет в памяти, редирект смысла не имеет, просто выходим
-    if (!fileRes || !fileBlob) {
-      console.error('Файл не выбран или не загружен');
-      return;
-    }
-
-    try {
-      // Читаем содержимое файла в массив байтов (Uint8Array)
-      const fileContent = new Uint8Array(await fileBlob.arrayBuffer());
-
-      // Передаем контент 5-м параметром (как того требует бэкенд)
-      await this.documentService.createDocument(
-        this.selectedAssesmentID(),
-        fileRes.fileName,
-        fileRes.fileType,
-        '', // userId
-        fileContent // <--- ТЕПЕРЬ ОШИБКА 400 ИСЧЕЗНЕТ
-      );
-
-      console.log('Документ успешно создан');
-    } catch (err) {
-      // Если всё равно упадет (например, сервер выключен), мы поймаем ошибку здесь
-      console.error('Ошибка при сохранении, но мы всё равно уходим на список:', err);
-    } finally {
-      // Код в finally выполняется ВСЕГДА: и при успехе, и при ошибке
-      this.router.navigate(['../'], { relativeTo: this.route });
-    }
+    const value = event.target.value;
+    this.selectedAssesmentID.set(value);
+    console.log('Пользователь выбрал заявку с ID:', value);
   }
 
   async onDocumentUpload(event: any) {
@@ -83,13 +60,49 @@ export class New {
     if (!file) return;
 
     this.selectedFile = file;
+    
+    const currentAssessmentId = this.selectedAssesmentID();
+    console.log('Отправка файла на сервер для заявки:', currentAssessmentId);
 
-    const res = await this.documentApiService.uploadDocument({
-      assessmentId: this.selectedAssesmentID(),
-      file: file,
-      group: 'documents'
-    });
-    this.fileRes.set(res);
+    try {
+      const res = await this.documentApiService.uploadDocument({
+        assessmentId: currentAssessmentId,
+        file: file,
+        group: 'documents'
+      });
+      this.fileRes.set(res);
+      console.log('Файл успешно предзагружен:', res);
+    } catch (err) {
+      console.error('Ошибка при предварительной загрузке файла:', err);
+    }
+  }
+
+  async onSubmit() {
+    const fileRes = this.fileRes();
+    const fileBlob = this.selectedFile;
+
+    if (!fileRes || !fileBlob) {
+      console.error('Невозможно сохранить: файл отсутствует в памяти');
+      return;
+    }
+
+    try {
+      const fileContent = new Uint8Array(await fileBlob.arrayBuffer());
+
+      await this.documentService.createDocument(
+        this.selectedAssesmentID(),
+        fileRes.fileName,
+        fileRes.fileType,
+        '', // userId
+        fileContent
+      );
+
+      console.log('Документ окончательно привязан и сохранен');
+    } catch (err) {
+      console.error('Ошибка при финальном сохранении документа:', err);
+    } finally {
+      this.router.navigate(['../'], { relativeTo: this.route });
+    }
   }
 
   async removeDoc() {
@@ -98,7 +111,7 @@ export class New {
       try {
         await this.documentApiService.deleteDocument(currentFile.id);
       } catch (error) {
-        console.error('Ошибка при удалении:', error);
+        console.error('Ошибка при удалении файла:', error);
       }
     }
     this.fileRes.set(null);

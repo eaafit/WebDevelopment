@@ -86,13 +86,13 @@ export const applicantRoutes: Route[] = [
           {
             path: '',
             pathMatch: 'full',
-            loadComponent: () => import('./features/copies/list/list').then((m) => m.List),
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
             data: { role: 'applicant' },
           },
           {
             path: ':id',
             loadComponent: () =>
-              import('./features/copies/copy/copy').then((m) => m.Copy),
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
           },
         ],
       },

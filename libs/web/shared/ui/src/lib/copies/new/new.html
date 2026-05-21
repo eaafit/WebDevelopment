@@ -2,14 +2,18 @@
   <legend class="form-title">Заказать копию</legend>
 
   <div class="input-block">
-    <label class="label" for="a">Выберите заявку</label>
-    <select class="select-field" name="a" (change)="onAssesmentChange($event)">
-      @for (assesment of assesments; track assesment.id) {
-      @if (assesment.id === selectedAssesmentID()){
-      <option [value]="assesment.id" selected>{{ assesment.description }}</option>
-      } @else {
-      <option [value]="assesment.id">{{ assesment.description }}</option>
-      }
+    <label class="label" for="assessment-select">Выберите заявку</label>
+    <select 
+      id="assessment-select"
+      class="select-field" 
+      name="assessment" 
+      (change)="onAssesmentChange($event)">
+      @for (assesment of assesments(); track assesment.id) {
+        <option [value]="assesment.id" [selected]="assesment.id === selectedAssesmentID()">
+          {{ assesment.description || 'Заявка #' + assesment.id }}
+        </option>
+      } @empty {
+        <option value="123" selected>Тестовая заявка (Ошибка бэкенда)</option>
       }
     </select>
   </div>
@@ -18,15 +22,22 @@
     <label class="label">
       Заключение <span class="required">*</span>
     </label>
-    <input class="file-input" id="documentFile" type="file" accept=".pdf,.doc,.docx"
-      (change)="onDocumentUpload($event)" />
+    
+    @if (!fileRes()) {
+      <input class="file-input" id="documentFile" type="file" accept=".pdf,.doc,.docx"
+        (change)="onDocumentUpload($event)" />
+    }
 
-    @if (doc()) {
-    <div class="file-card">
-      <span class="file-name">📄 {{ doc()?.fileName }}</span>
-    </div>
+    @if (fileRes()) {
+      <div class="file-uploaded-container">
+        <div class="file-card">
+          <span class="file-name">📄 {{ selectedFile?.name || fileRes()?.fileName }}</span>
+        </div>
+        
+        <button type="button" class="btn-remove" (click)="removeDoc()">✕</button>
+      </div>
     }
   </div>
 
-  <button class="submit-btn" (click)="onSubmit()">Сохранить документ</button>
+  <button class="submit-btn" [disabled]="!fileRes()" (click)="onSubmit()">Сохранить документ</button>
 </fieldset>
