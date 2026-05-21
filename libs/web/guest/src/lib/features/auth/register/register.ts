@@ -6,7 +6,8 @@ import { AuthService } from '../auth.service';
 
 const FULL_NAME_RE = /^[A-Za-zА-Яа-яЁё]{2,}(?:[ -][A-Za-zА-Яа-яЁё]{2,}){1,3}$/u;
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
-const PHONE_RE = /^(?:\+7|8)\s?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$/;
+const PHONE_RE = /^(?:\+7|8)\d{10}$/;
+const RUSSIAN_PHONE_DIGIT_LIMIT = 11;
 
 @Component({
   selector: 'lib-register',
@@ -80,18 +81,36 @@ export class Register {
 
 function formatRussianPhone(value: string): string {
   const raw = value.trim();
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return '';
+  const digits = getLimitedPhoneDigits(value);
+  if (!digits) return raw.startsWith('+') ? '+' : '';
 
-  const useEightPrefix = !raw.startsWith('+') && digits.startsWith('8');
-  const prefix = useEightPrefix ? '8' : '+7';
-  let nationalNumber = digits;
-
-  if (useEightPrefix || digits.startsWith('7')) {
-    nationalNumber = digits.slice(1);
+  if (digits.startsWith('7')) {
+    return formatRussianPhoneParts('+7', digits.slice(1));
   }
 
-  nationalNumber = nationalNumber.slice(0, 10);
+  if (!raw.startsWith('+') && digits.startsWith('8')) {
+    return formatRussianPhoneParts('8', digits.slice(1));
+  }
+
+  return digits;
+}
+
+function normalizeRussianPhone(value: string): string {
+  const digits = getLimitedPhoneDigits(value);
+
+  if (!digits) return '';
+  if (digits.length !== RUSSIAN_PHONE_DIGIT_LIMIT) return digits;
+  if (digits.startsWith('8')) return digits;
+  if (digits.startsWith('7')) return `+${digits}`;
+
+  return digits;
+}
+
+function getLimitedPhoneDigits(value: string): string {
+  return value.replace(/\D/g, '').slice(0, RUSSIAN_PHONE_DIGIT_LIMIT);
+}
+
+function formatRussianPhoneParts(prefix: '+7' | '8', nationalNumber: string): string {
   if (!nationalNumber) return prefix;
 
   let formatted = `${prefix} (${nationalNumber.slice(0, 3)}`;
@@ -101,15 +120,4 @@ function formatRussianPhone(value: string): string {
   if (nationalNumber.length > 8) formatted += `-${nationalNumber.slice(8, 10)}`;
 
   return formatted;
-}
-
-function normalizeRussianPhone(value: string): string {
-  const formatted = formatRussianPhone(value);
-  const digits = formatted.replace(/\D/g, '');
-
-  if (!digits) return '';
-  if (formatted.startsWith('8')) return digits;
-  if (digits.startsWith('7')) return `+${digits}`;
-
-  return formatted.trim();
 }

@@ -33,6 +33,8 @@
         [ngModel]="phoneNumber"
         (ngModelChange)="onPhoneNumberChange($event)"
         placeholder="+7 999 123-45-67"
+        maxlength="18"
+        inputmode="numeric"
         autocomplete="tel" />
     </div>
 

@@ -82,6 +82,23 @@ describe('Register', () => {
     expect(component.phoneNumber).toBe('8 (999) 123-45-67');
   });
 
+  it('should limit phone input to 11 digits', () => {
+    component.onPhoneNumberChange('+7999123456789');
+
+    expect(component.phoneNumber).toBe('+7 (999) 123-45-67');
+    expect(component.phoneNumber.replace(/\D/g, '')).toHaveLength(11);
+  });
+
+  it('should not accept a 10-digit phone number without country prefix', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '9991234567';
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(component.validationError).toBe('Укажите корректный номер телефона.');
+  });
+
   it('should not submit when passwords do not match', async () => {
     fillValidForm(component);
     component.confirmPassword = 'Different123';
