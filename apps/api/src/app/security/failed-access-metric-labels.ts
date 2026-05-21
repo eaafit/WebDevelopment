@@ -1,25 +1,9 @@
+import type {
+  FailedAccessMetricLabels,
+  FailedAccessMetricPathGroup,
+  FailedAccessMetricReason,
+} from '@internal/metrics';
 import { sanitizeRequestPath } from '../logging/logging.config';
-
-export type FailedAccessReason =
-  | 'auth_denied'
-  | 'failed_login'
-  | 'scan_miss'
-  | 'rate_limited'
-  | 'client_error';
-export type FailedAccessPathGroup =
-  | 'auth_login'
-  | 'payment_receipt'
-  | 'document_content'
-  | 'connect_rpc'
-  | 'api'
-  | 'other';
-
-export interface FailedAccessMetricLabels {
-  method: string;
-  statusCode: string;
-  reason: FailedAccessReason;
-  pathGroup: FailedAccessPathGroup;
-}
 
 export interface FailedAccessRequestLike {
   method?: string;
@@ -46,7 +30,7 @@ export function resolveFailedAccessMetricLabels(
   };
 }
 
-export function resolveFailedAccessPathGroup(path: string): FailedAccessPathGroup {
+export function resolveFailedAccessPathGroup(path: string): FailedAccessMetricPathGroup {
   if (path === '/notary.auth.v1alpha1.AuthService/Login') {
     return 'auth_login';
   }
@@ -72,8 +56,8 @@ export function resolveFailedAccessPathGroup(path: string): FailedAccessPathGrou
 
 function resolveFailedAccessReason(
   statusCode: number,
-  pathGroup: FailedAccessPathGroup,
-): FailedAccessReason {
+  pathGroup: FailedAccessMetricPathGroup,
+): FailedAccessMetricReason {
   if ((statusCode === 401 || statusCode === 403) && pathGroup === 'auth_login') {
     return 'failed_login';
   }
