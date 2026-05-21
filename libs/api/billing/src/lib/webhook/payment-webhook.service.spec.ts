@@ -679,6 +679,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const response = await service.handleRobokassaResult({
@@ -733,6 +734,7 @@ describe('PaymentWebhookService', () => {
       paymentSubscriptionService as never,
       paymentAttachmentService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     await expect(
