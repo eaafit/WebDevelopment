@@ -4,7 +4,9 @@ import { RouterLink } from '@angular/router';
 import { UserRole } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FULL_NAME_RE = /^[A-Za-zА-Яа-яЁё]{2,}(?:[ -][A-Za-zА-Яа-яЁё]{2,}){1,3}$/u;
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+const PHONE_RE = /^(?:\+7|8)\s?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$/;
 
 @Component({
   selector: 'lib-register',
@@ -20,6 +22,8 @@ export class Register {
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;
   readonly submitted = signal(false);
+  readonly showPassword = signal(false);
+  readonly showConfirmPassword = signal(false);
 
   fullName = '';
   email = '';
@@ -47,10 +51,22 @@ export class Register {
     });
   }
 
+  togglePasswordVisibility(): void {
+    this.showPassword.update((value) => !value);
+  }
+
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword.update((value) => !value);
+  }
+
   private getValidationError(): string | null {
-    if (!this.fullName.trim()) return 'Укажите ФИО.';
-    if (!EMAIL_RE.test(this.email.trim())) return 'Укажите корректный email.';
-    if (!this.phoneNumber.trim()) return 'Укажите номер телефона.';
+    const fullName = this.fullName.trim();
+    const email = this.email.trim();
+    const phoneNumber = this.phoneNumber.trim();
+
+    if (!FULL_NAME_RE.test(fullName)) return 'Укажите корректное ФИО.';
+    if (!EMAIL_RE.test(email)) return 'Укажите корректный email.';
+    if (!PHONE_RE.test(phoneNumber)) return 'Укажите корректный номер телефона.';
     if (this.password.length < 8) return 'Пароль должен быть не короче 8 символов.';
     if (this.password !== this.confirmPassword) return 'Пароли должны совпадать.';
     if (!this.termsAccepted) return 'Подтвердите согласие с условиями.';

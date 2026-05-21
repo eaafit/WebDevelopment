@@ -39,7 +39,8 @@ describe('Login', () => {
   it('should expose a single working forgot-password link', () => {
     fixture.detectChanges();
 
-    const links = fixture.nativeElement.querySelectorAll('[data-testid="forgot-password-link"]');
+    const root = fixture.nativeElement as HTMLElement;
+    const links = root.querySelectorAll<HTMLAnchorElement>('[data-testid="forgot-password-link"]');
     const link = links[0] as HTMLAnchorElement | undefined;
 
     expect(links.length).toBe(1);
@@ -49,10 +50,45 @@ describe('Login', () => {
   it('should expose the register link', () => {
     fixture.detectChanges();
 
-    const link = fixture.nativeElement.querySelector('[data-testid="register-link"]') as HTMLAnchorElement | null;
+    const root = fixture.nativeElement as HTMLElement;
+    const link = root.querySelector<HTMLAnchorElement>(
+      '[data-testid="register-link"]',
+    );
 
     expect(link).not.toBeNull();
     expect(link?.getAttribute('href')).toContain('/auth/register');
+  });
+
+  it('should toggle password visibility', () => {
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const input = root.querySelector<HTMLInputElement>('#password');
+    const button = root.querySelector<HTMLButtonElement>(
+      '.login__password-toggle',
+    );
+
+    expect(input?.type).toBe('password');
+
+    button?.click();
+    fixture.detectChanges();
+
+    expect(input?.type).toBe('text');
+
+    button?.click();
+    fixture.detectChanges();
+
+    expect(input?.type).toBe('password');
+  });
+
+  it('should not submit an invalid email', async () => {
+    component.email = 'not-an-email';
+    component.password = 'Password123';
+
+    await component.onLogin();
+
+    expect(login).not.toHaveBeenCalled();
+    expect(component.validationError()).toBe('Укажите корректный email.');
   });
 
   it('should fill the form and mark credentials as copied', async () => {
@@ -84,5 +120,6 @@ describe('Login', () => {
     await component.onLogin();
 
     expect(login).toHaveBeenCalledWith('user@example.com', 'Password123');
+    expect(component.validationError()).toBeNull();
   });
 });
