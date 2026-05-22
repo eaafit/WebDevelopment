@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './tracing';
 import { NestFactory } from '@nestjs/core';
 import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
