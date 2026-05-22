@@ -147,20 +147,16 @@ export class PaymentNotificationService {
     options: { excludeUserIds?: string[] } = {},
   ): Promise<void> {
     try {
-      const excluded = new Set(options.excludeUserIds ?? []);
-      const admins = await this.prisma.user.findMany({
-        where: {
-          role: PrismaRole.Admin,
-          isActive: true,
-          ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
-        },
-        select: { id: true },
-      });
+      const adminUserIds = await this.listActiveAdminRecipientIds(options.excludeUserIds ?? []);
+
+      if (!adminUserIds.length) {
+        return;
+      }
 
       const results = await Promise.allSettled(
-        admins.map((admin) =>
+        adminUserIds.map((userId) =>
           this.createPaymentNotification({
-            userId: admin.id,
+            userId,
             title,
             message,
           }),
@@ -174,6 +170,20 @@ export class PaymentNotificationService {
     } catch (error) {
       this.logger.warn(`Failed to create admin payment notifications: ${getErrorMessage(error)}`);
     }
+  }
+
+  private async listActiveAdminRecipientIds(excludeUserIds: string[]): Promise<string[]> {
+    const excluded = new Set(excludeUserIds);
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: PrismaRole.Admin,
+        isActive: true,
+        ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
+      },
+      select: { id: true },
+    });
+
+    return [...new Set(admins.map((admin) => admin.id).filter((id) => !excluded.has(id)))];
   }
 
   private createPaymentNotification(params: {
