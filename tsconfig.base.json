@@ -21,6 +21,7 @@
       "@internal/auth-shared": ["libs/api/shared/auth/src/index.ts"],
       "@internal/billing": ["libs/api/billing/src/index.ts"],
       "@internal/bitrix": ["libs/api/bitrix/src/index.ts"],
+      "@internal/bitrix-leads": ["libs/api/bitrix-leads/src/index.ts"],
       "@internal/document": ["libs/api/document/src/index.ts"],
       "@internal/metrics": ["libs/api/shared/metrics/src/index.ts"],
       "@internal/newsletter": ["libs/api/newsletter/src/index.ts"],

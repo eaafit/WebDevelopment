@@ -1,0 +1,12 @@
+{
+  "name": "bitrix-leads",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/bitrix-leads/src",
+  "projectType": "library",
+  "tags": ["scope:backend"],
+  "targets": {
+    "test": {
+      "dependsOn": ["prisma:generate"]
+    }
+  }
+}
