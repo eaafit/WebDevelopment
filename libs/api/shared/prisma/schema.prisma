@@ -603,3 +603,21 @@ model ClientSync {
 
   @@map("client_sync")
 }
+
+model Lead {
+  id                     String   @id @default(uuid())
+  applicantId            String   @map("applicant_id")
+  executorId             String?  @map("executor_id")
+  assessmentId           String   @unique @map("assessment_id")
+  startDate              DateTime @map("start_date") @default(now())
+  plannedCompletionDate  DateTime @map("planned_completion_date")
+  actualCompletionDate   DateTime? @map("actual_completion_date")
+  transactionId          String?  @map("transaction_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@index([applicantId])
+  @@index([executorId])
+  @@index([assessmentId])
+  @@map("leads")
+}
