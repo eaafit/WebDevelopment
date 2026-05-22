@@ -16,6 +16,7 @@ import { LoggingModule } from './logging/logging.module';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
+import { OrderModule } from '@notary-portal/order';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
     NotificationModule,
     ReportModule,
     UserModule,
+    OrderModule,
   ],
   controllers: [PaymentAttachmentController],
   providers: [ConnectRouterRegistry, PortalAdminBootstrapService],

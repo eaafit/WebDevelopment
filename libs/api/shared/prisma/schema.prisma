@@ -227,6 +227,9 @@ model User {
   newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
   newsletterDeliveries   NewsletterDelivery[]
 
+  applicantLeads Lead[] @relation("ApplicantLeads")
+  executorLeads  Lead[] @relation("ExecutorLeads")
+
   @@map("users")
 }
 
@@ -304,6 +307,8 @@ model Assessment {
   reports          AssessmentReport[]
   payments         Payment[]
 
+  lead Lead?
+  
   @@map("assessments")
 }
 
@@ -606,15 +611,19 @@ model ClientSync {
 
 model Lead {
   id                     String   @id @default(uuid())
-  applicantId            String   @map("applicant_id")
-  executorId             String?  @map("executor_id")
-  assessmentId           String   @unique @map("assessment_id")
+  applicantId            String   @db.Uuid @map("applicant_id")
+  executorId             String?  @db.Uuid @map("executor_id")
+  assessmentId           String   @db.Uuid @unique @map("assessment_id")
   startDate              DateTime @map("start_date") @default(now())
   plannedCompletionDate  DateTime @map("planned_completion_date")
   actualCompletionDate   DateTime? @map("actual_completion_date")
   transactionId          String?  @map("transaction_id")
   createdAt              DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")
+
+  applicant   User   @relation("ApplicantLeads", fields: [applicantId], references: [id], onDelete: Cascade)
+  executor    User?  @relation("ExecutorLeads", fields: [executorId], references: [id])
+  assessment  Assessment @relation(fields: [assessmentId], references: [id])
 
   @@index([applicantId])
   @@index([executorId])
