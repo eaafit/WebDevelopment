@@ -70,6 +70,10 @@
     Клик по непрочитанной карточке отмечает её прочитанной. Кнопка «Удалить» удаляет запись из истории администратора.
   </p>
 
+  @if (actionError()) {
+  <p class="admin-notifications__action-error">{{ actionError() }}</p>
+  }
+
   @if (loading()) {
   <div class="admin-notifications__empty">
     <strong>Загружаем уведомления.</strong>
