@@ -25,7 +25,7 @@
 docker info
 ```
 
-2. Поднимите инфраструктуру (PostgreSQL, MinIO, Prometheus, Loki, Promtail и Grafana):
+2. Поднимите инфраструктуру (PostgreSQL, MinIO, Prometheus, Loki, Promtail, Tempo и Grafana):
 
    ```bash
    docker-compose up
@@ -39,6 +39,8 @@ docker info
 
    Для просмотра технических логов поднимаются **Loki** (порт 3100) и **Promtail**. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, отправляет логи в Loki и добавляет метки `job`, `app`, `environment`, `level`, `service`. В Grafana автоматически появляется datasource **Loki** и дашборд **Container logs**. API-логи идут с `service="api"`, а web-логи проходят через `/api/logs/web` и попадают в Loki с `service="web"`. Если API запущен в Docker (`apps/web/docker-compose.portal.yml`), JSON-логи можно фильтровать по уровню, сервису и `requestId`; если API запущен на хосте через `pnpm nx serve api`, эти stdout-логи в Loki не попадут.
 
+   Для трассировки запросов поднимается **Tempo**: HTTP endpoint доступен на порту 3200, OTLP/HTTP — на 4318, OTLP/gRPC — на 4317. Grafana автоматически получает источник данных **Tempo** через автоматическую настройку.
+
 3. В отдельном терминале запустите Front-end:
 
 ```bash
@@ -48,7 +50,7 @@ pnpm nx serve web
 ## Примечания
 
 - Если порт `5432` занят (например, установлен PostgreSQL вне Docker), измените порт в `docker-compose.yaml` на свободный.
-- **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics», «PostgreSQL» и «Container logs» (логи через Loki/Promtail). В Explore можно выбрать datasource **Loki** и выполнить запрос `{job="docker", service=~"api|web"} | json | requestId="<id запроса>"`.
+- **Мониторинг:** API отдаёт эндпоинты `/health` (проверка БД) и `/metrics` (метрики в формате Prometheus). После запуска `docker-compose up` откройте Grafana на http://localhost:3001 и используйте дашборды «System metrics», «Business metrics», «PostgreSQL» и «Container logs» (логи через Loki/Promtail). В Explore можно выбрать источник данных **Loki** и выполнить запрос `{job="docker", service=~"api|web"} | json | requestId="<id запроса>"`, а для трассировок — источник данных **Tempo**.
 
 ## Создание компонента
 
