@@ -16,6 +16,7 @@ describe('AuthService', () => {
     findByEmail: jest.fn(),
     findById: jest.fn(),
     createUser: jest.fn(),
+    updatePasswordHash: jest.fn(),
     toPrismaRole: jest.fn(),
     toMessage: jest.fn(),
   };
