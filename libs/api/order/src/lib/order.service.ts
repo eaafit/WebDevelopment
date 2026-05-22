@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@notary-portal/api/prisma';
+import { PrismaService } from '@internal/prisma';
 
 @Injectable()
 export class OrderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // Получение списка заказов с фильтрацией и пагинацией
   async findMany(params: {
@@ -53,7 +53,7 @@ export class OrderService {
         assessment: {
           include: {
             realEstateObject: true,
-            statusHistory: true,
+            // statusHistories: true,
           },
         },
       },
@@ -74,7 +74,7 @@ export class OrderService {
         assessment: {
           include: {
             realEstateObject: true,
-            statusHistory: true,
+            // statusHistories: true,
           },
         },
       },
@@ -85,11 +85,12 @@ export class OrderService {
 
   // Маппинг данных из БД в формат, который будет отправлен на фронт
   private mapLeadToOrder(lead: any) {
-    const statusHistory = lead.assessment.statusHistory.map(entry => ({
-      status: entry.status,
-      date: entry.createdAt,
-      comment: entry.comment,
-    }));
+    const statusHistory = [] as any[];
+    // lead.assessment.statusHistories?.map((entry: any) => ({
+    //   status: entry.status,
+    //   date: entry.createdAt,
+    //   comment: entry.comment,
+    // })) || [];
 
     const realEstateObject = lead.assessment.realEstateObject;
 

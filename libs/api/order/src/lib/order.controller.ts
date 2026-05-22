@@ -1,5 +1,6 @@
 import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { OrderService } from './order.service';
+import { PrismaModule } from '@internal/prisma';
 
 @Controller('orders')
 export class OrderController {
