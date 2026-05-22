@@ -88,6 +88,12 @@
             <td class="actions">
               <button class="btn-icon" (click)="viewPlan(plan)" title="Просмотр">👁️</button>
               <button class="btn-icon" (click)="editPlan(plan)" title="Редактировать">✏️</button>
+              <button
+                class="btn-icon"
+                (click)="toggleActive(plan)"
+                title="{{ plan.isActive ? 'Деактивировать' : 'Активировать' }}">
+                {{ plan.isActive ? '🔴' : '🟢' }}
+              </button>
               <button class="btn-icon" (click)="confirmDelete(plan)" title="Удалить">🗑️</button>
             </td>
           </tr>
@@ -139,10 +145,11 @@
       <div class="form-group checkbox">
         <label><input type="checkbox" [(ngModel)]="formData.isActive" /> Активен</label>
       </div>
-      <div class="form-actions">
-        <button class="btn btn-secondary" (click)="cancelForm()">Отмена</button>
+      <div class="entity-modal__actions">
+        <button class="admin-btn admin-btn--ghost" type="button" (click)="cancelForm()">Отмена</button>
         <button
-          class="btn btn-primary"
+          class="admin-btn admin-btn--primary"
+          type="button"
           (click)="savePlan()"
           [disabled]="!formData.name || !formData.price || !formData.validFrom || !formData.validTo">
           Сохранить

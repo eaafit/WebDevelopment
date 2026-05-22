@@ -47,7 +47,7 @@ export class SaleComponent implements OnInit {
       .getAll({ sortField: 'id', sortDirection: 'desc', limit: 200 })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось загрузить скидки');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось загрузить скидки');
           return EMPTY;
         }),
       )
@@ -146,7 +146,7 @@ export class SaleComponent implements OnInit {
     req
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось сохранить скидку');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось сохранить скидку');
           this.saving.set(false);
           return EMPTY;
         }),
@@ -174,7 +174,7 @@ export class SaleComponent implements OnInit {
       })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось обновить скидку');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось обновить скидку');
           return EMPTY;
         }),
       )

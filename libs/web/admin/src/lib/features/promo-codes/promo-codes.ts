@@ -19,6 +19,10 @@ export class PromoCodesComponent implements OnInit {
   readonly rows = signal<PromocodeDto[]>([]);
   readonly filter = signal('');
   readonly showModal = signal(false);
+  readonly modalMode = signal<'create' | 'edit'>('create');
+  readonly selectedPromo = signal<PromocodeDto | null>(null);
+  readonly showDeleteModal = signal(false);
+  readonly promoToDelete = signal<PromocodeDto | null>(null);
   readonly error = signal<string | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -45,7 +49,7 @@ export class PromoCodesComponent implements OnInit {
       .getAll({ sortField: 'id', sortDirection: 'desc', limit: 500 })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось загрузить промокоды');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось загрузить промокоды');
           this.loading.set(false);
           return EMPTY;
         }),
@@ -92,7 +96,7 @@ export class PromoCodesComponent implements OnInit {
       })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось обновить промокод');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось обновить промокод');
           return EMPTY;
         }),
       )
@@ -101,6 +105,8 @@ export class PromoCodesComponent implements OnInit {
 
   openAddModal(): void {
     this.error.set(null);
+    this.modalMode.set('create');
+    this.selectedPromo.set(null);
     this.form = {
       code: '',
       discountType: 'percentage',
@@ -114,8 +120,56 @@ export class PromoCodesComponent implements OnInit {
     this.showModal.set(true);
   }
 
+  openEditModal(row: PromocodeDto): void {
+    this.error.set(null);
+    this.modalMode.set('edit');
+    this.selectedPromo.set(row);
+    this.form = {
+      code: row.code,
+      discountType: row.discountType,
+      discountValue: row.discountValue,
+      description: row.description ?? '',
+      usageLimit: row.maxUses,
+      validFrom: new Date(row.validFrom).toISOString().split('T')[0],
+      validTo: new Date(row.validTo).toISOString().split('T')[0],
+      isActive: row.isActive,
+    };
+    this.showModal.set(true);
+  }
+
   closeModal(): void {
     this.showModal.set(false);
+    this.selectedPromo.set(null);
+  }
+
+  confirmDelete(row: PromocodeDto): void {
+    this.promoToDelete.set(row);
+    this.showDeleteModal.set(true);
+  }
+
+  cancelDelete(): void {
+    this.showDeleteModal.set(false);
+    this.promoToDelete.set(null);
+  }
+
+  deletePromo(): void {
+    const promo = this.promoToDelete();
+    if (!promo) return;
+    this.promocodeService
+      .delete(promo.id)
+      .pipe(
+        catchError((err) => {
+          this.error.set(err?.error?.message || err?.message || 'Не удалось удалить промокод');
+          this.showDeleteModal.set(false);
+          this.promoToDelete.set(null);
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.showDeleteModal.set(false);
+        this.promoToDelete.set(null);
+        this.loadPromocodes();
+      });
   }
 
   savePromo(): void {
@@ -125,21 +179,36 @@ export class PromoCodesComponent implements OnInit {
     }
     this.saving.set(true);
     this.error.set(null);
-    this.promocodeService
-      .create({
-        code: this.form.code.trim().toUpperCase(),
-        discountType: this.form.discountType,
-        discountValue: Number(this.form.discountValue),
-        description:
-          this.form.description.trim() || `Промокод ${this.form.code.trim().toUpperCase()}`,
-        isActive: this.form.isActive,
-        validFrom: new Date(this.form.validFrom).toISOString(),
-        validTo: new Date(this.form.validTo).toISOString(),
-        maxUses: Number(this.form.usageLimit),
-      })
+
+    const editId = this.selectedPromo()?.id;
+    const req =
+      this.modalMode() === 'edit' && editId != null
+        ? this.promocodeService.update(editId, {
+            code: this.form.code.trim().toUpperCase(),
+            discountType: this.form.discountType,
+            discountValue: Number(this.form.discountValue),
+            description: this.form.description.trim() || null,
+            isActive: this.form.isActive,
+            validFrom: new Date(this.form.validFrom).toISOString(),
+            validTo: new Date(this.form.validTo).toISOString(),
+            maxUses: Number(this.form.usageLimit),
+          })
+        : this.promocodeService.create({
+            code: this.form.code.trim().toUpperCase(),
+            discountType: this.form.discountType,
+            discountValue: Number(this.form.discountValue),
+            description:
+              this.form.description.trim() || `Промокод ${this.form.code.trim().toUpperCase()}`,
+            isActive: this.form.isActive,
+            validFrom: new Date(this.form.validFrom).toISOString(),
+            validTo: new Date(this.form.validTo).toISOString(),
+            maxUses: Number(this.form.usageLimit),
+          });
+
+    req
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось создать промокод');
+          this.error.set(err?.error?.message || err?.message || 'Не удалось сохранить промокод');
           this.saving.set(false);
           return EMPTY;
         }),
@@ -147,6 +216,7 @@ export class PromoCodesComponent implements OnInit {
       .subscribe(() => {
         this.saving.set(false);
         this.showModal.set(false);
+        this.selectedPromo.set(null);
         this.loadPromocodes();
       });
   }

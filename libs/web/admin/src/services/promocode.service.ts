@@ -81,4 +81,8 @@ export class PromocodeService {
   update(id: number, data: PromocodeUpdatePayload): Observable<PromocodeDto> {
     return this.http.put<PromocodeDto>(`${this.apiUrl}/${id}`, data);
   }
+
+  delete(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
 }

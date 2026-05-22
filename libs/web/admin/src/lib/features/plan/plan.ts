@@ -179,6 +179,22 @@ export class PlanComponent implements OnInit {
     }
   }
 
+  toggleActive(plan: TariffPlan): void {
+    this.tariffPlanService
+      .update(plan.id, {
+        name: plan.name,
+        price: plan.price,
+        description: plan.description,
+        isActive: !plan.isActive,
+        validFrom: plan.validFrom,
+        validTo: plan.validTo,
+      })
+      .subscribe({
+        next: () => this.loadPlans(),
+        error: (err) => console.error('Ошибка переключения статуса:', err),
+      });
+  }
+
   confirmDelete(plan: TariffPlan): void {
     this.planToDelete = plan;
     this.showDeleteModal = true;

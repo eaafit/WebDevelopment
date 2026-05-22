@@ -75,7 +75,14 @@ export class PromocodeService {
     if (raw['validFrom'] !== undefined) data.validFrom = new Date(String(raw['validFrom']));
     if (raw['validTo'] !== undefined) data.validTo = new Date(String(raw['validTo']));
     if (raw['maxUses'] !== undefined) data.maxUses = Number(raw['maxUses']);
-    return this.prisma.promocode.update({ where: { id }, data });
+    try {
+      return await this.prisma.promocode.update({ where: { id }, data });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Промокод с таким кодом уже существует');
+      }
+      throw e;
+    }
   }
 
   async remove(id: number) {

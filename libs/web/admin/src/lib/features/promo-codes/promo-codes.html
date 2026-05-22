@@ -68,7 +68,8 @@
                   {{ st === 'Active' ? 'Активен' : st === 'Inactive' ? 'Неактивен' : 'Истёк' }}
                 </span>
               </td>
-              <td>
+              <td class="sale-page__actions">
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(r)">Изменить</button>
                 @if (rowStatus(r) !== 'Expired') {
                 <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(r)">
                   {{ r.isActive ? 'Деактивировать' : 'Активировать' }}
@@ -76,6 +77,7 @@
                 } @else {
                 <span class="promo-page__muted">—</span>
                 }
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="confirmDelete(r)">Удалить</button>
               </td>
             </tr>
             }
@@ -93,8 +95,11 @@
   <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
     <div class="entity-modal__head">
       <div>
-        <h3 id="promo-modal-title">Новый промокод</h3>
-        <p class="entity-modal__subtitle">Код, тип скидки, период действия и лимит применений.</p>
+        <h3 id="promo-modal-title">{{ modalMode() === 'create' ? 'Новый промокод' : 'Редактирование промокода' }}</h3>
+        <p class="entity-modal__subtitle">
+          {{ modalMode() === 'create' ? 'Код, тип скидки, период действия и лимит применений.' : 'Измените параметры и
+          сохраните.' }}
+        </p>
       </div>
       <button type="button" class="entity-modal__close" (click)="closeModal()">Закрыть</button>
     </div>
@@ -169,10 +174,27 @@
       <div class="entity-modal__actions">
         <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">Отмена</button>
         <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
-          {{ saving() ? 'Сохранение…' : 'Сохранить' }}
+          {{ saving() ? 'Сохранение…' : (modalMode() === 'edit' ? 'Сохранить изменения' : 'Сохранить') }}
         </button>
       </div>
     </form>
+  </div>
+  } @if (showDeleteModal()) {
+  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="cancelDelete()"></button>
+  <div class="entity-modal" role="dialog" aria-modal="true">
+    <div class="entity-modal__head">
+      <div>
+        <h3>Подтверждение удаления</h3>
+        <p class="entity-modal__subtitle">Удаление промокода &#171;{{ promoToDelete()?.code }}&#187;.</p>
+      </div>
+      <button type="button" class="entity-modal__close" (click)="cancelDelete()">Закрыть</button>
+    </div>
+    <p>Вы уверены, что хотите удалить промокод &#171;{{ promoToDelete()?.code }}&#187;?</p>
+    <p class="warning">Это действие нельзя отменить.</p>
+    <div class="entity-modal__actions">
+      <button class="admin-btn admin-btn--ghost" type="button" (click)="cancelDelete()">Отмена</button>
+      <button class="admin-btn admin-btn--primary" type="button" (click)="deletePromo()">Удалить</button>
+    </div>
   </div>
   }
 </section>
