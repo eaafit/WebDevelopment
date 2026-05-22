@@ -10,7 +10,7 @@ import {
   AdminUserApiService,
   type AdminUserRef,
 } from '../RequestAssessment/services/user-api.service';
-import type { AssessmentItem } from '../RequestAssessment/requests/requests';
+import type { AssessmentItem } from './dashboard';
 
 const APPLICANT_ID = 'u-1';
 

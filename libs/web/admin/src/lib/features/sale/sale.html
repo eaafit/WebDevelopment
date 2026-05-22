@@ -1,289 +1,202 @@
-<div class="admin-crud-page sale-container">
-  <h1 class="page-title">Управление скидками</h1>
+<section class="admin-page payments-page sale-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Скидки</p>
+      <h2>Управление скидками</h2>
+      <p class="admin-page__lead">Централизованное управление правилами скидок и сроками действия.</p>
+    </div>
+    <div class="admin-page__actions">
+      <button class="admin-btn admin-btn--primary" type="button" (click)="openCreateModal()">+ Добавить скидку</button>
+    </div>
+  </header>
 
-  <!-- Блок фильтров -->
-  <div class="filters">
-    <div class="filter-group">
-      <input type="text" [(ngModel)]="filterName" placeholder="Поиск по названию" />
+  <section class="admin-toolbar">
+    <div class="admin-toolbar__copy">
+      <p>Фильтрация по названию, описанию и проценту.</p>
+      <small class="admin-toolbar__status">Показано: {{ visibleDiscounts().length }}</small>
     </div>
-    <div class="filter-group">
-      <select [(ngModel)]="filterStatus">
-        <option value="all">Все</option>
-        <option value="active">Активные</option>
-        <option value="inactive">Неактивные</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <input type="date" [(ngModel)]="filterDateFrom" placeholder="Действует с" />
-      <span>–</span>
-      <input type="date" [(ngModel)]="filterDateTo" placeholder="Действует по" />
-    </div>
-    <button class="btn btn-secondary" (click)="resetFilters()">Сбросить</button>
-  </div>
+    <label class="admin-field">
+      <span>Поиск</span>
+      <input
+        [ngModel]="filterName()"
+        (ngModelChange)="filterName.set($event)"
+        placeholder="Поиск по названию / описанию / %" />
+    </label>
+  </section>
 
-  <!-- Таблица со скидками -->
-  @if (!showForm && !showView) {
-  <div class="list-container">
-    <div class="list-header">
-      <h2>Скидки</h2>
-      <button class="btn btn-primary" (click)="createDiscount()">+ Новая скидка</button>
-    </div>
-
-    <div class="table-responsive">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th
-              (click)="sortBy('id')"
-              (keydown.enter)="sortBy('id')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по ID">
-              ID
-              <span class="sort-indicator">{{ sortField === 'id' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span>
-            </th>
-            <th
-              (click)="sortBy('name')"
-              (keydown.enter)="sortBy('name')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по названию">
-              Название
-              <span class="sort-indicator"
-                >{{ sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
-              >
-            </th>
-            <th
-              (click)="sortBy('percentage')"
-              (keydown.enter)="sortBy('percentage')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по скидке">
-              Скидка
-              <span class="sort-indicator"
-                >{{ sortField === 'percentage' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
-              >
-            </th>
-            <th
-              (click)="sortBy('validFrom')"
-              (keydown.enter)="sortBy('validFrom')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по дате начала">
-              Действует с
-              <span class="sort-indicator"
-                >{{ sortField === 'validFrom' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
-              >
-            </th>
-            <th
-              (click)="sortBy('validTo')"
-              (keydown.enter)="sortBy('validTo')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по дате окончания">
-              Действует по
-              <span class="sort-indicator"
-                >{{ sortField === 'validTo' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
-              >
-            </th>
-            <th>Ограничения</th>
-            <th
-              (click)="sortBy('isActive')"
-              (keydown.enter)="sortBy('isActive')"
-              tabindex="0"
-              role="button"
-              aria-label="Сортировать по статусу">
-              Статус
-              <span class="sort-indicator"
-                >{{ sortField === 'isActive' ? (sortDirection === 'asc' ? '↑' : '↓') : '' }}</span
-              >
-            </th>
-            <th>Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (discount of paginatedDiscounts; track discount.id) {
-          <tr>
-            <td>{{ discount.id }}</td>
-            <td><strong>{{ discount.name }}</strong></td>
-            <td>{{ discount.percentage }}%</td>
-            <td>{{ discount.validFrom | date:'dd.MM.yyyy' }}</td>
-            <td>{{ discount.validTo | date:'dd.MM.yyyy' }}</td>
-            <td><span class="limits-badge">{{ getDiscountLimits(discount) }}</span></td>
-            <td>
-              <span class="status-badge" [class.active]="isDiscountActive(discount)">
-                {{ isDiscountActive(discount) ? 'Активна' : 'Неактивна' }}
-              </span>
-            </td>
-            <td class="actions">
-              <button class="btn-icon" (click)="viewDiscount(discount)" title="Просмотр">👁️</button>
-              <button class="btn-icon" (click)="editDiscount(discount)" title="Редактировать">✏️</button>
-              <button class="btn-icon" (click)="confirmDelete(discount)" title="Удалить">🗑️</button>
-            </td>
-          </tr>
-          } @empty {
-          <tr>
-            <td colspan="8" class="empty-state">Нет скидок</td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <div class="pagination">
-      <button class="btn btn-secondary" (click)="prevPage()" [disabled]="currentPage === 1">Предыдущая</button>
-      <span class="page-info">Страница {{ currentPage }} из {{ totalPages }}</span>
-      <button class="btn btn-secondary" (click)="nextPage()" [disabled]="currentPage === totalPages">Следующая</button>
-    </div>
-  </div>
+  @if (error()) {
+  <p class="sale-page__error">{{ error() }}</p>
   }
 
-  <!-- Форма создания/редактирования -->
-  @if (showForm) {
-  <div class="form-container">
-    <h2>{{ isEditMode ? 'Редактирование' : 'Создание' }} скидки</h2>
-    <div class="form">
-      <div class="form-group">
-        <label for="name">Название скидки *</label>
-        <input type="text" id="name" [(ngModel)]="formData.name" required placeholder="Например: Скидка пенсионерам" />
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Список скидок</h3>
+        <p>Создание, редактирование и переключение активности прямо из таблицы.</p>
       </div>
+    </div>
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        @if (visibleDiscounts().length > 0) {
+        <table class="payments-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Скидка</th>
+              <th>Период</th>
+              <th>Ограничения</th>
+              <th>Статус</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of visibleDiscounts(); track d.id) {
+            <tr>
+              <td>{{ d.id }}</td>
+              <td>
+                <div class="sale-page__title">{{ d.name }}</div>
+                @if (d.description) {
+                <div class="sale-page__muted">{{ d.description }}</div>
+                }
+              </td>
+              <td>{{ d.percentage }}%</td>
+              <td>{{ d.validFrom | date: 'dd.MM.yyyy' }} — {{ d.validTo | date: 'dd.MM.yyyy' }}</td>
+              <td>
+                @if (d.minOrderAmount) {
+                <span>от {{ d.minOrderAmount }} ₽</span>
+                } @if (d.minOrderAmount && d.maxDiscountAmount) {
+                <span>, </span>
+                } @if (d.maxDiscountAmount) {
+                <span>макс. {{ d.maxDiscountAmount }} ₽</span>
+                } @if (!d.minOrderAmount && !d.maxDiscountAmount) {
+                <span class="sale-page__muted">без ограничений</span>
+                }
+              </td>
+              <td>
+                <span
+                  class="admin-badge"
+                  [class.admin-badge--success]="d.isActive"
+                  [class.admin-badge--warning]="!d.isActive">
+                  {{ d.isActive ? 'Активна' : 'Неактивна' }}
+                </span>
+              </td>
+              <td class="sale-page__actions">
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(d)">Изменить</button>
+                <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(d)">
+                  {{ d.isActive ? 'Деактивировать' : 'Активировать' }}
+                </button>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+        } @else {
+        <div class="payments-table__empty">Нет скидок по текущему фильтру. Нажмите «Добавить скидку».</div>
+        }
+      </div>
+    </div>
+  </article>
 
-      <div class="form-row">
-        <div class="form-group half">
-          <label for="percentage">Процент скидки *</label>
+  @if (showModal()) {
+  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="closeModal()"></button>
+  <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="sale-modal-title">
+    <div class="entity-modal__head">
+      <div>
+        <h3 id="sale-modal-title">{{ modalMode() === 'create' ? 'Новая скидка' : 'Редактирование скидки' }}</h3>
+        <p class="entity-modal__subtitle">
+          {{ modalMode() === 'create' ? 'Заполните поля и сохраните правило.' : 'Измените параметры и сохраните.' }}
+        </p>
+      </div>
+      <button type="button" class="entity-modal__close" (click)="closeModal()">Закрыть</button>
+    </div>
+
+    @if (error()) {
+    <p class="entity-modal__error">{{ error() }}</p>
+    }
+
+    <form class="entity-modal__form" (ngSubmit)="saveDiscount()">
+      <label class="entity-field">
+        <span class="entity-field__label">Название *</span>
+        <input class="entity-input" name="name" [(ngModel)]="form.name" required autocomplete="off" />
+      </label>
+
+      <label class="entity-field">
+        <span class="entity-field__label">Процент скидки *</span>
+        <input
+          class="entity-input"
+          type="number"
+          name="percentage"
+          [(ngModel)]="form.percentage"
+          min="0"
+          max="100"
+          step="0.01" />
+      </label>
+
+      <label class="entity-field">
+        <span class="entity-field__label">Описание</span>
+        <textarea
+          class="entity-textarea"
+          name="description"
+          rows="3"
+          [(ngModel)]="form.description"
+          placeholder="Кратко опишите условие применения"></textarea>
+      </label>
+
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Действует с *</span>
+          <input class="entity-input" type="date" name="validFrom" [(ngModel)]="form.validFrom" required />
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Действует по *</span>
           <input
-            type="number"
-            id="percentage"
-            [(ngModel)]="formData.percentage"
+            class="entity-input"
+            type="date"
+            name="validTo"
+            [(ngModel)]="form.validTo"
             required
-            min="0"
-            max="100"
-            placeholder="0-100" />
-        </div>
-        <div class="form-group half">
-          <label for="description">Краткое описание</label>
-          <input type="text" id="description" [(ngModel)]="formData.description" placeholder="Для кого или на что" />
-        </div>
+            [min]="form.validFrom" />
+        </label>
       </div>
 
-      <div class="form-row">
-        <div class="form-group half">
-          <label for="validFrom">Действует с *</label>
-          <input type="date" id="validFrom" [(ngModel)]="formData.validFrom" required />
-        </div>
-        <div class="form-group half">
-          <label for="validTo">Действует по *</label>
-          <input type="date" id="validTo" [(ngModel)]="formData.validTo" required [min]="formData.validFrom" />
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group half">
-          <label for="minOrderAmount">Минимальная сумма заказа (₽)</label>
+      <div class="entity-modal__row">
+        <label class="entity-field">
+          <span class="entity-field__label">Мин. сумма заказа (₽)</span>
           <input
+            class="entity-input"
             type="number"
-            id="minOrderAmount"
-            [(ngModel)]="formData.minOrderAmount"
+            name="minOrder"
+            [(ngModel)]="form.minOrderAmount"
             min="0"
-            placeholder="Например: 1000" />
-        </div>
-        <div class="form-group half">
-          <label for="maxDiscountAmount">Максимальная скидка (₽)</label>
+            step="1" />
+          <p class="entity-field__hint">Опционально: скидка только от этой суммы</p>
+        </label>
+        <label class="entity-field">
+          <span class="entity-field__label">Макс. размер скидки (₽)</span>
           <input
+            class="entity-input"
             type="number"
-            id="maxDiscountAmount"
-            [(ngModel)]="formData.maxDiscountAmount"
+            name="maxDisc"
+            [(ngModel)]="form.maxDiscountAmount"
             min="0"
-            placeholder="Например: 5000" />
-        </div>
+            step="1" />
+          <p class="entity-field__hint">Опционально: потолок выгоды</p>
+        </label>
       </div>
 
-      <div class="form-group checkbox">
-        <label><input type="checkbox" [(ngModel)]="formData.isActive" /> Активна</label>
-      </div>
+      <label class="entity-check">
+        <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+        <span>Правило активно</span>
+      </label>
 
-      <div class="form-actions">
-        <button class="btn btn-secondary" (click)="cancelForm()">Отмена</button>
-        <button
-          class="btn btn-primary"
-          (click)="saveDiscount()"
-          [disabled]="!formData.name || !formData.percentage || !formData.validFrom || !formData.validTo">
-          Сохранить
+      <div class="entity-modal__actions">
+        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">Отмена</button>
+        <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Сохранение…' : 'Сохранить' }}
         </button>
       </div>
-    </div>
+    </form>
   </div>
   }
-
-  <!-- Просмотр скидки -->
-  @if (showView && selectedDiscount) {
-  <div class="view-container">
-    <h2>Просмотр скидки</h2>
-    <div class="view-details">
-      <div class="detail-row">
-        <span class="detail-label">ID:</span><span class="detail-value">{{ selectedDiscount.id }}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Название:</span
-        ><span class="detail-value"><strong>{{ selectedDiscount.name }}</strong></span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Скидка:</span><span class="detail-value">{{ selectedDiscount.percentage }}%</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Описание:</span
-        ><span class="detail-value">{{ selectedDiscount.description || '—' }}</span>
-      </div>
-      <div class="detail-row">
-        <span class="detail-label">Период действия:</span
-        ><span class="detail-value"
-          >{{ selectedDiscount.validFrom | date:'dd.MM.yyyy' }} - {{ selectedDiscount.validTo | date:'dd.MM.yyyy'
-          }}</span
-        >
-      </div>
-      @if (selectedDiscount.minOrderAmount) {
-      <div class="detail-row">
-        <span class="detail-label">Мин. сумма заказа:</span
-        ><span class="detail-value"
-          >{{ selectedDiscount.minOrderAmount | currency:'RUB':'symbol-narrow':'1.0-0' }}</span
-        >
-      </div>
-      } @if (selectedDiscount.maxDiscountAmount) {
-      <div class="detail-row">
-        <span class="detail-label">Макс. скидка:</span
-        ><span class="detail-value"
-          >{{ selectedDiscount.maxDiscountAmount | currency:'RUB':'symbol-narrow':'1.0-0' }}</span
-        >
-      </div>
-      }
-      <div class="detail-row">
-        <span class="detail-label">Статус:</span
-        ><span class="detail-value">
-          <span class="status-badge" [class.active]="isDiscountActive(selectedDiscount)"
-            >{{ isDiscountActive(selectedDiscount) ? 'Активна' : 'Неактивна' }}</span
-          >
-        </span>
-      </div>
-    </div>
-    <div class="view-actions">
-      <button class="btn btn-secondary" (click)="closeView()">Закрыть</button>
-      <button class="btn btn-primary" (click)="editDiscount(selectedDiscount)">Редактировать</button>
-    </div>
-  </div>
-  }
-
-  <!-- Модальное окно удаления -->
-  @if (showDeleteModal) {
-  <div class="modal-overlay">
-    <div class="modal">
-      <h3>Подтверждение удаления</h3>
-      <p>Вы уверены, что хотите удалить скидку "{{ discountToDelete?.name }}"?</p>
-      <p class="warning">Это действие нельзя отменить.</p>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" (click)="cancelDelete()">Отмена</button>
-        <button class="btn btn-danger" (click)="deleteDiscount()">Удалить</button>
-      </div>
-    </div>
-  </div>
-  }
-</div>
+</section>

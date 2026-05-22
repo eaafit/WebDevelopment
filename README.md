@@ -16,7 +16,7 @@
 ### Создание библиотек/компонентов
 
 - `pnpm nx g @nx/angular:lib libs/web/<guest|applicant|notary|admin|shared/<ui|utils>> --standalone [--routing: необходим для всех библиотек, кроме общих]` - создать Front-end библиотеку (Необходимо в редких случаях)
-- `pnpm nx generate @nx/angular:component libs/web/<guest|applicant|notary|admin|shared>/src/lib/features/<component_name>/<component_name> --standalone` - создать Front-end компонент
+- `pnpm exec nx g @nx/angular:component --path=libs/web/<guest|applicant|notary|admin|shared>/src/lib/features/<component-name>/<component-name> --standalone --style=scss --skipTests --no-interactive` — создать standalone-компонент в фиче-библиотеке. Путь задаётся от **корня репозитория**; имя папок в **kebab-case** (последний сегмент = имя компонента). Перед коммитом проверьте с `--dry-run`.
 
 ---
 
@@ -28,7 +28,7 @@
 - `docker container prune` - Удаляет только остановленные контейнеры
 - `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
 - `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
-- `rm -rf node_modules` - удаление node_modules 
+- `rm -rf node_modules` - удаление node_modules
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
@@ -48,11 +48,11 @@
 
 Кратко по типичным проблемам Docker:
 
-| Симптом | Что сделать |
-| ------- | ----------- |
-| **`ENOSPC` / no space left on device** при сборке | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`. |
-| **`i/o timeout`** у `docker compose` | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
-| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`. |
+| Симптом                                             | Что сделать                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ENOSPC` / no space left on device** при сборке   | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`.                                        |
+| **`i/o timeout`** у `docker compose`                | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
+| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`.                                                                                           |
 
 ---
 

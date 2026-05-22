@@ -3,6 +3,9 @@ import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
+import { PlansListComponent } from './features/plans/plans-list/plans-list';
+import { PromoCodesComponent } from './features/promo-codes/promo-codes';
+import { SubscriptionsListComponent } from './features/subscriptions/subscriptions-list/subscriptions-list';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -19,15 +22,10 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.AdminDashboard),
       } as Route,
       {
-        path: 'users',
+        path: 'applications',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
-      } as Route,
-      {
-        path: 'orders',
-        loadComponent: () =>
-          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
-      } as Route,
+      },
       {
         path: 'orders/statuses',
         ...placeholder('Управление статусами', [
@@ -71,12 +69,20 @@ export const adminRoutes: Route[] = [
 
       {
         path: 'subscriptions',
-        ...placeholder('Подписки', ['Просмотр списка подписок']),
-      } as Route,
+        component: SubscriptionsListComponent,
+      },
       {
         path: 'plans',
-        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
+        component: PlansListComponent,
+      },
+      {
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
       } as Route,
+      {
+        path: 'promocodes',
+        component: PromoCodesComponent,
+      },
       {
         path: 'files',
         ...placeholder('Модерация файлов', [
@@ -103,14 +109,6 @@ export const adminRoutes: Route[] = [
       {
         path: 'monitoring',
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
-      },
-      {
-        path: 'discounts',
-        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
-      },
-      {
-        path: 'promocodes',
-        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
       },
       {
         path: 'notifications',

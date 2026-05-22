@@ -67,3 +67,7 @@ yarn.lock
 # Tests and logs
 test-results/
 .pnpm-debug.log*
+
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json

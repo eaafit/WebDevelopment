@@ -1,0 +1,58 @@
+<div class="overlay" (click)="onClose()"></div>
+<div class="modal" role="dialog" aria-modal="true">
+  <div class="modal__head">
+    <div>
+      <h3>{{ title }}</h3>
+      <div class="muted small" *ngIf="mode === 'create'">Создание нового плана</div>
+      <div class="muted small" *ngIf="mode === 'edit'">Редактирование существующего плана</div>
+    </div>
+    <button class="btn" type="button" (click)="onClose()">Закрыть</button>
+  </div>
+
+  <div class="error" *ngIf="error">{{ error }}</div>
+
+  <form (ngSubmit)="save()" class="form">
+    <label class="field">
+      <div class="field__label">Название</div>
+      <input class="input" name="name" [(ngModel)]="form.name" required />
+    </label>
+
+    <label class="field">
+      <div class="field__label">Описание</div>
+      <textarea class="textarea" name="description" rows="3" [(ngModel)]="form.description"></textarea>
+    </label>
+
+    <label class="field">
+      <div class="field__label">Цена (₽/мес)</div>
+      <input class="input" type="number" name="price" [(ngModel)]="form.price" min="0" />
+    </label>
+
+    <label class="field">
+      <div class="field__label">Фичи (по одной на строку)</div>
+      <textarea class="textarea" name="featuresText" rows="4" [(ngModel)]="form.featuresText"></textarea>
+    </label>
+
+    <div class="row">
+      <label class="field">
+        <div class="field__label">Действует с</div>
+        <input class="input" type="date" name="validFrom" [(ngModel)]="form.validFrom" />
+      </label>
+      <label class="field">
+        <div class="field__label">Действует по</div>
+        <input class="input" type="date" name="validTo" [(ngModel)]="form.validTo" />
+      </label>
+    </div>
+
+    <label class="check">
+      <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+      <span>Активен</span>
+    </label>
+
+    <div class="modal__actions">
+      <button class="btn" type="button" (click)="onClose()">Отмена</button>
+      <button class="btn btn-primary" type="submit" [disabled]="saving">
+        {{ saving ? 'Сохранение...' : 'Сохранить' }}
+      </button>
+    </div>
+  </form>
+</div>

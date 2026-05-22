@@ -1,0 +1,168 @@
+// Общая модалка создания/редактирования сущностей (как у тарифных планов / plan-modal).
+.entity-modal-overlay {
+  cursor: pointer;
+
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+
+  margin: 0;
+  padding: 0;
+  border: none;
+
+  background: rgb(15 23 42 / 48%);
+  backdrop-filter: blur(5px);
+}
+
+.entity-modal {
+  cursor: default;
+
+  position: fixed;
+  z-index: 61;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  overflow: auto;
+
+  width: min(640px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--admin-border-strong, #cbd5e1);
+  border-radius: var(--admin-radius-xs, 14px);
+
+  color: var(--admin-text, #0f172a);
+
+  background: var(--admin-surface, #fff);
+  box-shadow: var(--admin-shadow-shell, 0 18px 48px rgb(15 23 42 / 12%));
+}
+
+.entity-modal__head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  margin-bottom: 1rem;
+}
+
+.entity-modal__head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.entity-modal__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--admin-text-muted, #64748b);
+}
+
+.entity-modal__close {
+  cursor: pointer;
+
+  flex-shrink: 0;
+
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  border-radius: 10px;
+
+  font-size: 0.85rem;
+  color: var(--admin-text, #0f172a);
+
+  background: var(--admin-surface-alt, #f8fafc);
+}
+
+.entity-modal__close:hover {
+  border-color: var(--admin-border-strong, #cbd5e1);
+  background: var(--admin-surface, #fff);
+}
+
+.entity-modal__form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.entity-modal__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+@media (width <= 640px) {
+  .entity-modal__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.entity-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.entity-field__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.entity-field__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--admin-text-soft, #475569);
+}
+
+.entity-input,
+.entity-textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--admin-border-strong, #cbd5e1);
+  border-radius: 10px;
+
+  font: inherit;
+  color: var(--admin-text, #0f172a);
+
+  background: var(--admin-surface, #fff);
+}
+
+.entity-textarea {
+  resize: vertical;
+  min-height: 5rem;
+}
+
+.entity-input:focus,
+.entity-textarea:focus {
+  border-color: var(--admin-accent, #dc2626);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--admin-accent-soft, rgb(220 38 38 / 12%));
+}
+
+.entity-check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.entity-modal__actions {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: flex-end;
+
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--admin-border, #e2e8f0);
+}
+
+.entity-modal__error {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+
+  font-size: 0.88rem;
+  color: var(--admin-critical-text, #b91c1c);
+
+  background: var(--admin-critical-bg, #fef2f2);
+}

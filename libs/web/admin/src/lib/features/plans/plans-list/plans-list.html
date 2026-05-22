@@ -1,0 +1,84 @@
+<section class="admin-page payments-page plans-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Тарифы</p>
+      <h2>Управление тарифными планами</h2>
+      <p class="admin-page__lead">Просмотр активных планов, редактирование параметров и создание новых предложений.</p>
+    </div>
+    <div class="admin-page__actions">
+      <button class="admin-btn admin-btn--primary" type="button" (click)="openCreateModal()">+ Добавить план</button>
+    </div>
+  </header>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Карточки планов</h3>
+        <p>Краткий обзор основных предложений по подпискам.</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">Показано: {{ plans.length }}</span>
+    </div>
+    <div class="plans-grid">
+      <div class="plan-card" *ngFor="let p of plans">
+        <div class="plan-card__top">
+          <strong>{{ p.title }}</strong>
+          <span>{{ p.pricePerMonth }} ₽/мес</span>
+        </div>
+        <p class="plan-card__desc">{{ p.description }}</p>
+        <ul>
+          <li *ngFor="let f of p.features">{{ f }}</li>
+        </ul>
+      </div>
+    </div>
+  </article>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>Список тарифов</h3>
+        <p>Данные из базы с быстрым переходом к редактированию.</p>
+      </div>
+    </div>
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        <table class="payments-table" *ngIf="tariffPlans().length > 0; else emptyPlans">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Название</th>
+              <th>Цена</th>
+              <th>Активен</th>
+              <th>Период</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of tariffPlans()">
+              <td>{{ t.id }}</td>
+              <td>{{ t.name }}</td>
+              <td>{{ t.price }} ₽</td>
+              <td>
+                <span class="admin-badge" [class.admin-badge--success]="t.isActive" [class.admin-badge--neutral]="!t.isActive">
+                  {{ t.isActive ? 'Да' : 'Нет' }}
+                </span>
+              </td>
+              <td>{{ t.validFrom | date: 'dd.MM.yyyy' }} - {{ t.validTo | date: 'dd.MM.yyyy' }}</td>
+              <td><button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(t)">Изменить</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-template #emptyPlans>
+        <div class="payments-table__empty">Пока нет тарифных планов. Нажмите «Добавить план».</div>
+      </ng-template>
+    </div>
+  </article>
+
+  <lib-plan-modal
+    *ngIf="isModalOpen()"
+    [title]="modalTitle()"
+    [mode]="modalMode()"
+    [plan]="selectedTariffPlan()"
+    (close)="closeModal()"
+    (saved)="handleSaved($event)" />
+</section>

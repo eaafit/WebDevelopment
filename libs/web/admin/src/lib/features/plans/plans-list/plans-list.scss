@@ -1,0 +1,86 @@
+:host {
+  display: block;
+}
+
+.plans-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.15rem;
+}
+
+.plan-card {
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  padding: 1rem;
+  background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+}
+
+.plan-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.plan-card__desc {
+  margin: 0.75rem 0;
+  color: var(--admin-text-soft);
+}
+
+.plan-card ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--admin-text-soft);
+}
+
+.payments-table-shell {
+  padding: 0 1.15rem 1.15rem;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+}
+
+.payments-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.payments-table th,
+.payments-table td {
+  padding: 1rem 0.95rem;
+  text-align: left;
+  border-bottom: 1px solid rgb(148 163 184 / 18%);
+}
+
+.payments-table th {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--admin-bg) 0%, rgb(255 255 255 / 70%) 100%);
+}
+
+.payments-table__empty {
+  padding: 2.3rem 1rem;
+  text-align: center;
+  color: var(--admin-text-soft);
+}
+
+@media (width <= 980px) {
+  .plans-grid {
+    grid-template-columns: 1fr;
+  }
+}

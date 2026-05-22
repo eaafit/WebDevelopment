@@ -1,0 +1,50 @@
+<div class="page">
+  <div class="header">
+    <div>
+      <h2>Подписки</h2>
+      <p class="muted">Админ-вид подписок пользователей (данные из базы).</p>
+    </div>
+    <button class="btn" type="button" (click)="refresh()">Обновить</button>
+  </div>
+
+  <div class="muted" *ngIf="loading()">Загрузка...</div>
+  <div class="error" *ngIf="error()">{{ error() }}</div>
+
+  <div class="table-wrap" *ngIf="!loading()">
+    <table class="table" *ngIf="rows().length > 0; else empty">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Plan</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of rows()">
+          <td class="mono">{{ r.userId }}</td>
+          <td>{{ r.plan }}</td>
+          <td>{{ r.startDate | date: 'dd.MM.yyyy' }}</td>
+          <td>{{ r.endDate | date: 'dd.MM.yyyy' }}</td>
+          <td>
+            <span class="pill" [class.pill--green]="r.status === 'Active'" [class.pill--gray]="r.status !== 'Active'">
+              {{ r.status }}
+            </span>
+          </td>
+          <td class="actions">
+            <button class="btn btn-secondary" type="button" (click)="cancel(r)" [disabled]="r.status !== 'Active'">
+              Cancel
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #empty>
+      <div class="muted">Подписок пока нет (или не подошёл фильтр).</div>
+    </ng-template>
+  </div>
+
+  <div class="muted small">Данные загружаются с `GET /api/subscriptions`.</div>
+</div>

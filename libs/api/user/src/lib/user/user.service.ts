@@ -6,6 +6,7 @@ import {
   GetUserByIdResponseSchema,
   UpdateProfileResponseSchema,
   UserRole as RpcUserRole,
+  UserService as UserConnectRpcService,
   type GetProfileRequest,
   type GetProfileResponse,
   type GetUserByIdRequest,
@@ -97,3 +98,6 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
   }
   return value;
 }
+
+/** Дескриптор Connect-RPC `notary.user.v1alpha1.UserService` (методы контракта). */
+export { UserConnectRpcService };
