@@ -3,6 +3,7 @@ import { create } from '@bufbuild/protobuf';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
 import { MetricsService } from '@internal/metrics';
+import { Prisma, Role as PrismaRole } from '@internal/prisma-client';
 import {
   AuthResultSchema,
   ForgotPasswordResponseSchema,
@@ -35,7 +36,20 @@ import { TRANSACTIONAL_MAILER, type TransactionalMailer } from './transactional-
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LEN = 8;
+const REGISTERED_EVENT = 'user.registered';
+const REGISTRATION_FAILED_EVENT = 'user.registration_failed';
+const LOGIN_SUCCEEDED_EVENT = 'user.login_succeeded';
 const LOGIN_FAILED_EVENT = 'user.login_failed';
+const PASSWORD_RESET_REQUESTED_EVENT = 'user.password_reset_requested';
+const PASSWORD_RESET_FAILED_EVENT = 'user.password_reset_failed';
+const PASSWORD_RESET_COMPLETED_EVENT = 'user.password_reset_completed';
+
+type AuthAuditUser = {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  role?: RpcUserRole | PrismaRole | string | number | null;
+};
 
 function roleLabelForRpc(role: RpcUserRole): string {
   switch (role) {
@@ -73,23 +87,28 @@ export class AuthService {
   async register(request: RegisterRequest): Promise<RegisterResponse> {
     const email = (request.email ?? '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) {
+      await this.recordRegistrationFailure(email, 'invalid_email', request.role);
       throw new ConnectError('email is invalid', Code.InvalidArgument);
     }
     if (request.password.length < MIN_PASSWORD_LEN) {
+      await this.recordRegistrationFailure(email, 'weak_password', request.role);
       throw new ConnectError(
         `password must be at least ${MIN_PASSWORD_LEN} characters`,
         Code.InvalidArgument,
       );
     }
     if (!request.fullName?.trim()) {
+      await this.recordRegistrationFailure(email, 'full_name_required', request.role);
       throw new ConnectError('full_name is required', Code.InvalidArgument);
     }
     if (request.role === RpcUserRole.ADMIN) {
+      await this.recordRegistrationFailure(email, 'admin_role_denied', request.role);
       throw new ConnectError('cannot self-register as admin', Code.PermissionDenied);
     }
 
     const existing = await this.authRepository.findByEmail(email);
     if (existing) {
+      await this.recordRegistrationFailure(email, 'email_already_registered', request.role, existing);
       throw new ConnectError('email already registered', Code.AlreadyExists);
     }
 
@@ -111,6 +130,7 @@ export class AuthService {
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
 
     this.metrics.recordUserRegistered();
+    await this.recordRegistered(user);
 
     if (this.transactionalMailer) {
       const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
@@ -137,20 +157,23 @@ export class AuthService {
   async login(request: LoginRequest): Promise<LoginResponse> {
     const email = (request.email ?? '').trim().toLowerCase();
     if (!email || !request.password) {
+      await this.recordLoginFailure(email, 'missing_credentials');
       throw new ConnectError('email and password are required', Code.InvalidArgument);
     }
 
     const record = await this.authRepository.findByEmail(email);
     if (!record) {
+      await this.recordLoginFailure(email, 'user_not_found');
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }
     if (!record.isActive) {
+      await this.recordLoginFailure(email, 'account_deactivated', record);
       throw new ConnectError('account is deactivated', Code.PermissionDenied);
     }
 
     const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
     if (!passwordValid) {
-      await this.recordFailedLoginAttempt(record, 'invalid_password');
+      await this.recordLoginFailure(email, 'invalid_password', record);
       throw new ConnectError('invalid credentials', Code.Unauthenticated);
     }
 
@@ -162,6 +185,7 @@ export class AuthService {
     });
 
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
+    await this.recordLoginSucceeded(record);
 
     return create(LoginResponseSchema, {
       result: create(AuthResultSchema, { accessToken, refreshToken, user }),
@@ -219,11 +243,13 @@ export class AuthService {
   async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
     const email = (request.email ?? '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) {
+      await this.recordPasswordResetFailed('invalid_email', email);
       return create(ForgotPasswordResponseSchema, {});
     }
 
     const record = await this.authRepository.findByEmail(email);
     if (!record?.isActive) {
+      await this.recordPasswordResetFailed('user_not_found_or_inactive', email, record);
       return create(ForgotPasswordResponseSchema, {});
     }
 
@@ -231,6 +257,7 @@ export class AuthService {
     const ttlSec = Number(process.env['PASSWORD_RESET_TTL_SEC'] ?? 3600);
     const expiresAt = new Date(Date.now() + ttlSec * 1000);
     await this.passwordResetRepository.create(record.id, rawToken, expiresAt);
+    await this.recordPasswordResetRequested(record, expiresAt);
 
     const base = (
       process.env['PASSWORD_RESET_BASE_URL'] ??
@@ -254,9 +281,11 @@ export class AuthService {
   async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
     const token = request.token?.trim();
     if (!token) {
+      await this.recordPasswordResetFailed('token_required');
       throw new ConnectError('token is required', Code.InvalidArgument);
     }
     if (request.newPassword.length < MIN_PASSWORD_LEN) {
+      await this.recordPasswordResetFailed('weak_password');
       throw new ConnectError(
         `password must be at least ${MIN_PASSWORD_LEN} characters`,
         Code.InvalidArgument,
@@ -265,6 +294,13 @@ export class AuthService {
 
     const stored = await this.passwordResetRepository.findValid(token);
     if (!stored) {
+      await this.recordPasswordResetFailed('invalid_or_expired_token');
+      throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
+    }
+
+    const record = await this.authRepository.findById(stored.userId);
+    if (!record) {
+      await this.recordPasswordResetFailed('user_not_found');
       throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
     }
 
@@ -272,28 +308,248 @@ export class AuthService {
     await this.authRepository.updatePasswordHash(stored.userId, passwordHash);
     await this.passwordResetRepository.markUsed(stored.id);
     await this.refreshTokenRepository.revokeAll(stored.userId);
+    await this.recordPasswordResetCompleted(record);
 
     return create(ResetPasswordResponseSchema, {});
   }
 
-  private async recordFailedLoginAttempt(
-    record: { id: string; email: string; fullName?: string | null },
-    reason: 'invalid_password',
+  private async recordRegistered(user: AuthAuditUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: toAuditRole(user.role),
+      eventType: REGISTERED_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Зарегистрирован пользователь',
+      actionContext: 'Аккаунт создан через форму регистрации',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({
+        outcome: 'succeeded',
+        email: user.email,
+        role: roleDetail(user.role),
+      }),
+    });
+  }
+
+  private async recordRegistrationFailure(
+    email: string,
+    reason: string,
+    role?: RpcUserRole | PrismaRole | string | number | null,
+    targetUser?: AuthAuditUser | null,
   ): Promise<void> {
     await this.auditService.record({
-      actorUserId: record.id,
-      eventType: LOGIN_FAILED_EVENT,
-      targetType: 'Security',
-      targetId: record.id,
-      actionTitle: 'Неудачная попытка входа',
-      actionContext: 'Неверный пароль',
-      targetTitle: record.fullName || record.email,
-      targetContext: record.email,
-      after: {
+      actorEmail: normalizeAuditEmail(email),
+      actorName: targetUser?.fullName,
+      actorRole: targetUser ? toAuditRole(targetUser.role) : undefined,
+      allowAnonymous: true,
+      eventType: REGISTRATION_FAILED_EVENT,
+      targetType: targetUser ? 'User' : 'Security',
+      targetId: targetUser?.id ?? null,
+      actionTitle: 'Ошибка регистрации',
+      actionContext: reasonLabel(reason),
+      targetTitle: targetUser?.fullName || targetUser?.email || 'Registration attempt',
+      targetContext: normalizeAuditEmail(email),
+      after: authDetails({
+        outcome: 'failed',
         reason,
-        email: record.email,
-        lastAttempt: new Date().toISOString(),
-      },
+        email: normalizeAuditEmail(email),
+        role: roleDetail(role),
+      }),
     });
+  }
+
+  private async recordLoginSucceeded(user: AuthAuditUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: toAuditRole(user.role),
+      eventType: LOGIN_SUCCEEDED_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Успешный вход',
+      actionContext: 'Пользователь вошёл в аккаунт',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({
+        outcome: 'succeeded',
+        email: user.email,
+        role: roleDetail(user.role),
+      }),
+    });
+  }
+
+  private async recordLoginFailure(
+    email: string,
+    reason: string,
+    targetUser?: AuthAuditUser | null,
+  ): Promise<void> {
+    await this.auditService.record({
+      actorEmail: normalizeAuditEmail(email),
+      actorName: targetUser?.fullName,
+      actorRole: targetUser ? toAuditRole(targetUser.role) : undefined,
+      allowAnonymous: true,
+      eventType: LOGIN_FAILED_EVENT,
+      targetType: targetUser ? 'User' : 'Security',
+      targetId: targetUser?.id ?? null,
+      actionTitle: 'Неудачная попытка входа',
+      actionContext: reasonLabel(reason),
+      targetTitle: targetUser?.fullName || targetUser?.email || 'Login attempt',
+      targetContext: normalizeAuditEmail(email),
+      after: authDetails({
+        outcome: 'failed',
+        reason,
+        email: normalizeAuditEmail(email),
+        role: roleDetail(targetUser?.role),
+      }),
+    });
+  }
+
+  private async recordPasswordResetRequested(
+    user: AuthAuditUser,
+    expiresAt: Date,
+  ): Promise<void> {
+    await this.auditService.record({
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: toAuditRole(user.role),
+      allowAnonymous: true,
+      eventType: PASSWORD_RESET_REQUESTED_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Запрошено восстановление пароля',
+      actionContext: 'Создана ссылка восстановления пароля',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({
+        outcome: 'succeeded',
+        email: user.email,
+        role: roleDetail(user.role),
+        expiresAt: expiresAt.toISOString(),
+      }),
+    });
+  }
+
+  private async recordPasswordResetFailed(
+    reason: string,
+    email?: string,
+    targetUser?: AuthAuditUser | null,
+  ): Promise<void> {
+    await this.auditService.record({
+      actorEmail: normalizeAuditEmail(email),
+      actorName: targetUser?.fullName,
+      actorRole: targetUser ? toAuditRole(targetUser.role) : undefined,
+      allowAnonymous: true,
+      eventType: PASSWORD_RESET_FAILED_EVENT,
+      targetType: targetUser ? 'User' : 'Security',
+      targetId: targetUser?.id ?? null,
+      actionTitle: 'Ошибка восстановления пароля',
+      actionContext: reasonLabel(reason),
+      targetTitle: targetUser?.fullName || targetUser?.email || 'Password reset attempt',
+      targetContext: normalizeAuditEmail(email),
+      after: authDetails({
+        outcome: 'failed',
+        reason,
+        email: normalizeAuditEmail(email),
+        role: roleDetail(targetUser?.role),
+      }),
+    });
+  }
+
+  private async recordPasswordResetCompleted(user: AuthAuditUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: toAuditRole(user.role),
+      eventType: PASSWORD_RESET_COMPLETED_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Пароль восстановлен',
+      actionContext: 'Пользователь установил новый пароль по ссылке восстановления',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({
+        outcome: 'succeeded',
+        email: user.email,
+        role: roleDetail(user.role),
+      }),
+    });
+  }
+}
+
+function normalizeAuditEmail(email: string | null | undefined): string | undefined {
+  const normalized = email?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function authDetails(
+  values: Record<string, string | number | boolean | null | undefined>,
+): Prisma.JsonObject {
+  return Object.fromEntries(
+    Object.entries(values).filter(
+      ([, value]) => value !== undefined && value !== null && value !== '',
+    ),
+  ) as Prisma.JsonObject;
+}
+
+function toAuditRole(
+  role: RpcUserRole | PrismaRole | string | number | null | undefined,
+): PrismaRole | undefined {
+  switch (String(role ?? '')) {
+    case '1':
+    case 'USER_ROLE_APPLICANT':
+    case PrismaRole.Applicant:
+      return PrismaRole.Applicant;
+    case '2':
+    case 'USER_ROLE_NOTARY':
+    case PrismaRole.Notary:
+      return PrismaRole.Notary;
+    case '3':
+    case 'USER_ROLE_ADMIN':
+    case PrismaRole.Admin:
+      return PrismaRole.Admin;
+    default:
+      return undefined;
+  }
+}
+
+function roleDetail(
+  role: RpcUserRole | PrismaRole | string | number | null | undefined,
+): string | undefined {
+  return toAuditRole(role)?.toString();
+}
+
+function reasonLabel(reason: string): string {
+  switch (reason) {
+    case 'invalid_email':
+      return 'Некорректный email';
+    case 'weak_password':
+      return 'Пароль короче минимальной длины';
+    case 'full_name_required':
+      return 'Не указано ФИО';
+    case 'admin_role_denied':
+      return 'Запрещена самостоятельная регистрация администратора';
+    case 'email_already_registered':
+      return 'Email уже зарегистрирован';
+    case 'missing_credentials':
+      return 'Не переданы email или пароль';
+    case 'user_not_found':
+      return 'Пользователь не найден';
+    case 'account_deactivated':
+      return 'Аккаунт деактивирован';
+    case 'invalid_password':
+      return 'Неверный пароль';
+    case 'user_not_found_or_inactive':
+      return 'Пользователь не найден или неактивен';
+    case 'token_required':
+      return 'Не передан reset token';
+    case 'invalid_or_expired_token':
+      return 'Reset token не найден или истёк';
+    default:
+      return reason;
   }
 }
