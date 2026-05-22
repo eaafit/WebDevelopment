@@ -133,13 +133,7 @@ export class PaymentNotificationService {
     message: string,
   ): Promise<void> {
     try {
-      await this.notificationService.createInternalNotification({
-        userId,
-        title,
-        message,
-        category: RpcNotificationCategory.PAYMENT,
-        type: RpcNotificationType.IN_APP,
-      });
+      await this.createPaymentNotification({ userId, title, message });
     } catch (error) {
       this.logger.warn(
         `Failed to create payment notification for user ${userId}: ${getErrorMessage(error)}`,
@@ -165,12 +159,10 @@ export class PaymentNotificationService {
 
       const results = await Promise.allSettled(
         admins.map((admin) =>
-          this.notificationService.createInternalNotification({
+          this.createPaymentNotification({
             userId: admin.id,
             title,
             message,
-            category: RpcNotificationCategory.PAYMENT,
-            type: RpcNotificationType.IN_APP,
           }),
         ),
       );
@@ -182,6 +174,20 @@ export class PaymentNotificationService {
     } catch (error) {
       this.logger.warn(`Failed to create admin payment notifications: ${getErrorMessage(error)}`);
     }
+  }
+
+  private createPaymentNotification(params: {
+    userId: string;
+    title: string;
+    message: string;
+  }): Promise<void> {
+    return this.notificationService.createInternalNotification({
+      userId: params.userId,
+      title: params.title,
+      message: params.message,
+      category: RpcNotificationCategory.PAYMENT,
+      type: RpcNotificationType.IN_APP,
+    });
   }
 }
 
