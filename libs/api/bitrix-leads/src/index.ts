@@ -4,3 +4,4 @@ export * from './lib/bitrix-leads/bitrix-leads-api.service';
 export * from './lib/bitrix-leads/bitrix-leads.tokens';
 export * from './lib/bitrix-leads/bitrix-leads.types';
 export * from './lib/bitrix-leads/bitrix-leads.errors';
+export * from './lib/bitrix-leads/bitrix-lead.mapper';
