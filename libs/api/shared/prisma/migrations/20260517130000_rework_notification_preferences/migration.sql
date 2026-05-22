@@ -1,12 +1,24 @@
 -- Rework notification_preferences: one row per (user, channel, entity_category)
 
-DROP TABLE IF EXISTS "notification_preferences";
+DO $$ BEGIN
+    CREATE TYPE "notification_preference_channel" AS ENUM ('email', 'sms', 'push', 'in_app');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TYPE "notification_preference_channel" AS ENUM ('email', 'sms', 'push', 'in_app');
-CREATE TYPE "notification_entity_category" AS ENUM ('assessment', 'payment', 'system');
-CREATE TYPE "notification_preference_status" AS ENUM ('active', 'inactive');
+DO $$ BEGIN
+    CREATE TYPE "notification_entity_category" AS ENUM ('assessment', 'payment', 'system');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
-CREATE TABLE "notification_preferences" (
+DO $$ BEGIN
+    CREATE TYPE "notification_preference_status" AS ENUM ('active', 'inactive');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "notification_preferences" (
     "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "channel" "notification_preference_channel" NOT NULL,
