@@ -18,6 +18,16 @@ enum NotificationType {
   NOTIFICATION_TYPE_EMAIL = 1;
   NOTIFICATION_TYPE_SMS = 2;
   NOTIFICATION_TYPE_PUSH = 3;
+  NOTIFICATION_TYPE_IN_APP = 4;
+}
+
+enum NotificationCategory {
+  NOTIFICATION_CATEGORY_UNSPECIFIED = 0;
+  NOTIFICATION_CATEGORY_APPLICATION = 1;
+  NOTIFICATION_CATEGORY_DOCUMENT = 2;
+  NOTIFICATION_CATEGORY_PAYMENT = 3;
+  NOTIFICATION_CATEGORY_SYSTEM = 4;
+  NOTIFICATION_CATEGORY_ASSESSMENT = 5;
 }
 
 enum NotificationStatus {
@@ -35,6 +45,8 @@ message Notification {
   google.protobuf.Timestamp sent_at = 5;
   optional google.protobuf.Timestamp read_at = 6;
   NotificationStatus status = 7;
+  string title = 8;
+  NotificationCategory category = 9;
 }
 
 message NotificationFilters {

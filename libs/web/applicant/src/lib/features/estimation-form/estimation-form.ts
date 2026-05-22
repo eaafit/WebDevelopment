@@ -34,9 +34,8 @@ import {
   WALL_MATERIAL_OPTIONS,
   type AssessmentDocumentModel,
   type AssessmentDraftModel,
-  type DistrictLookupOption,
   type EstimationFormDraftData,
-  type LookupOption,
+  type FiasAddressSuggestion,
   type SelectOption,
 } from './estimation-form.models';
 import { EstimationFormSessionService } from './estimation-form-session.service';
@@ -87,6 +86,8 @@ const INITIAL_UPLOAD_STATE: UploadState = {
 })
 export class EstimationForm implements OnDestroy {
   readonly estimationForm = inject(FormBuilder).nonNullable.group({
+    fiasObjectId: [''],
+    fiasObjectGuid: [''],
     cityId: ['', [trimmedRequiredValidator]],
     districtId: [''],
     address: ['', [trimmedRequiredValidator, Validators.minLength(8), Validators.maxLength(180)]],
@@ -111,8 +112,9 @@ export class EstimationForm implements OnDestroy {
   });
   readonly formControls = this.estimationForm.controls;
 
-  readonly cities = signal<LookupOption[]>([]);
-  readonly districts = signal<DistrictLookupOption[]>([]);
+  readonly addressSuggestions = signal<FiasAddressSuggestion[]>([]);
+  readonly addressSuggestLoading = signal(false);
+  readonly addressLookupError = signal<string | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly draftSaving = signal(false);
@@ -221,6 +223,7 @@ export class EstimationForm implements OnDestroy {
   private readonly localDraftService = inject(EstimationFormLocalDraftService);
   private readonly objectUrls = new Map<string, string>();
   private readonly queuedUploadGroups = new Set<UploadGroup>();
+  private selectedFiasAddressFullName = '';
   private isApplyingDraft = false;
   private draftSavePromise: Promise<AssessmentDraftModel> | null = null;
   private autosaveQueuedAfterCurrentSave = false;
@@ -312,8 +315,6 @@ export class EstimationForm implements OnDestroy {
     const areaValue = value.area.trim();
 
     return [
-      `Город: ${this.getSelectedCityName()}`,
-      `Район: ${this.getSelectedDistrictName() || '—'}`,
       `Адрес: ${toDisplayValue(value.address)}`,
       `Площадь: ${areaValue ? `${areaValue} м²` : '—'}`,
       `Тип объекта: ${this.getOptionLabel(this.objectTypeOptions, value.objectType)}`,
@@ -695,17 +696,36 @@ export class EstimationForm implements OnDestroy {
     return getRoomsMaximum(this.formControls.objectType.value);
   }
 
-  getAddressSuggestions(): string[] {
-    const cityName = this.getSelectedCityName();
-    const districtName = this.getSelectedDistrictName();
-    const cityPrefix = districtName ? `${cityName}, ${districtName}` : cityName;
+  async onSelectAddressSuggestion(suggestion: FiasAddressSuggestion): Promise<void> {
+    if (this.isReadOnlyMode()) {
+      return;
+    }
 
-    return [
-      `${cityPrefix}, ул. Ленина, д. 10`,
-      `${cityPrefix}, ул. Малышева, д. 16`,
-      `${cityPrefix}, пр-т Мира, д. 25`,
-      `${cityPrefix}, ул. Гагарина, д. 8`,
-    ];
+    this.addressLookupError.set(null);
+    this.addressSuggestLoading.set(true);
+
+    try {
+      const selectedAddress = await this.assessmentApi.getFiasAddressItemById(suggestion.objectId);
+      this.selectedFiasAddressFullName = selectedAddress.fullName;
+      this.estimationForm.patchValue({
+        fiasObjectId: selectedAddress.objectId,
+        fiasObjectGuid: selectedAddress.objectGuid,
+        cityId: selectedAddress.cityId,
+        districtId: selectedAddress.districtId,
+        address: selectedAddress.fullName,
+        cadastralNumber:
+          this.formControls.cadastralNumber.value || selectedAddress.cadastralNumber,
+      });
+      this.formControls.cityId.updateValueAndValidity();
+      this.addressSuggestions.set([]);
+    } catch (error) {
+      console.error('Failed to load selected FIAS address', error);
+      this.addressLookupError.set(
+        extractErrorMessage(error, 'Не удалось получить выбранный адрес из ФИАС.'),
+      );
+    } finally {
+      this.addressSuggestLoading.set(false);
+    }
   }
 
   private setupFormSubscriptions(): void {
@@ -731,11 +751,19 @@ export class EstimationForm implements OnDestroy {
         this.formControls.floor.updateValueAndValidity({ emitEvent: false });
       });
 
-    this.formControls.cityId.valueChanges
+    this.formControls.address.valueChanges
       .pipe(
-        distinctUntilChanged(),
         filter(() => !this.isApplyingDraft),
-        switchMap((cityId) => from(this.loadDistrictsForCity(cityId))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((address) => this.clearSelectedFiasAddressIfEdited(address));
+
+    this.formControls.address.valueChanges
+      .pipe(
+        debounceTime(400),
+        distinctUntilChanged(),
+        filter(() => !this.loading() && !this.isApplyingDraft),
+        switchMap((query) => from(this.loadFiasAddressHints(query))),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe();
@@ -770,7 +798,6 @@ export class EstimationForm implements OnDestroy {
 
     try {
       const userId = await this.requireUserId();
-      const cities = await this.assessmentApi.listCities();
       const localDraftSnapshot = this.localDraftService.load(userId);
       const routeAssessmentId =
         this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
@@ -779,7 +806,6 @@ export class EstimationForm implements OnDestroy {
       const routeReadOnly = this.isReadOnlyQueryParam();
 
       this.userId.set(userId);
-      this.cities.set(cities);
 
       if (forceNewAssessment) {
         this.clearLocalDraft();
@@ -800,10 +826,6 @@ export class EstimationForm implements OnDestroy {
           this.persistAssessmentSnapshot(draft);
         }
 
-        await this.loadDistrictsForCity(
-          this.formControls.cityId.value,
-          this.formControls.districtId.value,
-        );
         await this.loadStoredDocuments(draft.id);
         return;
       }
@@ -826,10 +848,6 @@ export class EstimationForm implements OnDestroy {
             }
 
             await this.syncAssessmentId(draft.id);
-            await this.loadDistrictsForCity(
-              this.formControls.cityId.value,
-              this.formControls.districtId.value,
-            );
             await this.loadStoredDocuments(draft.id);
             return;
           } catch (error) {
@@ -841,10 +859,6 @@ export class EstimationForm implements OnDestroy {
 
       if (localDraftSnapshot && !localDraftSnapshot.assessmentId) {
         this.patchDraftForm(localDraftSnapshot.form);
-        await this.loadDistrictsForCity(
-          this.formControls.cityId.value,
-          this.formControls.districtId.value,
-        );
         shouldAutosaveRestoredState = this.canPersistDraft();
         return;
       }
@@ -854,10 +868,6 @@ export class EstimationForm implements OnDestroy {
         this.applyDraft(latestDraft, false);
         this.persistAssessmentSnapshot(latestDraft);
         await this.syncAssessmentId(latestDraft.id);
-        await this.loadDistrictsForCity(
-          this.formControls.cityId.value,
-          this.formControls.districtId.value,
-        );
         await this.loadStoredDocuments(latestDraft.id);
       }
     } catch (error) {
@@ -914,6 +924,9 @@ export class EstimationForm implements OnDestroy {
     );
 
     this.applyConditionalValidators(this.formControls.objectType.value);
+    this.selectedFiasAddressFullName = this.formControls.cityId.value
+      ? this.formControls.address.value.trim()
+      : '';
     this.isApplyingDraft = false;
   }
 
@@ -1062,6 +1075,9 @@ export class EstimationForm implements OnDestroy {
     this.storedDocuments.set([]);
     this.uploadingState.set({ ...INITIAL_UPLOAD_STATE });
     this.deletingStoredDocumentIds.set([]);
+    this.addressSuggestions.set([]);
+    this.addressLookupError.set(null);
+    this.selectedFiasAddressFullName = '';
     this.queuedUploadGroups.clear();
     this.autosaveQueuedAfterCurrentSave = false;
     this.showValidationErrors = false;
@@ -1098,7 +1114,7 @@ export class EstimationForm implements OnDestroy {
   }
 
   private buildDraftRequirementsMessage(): string {
-    return 'Чтобы сохранить черновик, заполните город, адрес, площадь и тип объекта.';
+    return 'Чтобы сохранить черновик, выберите адрес из подсказок ФИАС и заполните площадь и тип объекта.';
   }
 
   private hasRequiredValidationError(): boolean {
@@ -1163,23 +1179,47 @@ export class EstimationForm implements OnDestroy {
     control.updateValueAndValidity({ emitEvent: false });
   }
 
-  private async loadDistrictsForCity(cityId: string, preferredDistrictId?: string): Promise<void> {
-    if (!cityId.trim()) {
-      this.districts.set([]);
-      this.formControls.districtId.setValue('', { emitEvent: false });
+  private async loadFiasAddressHints(query: string): Promise<void> {
+    const normalizedQuery = query.trim();
+    this.addressLookupError.set(null);
+
+    if (normalizedQuery.length < 3 || normalizedQuery === this.selectedFiasAddressFullName) {
+      this.addressSuggestions.set([]);
+      this.addressSuggestLoading.set(false);
       return;
     }
 
-    const districts = await this.assessmentApi.listDistricts(cityId);
-    this.districts.set(districts);
+    this.addressSuggestLoading.set(true);
 
-    const nextDistrictId = preferredDistrictId ?? this.formControls.districtId.value;
-    if (nextDistrictId && districts.some((district) => district.id === nextDistrictId)) {
-      this.formControls.districtId.setValue(nextDistrictId, { emitEvent: false });
+    try {
+      this.addressSuggestions.set(await this.assessmentApi.getFiasAddressHints(normalizedQuery));
+    } catch (error) {
+      console.error('Failed to load FIAS address hints', error);
+      this.addressSuggestions.set([]);
+      this.addressLookupError.set(
+        extractErrorMessage(error, 'Не удалось получить подсказки ФИАС.'),
+      );
+    } finally {
+      this.addressSuggestLoading.set(false);
+    }
+  }
+
+  private clearSelectedFiasAddressIfEdited(address: string): void {
+    if (!this.selectedFiasAddressFullName || address.trim() === this.selectedFiasAddressFullName) {
       return;
     }
 
-    this.formControls.districtId.setValue('', { emitEvent: false });
+    this.selectedFiasAddressFullName = '';
+    this.estimationForm.patchValue(
+      {
+        fiasObjectId: '',
+        fiasObjectGuid: '',
+        cityId: '',
+        districtId: '',
+      },
+      { emitEvent: false },
+    );
+    this.formControls.cityId.updateValueAndValidity({ emitEvent: false });
   }
 
   private async loadStoredDocuments(assessmentId: string): Promise<void> {
@@ -1396,6 +1436,8 @@ export class EstimationForm implements OnDestroy {
     const value = this.estimationForm.getRawValue();
 
     return {
+      fiasObjectId: value.fiasObjectId,
+      fiasObjectGuid: value.fiasObjectGuid,
       cityId: value.cityId,
       districtId: value.districtId,
       address: value.address,
@@ -1673,19 +1715,6 @@ export class EstimationForm implements OnDestroy {
     link.click();
   }
 
-  private getSelectedCityName(): string {
-    return (
-      this.cities().find((city) => city.id === this.formControls.cityId.value)?.name ??
-      'Екатеринбург'
-    );
-  }
-
-  private getSelectedDistrictName(): string {
-    return (
-      this.districts().find((district) => district.id === this.formControls.districtId.value)
-        ?.name ?? ''
-    );
-  }
 }
 
 function trimmedRequiredValidator(control: AbstractControl): Record<string, true> | null {

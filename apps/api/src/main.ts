@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
@@ -7,6 +8,7 @@ import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
+import { registerWebLogIngestion } from './app/logging/web-log-ingest';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -52,7 +54,7 @@ async function bootstrap() {
           : (requestOrigin: string | undefined, cb) => {
               cb(null, requestOrigin ? requestOrigin : true);
             },
-      methods: [...connectCors.allowedMethods, 'PUT', 'DELETE', 'PATCH'],
+      methods: [...connectCors.allowedMethods],
       allowedHeaders: [
         ...connectCors.allowedHeaders,
         'Authorization',
@@ -62,7 +64,6 @@ async function bootstrap() {
       exposedHeaders: [...connectCors.exposedHeaders, 'X-Request-Id'],
     }),
   );
-  expressInstance.use('/api', express.json());
 
   const connectRouterRegistry = app.get(ConnectRouterRegistry);
   const authInterceptor = app.get(AuthInterceptor);
@@ -94,11 +95,12 @@ async function bootstrap() {
     }
   });
 
+  registerWebLogIngestion(expressInstance);
+
   expressInstance.get(
     '/api/documents/:documentId/content',
     async (req: express.Request, res: express.Response) => {
-      const stringValue = req.params['documentId'] ?? '';
-      const documentId = Array.isArray(stringValue) ? stringValue[0] : stringValue;
+      const documentId = req.params['documentId'] ?? '';
       const accessGrant = documentFileUrlService.validateAccess({
         documentId,
         mode: asString(req.query['mode']),
@@ -158,6 +160,23 @@ async function bootstrap() {
     },
   );
 
+  expressInstance.post(
+    '/api/payments/robokassa/result',
+    express.urlencoded({ extended: false }),
+    (req: express.Request, res: express.Response) => {
+      paymentWebhookService
+        .handleRobokassaResult(req.body)
+        .then((result) => res.status(200).type('text/plain').send(result))
+        .catch((error: unknown) => {
+          if (error instanceof PaymentWebhookError) {
+            res.status(error.statusCode).send(error.message);
+            return;
+          }
+          res.status(500).send('Internal server error');
+        });
+    },
+  );
+
   expressInstance.get(
     '/api/payments/:paymentId/receipt',
     (req: express.Request, res: express.Response) => {
@@ -175,11 +194,9 @@ async function bootstrap() {
         return;
       }
 
-      const rawPaymentId = req.params['paymentId'];
-      const paymentId = Array.isArray(rawPaymentId) ? rawPaymentId[0] : (rawPaymentId ?? '');
       paymentAttachmentService
         .getReceiptFile({
-          paymentId: paymentId,
+          paymentId: req.params['paymentId'],
           userId: payload.sub,
           role: payload.role,
         })
@@ -195,9 +212,7 @@ async function bootstrap() {
         })
         .catch((error: unknown) => {
           if (isHttpError(error)) {
-            res
-              .status((error.statusCode ?? error.status) as number)
-              .json({ message: error.message as string });
+            res.status(error.statusCode ?? error.status).json({ message: error.message });
             return;
           }
 
@@ -206,25 +221,20 @@ async function bootstrap() {
     },
   );
 
-  const connectHandler = connectNodeAdapter({
-    connect: true,
-    grpc: false,
-    grpcWeb: false,
-    interceptors: [authInterceptor.build()],
-    contextValues: (req) => {
-      const values = createContextValues();
-      values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
-      return values;
-    },
-    routes: (router) => connectRouterRegistry.register(router),
-  });
-  expressInstance.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (req.path.startsWith('/api/')) {
-      next();
-      return;
-    }
-    connectHandler(req, res);
-  });
+  app.use(
+    connectNodeAdapter({
+      connect: true,
+      grpc: false,
+      grpcWeb: false,
+      interceptors: [authInterceptor.build()],
+      contextValues: (req) => {
+        const values = createContextValues();
+        values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
+        return values;
+      },
+      routes: (router) => connectRouterRegistry.register(router),
+    }),
+  );
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);

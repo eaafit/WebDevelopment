@@ -1,7 +1,4 @@
 import { Module } from '@nestjs/common';
-import { TariffPlanModule } from '@internal/api/tariff-plan';
-import { DiscountModule } from '@internal/api/discount';
-import { PromocodeModule } from '@internal/api/promocode';
 import { AuditModule } from '@internal/audit';
 import { AssessmentModule } from '@internal/assessment';
 import { AuthModule } from '@internal/auth';
@@ -19,15 +16,11 @@ import { LoggingModule } from './logging/logging.module';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
-import { SubscriptionsController } from './subscriptions.controller';
 
 @Module({
   imports: [
     LoggingModule,
     PrismaModule,
-    TariffPlanModule,
-    DiscountModule,
-    PromocodeModule,
     MetricsModule,
     MailModule,
     AuthModule,
@@ -41,7 +34,7 @@ import { SubscriptionsController } from './subscriptions.controller';
     ReportModule,
     UserModule,
   ],
-  controllers: [PaymentAttachmentController, SubscriptionsController],
+  controllers: [PaymentAttachmentController],
   providers: [ConnectRouterRegistry, PortalAdminBootstrapService],
 })
 export class AppModule {}

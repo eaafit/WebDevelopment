@@ -684,6 +684,13 @@ td.actions {
       color: var(--admin-text-muted);
     }
   }
+
+  .column-filter-menu.column-filter-menu--floating {
+    position: fixed;
+    z-index: 1100;
+    max-width: min(320px, calc(100vw - 1rem));
+    max-height: min(420px, calc(100vh - 1rem));
+  }
 }
 
 .modal-footer {

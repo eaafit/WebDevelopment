@@ -4,14 +4,11 @@
       <p class="newsletter-page__eyebrow">Администратор / рассылка</p>
       <h2>Управление email-рассылкой</h2>
       <p class="newsletter-page__lead">
-        Рабочий список подписчиков, выбор аудитории и история кампаний из backend.
+        Рабочий список подписчиков и выбор аудитории для email-рассылки.
       </p>
     </div>
 
     <div class="newsletter-page__hero-actions">
-      <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="setTab('history')">
-        История
-      </button>
       <button type="button" class="newsletter-btn newsletter-btn--primary" (click)="createCampaignForAll()">
         Новая рассылка
       </button>
@@ -26,15 +23,15 @@
   <nav class="newsletter-tabs" aria-label="Разделы рассылки">
     <button
       type="button"
-      class="newsletter-tab"
-      [class.newsletter-tab--active]="activeTab() === 'subscribers'"
+      class="newsletter-tabs__button"
+      [class.newsletter-tabs__button--active]="activeTab() === 'subscribers'"
       (click)="setTab('subscribers')">
       Подписчики
     </button>
     <button
       type="button"
-      class="newsletter-tab"
-      [class.newsletter-tab--active]="activeTab() === 'history'"
+      class="newsletter-tabs__button"
+      [class.newsletter-tabs__button--active]="activeTab() === 'history'"
       (click)="setTab('history')">
       История кампаний
     </button>
@@ -181,6 +178,7 @@
           (input)="updateHistoryQuery($any($event.target).value)"
           (keydown.enter)="applyHistoryFilters()" />
       </label>
+
       <div class="newsletter-actions">
         <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="applyHistoryFilters()">
           Найти
@@ -192,7 +190,7 @@
     </div>
 
     <div class="newsletter-table-wrap">
-      <table class="newsletter-table newsletter-table--history">
+      <table class="newsletter-table newsletter-table--campaigns">
         <thead>
           <tr>
             <th>Дата</th>
@@ -201,12 +199,13 @@
             <th>Получатели</th>
             <th>Доставлено</th>
             <th>Статус</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           @if (campaignsLoading()) {
           <tr>
-            <td colspan="6" class="newsletter-empty">Загрузка истории...</td>
+            <td colspan="7" class="newsletter-empty">Загрузка истории рассылок...</td>
           </tr>
           } @else if (campaigns().length) { @for (campaign of campaigns(); track campaign.id) {
           <tr>
@@ -218,16 +217,24 @@
             <td>
               <span
                 class="newsletter-badge"
-                [class.newsletter-badge--danger]="campaign.status === 'failed'"
-                [class.newsletter-badge--warning]="campaign.status === 'partialFailed'"
-                [class.newsletter-badge--muted]="campaign.status === 'sending'">
+                [class.newsletter-badge--warning]="campaign.status === 'partialFailed' || campaign.status === 'sending'"
+                [class.newsletter-badge--danger]="campaign.status === 'failed'">
                 {{ campaign.statusLabel }}
               </span>
+            </td>
+            <td class="newsletter-table__action">
+              <button
+                type="button"
+                class="newsletter-link"
+                [disabled]="templateLoadingId() === campaign.id"
+                (click)="useCampaignAsTemplate(campaign)">
+                {{ templateLoadingId() === campaign.id ? 'Загрузка...' : 'Использовать как шаблон' }}
+              </button>
             </td>
           </tr>
           } } @else {
           <tr>
-            <td colspan="6" class="newsletter-empty">История рассылок пока пуста.</td>
+            <td colspan="7" class="newsletter-empty">История рассылок не найдена.</td>
           </tr>
           }
         </tbody>

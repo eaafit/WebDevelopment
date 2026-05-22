@@ -39,6 +39,31 @@ services:
       - '--web.enable-lifecycle'
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: notary-loki
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command:
+      - '-config.file=/etc/loki/config.yml'
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: notary-promtail
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp
+    command:
+      - '-config.file=/etc/promtail/config.yml'
+    depends_on:
+      - loki
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: notary-grafana
@@ -54,6 +79,15 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
+      - loki
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: notary-mailpit
+    ports:
+      - '${SMTP_PORT:-1025}:1025'
+      - '${MAILPIT_UI_PORT:-8025}:8025'
     restart: unless-stopped
 
   minio:
@@ -86,5 +120,7 @@ services:
 volumes:
   notary_data:
   prometheus_data:
+  loki_data:
+  promtail_positions:
   grafana_data:
   minio_data:

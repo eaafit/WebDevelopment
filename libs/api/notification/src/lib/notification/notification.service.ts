@@ -1,15 +1,13 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import {
-  NotificationStatus as PrismaNotificationStatus,
-  NotificationType as PrismaNotificationType,
-} from '@internal/prisma-client';
-import {
   DeleteNotificationResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
-  NotificationStatus,
-  NotificationType,
+  NotificationCategory as RpcNotificationCategory,
+  NotificationStatus as RpcNotificationStatus,
+  NotificationType as RpcNotificationType,
+  type Notification as RpcNotification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type ListNotificationsRequest,
@@ -20,28 +18,77 @@ import {
   type MarkAsReadResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { Role as PrismaRole } from '@internal/prisma-client';
 import { NotificationRepository } from './notification.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export interface CreateNotificationInput {
+  userId: string;
+  title?: string;
+  category?: RpcNotificationCategory;
+  type: RpcNotificationType;
+  message: string;
+  status?: RpcNotificationStatus;
+  sentAt?: Date;
+  readAt?: Date | null;
+}
 
 @Injectable()
 export class NotificationService {
   constructor(private readonly notificationRepository: NotificationRepository) {}
 
+  async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
+    validateUuid(request.userId, 'user_id');
+
+    const message = normalizeMessage(request.message);
+
+    return this.notificationRepository.createNotification({
+      userId: request.userId,
+      title: normalizeOptionalTitle(request.title),
+      type: request.type,
+      category: request.category,
+      message,
+      status: request.status,
+      sentAt: request.sentAt,
+      readAt: request.readAt,
+    });
+  }
+
   async createInternalNotification(params: {
     userId: string;
+    title?: string;
+    category?: RpcNotificationCategory;
     message: string;
-    type?: NotificationType;
-    status?: NotificationStatus;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
   }): Promise<void> {
     validateUuid(params.userId, 'user_id');
 
     await this.notificationRepository.createNotification({
       userId: params.userId,
-      message: params.message,
-      type: toPrismaType(params.type),
-      status: toPrismaStatus(params.status),
+      title: normalizeOptionalTitle(params.title),
+      category: params.category ?? RpcNotificationCategory.SYSTEM,
+      message: normalizeMessage(params.message),
+      type: params.type ?? RpcNotificationType.PUSH,
+      status: params.status ?? RpcNotificationStatus.SENT,
     });
+  }
+
+  async createInternalNotificationsForRole(
+    role: PrismaRole,
+    params: Omit<Parameters<NotificationService['createInternalNotification']>[0], 'userId'>,
+  ): Promise<void> {
+    const userIds = await this.notificationRepository.listActiveUserIdsByRole(role);
+
+    await Promise.all(
+      userIds.map((userId) =>
+        this.createInternalNotification({
+          userId,
+          ...params,
+        }),
+      ),
+    );
   }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
@@ -81,32 +128,17 @@ function validateUuid(value: string | undefined, fieldName: string): void {
   }
 }
 
-function toPrismaType(type: NotificationType | undefined): PrismaNotificationType | undefined {
-  switch (type) {
-    case NotificationType.EMAIL:
-      return PrismaNotificationType.Email;
-    case NotificationType.SMS:
-      return PrismaNotificationType.SMS;
-    case NotificationType.PUSH:
-      return PrismaNotificationType.Push;
-    case NotificationType.UNSPECIFIED:
-    case undefined:
-    default:
-      return undefined;
+function normalizeMessage(value: string): string {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new ConnectError('message is required', Code.InvalidArgument);
   }
+
+  return normalized;
 }
 
-function toPrismaStatus(status: NotificationStatus | undefined): PrismaNotificationStatus | undefined {
-  switch (status) {
-    case NotificationStatus.FAILED:
-      return PrismaNotificationStatus.Failed;
-    case NotificationStatus.SENT:
-      return PrismaNotificationStatus.Sent;
-    case NotificationStatus.PENDING:
-      return PrismaNotificationStatus.Pending;
-    case NotificationStatus.UNSPECIFIED:
-    case undefined:
-    default:
-      return undefined;
-  }
+function normalizeOptionalTitle(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }

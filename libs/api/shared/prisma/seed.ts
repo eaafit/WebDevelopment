@@ -10,6 +10,7 @@ import {
   NewsletterCampaignStatus,
   NewsletterDeliveryStatus,
   NewsletterSubscriptionStatus,
+  NotificationCategory,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -163,9 +164,6 @@ async function main(): Promise<void> {
   await upsertGeographyCatalog();
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
-  await upsertTariffPlans();
-  await upsertDiscounts();
-  await upsertPromocodes();
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
@@ -195,9 +193,6 @@ async function main(): Promise<void> {
     auditLogCount,
     promoCount,
     saleCount,
-    tariffPlanCount,
-    discountCount,
-    promocodeCount,
     newsletterSubscriptionCount,
     newsletterCampaignCount,
     cityCount,
@@ -214,9 +209,6 @@ async function main(): Promise<void> {
     prisma.auditLog.count(),
     prisma.promo.count(),
     prisma.sale.count(),
-    prisma.tariffPlan.count(),
-    prisma.discount.count(),
-    prisma.promocode.count(),
     prisma.newsletterSubscription.count(),
     prisma.newsletterCampaign.count(),
     prisma.city.count(),
@@ -237,9 +229,6 @@ async function main(): Promise<void> {
       `AuditLogs: ${auditLogCount}`,
       `Promos: ${promoCount}`,
       `Sales: ${saleCount}`,
-      `TariffPlans: ${tariffPlanCount}`,
-      `Discounts: ${discountCount}`,
-      `Promocodes: ${promocodeCount}`,
       `NewsletterSubscriptions: ${newsletterSubscriptionCount}`,
       `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
@@ -248,114 +237,6 @@ async function main(): Promise<void> {
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
   );
-}
-
-async function upsertTariffPlans(): Promise<void> {
-  const plans = [
-    {
-      name: 'Базовый',
-      price: 1990,
-      description: 'Базовая поддержка, личный кабинет, ограниченные отчёты',
-      isActive: true,
-    },
-    {
-      name: 'Премиум',
-      price: 4990,
-      description: 'Приоритетная поддержка, расширенная аналитика, экспорт данных',
-      isActive: true,
-    },
-    {
-      name: 'Корпоративный',
-      price: 14990,
-      description: 'SLA, интеграции, роли и доступы',
-      isActive: true,
-    },
-  ];
-  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
-  const baseTo = new Date('2026-12-31T23:59:59.000Z');
-  for (let i = 0; i < plans.length; i++) {
-    await prisma.tariffPlan.upsert({
-      where: { id: i + 1 },
-      update: { ...plans[i], validFrom: baseFrom, validTo: baseTo },
-      create: { id: i + 1, ...plans[i], validFrom: baseFrom, validTo: baseTo },
-    });
-  }
-}
-
-async function upsertDiscounts(): Promise<void> {
-  const discounts = [
-    {
-      name: 'Новая клиентская скидка',
-      percentage: 10,
-      description: 'Скидка для новых клиентов',
-      isActive: true,
-      minOrderAmount: null,
-      maxDiscountAmount: null,
-    },
-    {
-      name: 'Сезонная скидка',
-      percentage: 15,
-      description: 'Сезонная акция',
-      isActive: true,
-      minOrderAmount: 3000,
-      maxDiscountAmount: 2000,
-    },
-    {
-      name: 'Постоянный клиент',
-      percentage: 20,
-      description: 'Скидка для постоянных клиентов',
-      isActive: true,
-      minOrderAmount: 5000,
-      maxDiscountAmount: 5000,
-    },
-  ];
-  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
-  const baseTo = new Date('2026-12-31T23:59:59.000Z');
-  for (let i = 0; i < discounts.length; i++) {
-    await prisma.discount.upsert({
-      where: { id: i + 1 },
-      update: { ...discounts[i], validFrom: baseFrom, validTo: baseTo },
-      create: { id: i + 1, ...discounts[i], validFrom: baseFrom, validTo: baseTo },
-    });
-  }
-}
-
-async function upsertPromocodes(): Promise<void> {
-  const codes = [
-    {
-      code: 'WELCOME10',
-      discountType: 'percentage',
-      discountValue: 10,
-      description: 'Приветственный промокод',
-      isActive: true,
-      maxUses: 500,
-    },
-    {
-      code: 'SPRING25',
-      discountType: 'percentage',
-      discountValue: 25,
-      description: 'Весенняя акция',
-      isActive: true,
-      maxUses: 200,
-    },
-    {
-      code: 'FIXED500',
-      discountType: 'fixed',
-      discountValue: 500,
-      description: 'Фиксированная скидка 500₽',
-      isActive: true,
-      maxUses: 100,
-    },
-  ];
-  const baseFrom = new Date('2026-01-01T00:00:00.000Z');
-  const baseTo = new Date('2026-12-31T23:59:59.000Z');
-  for (let i = 0; i < codes.length; i++) {
-    await prisma.promocode.upsert({
-      where: { id: i + 1 },
-      update: { ...codes[i], validFrom: baseFrom, validTo: baseTo },
-      create: { id: i + 1, ...codes[i], usedCount: 0, validFrom: baseFrom, validTo: baseTo },
-    });
-  }
 }
 
 async function upsertUsers(count: number, passwordHash: string): Promise<string[]> {
@@ -434,39 +315,141 @@ async function upsertNewsletterData(userIds: string[]): Promise<void> {
 
   const adminId = users.find((user) => user.role === Role.Admin)?.id ?? users[0]?.id ?? null;
   const activeUsers = users.filter((_, i) => i % 11 !== 0);
-  const partialFailedEmail = activeUsers[3]?.email;
   const campaignSeeds = [
     {
-      subject: 'Обновление тарифных планов для нотариусов',
-      audienceType: NewsletterAudienceType.Role,
-      audienceRole: Role.Notary,
-      audienceLabel: 'Роль: Нотариус',
+      subject: 'Итоги недели: новые заявки на оценку',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
       status: NewsletterCampaignStatus.Sent,
-      createdAt: new Date('2026-02-28T11:35:00.000Z'),
-      completedAt: new Date('2026-02-28T11:37:00.000Z'),
-      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(0, 6),
+      createdAt: new Date('2026-05-17T08:30:00.000Z'),
+      completedAt: new Date('2026-05-17T08:32:00.000Z'),
+      recipients: activeUsers.slice(0, 12),
       failedEmails: new Set<string>(),
     },
     {
-      subject: 'Запуск сервиса нотариальной оценки',
+      subject: 'Плановые работы в личном кабинете',
       audienceType: NewsletterAudienceType.All,
       audienceRole: null,
       audienceLabel: 'Все активные подписчики',
       status: NewsletterCampaignStatus.PartialFailed,
-      createdAt: new Date('2026-02-20T16:10:00.000Z'),
-      completedAt: new Date('2026-02-20T16:14:00.000Z'),
-      recipients: activeUsers.slice(0, 12),
-      failedEmails: new Set<string>(partialFailedEmail ? [partialFailedEmail] : []),
+      createdAt: new Date('2026-05-16T18:00:00.000Z'),
+      completedAt: new Date('2026-05-16T18:02:00.000Z'),
+      recipients: activeUsers.slice(1, 11),
+      failedEmails: new Set<string>(activeUsers[3]?.email ? [activeUsers[3].email] : []),
     },
     {
-      subject: 'Плановое обслуживание системы',
+      subject: 'Обновление тарифов для заявителей',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Applicant,
+      audienceLabel: 'Роль: Заявитель',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-15T09:00:00.000Z'),
+      completedAt: new Date('2026-05-15T09:02:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Applicant).slice(0, 8),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Напоминание: незавершенные заявки',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Applicant,
+      audienceLabel: 'Роль: Заявитель',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-14T06:15:00.000Z'),
+      completedAt: new Date('2026-05-14T06:17:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Applicant).slice(2, 9),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Новые возможности мониторинга и логов',
       audienceType: NewsletterAudienceType.Role,
       audienceRole: Role.Admin,
       audienceLabel: 'Роль: Администратор',
       status: NewsletterCampaignStatus.Sent,
-      createdAt: new Date('2026-03-05T09:00:00.000Z'),
-      completedAt: new Date('2026-03-05T09:01:00.000Z'),
-      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 3),
+      createdAt: new Date('2026-05-13T11:45:00.000Z'),
+      completedAt: new Date('2026-05-13T11:47:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 4),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Подборка материалов для нотариусов',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-12T07:00:00.000Z'),
+      completedAt: new Date('2026-05-12T07:02:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Реактивация неактивных пользователей',
+      audienceType: NewsletterAudienceType.Selected,
+      audienceRole: null,
+      audienceLabel: 'Выбранные вручную',
+      status: NewsletterCampaignStatus.Failed,
+      createdAt: new Date('2026-05-11T10:30:00.000Z'),
+      completedAt: new Date('2026-05-11T10:32:00.000Z'),
+      recipients: activeUsers.slice(4, 9),
+      failedEmails: new Set<string>(activeUsers.slice(4, 9).map((user) => user.email)),
+    },
+    {
+      subject: 'Изменения в обработке платежей',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-10T12:20:00.000Z'),
+      completedAt: new Date('2026-05-10T12:22:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(1, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Обновление справочника географии объектов',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-09T05:40:00.000Z'),
+      completedAt: new Date('2026-05-09T05:42:00.000Z'),
+      recipients: activeUsers.slice(6, 15),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Дайджест промокодов на май',
+      audienceType: NewsletterAudienceType.All,
+      audienceRole: null,
+      audienceLabel: 'Все активные подписчики',
+      status: NewsletterCampaignStatus.PartialFailed,
+      createdAt: new Date('2026-05-08T08:00:00.000Z'),
+      completedAt: new Date('2026-05-08T08:02:00.000Z'),
+      recipients: activeUsers.slice(8, 19),
+      failedEmails: new Set<string>(
+        activeUsers
+          .slice(8, 10)
+          .map((user) => user.email),
+      ),
+    },
+    {
+      subject: 'Переход на обновленную форму уведомлений',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Admin,
+      audienceLabel: 'Роль: Администратор',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-07T14:10:00.000Z'),
+      completedAt: new Date('2026-05-07T14:12:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Admin).slice(0, 6),
+      failedEmails: new Set<string>(),
+    },
+    {
+      subject: 'Заявки в очереди распределения',
+      audienceType: NewsletterAudienceType.Role,
+      audienceRole: Role.Notary,
+      audienceLabel: 'Роль: Нотариус',
+      status: NewsletterCampaignStatus.Sent,
+      createdAt: new Date('2026-05-06T06:45:00.000Z'),
+      completedAt: new Date('2026-05-06T06:47:00.000Z'),
+      recipients: activeUsers.filter((user) => user.role === Role.Notary).slice(2, 9),
       failedEmails: new Set<string>(),
     },
   ];
@@ -1011,13 +994,30 @@ async function upsertReports(
 }
 
 async function upsertNotifications(count: number, userIds: string[]): Promise<void> {
-  const types = [NotificationType.Email, NotificationType.SMS, NotificationType.Push];
+  const types = [
+    NotificationType.Email,
+    NotificationType.SMS,
+    NotificationType.Push,
+    NotificationType.InApp,
+  ];
+  const categories = [
+    NotificationCategory.Application,
+    NotificationCategory.Document,
+    NotificationCategory.Payment,
+    NotificationCategory.System,
+    NotificationCategory.Assessment,
+  ];
   const statuses = [NotificationStatus.Pending, NotificationStatus.Sent, NotificationStatus.Failed];
   const baseSent = new Date('2026-02-01T12:00:00.000Z');
   for (let i = 0; i < count; i++) {
     const id = seedId('notification', i);
     const userId = userIds[i % userIds.length];
-    const type = types[i % 3];
+    const type = types[i % types.length];
+    const category = categories[i % categories.length];
+    const title =
+      category === NotificationCategory.Assessment
+        ? 'Создана новая заявка на оценку'
+        : `Seed уведомление ${i + 1}`;
     const message = `Seed уведомление ${i + 1}: тестовое сообщение.`;
     const status = statuses[i % 3];
     const sentAt = new Date(baseSent);
@@ -1025,8 +1025,8 @@ async function upsertNotifications(count: number, userIds: string[]): Promise<vo
     const readAt = i % 5 === 0 ? new Date(sentAt.getTime() + 3600000) : null;
     await prisma.notification.upsert({
       where: { id },
-      update: { userId, type, message, sentAt, readAt, status },
-      create: { id, userId, type, message, sentAt, readAt, status },
+      update: { userId, title, category, type, message, sentAt, readAt, status },
+      create: { id, userId, title, category, type, message, sentAt, readAt, status },
     });
   }
 }
@@ -1262,7 +1262,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       where: { id },
       update: {
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,
@@ -1272,7 +1271,6 @@ async function upsertSecurityEvents(userIds: string[]): Promise<void> {
       create: {
         id,
         userId: event.userId,
-        assessmentId: null,
         actionType: event.actionType,
         entityName: 'Security',
         entityId: event.userId,

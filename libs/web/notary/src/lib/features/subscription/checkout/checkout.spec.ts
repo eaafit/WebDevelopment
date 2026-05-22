@@ -12,6 +12,7 @@ type CheckoutTestApi = Checkout & {
     set: (value: string) => void;
   };
   startPayment: () => Promise<void>;
+  startRobokassaPayment: () => Promise<void>;
   state: () => string;
   displayAmount: () => string;
   errorMessage: () => string;
@@ -142,6 +143,7 @@ describe('Checkout', () => {
       amount: '1500.00',
       subscriptionId: 'subscription-1',
       promoCode: '',
+      paymentProvider: 'yookassa',
     });
     expect(widgetService.mount).toHaveBeenCalledWith(
       'yookassa-widget-host',
@@ -288,6 +290,39 @@ describe('Checkout', () => {
     expect(element.querySelector('.widget-stage.is-processing')).not.toBeNull();
     expect(element.querySelector('.notice-banner')).toBeNull();
     expect(element.textContent).toContain('Проверяем подтверждение платежа');
+  });
+
+  it('should redirect to Robokassa payment URL when startRobokassaPayment is called', async () => {
+    const robokassaUrl =
+      'https://auth.robokassa.ru/Merchant/Index.aspx?MerchantLogin=notary_platform&InvId=payment-1&OutSum=1350.00';
+    checkoutApi.createPayment.mockResolvedValue({
+      paymentId: 'payment-1',
+      paymentUrl: robokassaUrl,
+      amount: {
+        amount: '1350.00',
+        currency: 'RUB',
+      },
+    });
+
+    await checkout.startRobokassaPayment();
+    fixture.detectChanges();
+
+    expect(checkoutApi.createPayment).toHaveBeenCalledWith({
+      userId: 'user-1',
+      amount: '1500.00',
+      subscriptionId: 'subscription-1',
+      promoCode: '',
+      paymentProvider: 'robokassa',
+    });
+    expect(checkout.state()).toBe('processing');
+    expect(widgetService.mount).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.checkout.notary.robokassa_redirect',
+      expect.objectContaining({
+        paymentId: 'payment-1',
+        paymentUrl: robokassaUrl,
+      }),
+    );
   });
 
   it('should show a retryable cancelled state when the widget is closed', async () => {

@@ -70,6 +70,7 @@ enum NotificationType {
   Email @map("email")
   SMS   @map("sms")
   Push  @map("push")
+  InApp @map("in_app")
 
   @@map("notification_type")
 }
@@ -80,6 +81,16 @@ enum NotificationStatus {
   Failed  @map("failed")
 
   @@map("notification_status")
+}
+
+enum NotificationCategory {
+  Application @map("application")
+  Document    @map("document")
+  Payment     @map("payment")
+  System      @map("system")
+  Assessment  @map("assessment")
+
+  @@map("notification_category")
 }
 
 enum NewsletterSubscriptionStatus {
@@ -374,13 +385,15 @@ model AssessmentReport {
 }
 
 model Notification {
-  id      String             @id @default(uuid()) @db.Uuid
-  userId  String             @map("user_id") @db.Uuid
-  type    NotificationType
-  message String             @db.Text
-  sentAt  DateTime           @default(now()) @map("sent_at") @db.Timestamp()
-  readAt  DateTime?          @map("read_at") @db.Timestamp() // [FIX] время прочтения
-  status  NotificationStatus @default(Pending)
+  id       String               @id @default(uuid()) @db.Uuid
+  userId   String               @map("user_id") @db.Uuid
+  type     NotificationType
+  category NotificationCategory @default(System)
+  title    String               @default("Уведомление") @db.VarChar
+  message  String               @db.Text
+  sentAt   DateTime             @default(now()) @map("sent_at") @db.Timestamp()
+  readAt   DateTime?            @map("read_at") @db.Timestamp() // [FIX] время прочтения
+  status   NotificationStatus   @default(Pending)
 
   user User @relation(fields: [userId], references: [id])
 
