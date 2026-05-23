@@ -8,6 +8,7 @@ import {
   NewsletterCampaignStatus,
   NewsletterSubscriberStatus,
   NotificationType as RpcNotificationType,
+  RepeatNewsletterCampaignRequestSchema,
   SendNewsletterCampaignRequestSchema,
   UserRole,
 } from '@notary-portal/api-contracts';
@@ -28,6 +29,7 @@ describe('NewsletterService', () => {
   const repository = {
     listSubscribers: jest.fn(),
     listCampaigns: jest.fn(),
+    getCampaignForRepeat: jest.fn(),
     resolveAudience: jest.fn(),
     createCampaign: jest.fn(),
     markDeliverySent: jest.fn(),
@@ -88,6 +90,11 @@ describe('NewsletterService', () => {
     );
     repository.listSubscribers.mockResolvedValue({ subscribers: [], meta: undefined });
     repository.listCampaigns.mockResolvedValue({ campaigns: [], meta: undefined });
+    repository.getCampaignForRepeat.mockResolvedValue({
+      subject: 'Тестовая рассылка',
+      bodyHtml: '<p>Текст письма</p>',
+      recipients: [recipient('a@example.com'), recipient('b@example.com')],
+    });
     repository.createCampaign.mockResolvedValue(
       create(NewsletterCampaignSchema, {
         id: '11111111-1111-4111-a111-111111111111',
@@ -325,6 +332,65 @@ describe('NewsletterService', () => {
     });
   });
 
+  it('records audit, notification and logs when repeating a campaign', async () => {
+    const response = await runAs(adminUser(), () =>
+      service.repeatNewsletterCampaign(validRepeatRequest()),
+    );
+
+    expect(repository.getCampaignForRepeat).toHaveBeenCalledWith(
+      '22222222-2222-4222-a222-222222222222',
+    );
+    expect(mailer.sendNewsletterEmail).toHaveBeenCalledTimes(2);
+    expect(repository.markDeliverySent).toHaveBeenCalledTimes(2);
+    expect(repository.completeCampaign).toHaveBeenCalledWith(
+      '11111111-1111-4111-a111-111111111111',
+      {
+        sentCount: 2,
+        failedCount: 0,
+        status: PrismaNewsletterCampaignStatus.Sent,
+      },
+    );
+    expect(auditService.record).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        eventType: 'newsletter.campaign.repeat_started',
+        targetType: 'NewsletterCampaign',
+        after: expect.objectContaining({
+          sourceCampaignId: '22222222-2222-4222-a222-222222222222',
+          status: 'sending',
+        }),
+      }),
+    );
+    expect(auditService.record).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        eventType: 'newsletter.campaign.repeat_completed',
+        targetType: 'NewsletterCampaign',
+        after: expect.objectContaining({
+          sourceCampaignId: '22222222-2222-4222-a222-222222222222',
+          sentCount: 2,
+          failedCount: 0,
+          status: 'sent',
+        }),
+      }),
+    );
+    expect(notificationService.createNotification).toHaveBeenCalledWith({
+      userId: '11111111-1111-4111-a111-111111111111',
+      type: RpcNotificationType.PUSH,
+      message:
+        'Рассылка «Тестовая рассылка» завершена: отправлено 2 из 2, ошибок 0.',
+    });
+    expect(logger.log).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('newsletter.campaign.started'),
+    );
+    expect(logger.log).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('newsletter.campaign.completed'),
+    );
+    expect(response.campaign?.sentCount).toBe(2);
+  });
+
   it('rejects empty audience and invalid body before sending', async () => {
     repository.resolveAudience.mockResolvedValue([]);
 
@@ -389,6 +455,12 @@ function validSendRequest() {
     audience: { type: NewsletterAudienceType.ALL },
     subject: 'Тестовая рассылка',
     bodyHtml: '<p>Текст письма</p>',
+  });
+}
+
+function validRepeatRequest() {
+  return create(RepeatNewsletterCampaignRequestSchema, {
+    id: '22222222-2222-4222-a222-222222222222',
   });
 }
 
