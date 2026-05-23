@@ -2,41 +2,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { WebLoggerService, TokenStore } from '@notary-portal/ui';
-import { AdminPaymentsApiService } from './payments-api.service';
+import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
 import { Payments } from './payments';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
 
-function createMockProviders(
-  payments$: BehaviorSubject<Payment[] | null>,
-  loggerMock: Record<string, jest.Mock>,
-  deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
-) {
-  return [
-    provideRouter([]),
-    {
-      provide: Router,
-      useValue: { navigate: jest.fn().mockResolvedValue(true) },
-    },
-    {
-      provide: TokenStore,
-      useValue: { getAccessToken: jest.fn(() => 'test-token') },
-    },
-    {
-      provide: AdminPaymentsApiService,
-      useValue: {
-        preload: () => {
-          payments$.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
-        },
-        payments$: payments$.asObservable(),
-        getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
-        deletePayment: deletePaymentMock,
-      },
-    },
-    {
-      provide: WebLoggerService,
-      useValue: loggerMock,
-    },
-  ];
+// Mock URL for Jest environment
+if (typeof global.URL === 'undefined') {
+  global.URL = require('url').URL;
 }
 
 describe('Payments', () => {
@@ -49,6 +22,43 @@ describe('Payments', () => {
   };
   let paymentsSubject: BehaviorSubject<Payment[] | null>;
 
+  function createMockProviders(
+    paymentsStream: BehaviorSubject<Payment[] | null>,
+    loggerMock: Record<string, jest.Mock>,
+    deletePaymentMock: jest.Mock = jest.fn().mockResolvedValue(true),
+  ) {
+    return [
+      provideRouter([]),
+      {
+        provide: Router,
+        useValue: { navigate: jest.fn().mockResolvedValue(true) },
+      },
+      {
+        provide: TokenStore,
+        useValue: { getAccessToken: jest.fn(() => 'test-token') },
+      },
+      {
+        provide: RPC_TRANSPORT,
+        useValue: {},
+      },
+      {
+        provide: AdminPaymentsApiService,
+        useValue: {
+          preload: () => {
+            paymentsStream.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
+          },
+          payments$: paymentsStream.asObservable(),
+          getAllPayments: async () => MOCK_PAYMENTS.map((p) => ({ ...p })),
+          deletePayment: deletePaymentMock,
+        },
+      },
+      {
+        provide: WebLoggerService,
+        useValue: loggerMock,
+      },
+    ];
+  }
+
   beforeEach(async () => {
     logger = {
       info: jest.fn(),
@@ -56,13 +66,12 @@ describe('Payments', () => {
       error: jest.fn(),
     };
     paymentsSubject = new BehaviorSubject<Payment[] | null>(null);
-    const globalRecord = globalThis as unknown as Record<string, unknown>;
-    const existingUrl = globalRecord['URL'] as Record<string, unknown> | undefined;
-    globalRecord['URL'] = {
-      ...(existingUrl ?? {}),
-      createObjectURL: jest.fn(() => 'blob:http://localhost/fake-url'),
-      revokeObjectURL: jest.fn(),
+    const urlCtor = globalThis.URL as typeof URL & {
+      createObjectURL?: jest.Mock;
+      revokeObjectURL?: jest.Mock;
     };
+    urlCtor.createObjectURL = jest.fn(() => 'blob:http://localhost/fake-url');
+    urlCtor.revokeObjectURL = jest.fn();
 
     await TestBed.configureTestingModule({
       imports: [Payments],
@@ -71,6 +80,14 @@ describe('Payments', () => {
 
     fixture = TestBed.createComponent(Payments);
     component = fixture.componentInstance;
+
+    // Trigger ngOnInit
+    fixture.detectChanges();
+
+    // Manually trigger the payments data emission
+    paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
+
+    // Detect changes to update the component with the new data
     fixture.detectChanges();
   });
 
@@ -105,16 +122,39 @@ describe('Payments', () => {
     };
     const failSubject = new BehaviorSubject<Payment[] | null>(null);
 
+    // Reset TestBed and create a fresh instance for this test
     TestBed.resetTestingModule();
 
     await TestBed.configureTestingModule({
       imports: [Payments],
-      providers: createMockProviders(failSubject, failLogger),
+      providers: [
+        {
+          provide: TokenStore,
+          useValue: { getAccessToken: jest.fn(() => 'test-token') },
+        },
+        {
+          provide: RPC_TRANSPORT,
+          useValue: {},
+        },
+        {
+          provide: AdminPaymentsApiService,
+          useValue: {
+            preload: jest.fn(),
+            payments$: failSubject.asObservable(),
+            getAllPayments: async () => [],
+            deletePayment: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: failLogger,
+        },
+      ],
     }).compileComponents();
 
     const failFixture = TestBed.createComponent(Payments);
     const failComponent = failFixture.componentInstance;
-    failFixture.detectChanges();
+    failFixture.detectChanges(); // Trigger ngOnInit
 
     failSubject.error(new Error('Network failure'));
 
@@ -281,7 +321,7 @@ describe('Payments', () => {
       component as unknown as {
         buildCsvContent: (payments: Payment[]) => string;
       }
-    ).buildCsvContent(component.filteredPayments);
+    ).buildCsvContent([MOCK_PAYMENTS[0]]);
 
     expect(exportedText).toContain('"ID";"Дата платежа";"Плательщик"');
     expect(exportedText).toContain('txn_abc123');

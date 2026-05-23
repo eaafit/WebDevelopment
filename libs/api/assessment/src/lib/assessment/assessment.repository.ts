@@ -82,6 +82,18 @@ export interface AssessmentAuditSnapshot {
   cancelReason: string | null;
 }
 
+export interface AssessmentGeographyLookup {
+  cityId?: string;
+  districtId?: string;
+  cityName?: string;
+  districtName?: string;
+}
+
+export interface AssessmentGeographyIds {
+  cityId?: string;
+  districtId?: string;
+}
+
 type PrismaCityRow = {
   id: string;
   name: string;
@@ -241,6 +253,77 @@ export class AssessmentRepository {
     };
   }
 
+  async getUserDisplayName(id: string): Promise<string | null> {
+    const user = await this.runDatabaseOperation('getUserDisplayName', { userId: id }, () =>
+      this.prisma.user.findUnique({
+        where: { id },
+        select: { fullName: true },
+      }),
+    );
+
+    return user?.fullName ?? null;
+  }
+
+  async resolveGeographyIds(input: AssessmentGeographyLookup): Promise<AssessmentGeographyIds> {
+    return this.runDatabaseOperation(
+      'resolveGeographyIds',
+      {
+        cityId: input.cityId,
+        districtId: input.districtId,
+        cityName: input.cityName,
+        districtName: input.districtName,
+      },
+      async () => {
+        const cityById = input.cityId
+          ? await this.prisma.city.findUnique({
+              where: { id: input.cityId },
+              select: { id: true },
+            })
+          : null;
+        const city =
+          cityById ??
+          (input.cityName
+            ? await this.prisma.city.findUnique({
+                where: { name: input.cityName },
+                select: { id: true },
+              })
+            : null);
+
+        if (!city) {
+          return {};
+        }
+
+        const districtById = input.districtId
+          ? await this.prisma.district.findFirst({
+              where: {
+                id: input.districtId,
+                cityId: city.id,
+              },
+              select: { id: true },
+            })
+          : null;
+        const district =
+          districtById ??
+          (input.districtName
+            ? await this.prisma.district.findUnique({
+                where: {
+                  cityId_name: {
+                    cityId: city.id,
+                    name: input.districtName,
+                  },
+                },
+                select: { id: true },
+              })
+            : null);
+
+        return {
+          cityId: city.id,
+          ...(district && { districtId: district.id }),
+        };
+      },
+    );
+  }
+
   async createAssessment(data: CreateAssessmentData): Promise<RpcAssessment> {
     const assessment = await this.runDatabaseOperation(
       'createAssessment',
@@ -360,7 +443,7 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: {
-            status: PrismaAssessmentStatus.Verified,
+            status: PrismaAssessmentStatus.InProgress,
             ...(notaryId != null && notaryId !== '' && { notaryId }),
           },
           include: assessmentInclude,

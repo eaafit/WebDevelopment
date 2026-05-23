@@ -11,7 +11,7 @@ import {
   GetNotificationSettingsResponseSchema,
   MarkAllAsReadResponseSchema,
   MarkAsReadResponseSchema,
-  NotificationStatus,
+  NotificationCategory as RpcNotificationCategory,
   NotificationStatus as RpcNotificationStatus,
   NotificationType,
   NotificationType as RpcNotificationType,
@@ -41,6 +41,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 export interface CreateNotificationInput {
   userId: string;
+  title?: string;
+  category?: RpcNotificationCategory;
   type: RpcNotificationType;
   message: string;
   status?: RpcNotificationStatus;
@@ -59,7 +61,9 @@ export class NotificationService {
 
     return this.notificationRepository.createNotification({
       userId: request.userId,
+      title: normalizeOptionalTitle(request.title),
       type: request.type,
+      category: request.category,
       message,
       status: request.status,
       sentAt: request.sentAt,
@@ -69,14 +73,15 @@ export class NotificationService {
 
   async createInternalNotification(params: {
     userId: string;
+    title?: string;
+    category?: RpcNotificationCategory;
     message: string;
-    type?: NotificationType;
-    status?: NotificationStatus;
-    category?: NotificationPreferenceCategory;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
   }): Promise<void> {
     validateUuid(params.userId, 'user_id');
 
-    const category = params.category ?? 'system';
+    const category = (params.category ?? 'system') as NotificationPreferenceCategory;
     const preferenceRows = await this.notificationRepository.getOrCreatePreferenceRows(params.userId);
     if (!isInAppEnabledForCategory(preferenceRows, category)) {
       return;
@@ -84,17 +89,19 @@ export class NotificationService {
 
     await this.notificationRepository.createNotification({
       userId: params.userId,
-      message: params.message,
-      type: params.type,
-      status: params.status,
+      title: normalizeOptionalTitle(params.title),
+      category: params.category ?? RpcNotificationCategory.SYSTEM,
+      message: normalizeMessage(params.message),
+      type: params.type ?? RpcNotificationType.PUSH,
+      status: params.status ?? RpcNotificationStatus.SENT,
     });
   }
 
   async createInternalNotificationsForRoles(params: {
     roles: PrismaRole[];
     message: string;
-    type?: NotificationType;
-    status?: NotificationStatus;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
     category?: NotificationPreferenceCategory;
   }): Promise<void> {
     const userIds = await this.notificationRepository.listActiveUserIdsByRoles(params.roles);
@@ -109,6 +116,22 @@ export class NotificationService {
       type: toPrismaType(params.type),
       status: toPrismaStatus(params.status),
     });
+  }
+
+  async createInternalNotificationsForRole(
+    role: PrismaRole,
+    params: Omit<Parameters<NotificationService['createInternalNotification']>[0], 'userId'>,
+  ): Promise<void> {
+    const userIds = await this.notificationRepository.listActiveUserIdsByRoles([role]);
+
+    await Promise.all(
+      userIds.map((userId) =>
+        this.createInternalNotification({
+          userId,
+          ...params,
+        }),
+      ),
+    );
   }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
@@ -202,32 +225,37 @@ function normalizeMessage(message: string): string {
   return normalized;
 }
 
-function toPrismaType(type: NotificationType | undefined): PrismaNotificationType | undefined {
+function toPrismaType(type: RpcNotificationType | undefined): PrismaNotificationType | undefined {
   switch (type) {
-    case NotificationType.EMAIL:
+    case RpcNotificationType.EMAIL:
       return PrismaNotificationType.Email;
-    case NotificationType.SMS:
+    case RpcNotificationType.SMS:
       return PrismaNotificationType.SMS;
-    case NotificationType.PUSH:
+    case RpcNotificationType.PUSH:
       return PrismaNotificationType.Push;
-    case NotificationType.UNSPECIFIED:
+    case RpcNotificationType.IN_APP:
+      return PrismaNotificationType.InApp;
     case undefined:
     default:
       return undefined;
   }
 }
 
-function toPrismaStatus(status: NotificationStatus | undefined): PrismaNotificationStatus | undefined {
+function toPrismaStatus(status: RpcNotificationStatus | undefined): PrismaNotificationStatus | undefined {
   switch (status) {
-    case NotificationStatus.FAILED:
+    case RpcNotificationStatus.FAILED:
       return PrismaNotificationStatus.Failed;
-    case NotificationStatus.SENT:
+    case RpcNotificationStatus.SENT:
       return PrismaNotificationStatus.Sent;
-    case NotificationStatus.PENDING:
+    case RpcNotificationStatus.PENDING:
       return PrismaNotificationStatus.Pending;
-    case NotificationStatus.UNSPECIFIED:
     case undefined:
     default:
       return undefined;
   }
+}
+
+function normalizeOptionalTitle(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }

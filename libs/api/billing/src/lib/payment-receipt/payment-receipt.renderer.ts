@@ -10,6 +10,37 @@ import {
 } from '@internal/prisma-client';
 import type { YooKassaPaymentDetails } from '../yookassa/yookassa.client';
 
+export interface ProviderPaymentDetails {
+  capturedAt: string | null;
+  createdAt: string | null;
+  paymentMethodType: string | null;
+  paymentMethodTitle: string | null;
+  receiptRegistration: 'pending' | 'succeeded' | 'canceled' | null;
+}
+
+export function toProviderPaymentDetails(payment: YooKassaPaymentDetails): ProviderPaymentDetails {
+  return {
+    capturedAt: payment.capturedAt,
+    createdAt: payment.createdAt,
+    paymentMethodType: payment.paymentMethodType,
+    paymentMethodTitle: payment.paymentMethodTitle,
+    receiptRegistration: payment.receiptRegistration,
+  };
+}
+
+export function toRobokassaProviderPaymentDetails(
+  outSum: string,
+  invoiceId: string,
+): ProviderPaymentDetails {
+  return {
+    capturedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    paymentMethodType: 'robokassa_redirect',
+    paymentMethodTitle: 'Robokassa',
+    receiptRegistration: 'succeeded',
+  };
+}
+
 const RECEIPT_TEMPLATE_FILE_NAME = 'payment-receipt.template.html';
 const RECEIPT_TEMPLATE = loadReceiptTemplate();
 
@@ -32,11 +63,11 @@ export interface RenderPaymentReceiptInput {
   user: RenderReceiptUser;
   subscription: RenderReceiptSubscription | null;
   assessment: RenderReceiptAssessment | null;
-  providerPayment: YooKassaPaymentDetails;
+  providerPayment: ProviderPaymentDetails;
 }
 
 export function buildStoredPaymentReceiptObjectKey(userId: string, paymentId: string): string {
-  return `payment-documents/receipts/${userId}/${paymentId}/yookassa-receipt.html`;
+  return `payment-documents/receipts/${userId}/${paymentId}/receipt.html`;
 }
 
 export function buildStoredPaymentReceiptFileName(

@@ -9,15 +9,33 @@ describe('WebLoggerService', () => {
   let infoSpy: jest.SpyInstance;
   let warnSpy: jest.SpyInstance;
   let errorSpy: jest.SpyInstance;
+  let fetchMock: jest.Mock;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     debugSpy = jest.spyOn(console, 'debug').mockImplementation(() => undefined);
     infoSpy = jest.spyOn(console, 'info').mockImplementation(() => undefined);
     warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    Object.defineProperty(globalThis, 'fetch', {
+      configurable: true,
+      writable: true,
+      value: fetchMock,
+    });
   });
 
   afterEach(() => {
+    if (originalFetch) {
+      Object.defineProperty(globalThis, 'fetch', {
+        configurable: true,
+        writable: true,
+        value: originalFetch,
+      });
+    } else {
+      delete (globalThis as Partial<typeof globalThis>).fetch;
+    }
+
     TestBed.resetTestingModule();
     jest.restoreAllMocks();
   });
@@ -34,6 +52,7 @@ describe('WebLoggerService', () => {
         env: 'development',
         level: 'debug',
         message: 'debug message',
+        requestId: expect.any(String),
       }),
     );
     expect(infoSpy).toHaveBeenCalledWith(
@@ -42,6 +61,7 @@ describe('WebLoggerService', () => {
         env: 'development',
         level: 'info',
         message: 'info message',
+        requestId: expect.any(String),
       }),
     );
   });
@@ -68,6 +88,52 @@ describe('WebLoggerService', () => {
     expect(errorSpy).toHaveBeenCalledWith(
       expect.objectContaining({ level: 'error', message: 'error message' }),
     );
+  });
+
+  it('ships production info logs to the remote endpoint without writing them to console', () => {
+    const logger = createLogger({
+      env: 'production',
+      production: true,
+      remoteEndpoint: 'http://localhost:3000/api/logs/web',
+    });
+
+    logger.info('audit export completed', { exportedRows: 3 });
+
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3000/api/logs/web',
+      expect.objectContaining({
+        credentials: 'same-origin',
+        keepalive: true,
+        method: 'POST',
+      }),
+    );
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(requestInit.headers).toEqual(
+      expect.objectContaining({
+        'Content-Type': 'application/json',
+        'X-Request-Id': expect.any(String),
+      }),
+    );
+    expect(JSON.parse(String(requestInit.body))).toEqual(
+      expect.objectContaining({
+        context: { exportedRows: 3 },
+        env: 'production',
+        level: 'info',
+        message: 'audit export completed',
+        requestId: expect.any(String),
+        service: 'web',
+      }),
+    );
+  });
+
+  it('does not ship logs when the remote endpoint is disabled', () => {
+    const logger = createLogger({ env: 'production', production: true, remoteEndpoint: null });
+
+    logger.warn('warn message');
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('masks sensitive keys and string secrets', () => {
@@ -182,13 +248,20 @@ describe('WebErrorHandler', () => {
   });
 });
 
-function createLogger(options: { env: string; production: boolean }): WebLoggerService {
+function createLogger(options: {
+  env: string;
+  production: boolean;
+  remoteEndpoint?: string | null;
+}): WebLoggerService {
   TestBed.configureTestingModule({
     providers: [
       WebLoggerService,
       {
         provide: WEB_LOGGING_OPTIONS,
-        useValue: options,
+        useValue: {
+          remoteEndpoint: null,
+          ...options,
+        },
       },
     ],
   });

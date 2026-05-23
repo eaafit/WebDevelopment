@@ -4,7 +4,8 @@
       <p class="admin-notifications__eyebrow">Панель администратора</p>
       <h2>Уведомления</h2>
       <p class="admin-notifications__lead">
-        In-app уведомления на основе аудита. Во вкладке отображаются реальные события из API.
+        Уведомления по системным событиям и платежам. Оплаты подписок, услуг заявителей и изменения платежей попадают
+        сюда автоматически.
       </p>
     </div>
 
@@ -16,6 +17,12 @@
           (click)="markAllAsRead()">
           Отметить все прочитанными
         </button>
+        <button type="button" class="admin-notifications__btn admin-notifications__btn--ghost" (click)="reload()">
+          Обновить
+        </button>
+        <a routerLink="./settings" class="admin-notifications__btn admin-notifications__btn--ghost">
+          Настройки
+        </a>
         <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
       @if (inboxCount(); as c) {
@@ -24,36 +31,88 @@
     </div>
   </header>
 
+  <section class="admin-notifications__filters">
+    <label class="admin-notifications__field">
+      <span>Тип</span>
+      <select [value]="filters().category" (change)="setFilter('category', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="application">Заявки</option>
+        <option value="document">Документы</option>
+        <option value="payment">Платежи</option>
+        <option value="assessment">Оценки</option>
+        <option value="system">Системные</option>
+      </select>
+    </label>
+
+    <label class="admin-notifications__field">
+      <span>Канал</span>
+      <select [value]="filters().channel" (change)="setFilter('channel', $any($event.target).value)">
+        <option value="all">Все</option>
+        <option value="in-app">In-app</option>
+        <option value="email">Email</option>
+        <option value="sms">SMS</option>
+        <option value="push">Push</option>
+      </select>
+    </label>
+
+    <label class="admin-notifications__field">
+      <span>Статус уведомления</span>
+      <select [value]="filters().lifecycle" (change)="setFilter('lifecycle', $any($event.target).value)">
+        <option value="active">Все активные (без удалённых)</option>
+        <option value="all">Все, включая удалённые</option>
+        <option value="created">Создано</option>
+        <option value="sent">Отправлено</option>
+        <option value="failed">Ошибка</option>
+        <option value="read">Прочитано</option>
+        <option value="deleted">Удалено</option>
+      </select>
+    </label>
+  </section>
+
   <p class="admin-notifications__hint">
-    Клик по карточке помечает уведомление прочитанным. Удаление полностью убирает запись.
+    Клик по непрочитанной карточке отмечает её прочитанной. Кнопка «Удалить» удаляет запись из истории администратора.
   </p>
 
-  @if (filtered().length) {
+  @if (loading()) {
+  <div class="admin-notifications__empty">
+    <strong>Загружаем уведомления.</strong>
+  </div>
+  } @else if (loadError()) {
+  <div class="admin-notifications__empty admin-notifications__empty--error">
+    <strong>{{ loadError() }}</strong>
+    <p>Проверьте подключение к API и попробуйте обновить список.</p>
+  </div>
+  } @else if (filtered().length) {
   <section class="admin-notifications__list">
     @for (item of filtered(); track item.id) {
     <article
       class="admin-notifications__card"
-      [class.admin-notifications__card--attention]="item.lifecycle === 'sent'"
+      [class.admin-notifications__card--attention]="
+        item.lifecycle === 'sent' || item.lifecycle === 'created' || item.lifecycle === 'failed'
+      "
+      [class.admin-notifications__card--deleted]="item.lifecycle === 'deleted'"
       tabindex="0"
       role="button"
-      (click)="toggleReadOnCard(item.id)"
-      (keydown.enter)="toggleReadOnCard(item.id)"
-      (keydown.space)="toggleReadOnCard(item.id)">
+      (click)="markReadOnCard(item.id)"
+      (keydown.enter)="markReadOnCard(item.id)"
+      (keydown.space)="markReadOnCard(item.id)">
       <div class="admin-notifications__card-main">
         <h3>{{ item.title }}</h3>
         <p>{{ item.description }}</p>
 
         <div class="admin-notifications__chips">
           <span class="chip chip--type">
-            Заявка
+            {{ categoryLabel(item.category) }}
           </span>
           <span class="chip chip--channel">
-            In-app
+            {{ channelLabel(item.channel) }}
           </span>
           <span
             class="chip chip--lifecycle"
             [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
-            [class.chip--lifecycle-read]="item.lifecycle === 'read'">
+            [class.chip--lifecycle-failed]="item.lifecycle === 'failed'"
+            [class.chip--lifecycle-read]="item.lifecycle === 'read'"
+            [class.chip--lifecycle-deleted]="item.lifecycle === 'deleted'">
             {{ lifecycleLabel(item.lifecycle) }}
           </span>
         </div>
@@ -61,7 +120,7 @@
 
       <div class="admin-notifications__card-aside">
         <div class="admin-notifications__datetime">
-          <span class="admin-notifications__time">{{ relativeTime(item.createdAt) }}</span>
+          <span class="admin-notifications__time">{{ item.relativeTime }}</span>
           <span class="admin-notifications__date">{{ item.createdAt | date: 'dd.MM.yyyy, HH:mm' }}</span>
         </div>
         <button
@@ -78,7 +137,7 @@
   } @else {
   <div class="admin-notifications__empty">
     <strong>Уведомлений нет.</strong>
-    <p>История пуста или по фильтрам ничего не найдено. Можно вернуть демо-данные кнопкой выше.</p>
+    <p>История пуста или по фильтрам ничего не найдено.</p>
   </div>
   }
 </section>

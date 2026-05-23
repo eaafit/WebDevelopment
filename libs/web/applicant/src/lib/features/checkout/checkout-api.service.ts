@@ -9,13 +9,14 @@ export type CheckoutPaymentStatus = 'completed' | 'pending' | 'failed' | 'refund
 export class CheckoutApiService {
   private readonly client = createClient(PaymentService, inject(RPC_TRANSPORT));
 
-  createPayment(params: { userId: string; amount: string; type: PaymentType; targetId: string }) {
+  createPayment(params: { userId: string; amount: string; type: PaymentType; targetId: string; paymentProvider?: string }) {
     return this.client.createPayment({
       userId: params.userId,
       amount: params.amount,
       type: params.type,
       targetId: params.targetId,
       promoCode: '',
+      paymentProvider: params.paymentProvider?.trim() ?? '',
     });
   }
 

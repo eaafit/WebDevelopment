@@ -172,22 +172,16 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'succeeded',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(result.fileName).toBe('receipt-yk-payment-1.html');
     expect(result.objectKey).toBe(
-      'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
+      'payment-documents/receipts/user-1/payment-1/receipt.html',
     );
     expect(putObject).toHaveBeenCalledWith(
       result.objectKey,
@@ -229,17 +223,11 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'pending',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(update).toHaveBeenCalledWith({
@@ -277,17 +265,11 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1500.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: null,
       createdAt: '2026-04-25T05:52:31.611Z',
       capturedAt: '2026-04-25T05:53:54.785Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(update).toHaveBeenCalledWith({
@@ -295,7 +277,7 @@ describe('PaymentAttachmentService', () => {
       data: {
         attachmentFileName: 'receipt-yk-payment-1.html',
         attachmentFileUrl: result.objectKey,
-        receiptStatus: PaymentReceiptStatus.Available,
+        receiptStatus: PaymentReceiptStatus.Pending,
       },
     });
   });

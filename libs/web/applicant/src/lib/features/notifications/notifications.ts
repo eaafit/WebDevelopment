@@ -9,9 +9,7 @@ import { NotificationInboxPage } from '@notary-portal/ui';
     <lib-notification-inbox-page
       eyebrow="Кабинет заявителя"
       pageTitle="Уведомления"
-      [showAuditSource]="true"
-      [auditHistoryLimit]="20"
-      [auditPreviewCount]="3"
+      [showAuditSource]="false"
       [showPopupOnUnread]="true" />
   `,
 })

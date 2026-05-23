@@ -47,4 +47,29 @@ describe('createRequestIdInterceptor', () => {
     expect(req.header.get('Authorization')).toBe('Bearer access-token');
     expect(next).toHaveBeenCalledWith(req);
   });
+
+  it('keeps login public but sends auth for logout', async () => {
+    const authInterceptor = createAuthInterceptor(
+      {
+        getToken: () => 'access-token',
+        refresh: jest.fn(async () => true),
+      },
+      { navigateByUrl: jest.fn() } as never,
+    );
+    const next = jest.fn(async (req) => req);
+    const loginReq = {
+      url: 'http://localhost:3000/notary.auth.v1alpha1.AuthService/Login',
+      header: new Headers(),
+    };
+    const logoutReq = {
+      url: 'http://localhost:3000/notary.auth.v1alpha1.AuthService/Logout',
+      header: new Headers(),
+    };
+
+    await authInterceptor(next)(loginReq as never);
+    await authInterceptor(next)(logoutReq as never);
+
+    expect(loginReq.header.get('Authorization')).toBeNull();
+    expect(logoutReq.header.get('Authorization')).toBe('Bearer access-token');
+  });
 });

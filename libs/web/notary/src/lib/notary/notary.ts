@@ -1,6 +1,6 @@
-import { Component, OnDestroy, OnInit, inject, signal, ViewEncapsulation } from '@angular/core';
+import { Component, inject, signal, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout, InAppNotificationsApiService } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 
 const NOTARY_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
@@ -24,30 +24,18 @@ const NOTARY_MENU = [
   encapsulation: ViewEncapsulation.None,
 })
 export class Notary implements OnInit, OnDestroy {
-  private readonly notificationsApi = inject(InAppNotificationsApiService);
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly notificationCounter = inject(NotificationCounterService);
 
   menuItems = NOTARY_MENU;
   pageTitle = 'Личный кабинет нотариуса';
   userLabel = 'Нотариус';
-  unreadNotifications = signal(0);
+  unreadNotifications = this.notificationCounter.unreadCount;
 
-  async ngOnInit(): Promise<void> {
-    await this.refreshUnreadCount();
-    this.refreshTimer = setInterval(() => {
-      void this.refreshUnreadCount();
-    }, 30_000);
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
   }
 
   ngOnDestroy(): void {
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
-      this.refreshTimer = null;
-    }
-  }
-
-  private async refreshUnreadCount(): Promise<void> {
-    const { unreadCount } = await this.notificationsApi.listMine({ page: 1, limit: 1, unreadOnly: true });
-    this.unreadNotifications.set(unreadCount);
+    this.notificationCounter.stopPolling();
   }
 }
