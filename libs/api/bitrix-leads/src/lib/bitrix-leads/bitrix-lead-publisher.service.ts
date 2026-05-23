@@ -52,7 +52,15 @@ export class BitrixLeadPublisherService {
       throw new Error(`User ${assessment.userId} not found`);
     }
 
-    const fields = buildLeadFields(assessment, user);
+    // Prisma возвращает estimatedValue как Decimal-инстанс — приводим к строке,
+    // чтобы маппер оставался независимым от Prisma runtime типов.
+    const fields = buildLeadFields(
+      {
+        ...assessment,
+        estimatedValue: assessment.estimatedValue?.toString() ?? null,
+      },
+      user,
+    );
 
     const leadId = await retryWithBackoff(() => this.api.createLead(fields), {
       isRetriable: (error) =>
