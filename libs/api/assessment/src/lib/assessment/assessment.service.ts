@@ -2,6 +2,7 @@ import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { BitrixLeadPublisherService } from '@internal/bitrix-leads';
 import { NotificationService } from '@internal/notification';
 import {
   AssessmentStatus,
@@ -94,6 +95,7 @@ export class AssessmentService {
     private readonly metrics: MetricsService,
     @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
+    private readonly bitrixLeadPublisher: BitrixLeadPublisherService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -282,6 +284,15 @@ export class AssessmentService {
         message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
           assessment.id,
         )}: ${formatAssessmentAddress(snapshot.address)}.`,
+      });
+
+      // Публикация заявки как лида в Bitrix24 — fire-and-forget,
+      // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
+      this.bitrixLeadPublisher.publishLead(assessment.id).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `Bitrix lead publish failed for assessment=${assessment.id}: ${message}`,
+        );
       });
 
       this.logger.log(
