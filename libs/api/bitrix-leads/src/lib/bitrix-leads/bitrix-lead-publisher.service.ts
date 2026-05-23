@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 
 import { BitrixLeadsApiService } from './bitrix-leads-api.service';
+import { BitrixLeadsConfigService } from './bitrix-leads-config.service';
 import { buildLeadFields } from './bitrix-lead.mapper';
 import {
   BitrixApiError,
@@ -17,6 +18,7 @@ import { retryWithBackoff } from './bitrix-leads-retry.helper';
  * (Assessment.bitrixLeadId не null) — пропуск без ошибки.
  *
  * Поведение при ошибках:
+ *   - Bitrix не сконфигурирован (нет env) → лог + return (тихий пропуск, не ошибка)
  *   - Assessment / User не найдены в БД → бросает обычный Error (не Bitrix-проблема)
  *   - BitrixUnavailableError / BitrixRateLimitError — retry с экспоненциальным backoff (3 попытки)
  *   - BitrixAuthError / BitrixValidationError / BitrixUnknownError — сразу пробрасывается
@@ -28,9 +30,18 @@ export class BitrixLeadPublisherService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly api: BitrixLeadsApiService,
+    private readonly config: BitrixLeadsConfigService,
   ) {}
 
   async publishLead(assessmentId: string): Promise<void> {
+    if (!this.config.isConfigured()) {
+      this.logger.log(
+        `Bitrix не сконфигурирован (BITRIX_WEBHOOK_URL/PORTAL_URL не заданы в env), ` +
+          `пропуск публикации для assessment=${assessmentId}`,
+      );
+      return;
+    }
+
     const assessment = await this.prisma.assessment.findUnique({
       where: { id: assessmentId },
     });

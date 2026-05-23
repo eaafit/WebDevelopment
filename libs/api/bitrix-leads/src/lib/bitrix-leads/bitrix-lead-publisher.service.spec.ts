@@ -11,10 +11,12 @@ type PrismaMock = {
   user: { findUnique: jest.Mock };
 };
 type ApiMock = { createLead: jest.Mock };
+type ConfigMock = { isConfigured: jest.Mock };
 
-function makeMocks(): {
+function makeMocks(overrides: { configured?: boolean } = {}): {
   prisma: PrismaMock;
   api: ApiMock;
+  config: ConfigMock;
   service: BitrixLeadPublisherService;
 } {
   const prisma: PrismaMock = {
@@ -22,8 +24,15 @@ function makeMocks(): {
     user: { findUnique: jest.fn() },
   };
   const api: ApiMock = { createLead: jest.fn() };
-  const service = new BitrixLeadPublisherService(prisma as never, api as never);
-  return { prisma, api, service };
+  const config: ConfigMock = {
+    isConfigured: jest.fn().mockReturnValue(overrides.configured ?? true),
+  };
+  const service = new BitrixLeadPublisherService(
+    prisma as never,
+    api as never,
+    config as never,
+  );
+  return { prisma, api, config, service };
 }
 
 const sampleAssessment = {
@@ -43,6 +52,19 @@ const sampleUser = {
 };
 
 describe('BitrixLeadPublisherService', () => {
+  describe('when Bitrix is not configured', () => {
+    it('skips publication without touching prisma or api', async () => {
+      const { prisma, api, service } = makeMocks({ configured: false });
+
+      await expect(service.publishLead('a-1')).resolves.toBeUndefined();
+
+      expect(prisma.assessment.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(api.createLead).not.toHaveBeenCalled();
+      expect(prisma.assessment.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('happy path', () => {
     it('looks up assessment + user, calls api.createLead, persists bitrixLeadId', async () => {
       const { prisma, api, service } = makeMocks();
