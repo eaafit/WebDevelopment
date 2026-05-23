@@ -43,6 +43,29 @@ describe('failed access metric labels', () => {
     });
   });
 
+  it('classifies rate-limited API responses without requiring a method', () => {
+    expect(resolveFailedAccessMetricLabels({ url: '/api/admin/users' }, 429)).toEqual({
+      method: 'UNKNOWN',
+      statusCode: '429',
+      reason: 'rate_limited',
+      pathGroup: 'api',
+    });
+  });
+
+  it('keeps unexpected 4xx responses in a generic client error bucket', () => {
+    expect(
+      resolveFailedAccessMetricLabels(
+        { method: 'patch', url: '/notary.audit.v1.AuditService' },
+        418,
+      ),
+    ).toEqual({
+      method: 'PATCH',
+      statusCode: '418',
+      reason: 'client_error',
+      pathGroup: 'connect_rpc',
+    });
+  });
+
   it('classifies known API and Connect paths into low-cardinality groups', () => {
     expect(resolveFailedAccessPathGroup('/api/documents/document-1/content')).toBe(
       'document_content',
