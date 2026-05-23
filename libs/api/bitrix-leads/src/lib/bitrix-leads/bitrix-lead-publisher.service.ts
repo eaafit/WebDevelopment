@@ -3,6 +3,12 @@ import { PrismaService } from '@internal/prisma';
 
 import { BitrixLeadsApiService } from './bitrix-leads-api.service';
 import { buildLeadFields } from './bitrix-lead.mapper';
+import {
+  BitrixApiError,
+  BitrixRateLimitError,
+  BitrixUnavailableError,
+} from './bitrix-leads.errors';
+import { retryWithBackoff } from './bitrix-leads-retry.helper';
 
 /**
  * Оркестратор публикации заявки (Assessment) в Bitrix24 как лида.
@@ -12,7 +18,8 @@ import { buildLeadFields } from './bitrix-lead.mapper';
  *
  * Поведение при ошибках:
  *   - Assessment / User не найдены в БД → бросает обычный Error (не Bitrix-проблема)
- *   - Bitrix-ошибки — пробрасываются наружу (Фаза 5.2 добавит retry для recoverable)
+ *   - BitrixUnavailableError / BitrixRateLimitError — retry с экспоненциальным backoff (3 попытки)
+ *   - BitrixAuthError / BitrixValidationError / BitrixUnknownError — сразу пробрасывается
  */
 @Injectable()
 export class BitrixLeadPublisherService {
@@ -46,7 +53,17 @@ export class BitrixLeadPublisherService {
     }
 
     const fields = buildLeadFields(assessment, user);
-    const leadId = await this.api.createLead(fields);
+
+    const leadId = await retryWithBackoff(() => this.api.createLead(fields), {
+      isRetriable: (error) =>
+        error instanceof BitrixUnavailableError || error instanceof BitrixRateLimitError,
+      onRetry: (attempt, error) => {
+        const code = error instanceof BitrixApiError ? error.code : 'unknown';
+        this.logger.warn(
+          `Bitrix retry ${attempt}/3 for assessment=${assessmentId}: ${code}`,
+        );
+      },
+    });
 
     await this.prisma.assessment.update({
       where: { id: assessmentId },
