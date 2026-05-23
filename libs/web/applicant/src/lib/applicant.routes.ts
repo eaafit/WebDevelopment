@@ -95,6 +95,13 @@ export const applicantRoutes: Route[] = [
           import('./features/notifications/notifications').then((m) => m.ApplicantNotifications),
       } as Route,
       {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.ApplicantNotificationSettings,
+          ),
+      } as Route,
+      {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения', 'SLA-статусы']),
       },

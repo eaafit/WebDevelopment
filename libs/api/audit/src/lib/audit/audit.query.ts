@@ -14,6 +14,10 @@ export type AuditScope =
   | {
       kind: 'notary';
       notaryId: string;
+    }
+  | {
+      kind: 'applicant';
+      applicantId: string;
     };
 
 export interface AuditListQuery {

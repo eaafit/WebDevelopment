@@ -100,6 +100,8 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+      getNotificationSettings: this.notificationRpcService.getNotificationSettings,
+      updateNotificationSettings: this.notificationRpcService.updateNotificationSettings,
     });
 
     // ─── Newsletter ────────────────────────────────────────

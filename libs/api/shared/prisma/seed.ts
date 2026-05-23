@@ -1,4 +1,7 @@
-import 'dotenv/config';
+import { loadProjectEnv } from './load-env';
+
+loadProjectEnv();
+
 import * as crypto from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcryptjs';
