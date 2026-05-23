@@ -82,6 +82,12 @@
     color: #6b7280;
   }
 
+  &__action-error {
+    margin: -0.75rem 0 0;
+    font-size: 0.8rem;
+    color: #b91c1c;
+  }
+
   &__filters {
     display: flex;
     gap: 1rem;
@@ -216,6 +222,10 @@
     font-size: 0.9rem;
     color: #6b7280;
     text-align: center;
+
+    &--error {
+      color: #991b1b;
+    }
   }
 }
 
@@ -264,10 +274,22 @@
     background-color: #eff6ff;
   }
 
+  &--lifecycle-failed {
+    border-color: #fca5a5;
+    color: #b91c1c;
+    background-color: #fef2f2;
+  }
+
   &--lifecycle-read {
     border-color: #bbf7d0;
     color: #166534;
     background-color: #f0fdf4;
+  }
+
+  &--lifecycle-failed {
+    border-color: #fecaca;
+    color: #991b1b;
+    background-color: #fef2f2;
   }
 
   &--lifecycle-deleted {

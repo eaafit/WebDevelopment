@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "noEmit": true,
+    "esModuleInterop": true
+  },
+  "include": ["./trigger-assessment-for-notifications.ts"]
+}

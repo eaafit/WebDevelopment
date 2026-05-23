@@ -75,6 +75,13 @@ export class ConnectRouterRegistry {
       listAssessments: this.assessmentRpcService.listAssessments,
       listCities: this.assessmentRpcService.listCities,
       listDistricts: this.assessmentRpcService.listDistricts,
+      getFiasAddressHints: this.assessmentRpcService.getFiasAddressHints,
+      searchFiasAddressItems: this.assessmentRpcService.searchFiasAddressItems,
+      getFiasAddressItemById: this.assessmentRpcService.getFiasAddressItemById,
+      getFiasAddressItemByGuid: this.assessmentRpcService.getFiasAddressItemByGuid,
+      getFiasAddressDetails: this.assessmentRpcService.getFiasAddressDetails,
+      searchFiasAddressByParts: this.assessmentRpcService.searchFiasAddressByParts,
+      logApplicantAssessmentAction: this.assessmentRpcService.logApplicantAssessmentAction,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,
@@ -94,6 +101,8 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+      getNotificationSettings: this.notificationRpcService.getNotificationSettings,
+      updateNotificationSettings: this.notificationRpcService.updateNotificationSettings,
     });
 
     // ─── Newsletter ────────────────────────────────────────
@@ -102,6 +111,8 @@ export class ConnectRouterRegistry {
       estimateNewsletterAudience: this.newsletterRpcService.estimateNewsletterAudience,
       sendNewsletterCampaign: this.newsletterRpcService.sendNewsletterCampaign,
       listNewsletterCampaigns: this.newsletterRpcService.listNewsletterCampaigns,
+      getNewsletterCampaign: this.newsletterRpcService.getNewsletterCampaign,
+      repeatNewsletterCampaign: this.newsletterRpcService.repeatNewsletterCampaign,
     });
 
     // ─── Report ──────────────────────────────────────────────

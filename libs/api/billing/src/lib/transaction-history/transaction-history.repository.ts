@@ -307,9 +307,7 @@ export class TransactionHistoryRepository {
     ];
 
     if (this.isUuid(searchQuery)) {
-      searchFilters.unshift({
-        id: searchQuery,
-      });
+      searchFilters.unshift({ userId: searchQuery }, { id: searchQuery });
     }
 
     return searchFilters;

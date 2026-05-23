@@ -1,21 +1,39 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { context, SpanStatusCode, trace, type Span, type Tracer } from '@opentelemetry/api';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { NotificationService } from '@internal/notification';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
   CompleteAssessmentResponseSchema,
   CreateAssessmentResponseSchema,
   ElevatorType,
+  GetFiasAddressDetailsResponseSchema,
+  GetFiasAddressHintsResponseSchema,
+  GetFiasAddressItemByGuidResponseSchema,
+  GetFiasAddressItemByIdResponseSchema,
+  LogApplicantAssessmentActionResponseSchema,
   RealEstateCondition,
   RealEstateObjectType,
+  SearchFiasAddressItemsResponseSchema,
+  SearchFiasAddressByPartsResponseSchema,
   type CancelAssessmentRequest,
   type CancelAssessmentResponse,
   type CompleteAssessmentRequest,
   type CompleteAssessmentResponse,
   type CreateAssessmentRequest,
   type CreateAssessmentResponse,
+  type GetFiasAddressDetailsRequest,
+  type GetFiasAddressDetailsResponse,
+  type GetFiasAddressHintsRequest,
+  type GetFiasAddressHintsResponse,
+  type FiasAddressItem,
+  type GetFiasAddressItemByGuidRequest,
+  type GetFiasAddressItemByGuidResponse,
+  type GetFiasAddressItemByIdRequest,
+  type GetFiasAddressItemByIdResponse,
   type GetAssessmentRequest,
   type GetAssessmentResponse,
   type ListAssessmentsRequest,
@@ -24,24 +42,36 @@ import {
   type ListCitiesResponse,
   type ListDistrictsRequest,
   type ListDistrictsResponse,
+  type LogApplicantAssessmentActionRequest,
+  type LogApplicantAssessmentActionResponse,
   type RealEstateObjectInput,
+  type SearchFiasAddressByPartsRequest,
+  type SearchFiasAddressByPartsResponse,
+  type SearchFiasAddressItemsRequest,
+  type SearchFiasAddressItemsResponse,
   type UpdateAssessmentRequest,
   type UpdateAssessmentResponse,
   type VerifyAssessmentRequest,
   type VerifyAssessmentResponse,
+  NotificationCategory as RpcNotificationCategory,
+  NotificationType as RpcNotificationType,
   UpdateAssessmentResponseSchema,
   VerifyAssessmentResponseSchema,
   WallMaterial,
 } from '@notary-portal/api-contracts';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { AssessmentStatus as PrismaAssessmentStatus } from '@internal/prisma-client';
+import {
+  AssessmentStatus as PrismaAssessmentStatus,
+  Role as PrismaRole,
+} from '@internal/prisma-client';
 import {
   AssessmentRepository,
   type AssessmentAuditSnapshot,
   type AssessmentRealEstateObjectData,
 } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
+import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -51,19 +81,33 @@ const CADASTRAL_NUMBER_PATTERN = /^\d{12}$/;
 const AREA_LIMITS = { minimum: 1, maximum: 10_000 } as const;
 const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as const;
 const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
+const FIAS_QUERY_MIN_LENGTH = 3;
+const FIAS_LIMITS = { default: 5, maximum: 10 } as const;
+const APPLICANT_ASSESSMENT_ACTIONS = new Set([
+  'status_loaded',
+  'status_load_failed',
+  'return_to_params',
+  'create_new_assessment',
+  'open_history',
+]);
 const YEAR_BUILT_LIMITS = {
   minimum: 1700,
   maximum: new Date().getFullYear() + 1,
 } as const;
 
+type SpanAttributes = Record<string, string | number | boolean>;
+
 @Injectable()
 export class AssessmentService {
   private readonly logger = new Logger(AssessmentService.name);
+  private readonly tracer: Tracer = trace.getTracer(AssessmentService.name);
 
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
     private readonly auditService: AuditService,
     private readonly metrics: MetricsService,
+    @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
+    private readonly notificationService: NotificationService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -75,6 +119,151 @@ export class AssessmentService {
     return this.assessmentRepository.listDistricts(
       normalizeOptionalUuid(request.cityId, 'city_id'),
     );
+  }
+
+  async getFiasAddressHints(
+    request: GetFiasAddressHintsRequest,
+  ): Promise<GetFiasAddressHintsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    const limit = normalizeFiasLimit(request.limit);
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address hints request queryLength=${query.length} limit=${limit}`);
+
+    try {
+      if (query.length < FIAS_QUERY_MIN_LENGTH) {
+        this.logger.log(
+          `Completed FIAS address hints request hintsCount=0 durationMs=${Date.now() - startedAt}`,
+        );
+        return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+      }
+
+      const hints = await this.fiasProvider.getAddressHint({
+        query,
+        limit,
+        addressType: normalizeFiasAddressType(request.addressType),
+      });
+
+      this.logger.log(
+        `Completed FIAS address hints request hintsCount=${hints.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return create(GetFiasAddressHintsResponseSchema, { hints });
+    } catch (error) {
+      this.logFiasOperationFailure('address hints request', error, {
+        queryLength: query.length,
+      });
+      throw error;
+    }
+  }
+
+  async searchFiasAddressItems(
+    request: SearchFiasAddressItemsRequest,
+  ): Promise<SearchFiasAddressItemsResponse> {
+    const query = normalizeFiasQuery(request.query);
+    if (query.length < FIAS_QUERY_MIN_LENGTH) {
+      return create(SearchFiasAddressItemsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressItemsResponseSchema, { items });
+  }
+
+  async getFiasAddressItemById(
+    request: GetFiasAddressItemByIdRequest,
+  ): Promise<GetFiasAddressItemByIdResponse> {
+    const objectId = normalizeRequiredText(request.objectId, 'object_id');
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address item lookup objectId=${objectId}`);
+
+    try {
+      const item = await this.resolveFiasItemGeography(
+        await this.fiasProvider.getAddressItemById(objectId),
+      );
+      this.logger.log(
+        `Completed FIAS address item lookup objectId=${objectId}` +
+          ` durationMs=${Date.now() - startedAt}` +
+          formatLogFields({
+            cityId: item.cityId,
+            districtId: item.districtId,
+          }),
+      );
+      return create(GetFiasAddressItemByIdResponseSchema, { item });
+    } catch (error) {
+      this.logFiasOperationFailure('address item lookup', error, { objectId });
+      throw error;
+    }
+  }
+
+  async getFiasAddressItemByGuid(
+    request: GetFiasAddressItemByGuidRequest,
+  ): Promise<GetFiasAddressItemByGuidResponse> {
+    const item = await this.resolveFiasItemGeography(
+      await this.fiasProvider.getAddressItemByGuid(
+        normalizeRequiredText(request.objectGuid, 'object_guid'),
+      ),
+    );
+    return create(GetFiasAddressItemByGuidResponseSchema, { item });
+  }
+
+  async getFiasAddressDetails(
+    request: GetFiasAddressDetailsRequest,
+  ): Promise<GetFiasAddressDetailsResponse> {
+    const details = await this.fiasProvider.getDetails(
+      normalizeRequiredText(request.objectId, 'object_id'),
+    );
+    return create(GetFiasAddressDetailsResponseSchema, { details });
+  }
+
+  async searchFiasAddressByParts(
+    request: SearchFiasAddressByPartsRequest,
+  ): Promise<SearchFiasAddressByPartsResponse> {
+    const region = normalizeOptionalText(request.region);
+    const city = normalizeOptionalText(request.city);
+    const street = normalizeOptionalText(request.street);
+    const house = normalizeOptionalText(request.house);
+
+    if (!region && !city && !street && !house) {
+      return create(SearchFiasAddressByPartsResponseSchema, { items: [] });
+    }
+
+    const items = await this.fiasProvider.searchByParts({
+      region,
+      city,
+      street,
+      house,
+      limit: normalizeFiasLimit(request.limit),
+      addressType: normalizeFiasAddressType(request.addressType),
+    });
+
+    return create(SearchFiasAddressByPartsResponseSchema, { items });
+  }
+
+  logApplicantAssessmentAction(
+    request: LogApplicantAssessmentActionRequest,
+  ): LogApplicantAssessmentActionResponse {
+    const action = normalizeRequiredText(request.action, 'action');
+    if (!APPLICANT_ASSESSMENT_ACTIONS.has(action)) {
+      this.logger.warn(`Unsupported applicant assessment UI action action=${action}`);
+      throw new ConnectError(
+        'action must be a supported applicant assessment UI action',
+        Code.InvalidArgument,
+      );
+    }
+
+    this.logger.log(
+      `Applicant assessment UI action action=${action}` +
+        formatLogFields({
+          assessmentId: normalizeOptionalText(request.assessmentId),
+          status: normalizeOptionalText(request.status),
+          targetRoute: normalizeOptionalText(request.targetRoute),
+        }),
+    );
+
+    return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
   }
 
   async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
@@ -120,60 +309,131 @@ export class AssessmentService {
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    this.logger.log(
-      `Starting assessment creation userId=${request.userId}` +
-        formatLogFields({
-          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-          cityId: request.realEstateObject?.cityId,
-          districtId: request.realEstateObject?.districtId,
-        }),
+    return this.runInSpan(
+      'AssessmentService.createAssessment',
+      {
+        'app.operation': 'assessment.create',
+        'app.entity': 'Assessment',
+        'assessment.has_real_estate_object': hasRealEstateObjectInputData(request.realEstateObject),
+      },
+      async () => {
+        this.logger.log(
+          `Starting assessment creation userId=${request.userId}` +
+            formatLogFields({
+              hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+              cityId: request.realEstateObject?.cityId,
+              districtId: request.realEstateObject?.districtId,
+            }),
+        );
+
+        try {
+          const normalized = await this.runInSpan(
+            'AssessmentService.createAssessment.normalizeAndValidate',
+            {
+              'app.operation': 'assessment.create.normalize_and_validate',
+              'app.entity': 'Assessment',
+              'assessment.has_real_estate_object': hasRealEstateObjectInputData(
+                request.realEstateObject,
+              ),
+            },
+            async () => {
+              validateUuid(request.userId, 'user_id');
+
+              const realEstateObject = await this.normalizeRealEstateObjectGeography(
+                normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+              );
+              const address =
+                realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
+
+              return {
+                address,
+                description: normalizeOptionalText(request.description),
+                realEstateObject,
+              };
+            },
+          );
+
+          const assessment = await this.runInSpan(
+            'AssessmentRepository.createAssessment',
+            {
+              'app.operation': 'assessment.repository.create',
+              'app.entity': 'Assessment',
+              'db.operation': 'insert',
+            },
+            () =>
+              this.assessmentRepository.createAssessment({
+                userId: request.userId,
+                address: normalized.address,
+                description: normalized.description,
+                realEstateObject: normalized.realEstateObject,
+              }),
+          );
+          const snapshot = await this.runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot',
+            {
+              'app.operation': 'assessment.repository.snapshot',
+              'app.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+
+          this.metrics.recordAssessmentCreated('new');
+          await this.runInSpan(
+            'AuditService.record assessment.created',
+            {
+              'app.operation': 'audit.record',
+              'app.entity': 'Assessment',
+              'audit.event_type': 'assessment.created',
+            },
+            () =>
+              this.auditService.record({
+                actorUserId: getCurrentUser()?.sub ?? request.userId,
+                eventType: 'assessment.created',
+                targetType: 'Assessment',
+                targetId: assessment.id,
+                actionTitle: 'Создана заявка',
+                actionContext: 'Создание новой заявки на оценку',
+                targetTitle: `Заявка ${shortId(assessment.id)}`,
+                targetContext: snapshot.address,
+                after: toAuditSnapshot(snapshot),
+              }),
+          );
+          await this.runInSpan(
+            'NotificationService.createAdminAssessmentNotificationBestEffort',
+            {
+              'app.operation': 'notification.create_admin_assessment',
+              'app.entity': 'Assessment',
+              'notification.recipient_role': PrismaRole.Admin,
+            },
+            async () =>
+              this.createAdminAssessmentNotificationBestEffort({
+                title: 'Создана новая заявка на оценку',
+                message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+                  assessment.id,
+                )}: ${formatAssessmentAddress(snapshot.address)}.`,
+              }),
+          );
+
+          this.logger.log(
+            `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
+              formatLogFields({
+                status: assessment.status,
+                realEstateObjectId: assessment.realEstateObjectId,
+              }),
+          );
+
+          return create(CreateAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('createAssessment', error, {
+            userId: request.userId,
+            cityId: request.realEstateObject?.cityId,
+            districtId: request.realEstateObject?.districtId,
+          });
+          throw error;
+        }
+      },
     );
-
-    try {
-      validateUuid(request.userId, 'user_id');
-
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'create');
-      const address =
-        realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
-
-      const assessment = await this.assessmentRepository.createAssessment({
-        userId: request.userId,
-        address,
-        description: normalizeOptionalText(request.description),
-        realEstateObject,
-      });
-      const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-
-      this.metrics.recordAssessmentCreated('new');
-      await this.auditService.record({
-        actorUserId: getCurrentUser()?.sub ?? request.userId,
-        eventType: 'assessment.created',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Создана заявка',
-        actionContext: 'Создание новой заявки на оценку',
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: snapshot.address,
-        after: toAuditSnapshot(snapshot),
-      });
-
-      this.logger.log(
-        `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
-          formatLogFields({
-            status: assessment.status,
-            realEstateObjectId: assessment.realEstateObjectId,
-          }),
-      );
-
-      return create(CreateAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('createAssessment', error, {
-        userId: request.userId,
-        cityId: request.realEstateObject?.cityId,
-        districtId: request.realEstateObject?.districtId,
-      });
-      throw error;
-    }
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
@@ -190,7 +450,9 @@ export class AssessmentService {
       validateUuid(request.id, 'id');
       const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
 
-      const realEstateObject = normalizeRealEstateObjectInput(request.realEstateObject, 'update');
+      const realEstateObject = await this.normalizeRealEstateObjectGeography(
+        normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
+      );
       const assessment = await this.assessmentRepository.updateAssessment(request.id, {
         address: realEstateObject?.address ?? normalizeOptionalText(request.address),
         description: request.description.trim(),
@@ -208,6 +470,15 @@ export class AssessmentService {
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Обновлена заявка на оценку',
+        message: `${await this.getActorDisplayName(
+          getCurrentUser()?.sub ?? before.userId,
+          'Исполнитель',
+        )} изменил данные заявки ${shortId(assessment.id)}: ${formatAssessmentAddress(
+          after.address,
+        )}.`,
       });
 
       this.logger.log(
@@ -242,17 +513,47 @@ export class AssessmentService {
         isNotaryRole(actor?.role) ? actor?.sub : undefined,
       );
       const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+
+      if (before.notaryId !== after.notaryId && after.notaryId) {
+        await this.auditService.record({
+          actorUserId: actor?.sub,
+          eventType: 'assessment.assigned_to_notary',
+          targetType: 'Assessment',
+          targetId: assessment.id,
+          actionTitle: 'Заявка назначена нотариусу',
+          actionContext: `Нотариус: ${formatOptionalId(before.notaryId)} -> ${shortId(after.notaryId)}`,
+          targetTitle: `Заявка ${shortId(assessment.id)}`,
+          targetContext: after.address,
+          before: toAuditSnapshot(before),
+          after: toAuditSnapshot(after),
+        });
+        await this.createAdminAssessmentNotificationBestEffort({
+          title: 'Заявка назначена нотариусу',
+          message: buildAssignedToNotaryMessage(
+            assessment.id,
+            await this.assessmentRepository.getUserDisplayName(after.notaryId),
+          ),
+        });
+      }
+
       await this.auditService.record({
         actorUserId: actor?.sub,
-        eventType: 'assessment.verified',
+        eventType: 'assessment.status_in_progress',
         targetType: 'Assessment',
         targetId: assessment.id,
-        actionTitle: 'Заявка взята в работу',
+        actionTitle: 'Заявка переведена в работу',
         actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
         targetTitle: `Заявка ${shortId(assessment.id)}`,
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка взята в работу',
+        message: buildInProgressMessage(
+          assessment.id,
+          await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
+        ),
       });
 
       this.logger.log(
@@ -305,6 +606,10 @@ export class AssessmentService {
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
       });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Оценка заявки завершена',
+        message: buildCompletedMessage(assessment.id, after.estimatedValue),
+      });
 
       this.logger.log(
         `Completed assessment assessmentId=${assessment.id}` +
@@ -342,6 +647,10 @@ export class AssessmentService {
         targetContext: after.address,
         before: toAuditSnapshot(before),
         after: toAuditSnapshot(after),
+      });
+      await this.createAdminAssessmentNotificationBestEffort({
+        title: 'Заявка на оценку отменена',
+        message: buildCancelledMessage(assessment.id, after.cancelReason),
       });
 
       this.logger.log(
@@ -386,6 +695,167 @@ export class AssessmentService {
       errorStack(error),
     );
   }
+
+  private logFiasOperationFailure(
+    operation: string,
+    error: unknown,
+    context: Record<string, unknown>,
+  ): void {
+    const contextFields = formatLogFields(context);
+    if (isExpectedOperationError(error)) {
+      this.logger.warn(
+        `FIAS ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.logger.error(
+      `FIAS ${operation} failed${contextFields}: ${errorMessage(error)}`,
+      errorStack(error),
+    );
+  }
+
+  private async getActorDisplayName(
+    userId: string | undefined,
+    fallback?: string,
+  ): Promise<string | undefined> {
+    if (!userId) return fallback;
+    return (await this.assessmentRepository.getUserDisplayName(userId)) ?? fallback;
+  }
+
+  private async createAdminAssessmentNotificationBestEffort(input: {
+    title: string;
+    message: string;
+  }): Promise<void> {
+    try {
+      await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+        title: input.title,
+        message: input.message,
+        category: RpcNotificationCategory.ASSESSMENT,
+        type: RpcNotificationType.IN_APP,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create admin assessment notification: ${errorMessage(error)}`,
+      );
+    }
+  }
+
+  private async resolveFiasItemGeography(item: FiasAddressItem): Promise<FiasAddressItem> {
+    const resolvedIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: item.cityId,
+      districtId: item.districtId,
+      cityName: item.addressDetails?.city,
+      districtName: item.addressDetails?.district,
+    });
+
+    return {
+      ...item,
+      cityId: resolvedIds.cityId,
+      districtId: resolvedIds.districtId,
+    };
+  }
+
+  private async runInSpan<T>(
+    name: string,
+    attributes: SpanAttributes,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const span = this.tracer.startSpan(name, { attributes });
+
+    return context.with(trace.setSpan(context.active(), span), async () => {
+      try {
+        const result = await action();
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (error) {
+        recordSpanFailure(span, error);
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  private async normalizeRealEstateObjectGeography(
+    realEstateObject: AssessmentRealEstateObjectData | undefined,
+  ): Promise<AssessmentRealEstateObjectData | undefined> {
+    if (!realEstateObject) {
+      return undefined;
+    }
+
+    const existingIds = await this.assessmentRepository.resolveGeographyIds({
+      cityId: realEstateObject.cityId,
+      districtId: realEstateObject.districtId ?? undefined,
+    });
+    const fallbackItem = existingIds.cityId
+      ? undefined
+      : await this.findExactFiasAddressItem(realEstateObject.address);
+    const resolvedIds = existingIds.cityId
+      ? existingIds
+      : await this.assessmentRepository.resolveGeographyIds({
+          cityId: realEstateObject.cityId,
+          districtId: realEstateObject.districtId ?? undefined,
+          cityName: fallbackItem?.addressDetails?.city,
+          districtName: fallbackItem?.addressDetails?.district,
+        });
+
+    if (!resolvedIds.cityId) {
+      throw new ConnectError(
+        'real_estate_object.city_id does not match a known city',
+        Code.InvalidArgument,
+      );
+    }
+
+    return {
+      ...realEstateObject,
+      cityId: resolvedIds.cityId,
+      ...(resolvedIds.districtId !== undefined && { districtId: resolvedIds.districtId }),
+      ...(resolvedIds.districtId === undefined &&
+        realEstateObject.districtId !== undefined && { districtId: null }),
+    };
+  }
+
+  private async findExactFiasAddressItem(
+    address: string | undefined,
+  ): Promise<FiasAddressItem | undefined> {
+    if (!address) {
+      return undefined;
+    }
+
+    const items = await this.fiasProvider.searchAddressItems({
+      query: address,
+      limit: FIAS_LIMITS.maximum,
+    });
+    const normalizedAddress = normalizeAddressMatchKey(address);
+
+    return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
+  }
+}
+
+function recordSpanFailure(span: Span, error: unknown): void {
+  if (error instanceof Error) {
+    span.recordException(error);
+  } else {
+    span.recordException(String(error));
+  }
+
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: spanErrorStatusMessage(error),
+  });
+}
+
+function spanErrorStatusMessage(error: unknown): string {
+  if (error instanceof ConnectError) {
+    return `ConnectError:${error.code}`;
+  }
+
+  if (error instanceof Error) {
+    return error.name;
+  }
+
+  return 'UnknownError';
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {
@@ -431,6 +901,37 @@ function normalizeRequiredText(value: string | undefined, fieldName: string): st
 function normalizeOptionalText(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeFiasQuery(value: string | undefined): string {
+  return value?.trim().replace(/\s+/g, ' ') ?? '';
+}
+
+function normalizeFiasLimit(value: number | undefined): number {
+  if (value === undefined || value === 0) return FIAS_LIMITS.default;
+  if (!Number.isInteger(value) || value < 1 || value > FIAS_LIMITS.maximum) {
+    throw new ConnectError(
+      `limit must be an integer from 1 to ${FIAS_LIMITS.maximum}`,
+      Code.InvalidArgument,
+    );
+  }
+  return value;
+}
+
+function normalizeFiasAddressType(value: number | undefined): number | undefined {
+  if (value === undefined || value === 0) return undefined;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new ConnectError('address_type must be a positive integer', Code.InvalidArgument);
+  }
+  return value;
+}
+
+function normalizeAddressMatchKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/\s+/g, ' ');
 }
 
 function normalizeOptionalRequiredText(
@@ -713,6 +1214,48 @@ function toAuditSnapshot(snapshot: AssessmentAuditSnapshot) {
 
 function shortId(value: string): string {
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
+}
+
+function formatAssessmentAddress(address: string | null | undefined): string {
+  const normalized = address?.trim();
+  return normalized || 'адрес объекта не указан';
+}
+
+function buildAssignedToNotaryMessage(assessmentId: string, notaryName: string | null): string {
+  return notaryName
+    ? `Заявка ${shortId(assessmentId)} передана нотариусу ${notaryName}.`
+    : `Заявка ${shortId(assessmentId)} передана нотариусу.`;
+}
+
+function buildInProgressMessage(assessmentId: string, actorName: string | undefined): string {
+  return actorName
+    ? `${actorName} начал работу по заявке ${shortId(assessmentId)}.`
+    : `По заявке ${shortId(assessmentId)} начата работа.`;
+}
+
+function buildCompletedMessage(assessmentId: string, estimatedValue: string | null): string {
+  return estimatedValue
+    ? `По заявке ${shortId(assessmentId)} завершена оценка объекта. Итоговая стоимость: ${formatRubles(
+        estimatedValue,
+      )} ₽.`
+    : `По заявке ${shortId(assessmentId)} завершена оценка объекта.`;
+}
+
+function buildCancelledMessage(assessmentId: string, cancelReason: string | null): string {
+  const reason = cancelReason?.trim();
+  return reason
+    ? `Заявка ${shortId(assessmentId)} была отменена. Причина: ${reason}.`
+    : `Заявка ${shortId(assessmentId)} была отменена.`;
+}
+
+function formatRubles(value: string): string {
+  const [integerPart, fractionPart] = value.split('.');
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return fractionPart ? `${formattedInteger},${fractionPart}` : formattedInteger;
+}
+
+function formatOptionalId(value: string | null): string {
+  return value ? shortId(value) : 'не назначен';
 }
 
 function isExpectedOperationError(error: unknown): boolean {

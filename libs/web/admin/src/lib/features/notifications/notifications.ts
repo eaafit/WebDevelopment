@@ -1,9 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { WebLoggerService } from '@notary-portal/ui';
+import {
+  AdminNotificationsApiService,
+  type AdminNotificationCategory,
+  type AdminNotificationChannel,
+  type AdminNotificationRecord,
+} from './notifications-api.service';
 
-export type NotificationLifecycle = 'created' | 'sent' | 'read' | 'deleted';
-type NotificationChannel = 'in-app' | 'email' | 'push';
-type NotificationType = 'application' | 'document' | 'payment' | 'system';
+export type NotificationLifecycle = 'created' | 'sent' | 'failed' | 'read' | 'deleted';
+type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
 
 interface AdminNotification {
   id: string;
@@ -11,117 +17,22 @@ interface AdminNotification {
   description: string;
   createdAt: string;
   relativeTime: string;
-  type: NotificationType;
-  channel: NotificationChannel;
+  category: AdminNotificationCategory;
+  channel: AdminNotificationChannel;
   lifecycle: NotificationLifecycle;
 }
 
-type LifecycleFilter = 'active' | 'all' | NotificationLifecycle;
-
 interface AdminNotificationFilters {
-  type: 'all' | NotificationType;
-  channel: 'all' | NotificationChannel;
+  category: 'all' | AdminNotificationCategory;
+  channel: 'all' | AdminNotificationChannel;
   lifecycle: LifecycleFilter;
 }
 
 const DEFAULT_FILTERS: AdminNotificationFilters = {
-  type: 'all',
+  category: 'all',
   channel: 'all',
   lifecycle: 'active',
 };
-
-const MOCK_NOTIFICATIONS: AdminNotification[] = [
-  {
-    id: 'n-1',
-    title: 'Новый пользователь требует модерации',
-    description: 'Профиль заявителя #U-2043 создан и ожидает проверки документов.',
-    createdAt: '2026-03-10T10:24:00+03:00',
-    relativeTime: '10 мин назад',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-2',
-    title: 'Платёж по подписке успешно проведён',
-    description: 'Нотариус Петров П.П. оплатил продление подписки по счёту №9823.',
-    createdAt: '2026-03-10T09:05:00+03:00',
-    relativeTime: '1 ч назад',
-    type: 'payment',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-3',
-    title: 'Импорт рассылочного списка завершён',
-    description: 'Список для рассылки «Новости сервиса» успешно обновлён (1 245 адресов).',
-    createdAt: '2026-03-09T16:40:00+03:00',
-    relativeTime: 'вчера',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-4',
-    title: 'Отчёт по мониторингу доступен',
-    description: 'Сформирован еженедельный отчёт по событиям аудита и безопасности.',
-    createdAt: '2026-03-08T11:10:00+03:00',
-    relativeTime: '2 дн назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-5',
-    title: 'Ошибка доставки письма',
-    description: 'Не удалось отправить email-рассылку на 14 адресов (bounce).',
-    createdAt: '2026-03-10T08:15:00+03:00',
-    relativeTime: '2 ч назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-6',
-    title: 'Изменение прав доступа',
-    description: 'Для пользователя #U-2011 обновлена роль: Заявитель → Нотариус.',
-    createdAt: '2026-03-09T09:10:00+03:00',
-    relativeTime: 'вчера',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-7',
-    title: 'Подозрительная активность входа',
-    description: 'Зафиксировано 5 неуспешных попыток входа подряд с IP 91.214.44.18.',
-    createdAt: '2026-03-10T07:50:00+03:00',
-    relativeTime: '2 ч назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'n-8',
-    title: 'Ручная корректировка платежа',
-    description: 'Администратор исправил сумму по платёжному документу #P-5104.',
-    createdAt: '2026-03-07T16:15:00+03:00',
-    relativeTime: '3 дн назад',
-    type: 'payment',
-    channel: 'in-app',
-    lifecycle: 'read',
-  },
-  {
-    id: 'n-9',
-    title: 'Черновик служебного уведомления',
-    description: 'Уведомление создано в системе, ожидает отправки по расписанию.',
-    createdAt: '2026-03-10T11:00:00+03:00',
-    relativeTime: '5 мин назад',
-    type: 'system',
-    channel: 'in-app',
-    lifecycle: 'created',
-  },
-];
 
 @Component({
   selector: 'lib-notifications',
@@ -130,16 +41,21 @@ const MOCK_NOTIFICATIONS: AdminNotification[] = [
   templateUrl: './notifications.html',
   styleUrl: './notifications.scss',
 })
-export class AdminNotifications {
-  protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
+export class AdminNotifications implements OnInit {
+  private readonly api = inject(AdminNotificationsApiService);
+  private readonly logger = inject(WebLoggerService);
 
-  protected readonly notifications = signal<AdminNotification[]>([...MOCK_NOTIFICATIONS]);
+  protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
+  protected readonly notifications = signal<AdminNotification[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly filtered = computed(() => {
-    const { type, channel, lifecycle } = this.filters();
+    const { category, channel, lifecycle } = this.filters();
 
     return this.notifications().filter((n) => {
-      if (type !== 'all' && n.type !== type) return false;
+      if (category !== 'all' && n.category !== category) return false;
       if (channel !== 'all' && n.channel !== channel) return false;
 
       if (lifecycle === 'active') {
@@ -156,9 +72,14 @@ export class AdminNotifications {
 
   protected readonly inboxCount = computed(
     () =>
-      this.notifications().filter((n) => n.lifecycle === 'sent' || n.lifecycle === 'created')
-        .length,
+      this.notifications().filter(
+        (n) => n.lifecycle === 'sent' || n.lifecycle === 'created' || n.lifecycle === 'failed',
+      ).length,
   );
+
+  ngOnInit(): void {
+    void this.loadNotifications();
+  }
 
   protected setFilter<K extends keyof AdminNotificationFilters>(
     key: K,
@@ -173,6 +94,8 @@ export class AdminNotifications {
         return 'Создано';
       case 'sent':
         return 'Отправлено';
+      case 'failed':
+        return 'Ошибка';
       case 'read':
         return 'Прочитано';
       case 'deleted':
@@ -180,51 +103,208 @@ export class AdminNotifications {
     }
   }
 
-  protected markAllAsRead(): void {
-    this.notifications.update((items) =>
-      items.map((n) =>
-        n.lifecycle === 'deleted'
-          ? n
-          : {
-              ...n,
-              lifecycle: 'read' as const,
-            },
-      ),
-    );
+  protected categoryLabel(category: AdminNotificationCategory): string {
+    switch (category) {
+      case 'application':
+        return 'Заявки';
+      case 'document':
+        return 'Документы';
+      case 'payment':
+        return 'Платежи';
+      case 'assessment':
+        return 'Оценки';
+      case 'system':
+      default:
+        return 'Система';
+    }
   }
 
-  protected toggleReadOnCard(id: string): void {
-    this.notifications.update((items) =>
-      items.map((n) => {
-        if (n.id !== id || n.lifecycle === 'deleted') return n;
-        if (n.lifecycle === 'read') {
-          return { ...n, lifecycle: 'sent' };
-        }
-        return { ...n, lifecycle: 'read' };
-      }),
-    );
+  protected channelLabel(channel: AdminNotificationChannel): string {
+    switch (channel) {
+      case 'email':
+        return 'Email';
+      case 'sms':
+        return 'SMS';
+      case 'push':
+        return 'Push';
+      case 'in-app':
+      default:
+        return 'In-app';
+    }
   }
 
-  protected deleteOne(id: string, event: Event): void {
-    event.stopPropagation();
-    this.notifications.update((items) =>
-      items.map((n) => (n.id === id ? { ...n, lifecycle: 'deleted' as const } : n)),
-    );
+  protected async markAllAsRead(): Promise<void> {
+    try {
+      await this.api.markAllAsRead();
+      this.actionError.set(null);
+      this.notifications.update((items) =>
+        items.map((n) =>
+          n.lifecycle === 'deleted'
+            ? n
+            : {
+                ...n,
+                lifecycle: 'read' as const,
+              },
+        ),
+      );
+    } catch (error) {
+      this.actionError.set('Не удалось отметить уведомления прочитанными.');
+      this.handleActionError('notification.admin.mark_all_failed', error);
+    }
   }
 
-  protected clearAllHistory(): void {
-    if (
-      !confirm(
-        'Удалить всю историю уведомлений из списка? (демо: записи будут очищены локально в браузере.)',
-      )
-    ) {
+  protected async markReadOnCard(id: string): Promise<void> {
+    const current = this.notifications().find((item) => item.id === id);
+    if (!current || current.lifecycle === 'read' || current.lifecycle === 'deleted') {
       return;
     }
-    this.notifications.set([]);
+
+    try {
+      const updated = await this.api.markAsRead(id);
+      this.actionError.set(null);
+      this.notifications.update((items) =>
+        items.map((n) =>
+          n.id === id
+            ? updated
+              ? toAdminNotification(updated)
+              : { ...n, lifecycle: 'read' as const }
+            : n,
+        ),
+      );
+    } catch (error) {
+      this.actionError.set('Не удалось отметить уведомление прочитанным.');
+      this.handleActionError('notification.admin.mark_one_failed', error, { notificationId: id });
+    }
   }
 
-  protected restoreDemoData(): void {
-    this.notifications.set([...MOCK_NOTIFICATIONS]);
-    this.filters.set({ ...DEFAULT_FILTERS });
+  protected async deleteOne(id: string, event: Event): Promise<void> {
+    event.stopPropagation();
+
+    try {
+      const success = await this.api.deleteNotification(id);
+      if (!success) {
+        this.handleActionError('notification.admin.delete_stale', new Error('stale notification'), {
+          notificationId: id,
+        });
+      }
+
+      this.actionError.set(null);
+      this.notifications.update((items) => items.filter((n) => n.id !== id));
+    } catch (error) {
+      this.actionError.set('Не удалось удалить уведомление.');
+      this.handleActionError('notification.admin.delete_failed', error, { notificationId: id });
+    }
   }
+
+  protected async clearAllHistory(): Promise<void> {
+    if (!confirm('Удалить всю историю уведомлений из списка?')) {
+      return;
+    }
+
+    const ids = this.notifications().map((item) => item.id);
+    const results = await Promise.allSettled(
+      ids.map(async (id) => ({
+        id,
+        success: await this.api.deleteNotification(id),
+      })),
+    );
+    const deletedIds = new Set(
+      results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value.id),
+    );
+    const failedCount = results.length - deletedIds.size;
+
+    if (deletedIds.size) {
+      this.notifications.update((items) => items.filter((item) => !deletedIds.has(item.id)));
+    }
+
+    if (failedCount) {
+      this.actionError.set(`Не удалось удалить уведомлений: ${failedCount}`);
+      this.handleActionError('notification.admin.clear_failed', new Error('partial clear failed'), {
+        failedCount,
+      });
+    } else {
+      this.actionError.set(null);
+    }
+  }
+
+  protected async reload(): Promise<void> {
+    await this.loadNotifications();
+  }
+
+  private async loadNotifications(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    this.logger.info('notification.admin.list_load_started', {
+      area: 'admin_notifications',
+    });
+
+    try {
+      const response = await this.api.listNotifications();
+      this.actionError.set(null);
+      this.notifications.set(response.notifications.map(toAdminNotification));
+      this.logger.info('notification.admin.list_load_succeeded', {
+        area: 'admin_notifications',
+        total: response.notifications.length,
+        unreadCount: response.unreadCount,
+      });
+    } catch (error) {
+      this.notifications.set([]);
+      this.loadError.set('Не удалось загрузить уведомления с сервера');
+      this.handleActionError('notification.admin.list_load_failed', error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private handleActionError(
+    event: string,
+    error: unknown,
+    context: Record<string, unknown> = {},
+  ): void {
+    this.logger.error(event, {
+      area: 'admin_notifications',
+      ...context,
+      error,
+    });
+  }
+}
+
+function toAdminNotification(item: AdminNotificationRecord): AdminNotification {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.message,
+    createdAt: item.sentAt.toISOString(),
+    relativeTime: formatRelativeTime(item.sentAt),
+    category: item.category,
+    channel: item.channel,
+    lifecycle: item.readAt ? 'read' : item.deliveryStatus,
+  };
+}
+
+function formatRelativeTime(date: Date): string {
+  const diffMs = Math.max(0, Date.now() - date.getTime());
+  const minutes = Math.floor(diffMs / 60_000);
+
+  if (minutes < 1) {
+    return 'только что';
+  }
+
+  if (minutes < 60) {
+    return `${minutes} мин назад`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} ч назад`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return `${days} дн назад`;
+  }
+
+  return date.toLocaleDateString('ru-RU');
 }

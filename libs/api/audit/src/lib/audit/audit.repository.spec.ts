@@ -54,6 +54,32 @@ describe('AuditRepository', () => {
     });
   });
 
+  it('should create anonymous security audit logs with actor snapshot fields', async () => {
+    await repository.createAuditLog({
+      userId: null,
+      actorEmail: 'ghost@example.com',
+      actorName: null,
+      actorRole: null,
+      actionType: 'user.login_failed',
+      entityName: 'Security',
+      entityId: null,
+      details: { after: { reason: 'user_not_found', email: 'ghost@example.com' } },
+    });
+
+    expect(createAuditLog).toHaveBeenCalledWith({
+      data: {
+        userId: null,
+        actorEmail: 'ghost@example.com',
+        actorName: null,
+        actorRole: null,
+        actionType: 'user.login_failed',
+        entityName: 'Security',
+        entityId: null,
+        details: { after: { reason: 'user_not_found', email: 'ghost@example.com' } },
+      },
+    });
+  });
+
   it('should apply event type, actor query, target id and inclusive date range filters', async () => {
     const dateFrom = new Date('2026-03-01T00:00:00.000Z');
     const dateTo = new Date('2026-03-31T23:59:59.999Z');
@@ -82,24 +108,40 @@ describe('AuditRepository', () => {
             gte: dateFrom,
             lte: dateTo,
           },
-          user: {
-            is: {
-              OR: [
-                {
+          OR: [
+            {
+              user: {
+                is: {
                   fullName: {
                     contains: 'seed-user-020@seed.local',
                     mode: 'insensitive',
                   },
                 },
-                {
+              },
+            },
+            {
+              user: {
+                is: {
                   email: {
                     contains: 'seed-user-020@seed.local',
                     mode: 'insensitive',
                   },
                 },
-              ],
+              },
             },
-          },
+            {
+              actorName: {
+                contains: 'seed-user-020@seed.local',
+                mode: 'insensitive',
+              },
+            },
+            {
+              actorEmail: {
+                contains: 'seed-user-020@seed.local',
+                mode: 'insensitive',
+              },
+            },
+          ],
         },
         skip: 10,
         take: 10,
@@ -109,6 +151,7 @@ describe('AuditRepository', () => {
 
   it('should limit notary queries to assessment entities assigned to the current notary', async () => {
     findAssessments.mockResolvedValue([
+      { id: '11111111-1111-4111-8111-111111111111' },
       { id: '11111111-1111-4111-8111-111111111111' },
       { id: '22222222-2222-4222-8222-222222222222' },
     ]);
@@ -141,6 +184,33 @@ describe('AuditRepository', () => {
         },
       }),
     );
+  });
+
+  it('should reuse notary ownership scope for export count guards', async () => {
+    findAssessments.mockResolvedValue([
+      { id: '11111111-1111-4111-8111-111111111111' },
+      { id: '11111111-1111-4111-8111-111111111111' },
+    ]);
+
+    await repository.countAuditEvents({
+      filters: {
+        eventType: 'assessment.updated',
+      },
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        actionType: 'assessment.updated',
+        entityName: 'Assessment',
+        entityId: {
+          in: ['11111111-1111-4111-8111-111111111111'],
+        },
+      },
+    });
   });
 
   it('should intersect notary target id filter with assigned assessments', async () => {
@@ -298,6 +368,51 @@ describe('AuditRepository', () => {
         userAgent: 'jest-agent',
         beforeJson: JSON.stringify({ status: 'draft' }, null, 2),
         afterJson: JSON.stringify({ status: 'new' }, null, 2),
+      }),
+    );
+  });
+
+  it('should map anonymous security events from actor snapshot fields', async () => {
+    findMany.mockResolvedValue([
+      {
+        id: 'audit-anon',
+        userId: null,
+        actorEmail: 'ghost@example.com',
+        actorName: null,
+        actorRole: null,
+        actionType: 'user.password_reset_failed',
+        entityName: 'Security',
+        entityId: null,
+        timestamp: new Date('2026-03-06T08:45:00.000Z'),
+        details: {
+          actionTitle: 'Ошибка восстановления пароля',
+          after: { reason: 'user_not_found', email: 'ghost@example.com' },
+        },
+        user: null,
+      },
+    ]);
+
+    const response = await repository.exportAuditEvents({
+      filters: {
+        eventType: 'user.password_reset_failed',
+      },
+      scope: { kind: 'admin' },
+    });
+
+    expect(response.events[0]).toEqual(
+      expect.objectContaining({
+        actorUserId: '',
+        actorName: 'ghost@example.com',
+        actorEmail: 'ghost@example.com',
+        actorRole: RpcUserRole.UNSPECIFIED,
+        targetType: 'Security',
+        targetId: '',
+        targetTitle: 'Security event',
+        afterJson: JSON.stringify(
+          { reason: 'user_not_found', email: 'ghost@example.com' },
+          null,
+          2,
+        ),
       }),
     );
   });

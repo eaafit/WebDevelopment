@@ -1,0 +1,79 @@
+<section class="notification-settings">
+  <header class="notification-settings__hero">
+    <div>
+      <p class="notification-settings__eyebrow">{{ eyebrow() }}</p>
+      <h2>{{ pageTitle() }}</h2>
+      <p class="notification-settings__lead">
+        Выберите каналы доставки по типам событий. In-app уведомления отображаются в колокольчике и на странице
+        «Уведомления».
+      </p>
+    </div>
+    <a [routerLink]="backRoute()" [relativeTo]="route" class="notification-settings__back">← К уведомлениям</a>
+  </header>
+
+  @if (loadError(); as err) {
+    <p class="notification-settings__error">{{ err }}</p>
+  }
+
+  @if (saveMessage(); as msg) {
+    <p class="notification-settings__success">{{ msg }}</p>
+  }
+
+  @if (settings()) {
+    <div class="notification-settings__table-wrap">
+      <table class="notification-settings__table">
+        <thead>
+          <tr>
+            <th>Тип события</th>
+            <th>Email</th>
+            <th>Push</th>
+            <th>In-app</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of categories; track row.key) {
+            <tr>
+              <td class="notification-settings__type-cell">
+                <strong>{{ row.label }}</strong>
+                <span>{{ row.description }}</span>
+              </td>
+              <td>
+                <label class="notification-settings__toggle">
+                  <input
+                    type="checkbox"
+                    [checked]="channelEnabled(row.key, 'emailEnabled')"
+                    [disabled]="isSaving()"
+                    (change)="onToggle(row.key, 'emailEnabled', $event)" />
+                  <span class="notification-settings__toggle-box" aria-hidden="true"></span>
+                  <span class="notification-settings__toggle-label">Email</span>
+                </label>
+              </td>
+              <td>
+                <label class="notification-settings__toggle">
+                  <input
+                    type="checkbox"
+                    [checked]="channelEnabled(row.key, 'pushEnabled')"
+                    [disabled]="isSaving()"
+                    (change)="onToggle(row.key, 'pushEnabled', $event)" />
+                  <span class="notification-settings__toggle-box" aria-hidden="true"></span>
+                  <span class="notification-settings__toggle-label">Push</span>
+                </label>
+              </td>
+              <td>
+                <label class="notification-settings__toggle">
+                  <input
+                    type="checkbox"
+                    [checked]="channelEnabled(row.key, 'inAppEnabled')"
+                    [disabled]="isSaving()"
+                    (change)="onToggle(row.key, 'inAppEnabled', $event)" />
+                  <span class="notification-settings__toggle-box" aria-hidden="true"></span>
+                  <span class="notification-settings__toggle-label">In-app</span>
+                </label>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

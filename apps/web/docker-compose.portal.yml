@@ -3,11 +3,13 @@ name: notary-portal
 # Portal stack: Angular static + nginx edge (same origin as API) + Postgres + Nest API.
 # From apps/web:
 #   docker network create proxy   # once, for NPM
-#   docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml up -d postgres
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml --profile migrate run --rm migrate
+#   docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build api portal
 #
 # NPM: Forward Hostname `portal`, Forward Port `80`.
-# Migrations (once per deploy, after Postgres is up):
-#   docker compose --env-file .env.portal -f docker-compose.portal.yml --profile migrate run --rm migrate
+# Local browser/Mailpit ports:
+#   add -f docker-compose.local.yml to the commands above
 
 services:
   portal:

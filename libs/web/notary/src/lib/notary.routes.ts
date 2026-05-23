@@ -74,6 +74,13 @@ export const notaryRoutes: Route[] = [
           import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
       },
       {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.NotaryNotificationSettings,
+          ),
+      },
+      {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),
       } as Route,

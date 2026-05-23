@@ -1,6 +1,6 @@
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, inject, signal, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 
 const NOTARY_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
@@ -21,7 +21,9 @@ const NOTARY_MENU = [
   styleUrl: './notary.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Notary {
+export class Notary implements OnInit, OnDestroy {
+  private readonly notificationCounter = inject(NotificationCounterService);
+
   menuItems = NOTARY_MENU;
   pageTitle = 'Личный кабинет нотариуса';
   userLabel = 'Нотариус';

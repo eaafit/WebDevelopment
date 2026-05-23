@@ -10,6 +10,7 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
+    "dotenv": "^17.4.2",
     "dotenv-cli": "^11.0.0"
   }
 }

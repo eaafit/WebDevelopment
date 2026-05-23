@@ -11,6 +11,8 @@ service NotificationService {
   rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
   rpc MarkAllAsRead(MarkAllAsReadRequest) returns (MarkAllAsReadResponse);
   rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse);
+  rpc GetNotificationSettings(GetNotificationSettingsRequest) returns (GetNotificationSettingsResponse);
+  rpc UpdateNotificationSettings(UpdateNotificationSettingsRequest) returns (UpdateNotificationSettingsResponse);
 }
 
 enum NotificationType {
@@ -18,6 +20,16 @@ enum NotificationType {
   NOTIFICATION_TYPE_EMAIL = 1;
   NOTIFICATION_TYPE_SMS = 2;
   NOTIFICATION_TYPE_PUSH = 3;
+  NOTIFICATION_TYPE_IN_APP = 4;
+}
+
+enum NotificationCategory {
+  NOTIFICATION_CATEGORY_UNSPECIFIED = 0;
+  NOTIFICATION_CATEGORY_APPLICATION = 1;
+  NOTIFICATION_CATEGORY_DOCUMENT = 2;
+  NOTIFICATION_CATEGORY_PAYMENT = 3;
+  NOTIFICATION_CATEGORY_SYSTEM = 4;
+  NOTIFICATION_CATEGORY_ASSESSMENT = 5;
 }
 
 enum NotificationStatus {
@@ -35,6 +47,8 @@ message Notification {
   google.protobuf.Timestamp sent_at = 5;
   optional google.protobuf.Timestamp read_at = 6;
   NotificationStatus status = 7;
+  string title = 8;
+  NotificationCategory category = 9;
 }
 
 message NotificationFilters {
@@ -77,4 +91,30 @@ message DeleteNotificationRequest {
 
 message DeleteNotificationResponse {
   bool success = 1;
+}
+
+message NotificationChannelToggles {
+  bool email_enabled = 1;
+  bool push_enabled = 2;
+  bool in_app_enabled = 3;
+}
+
+message NotificationSettings {
+  NotificationChannelToggles assessment = 1;
+  NotificationChannelToggles payment = 2;
+  NotificationChannelToggles system = 3;
+}
+
+message GetNotificationSettingsRequest {}
+
+message GetNotificationSettingsResponse {
+  NotificationSettings settings = 1;
+}
+
+message UpdateNotificationSettingsRequest {
+  NotificationSettings settings = 1 [(buf.validate.field).required = true];
+}
+
+message UpdateNotificationSettingsResponse {
+  NotificationSettings settings = 1;
 }

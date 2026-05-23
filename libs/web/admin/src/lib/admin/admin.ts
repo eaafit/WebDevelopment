@@ -1,13 +1,12 @@
-import { Component, ViewEncapsulation, inject } from '@angular/core';
+import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
-import { AdminApplicationsApiService } from '../features/RequestAssessment/applications-api.service';
 
 const ADMIN_MENU = [
   { label: 'Главное меню', route: '.', icon: '☰', exact: true },
   { label: 'Пользователи', route: 'users', icon: '👥' },
-  { label: 'Управление заказами', route: 'applications', icon: '📄' },
+  { label: 'Управление заказами', route: 'orders', icon: '📄', exact: true },
   { label: 'Управление статусами', route: 'orders/statuses', icon: '🔄' },
   { label: 'Очередь оценок', route: 'orders/queue', icon: '📝' },
   { label: 'Ручная модерация', route: 'orders/moderation', icon: '✅' },
@@ -18,7 +17,8 @@ const ADMIN_MENU = [
   { label: 'Скидки', route: 'discounts', icon: '🏷️' },
   { label: 'Промокоды', route: 'promocodes', icon: '🎫' },
   { label: 'Модерация файлов', route: 'files', icon: '📁' },
-  { label: 'Рассылка', route: 'newsletter', icon: '📧' },
+  { label: 'Создать рассылку', route: 'newsletter', icon: '📧', exact: true },
+  { label: 'Журнал отправленных писем', route: 'newsletter/history', icon: '✉️', exact: true },
   { label: 'Мониторинг и логи', route: 'monitoring', icon: '🖥' },
   { label: 'Уведомления', route: 'notifications', icon: '🔔' },
   { label: 'Статистика', route: 'statistics', icon: '📊' },
@@ -34,16 +34,21 @@ const ADMIN_MENU = [
   styleUrl: './admin.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Admin {
+export class Admin implements OnInit, OnDestroy {
+  private readonly notificationCounter = inject(NotificationCounterService);
+  private readonly paymentsApi = inject(AdminPaymentsApiService);
+
   menuItems = ADMIN_MENU;
   pageTitle = 'Панель администратора';
   userLabel = 'Администратор';
+  unreadNotifications = this.notificationCounter.unreadCount;
 
-  private readonly paymentsApi = inject(AdminPaymentsApiService);
-  private readonly applicationsApi = inject(AdminApplicationsApiService);
-
-  constructor() {
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
     this.paymentsApi.preload();
-    this.applicationsApi.preload();
+  }
+
+  ngOnDestroy(): void {
+    this.notificationCounter.stopPolling();
   }
 }

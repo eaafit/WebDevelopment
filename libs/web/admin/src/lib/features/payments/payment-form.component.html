@@ -1,118 +1,240 @@
+<link
+  rel="stylesheet"
+  href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css" />
+
 <div class="payment-form-page">
-  <h2>{{ mode === 'edit' ? 'Редактирование платежа' : 'Создание платежа' }}</h2>
+  <header class="form-header">
+    <div class="form-header__copy">
+      <p class="form-header__eyebrow">Личный кабинет администратора / Платежи</p>
+      <h2>{{ mode === 'edit' ? 'Редактирование платежа' : 'Создание платежа' }}</h2>
+    </div>
+  </header>
 
   @if (loading) {
-    <p class="loading-hint">Загрузка данных...</p>
+    <div class="form-alert form-alert--info">Загрузка данных...</div>
   }
-
   @if (error) {
-    <p class="error-hint">{{ error }}</p>
+    <div class="form-alert form-alert--error">{{ error }}</div>
   }
-
   @if (successMessage) {
-    <p class="success-hint">{{ successMessage }}</p>
+    <div class="form-alert form-alert--success">{{ successMessage }}</div>
   }
 
   <form [formGroup]="form" (ngSubmit)="submit()" class="payment-form">
-    <label>
-      ID пользователя (userId)
-      <input type="text" formControlName="userId" />
-      @if (form.get('userId')?.invalid && form.get('userId')?.touched) {
-        <span class="field-error">Обязательное поле</span>
-      }
-    </label>
+    <!-- Section: Основная информация -->
+    <div class="form-section">
+      <h3 class="form-section__title">Основная информация</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pf-userId">ID пользователя</label>
+          <div class="user-autocomplete">
+            <input
+              type="text"
+              id="pf-userId-search"
+              [value]="userSearchQuery"
+              (input)="onUserSearchInput($event)"
+              (focus)="onUserInputFocus()"
+              (blur)="onUserInputBlur()"
+              placeholder="Поиск по имени, email или ID..."
+              autocomplete="off" />
+            <input type="hidden" id="pf-userId" formControlName="userId" />
+            @if (userDropdownOpen && filteredUsers.length > 0) {
+              <ul class="user-dropdown">
+                @for (user of filteredUsers; track user.id) {
+                  <li (mousedown)="selectUser(user)">
+                    <span class="user-dropdown__name">{{ user.fullName }}</span>
+                    <span class="user-dropdown__email">{{ user.email }}</span>
+                    <span class="user-dropdown__id">{{ user.id.slice(0, 8) }}…</span>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+          @if (form.get('userId')?.invalid && form.get('userId')?.touched) {
+            <span class="field-error">Обязательное поле</span>
+          }
+        </div>
 
-    <label>
-      Плательщик
-      <input type="text" formControlName="payer" />
-      @if (form.get('payer')?.invalid && form.get('payer')?.touched) {
-        <span class="field-error">Обязательное поле</span>
-      }
-    </label>
+        <div class="form-group">
+          <label for="pf-payer">Плательщик</label>
+          <input type="text" id="pf-payer" formControlName="payer" placeholder="ФИО или название организации" />
+          @if (form.get('payer')?.invalid && form.get('payer')?.touched) {
+            <span class="field-error">Обязательное поле</span>
+          }
+        </div>
 
-    <label>
-      Сумма
-      <input type="number" formControlName="amount" min="0.01" step="0.01" />
-      @if (form.get('amount')?.invalid && form.get('amount')?.touched) {
-        <span class="field-error">Минимум 0.01</span>
-      }
-    </label>
+        <div class="form-group">
+          <label for="pf-type">Тип платежа</label>
+          <select id="pf-type" formControlName="type">
+            @for (type of paymentTypes; track type) {
+              <option [value]="type">{{ getTypeLabel(type) }}</option>
+            }
+          </select>
+        </div>
 
-    <label>
-      Валюта
-      <select formControlName="currency">
-        @for (currency of currencies; track currency) {
-          <option [value]="currency">{{ currency }}</option>
-        }
-      </select>
-    </label>
+        <div class="form-group">
+          <label for="pf-status">Статус</label>
+          <select id="pf-status" formControlName="status">
+            @for (status of statuses; track status) {
+              <option [value]="status">{{ getStatusLabel(status) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
 
-    <label>
-      Дата платежа
-      <input type="date" formControlName="paymentDate" />
-    </label>
+    <!-- Section: Финансовые данные -->
+    <div class="form-section">
+      <h3 class="form-section__title">Финансовые данные</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pf-amount">Сумма</label>
+          <input type="number" id="pf-amount" formControlName="amount" min="0.01" step="0.01" placeholder="0.00" />
+          @if (form.get('amount')?.invalid && form.get('amount')?.touched) {
+            <span class="field-error">Минимум 0.01</span>
+          }
+        </div>
 
-    <label>
-      Тип платежа
-      <select formControlName="type">
-        @for (type of paymentTypes; track type) {
-          <option [value]="type">{{ getTypeLabel(type) }}</option>
-        }
-      </select>
-    </label>
+        <div class="form-group">
+          <label for="pf-currency">Валюта</label>
+          <select id="pf-currency" formControlName="currency">
+            @for (currency of currencies; track currency) {
+              <option [value]="currency">{{ currency }}</option>
+            }
+          </select>
+        </div>
 
-    <label>
-      Метод оплаты
-      <select formControlName="paymentMethod">
-        @for (method of paymentMethods; track method) {
-          <option [value]="method">{{ getMethodLabel(method) }}</option>
-        }
-      </select>
-    </label>
+        <div class="form-group">
+          <label for="pf-fee">Комиссия</label>
+          <input type="number" id="pf-fee" formControlName="fee" min="0" step="0.01" placeholder="0.00" />
+        </div>
 
-    <label>
-      Статус
-      <select formControlName="status">
-        @for (status of statuses; track status) {
-          <option [value]="status">{{ getStatusLabel(status) }}</option>
-        }
-      </select>
-    </label>
+        <div class="form-group">
+          <label for="pf-paymentDate">Дата платежа</label>
+          <input type="date" id="pf-paymentDate" formControlName="paymentDate" />
+        </div>
 
-    <label>
-      Описание
-      <textarea formControlName="description" rows="3"></textarea>
-    </label>
+        <div class="form-group">
+          <label for="pf-paymentMethod">Метод оплаты</label>
+          <select id="pf-paymentMethod" formControlName="paymentMethod">
+            @for (method of paymentMethods; track method) {
+              <option [value]="method">{{ getMethodLabel(method) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
 
-    <label>
-      ID подписки
-      <input type="text" formControlName="subscriptionId" />
-    </label>
+    <!-- Section: Связанные объекты -->
+    <div class="form-section">
+      <h3 class="form-section__title">Связанные объекты</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="pf-subscriptionId">ID подписки</label>
+          <div class="id-field-wrapper">
+            @if (!idInputMode.subscriptionId) {
+              <select id="pf-subscriptionId" formControlName="subscriptionId">
+                <option value="">Не выбрано</option>
+                @for (id of subscriptionIdOptions; track id) {
+                  <option [value]="id">{{ id }}</option>
+                }
+              </select>
+            } @else {
+              <input type="text" id="pf-subscriptionId" formControlName="subscriptionId" placeholder="Введите ID подписки" />
+            }
+            <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('subscriptionId')"
+              [title]="idInputMode.subscriptionId ? 'Выбрать из списка' : 'Ввести вручную'">
+              @if (idInputMode.subscriptionId) {
+                <i class="las la-list"></i>
+              } @else {
+                <i class="las la-pencil-alt"></i>
+              }
+            </button>
+          </div>
+          @if (form.get('subscriptionId')?.invalid && form.get('subscriptionId')?.touched) {
+            <span class="field-error">Обязательное поле для типа «Подписка»</span>
+          }
+        </div>
 
-    <label>
-      ID заявки
-      <input type="text" formControlName="assessmentId" />
-    </label>
+        <div class="form-group">
+          <label for="pf-assessmentId">ID заявки</label>
+          <div class="id-field-wrapper">
+            @if (!idInputMode.assessmentId) {
+              <select id="pf-assessmentId" formControlName="assessmentId">
+                <option value="">Не выбрано</option>
+                @for (id of assessmentIdOptions; track id) {
+                  <option [value]="id">{{ id }}</option>
+                }
+              </select>
+            } @else {
+              <input type="text" id="pf-assessmentId" formControlName="assessmentId" placeholder="Введите ID заявки" />
+            }
+            <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('assessmentId')"
+              [title]="idInputMode.assessmentId ? 'Выбрать из списка' : 'Ввести вручную'">
+              @if (idInputMode.assessmentId) {
+                <i class="las la-list"></i>
+              } @else {
+                <i class="las la-pencil-alt"></i>
+              }
+            </button>
+          </div>
+          @if (form.get('assessmentId')?.invalid && form.get('assessmentId')?.touched) {
+            <span class="field-error">Обязательное поле для типа «Оценка»</span>
+          }
+        </div>
 
-    <label>
-      ID транзакции
-      <input type="text" formControlName="transactionId" />
-    </label>
+        <div class="form-group">
+          <label for="pf-transactionId">ID транзакции</label>
+          <div class="id-field-wrapper">
+            @if (!idInputMode.transactionId) {
+              <select id="pf-transactionId" formControlName="transactionId">
+                <option value="">Не выбрано</option>
+                @for (id of transactionIdOptions; track id) {
+                  <option [value]="id">{{ id }}</option>
+                }
+              </select>
+            } @else {
+              <input type="text" id="pf-transactionId" formControlName="transactionId" placeholder="Введите ID транзакции" />
+            }
+            <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('transactionId')"
+              [title]="idInputMode.transactionId ? 'Выбрать из списка' : 'Ввести вручную'">
+              @if (idInputMode.transactionId) {
+                <i class="las la-list"></i>
+              } @else {
+                <i class="las la-pencil-alt"></i>
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <label>
-      Название чека
-      <input type="text" formControlName="attachmentFileName" />
-    </label>
+    <!-- Section: Дополнительно -->
+    <div class="form-section">
+      <h3 class="form-section__title">Дополнительно</h3>
+      <div class="form-grid">
+        <div class="form-group form-group--full">
+          <label for="pf-description">Описание</label>
+          <textarea id="pf-description" formControlName="description" rows="3" placeholder="Примечание к платежу"></textarea>
+        </div>
 
-    <label>
-      Ссылка на чек
-      <input type="text" formControlName="attachmentFileUrl" />
-    </label>
+        <div class="form-group">
+          <label for="pf-attachmentFileName">Название файла чека</label>
+          <input type="text" id="pf-attachmentFileName" formControlName="attachmentFileName" placeholder="receipt.html" />
+        </div>
 
-    <div class="actions">
+        <div class="form-group">
+          <label for="pf-attachmentFileUrl">Ссылка на чек</label>
+          <input type="text" id="pf-attachmentFileUrl" formControlName="attachmentFileUrl" placeholder="https://..." />
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="form-actions">
       <button type="button" class="btn btn-secondary" (click)="cancel()">Отмена</button>
       <button type="submit" class="btn btn-primary" [disabled]="loading">
-        {{ loading ? 'Сохранение...' : 'Сохранить' }}
+        {{ loading ? 'Сохранение...' : (mode === 'edit' ? 'Сохранить изменения' : 'Создать платёж') }}
       </button>
     </div>
   </form>
