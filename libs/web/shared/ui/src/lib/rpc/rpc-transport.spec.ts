@@ -1,4 +1,54 @@
-import { createAuthInterceptor, createRequestIdInterceptor } from './rpc-transport';
+import {
+  buildRpcBaseUrl,
+  createAuthInterceptor,
+  createRequestIdInterceptor,
+  resolveRpcBaseUrl,
+} from './rpc-transport';
+
+describe('resolveRpcBaseUrl', () => {
+  it('uses localhost:3000 during SSR', () => {
+    expect(resolveRpcBaseUrl(undefined)).toBe('http://localhost:3000');
+  });
+
+  it('points Angular dev-server traffic at the API port', () => {
+    expect(
+      resolveRpcBaseUrl({
+        protocol: 'http:',
+        hostname: 'localhost',
+        port: '4200',
+        origin: 'http://localhost:4200',
+      }),
+    ).toBe('http://localhost:3000');
+  });
+
+  it('keeps localhost:3000 when UI is already served from the API port', () => {
+    expect(
+      resolveRpcBaseUrl({
+        protocol: 'http:',
+        hostname: 'localhost',
+        port: '3000',
+        origin: 'http://localhost:3000',
+      }),
+    ).toBe('http://localhost:3000');
+  });
+
+  it('keeps same origin when UI and API share a host', () => {
+    expect(
+      resolveRpcBaseUrl({
+        protocol: 'http:',
+        hostname: 'portal.example.test',
+        port: '',
+        origin: 'http://portal.example.test',
+      }),
+    ).toBe('http://portal.example.test');
+  });
+});
+
+describe('buildRpcBaseUrl', () => {
+  it('delegates to the current browser location', () => {
+    expect(buildRpcBaseUrl()).toBe(resolveRpcBaseUrl(window.location));
+  });
+});
 
 describe('createRequestIdInterceptor', () => {
   it('adds X-Request-Id to RPC requests', async () => {
