@@ -477,7 +477,75 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Prometheus counter for failed HTTP access attempts. Labels intentionally use low-cardinality groups instead of raw request paths.",
+      "description": "Cumulative failed login attempts from the Prometheus counter. This value stays visible after the one-minute increase window passes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(notary_failed_access_total{reason=\"failed_login\", path_group=\"auth_login\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Prometheus failed login total",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Increase in failed access attempts over the selected Grafana time range, grouped by low-cardinality labels.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -531,8 +599,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
-        "x": 0,
+        "w": 18,
+        "x": 6,
         "y": 24
       },
       "id": 8,
@@ -555,7 +623,7 @@
           "refId": "A"
         }
       ],
-      "title": "Prometheus failed access metrics",
+      "title": "Prometheus failed access increase in range",
       "type": "timeseries"
     }
   ],
