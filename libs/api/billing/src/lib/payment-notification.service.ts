@@ -62,6 +62,22 @@ export class PaymentNotificationService {
     });
   }
 
+  async notifyPaymentProviderIssue(
+    payment: PaymentNotificationSnapshot,
+    provider: string,
+    errorMessage: string,
+  ): Promise<void> {
+    const summary = buildPaymentSummary(payment);
+
+    await this.notifyAdminsBestEffort(
+      `${provider}: ошибка платежа`,
+      `Платёж требует проверки: ${summary}. Ошибка ${provider}: ${errorMessage}.`,
+      {
+        excludeUserIds: payment.userId ? [payment.userId] : [],
+      },
+    );
+  }
+
   async notifyPaymentCompleted(payment: PaymentNotificationSnapshot): Promise<void> {
     const summary = buildPaymentSummary(payment);
 
