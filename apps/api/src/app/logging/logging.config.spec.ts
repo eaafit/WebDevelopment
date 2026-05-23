@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { trace } from '@opentelemetry/api';
 import pino from 'pino';
 import { PinoLogger, __resetOutOfContextForTests } from 'nestjs-pino/PinoLogger';
 import {
@@ -97,6 +98,35 @@ describe('logging config', () => {
       statusCode: 200,
       durationMs: 12,
     });
+  });
+
+  it('adds trace identifiers to access logs when an OpenTelemetry span is active', () => {
+    const options = createPinoHttpOptions({ NODE_ENV: 'test' });
+    const req = {
+      method: 'POST',
+      url: '/notary.assessment.v1alpha1.AssessmentService/CreateAssessment',
+    } as IncomingMessage;
+    const res = {
+      statusCode: 200,
+    } as ServerResponse;
+    const getSpanContextSpy = jest.spyOn(trace, 'getSpanContext').mockReturnValue({
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+      spanId: '00f067aa0ba902b7',
+      traceFlags: 1,
+    });
+
+    try {
+      expect(options.customSuccessObject?.(req, res, { durationMs: 12 })).toEqual({
+        traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+        spanId: '00f067aa0ba902b7',
+        method: 'POST',
+        path: '/notary.assessment.v1alpha1.AssessmentService/CreateAssessment',
+        statusCode: 200,
+        durationMs: 12,
+      });
+    } finally {
+      getSpanContextSpy.mockRestore();
+    }
   });
 
   it('binds request logger storage so service logs inherit requestId', () => {

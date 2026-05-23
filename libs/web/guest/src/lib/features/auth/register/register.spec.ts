@@ -40,11 +40,63 @@ describe('Register', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should not submit invalid data', async () => {
+  it('should not submit invalid full name', async () => {
+    fillValidForm(component);
+    component.fullName = 'A';
+
     await component.onSubmit();
 
     expect(register).not.toHaveBeenCalled();
-    expect(component.validationError).toBe('Укажите ФИО.');
+    expect(component.validationError).toBe('Укажите корректное ФИО.');
+  });
+
+  it('should not submit invalid email', async () => {
+    fillValidForm(component);
+    component.email = 'ivan@example';
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(component.validationError).toBe('Укажите корректный email.');
+  });
+
+  it('should not submit invalid phone number', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '12345';
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(component.validationError).toBe('Укажите корректный номер телефона.');
+  });
+
+  it('should format a +7 phone number while typing', () => {
+    component.onPhoneNumberChange('+79991234567');
+
+    expect(component.phoneNumber).toBe('+7 (999) 123-45-67');
+  });
+
+  it('should format an 8-prefixed phone number while typing', () => {
+    component.onPhoneNumberChange('89991234567');
+
+    expect(component.phoneNumber).toBe('8 (999) 123-45-67');
+  });
+
+  it('should limit phone input to 11 digits', () => {
+    component.onPhoneNumberChange('+7999123456789');
+
+    expect(component.phoneNumber).toBe('+7 (999) 123-45-67');
+    expect(component.phoneNumber.replace(/\D/g, '')).toHaveLength(11);
+  });
+
+  it('should not accept a 10-digit phone number without country prefix', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '9991234567';
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(component.validationError).toBe('Укажите корректный номер телефона.');
   });
 
   it('should not submit when passwords do not match', async () => {
@@ -55,6 +107,44 @@ describe('Register', () => {
 
     expect(register).not.toHaveBeenCalled();
     expect(component.validationError).toBe('Пароли должны совпадать.');
+  });
+
+  it('should not submit when terms are not accepted', async () => {
+    fillValidForm(component);
+    component.termsAccepted = false;
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(component.validationError).toBe('Подтвердите согласие с условиями.');
+  });
+
+  it('should toggle password and confirmation visibility independently', () => {
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const passwordInput = root.querySelector<HTMLInputElement>('#password');
+    const confirmInput = root.querySelector<HTMLInputElement>(
+      '#confirmPassword',
+    );
+    const buttons = root.querySelectorAll<HTMLButtonElement>(
+      '.login__password-toggle',
+    );
+
+    expect(passwordInput?.type).toBe('password');
+    expect(confirmInput?.type).toBe('password');
+
+    buttons[0]?.click();
+    fixture.detectChanges();
+
+    expect(passwordInput?.type).toBe('text');
+    expect(confirmInput?.type).toBe('password');
+
+    buttons[1]?.click();
+    fixture.detectChanges();
+
+    expect(passwordInput?.type).toBe('text');
+    expect(confirmInput?.type).toBe('text');
   });
 
   it('should call AuthService.register with applicant role', async () => {
@@ -69,6 +159,16 @@ describe('Register', () => {
       password: 'Password123',
       role: UserRole.Applicant,
     });
+    expect(component.validationError).toBeNull();
+  });
+
+  it('should submit the normalized phone number without mask symbols', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '8 (999) 123-45-67';
+
+    await component.onSubmit();
+
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({ phoneNumber: '89991234567' }));
   });
 
   it('should call AuthService.register with notary role', async () => {

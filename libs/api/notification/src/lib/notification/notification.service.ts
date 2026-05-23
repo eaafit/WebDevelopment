@@ -37,7 +37,11 @@ import {
   type NotificationPreferenceCategory,
 } from './notification-preferences';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 10;
+const MAX_PAGE_LIMIT = 100;
 
 export interface CreateNotificationInput {
   userId: string;
@@ -142,11 +146,17 @@ export class NotificationService {
     }
 
     return this.notificationRepository.listNotifications({
-      page: request.pagination?.page || 1,
-      limit: request.pagination?.limit || 10,
+      page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE, 'pagination.page'),
+      limit: normalizePageLimit(request.pagination?.limit),
       userId: request.userId,
-      types: request.filters?.types?.length ? request.filters.types : undefined,
-      statuses: request.filters?.statuses?.length ? request.filters.statuses : undefined,
+      types: normalizeRepeatedEnumFilter(
+        request.filters?.types,
+        RpcNotificationType.UNSPECIFIED,
+      ),
+      statuses: normalizeRepeatedEnumFilter(
+        request.filters?.statuses,
+        RpcNotificationStatus.UNSPECIFIED,
+      ),
       unreadOnly: request.filters?.unreadOnly ?? false,
     });
   }
@@ -258,4 +268,41 @@ function toPrismaStatus(status: RpcNotificationStatus | undefined): PrismaNotifi
 function normalizeOptionalTitle(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+function normalizePageLimit(value: number | undefined): number {
+  const limit = normalizePositiveInt(value, DEFAULT_LIMIT, 'pagination.limit');
+
+  if (limit > MAX_PAGE_LIMIT) {
+    throw new ConnectError(
+      `pagination.limit must not exceed ${MAX_PAGE_LIMIT}`,
+      Code.InvalidArgument,
+    );
+  }
+
+  return limit;
+}
+
+function normalizePositiveInt(
+  value: number | undefined,
+  fallback: number,
+  fieldName: string,
+): number {
+  if (value === undefined || value === 0) {
+    return fallback;
+  }
+
+  if (!Number.isInteger(value) || value < 1) {
+    throw new ConnectError(`${fieldName} must be a positive integer`, Code.InvalidArgument);
+  }
+
+  return value;
+}
+
+function normalizeRepeatedEnumFilter<T extends number>(
+  values: T[] | undefined,
+  unspecifiedValue: T,
+): T[] | undefined {
+  const normalized = [...new Set((values ?? []).filter((value) => value !== unspecifiedValue))];
+  return normalized.length ? normalized : undefined;
 }

@@ -133,13 +133,7 @@ export class PaymentNotificationService {
     message: string,
   ): Promise<void> {
     try {
-      await this.notificationService.createInternalNotification({
-        userId,
-        title,
-        message,
-        category: RpcNotificationCategory.PAYMENT,
-        type: RpcNotificationType.IN_APP,
-      });
+      await this.createPaymentNotification({ userId, title, message });
     } catch (error) {
       this.logger.warn(
         `Failed to create payment notification for user ${userId}: ${getErrorMessage(error)}`,
@@ -153,24 +147,18 @@ export class PaymentNotificationService {
     options: { excludeUserIds?: string[] } = {},
   ): Promise<void> {
     try {
-      const excluded = new Set(options.excludeUserIds ?? []);
-      const admins = await this.prisma.user.findMany({
-        where: {
-          role: PrismaRole.Admin,
-          isActive: true,
-          ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
-        },
-        select: { id: true },
-      });
+      const adminUserIds = await this.listActiveAdminRecipientIds(options.excludeUserIds ?? []);
+
+      if (!adminUserIds.length) {
+        return;
+      }
 
       const results = await Promise.allSettled(
-        admins.map((admin) =>
-          this.notificationService.createInternalNotification({
-            userId: admin.id,
+        adminUserIds.map((userId) =>
+          this.createPaymentNotification({
+            userId,
             title,
             message,
-            category: RpcNotificationCategory.PAYMENT,
-            type: RpcNotificationType.IN_APP,
           }),
         ),
       );
@@ -182,6 +170,34 @@ export class PaymentNotificationService {
     } catch (error) {
       this.logger.warn(`Failed to create admin payment notifications: ${getErrorMessage(error)}`);
     }
+  }
+
+  private async listActiveAdminRecipientIds(excludeUserIds: string[]): Promise<string[]> {
+    const excluded = new Set(excludeUserIds);
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: PrismaRole.Admin,
+        isActive: true,
+        ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
+      },
+      select: { id: true },
+    });
+
+    return [...new Set(admins.map((admin) => admin.id).filter((id) => !excluded.has(id)))];
+  }
+
+  private createPaymentNotification(params: {
+    userId: string;
+    title: string;
+    message: string;
+  }): Promise<void> {
+    return this.notificationService.createInternalNotification({
+      userId: params.userId,
+      title: params.title,
+      message: params.message,
+      category: RpcNotificationCategory.PAYMENT,
+      type: RpcNotificationType.IN_APP,
+    });
   }
 }
 

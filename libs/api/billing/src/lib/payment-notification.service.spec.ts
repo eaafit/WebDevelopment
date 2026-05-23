@@ -1,4 +1,5 @@
 import { Role as PrismaRole, PaymentStatus, PaymentType } from '@internal/prisma-client';
+import { Logger } from '@nestjs/common';
 import { PaymentNotificationService } from './payment-notification.service';
 
 describe('PaymentNotificationService', () => {
@@ -58,5 +59,48 @@ describe('PaymentNotificationService', () => {
         message: expect.stringContaining('оплата подписки'),
       }),
     );
+  });
+
+  it('should deduplicate admin recipients and keep fanout best effort', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    findMany.mockResolvedValue([
+      { id: 'admin-1' },
+      { id: 'admin-1' },
+      { id: 'notary-1' },
+      { id: 'admin-2' },
+    ]);
+    notificationService.createInternalNotification.mockImplementation(
+      ({ userId }: { userId: string }) =>
+        userId === 'admin-2' ? Promise.reject(new Error('delivery failed')) : Promise.resolve(),
+    );
+
+    await expect(
+      service.notifyPaymentUpdated({
+        id: 'payment-12345678',
+        userId: 'notary-1',
+        type: PaymentType.Subscription,
+        amount: '1350.00',
+        status: PaymentStatus.Pending,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(
+      notificationService.createInternalNotification.mock.calls.filter(
+        ([payload]) => payload.userId === 'notary-1',
+      ),
+    ).toHaveLength(1);
+    expect(
+      notificationService.createInternalNotification.mock.calls.filter(
+        ([payload]) => payload.userId === 'admin-1',
+      ),
+    ).toHaveLength(1);
+    expect(
+      notificationService.createInternalNotification.mock.calls.filter(
+        ([payload]) => payload.userId === 'admin-2',
+      ),
+    ).toHaveLength(1);
+    expect(warnSpy).toHaveBeenCalledWith('Failed to create 1 admin payment notification(s)');
+
+    warnSpy.mockRestore();
   });
 });

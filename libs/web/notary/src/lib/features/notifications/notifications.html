@@ -95,10 +95,10 @@
 
         <div class="role-notifications__chips">
           <span class="chip chip--type">
-            Заявка
+            {{ typeLabel(item.type) }}
           </span>
           <span class="chip chip--channel">
-            {{ item.channel === 'email' ? 'Email' : item.channel === 'sms' ? 'SMS' : 'Push' }}
+            {{ channelLabel(item.channel) }}
           </span>
           <span
             class="chip chip--lifecycle"
