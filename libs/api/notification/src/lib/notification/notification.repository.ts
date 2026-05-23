@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { Code, ConnectError } from '@connectrpc/connect';
 import { PrismaService } from '@internal/prisma';
 import { Injectable } from '@nestjs/common';
 import {
@@ -103,10 +104,23 @@ export class NotificationRepository {
   }
 
   async markAsRead(id: string): Promise<RpcNotification> {
+    const existing = await this.prisma.notification.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new ConnectError('notification was not found', Code.NotFound);
+    }
+
+    if (existing.readAt) {
+      return this.toMessage(existing);
+    }
+
     const notification = await this.prisma.notification.update({
       where: { id },
       data: { readAt: new Date() },
     });
+
     return this.toMessage(notification);
   }
 
@@ -119,11 +133,11 @@ export class NotificationRepository {
   }
 
   async deleteNotification(id: string): Promise<boolean> {
-    await this.prisma.notification.delete({ where: { id } });
-    return true;
+    const result = await this.prisma.notification.deleteMany({ where: { id } });
+    return result.count > 0;
   }
 
-  // ─── Private helpers ────────────────────────────────────────
+  // Private helpers
 
   private buildWhere(query: NotificationQuery): Prisma.NotificationWhereInput {
     const where: Prisma.NotificationWhereInput = { userId: query.userId };

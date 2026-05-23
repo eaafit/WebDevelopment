@@ -176,12 +176,10 @@ export class AuditRepository {
     }
 
     if (scope.kind === 'notary') {
-      const assessmentIds = await this.findNotaryAssessmentIds(scope.notaryId);
+      const assessmentIds = new Set(await this.findNotaryAssessmentIds(scope.notaryId));
+
       where.entityName = 'Assessment';
-      where.entityId =
-        filters.targetId && assessmentIds.includes(filters.targetId)
-          ? filters.targetId
-          : { in: filters.targetId ? [] : assessmentIds };
+      where.entityId = resolveNotaryAssessmentEntityFilter(filters.targetId, assessmentIds);
     }
 
     return where;
@@ -336,4 +334,15 @@ function toRpcUserRole(role: PrismaRole | null | undefined): RpcUserRole {
     default:
       return RpcUserRole.UNSPECIFIED;
   }
+}
+
+function resolveNotaryAssessmentEntityFilter(
+  targetId: string | undefined,
+  assessmentIds: Set<string>,
+): string | { in: string[] } {
+  if (targetId) {
+    return assessmentIds.has(targetId) ? targetId : { in: [] };
+  }
+
+  return { in: [...assessmentIds] };
 }
