@@ -9,7 +9,7 @@ describe('failed access metrics middleware', () => {
     };
     const req = {
       method: 'GET',
-      originalUrl: '/api/payments/codex-smoke-1/receipt?download=1',
+      originalUrl: '/api/payments/failed-access-smoke-1/receipt?download=1',
     } as Request;
     const res = new EventEmitter() as Response & EventEmitter;
     res.statusCode = 401;

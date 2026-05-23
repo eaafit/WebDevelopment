@@ -21,7 +21,7 @@ describe('failed access metric labels', () => {
   it('classifies protected receipt denials without using payment ids as labels', () => {
     expect(
       resolveFailedAccessMetricLabels(
-        { method: 'GET', originalUrl: '/api/payments/codex-smoke-1/receipt?download=1' },
+        { method: 'GET', originalUrl: '/api/payments/failed-access-smoke-1/receipt?download=1' },
         401,
       ),
     ).toEqual({
@@ -34,7 +34,7 @@ describe('failed access metric labels', () => {
 
   it('classifies unknown 404 paths as scan misses', () => {
     expect(
-      resolveFailedAccessMetricLabels({ method: 'GET', url: '/codex-bot-scan-1' }, 404),
+      resolveFailedAccessMetricLabels({ method: 'GET', url: '/scanner-probe-1' }, 404),
     ).toEqual({
       method: 'GET',
       statusCode: '404',

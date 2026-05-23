@@ -19,7 +19,7 @@ API -> Docker stdout -> Promtail -> Loki -> Grafana
 
 ```bash
 for i in 1 2 3; do
-  curl -sS -o /dev/null -w "missing:$i %{http_code}\n" "http://localhost:3000/codex-bot-scan-$i"
+  curl -sS -o /dev/null -w "missing:$i %{http_code}\n" "http://localhost:3000/scanner-probe-$i"
 done
 ```
 
@@ -27,7 +27,7 @@ done
 
 ```bash
 for i in 1 2; do
-  curl -sS -o /dev/null -w "receipt:$i %{http_code}\n" "http://localhost:3000/api/payments/codex-smoke-$i/receipt"
+  curl -sS -o /dev/null -w "receipt:$i %{http_code}\n" "http://localhost:3000/api/payments/failed-access-smoke-$i/receipt"
 done
 ```
 
@@ -44,11 +44,11 @@ sum by (path,statusCode) (
 После smoke-запросов ожидаются строки с кодами `401` и `404`, например:
 
 ```text
-/api/payments/codex-smoke-1/receipt  401
-/api/payments/codex-smoke-2/receipt  401
-/codex-bot-scan-1                   404
-/codex-bot-scan-2                   404
-/codex-bot-scan-3                   404
+/api/payments/failed-access-smoke-1/receipt  401
+/api/payments/failed-access-smoke-2/receipt  401
+/scanner-probe-1                            404
+/scanner-probe-2                            404
+/scanner-probe-3                            404
 ```
 
 ## Проверка в Prometheus
