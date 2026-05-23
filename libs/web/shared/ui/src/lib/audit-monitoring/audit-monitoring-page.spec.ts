@@ -7,12 +7,14 @@ import type {
 } from './audit-monitoring.models';
 import { AuditMonitoringApiService } from './audit-monitoring-api.service';
 import { AuditMonitoringPage } from './audit-monitoring-page';
+import { WebLoggerService } from '../logging/web-logger.service';
 
 describe('AuditMonitoringPage', () => {
   let component: AuditMonitoringPage;
   let fixture: ComponentFixture<AuditMonitoringPage>;
   let getAuditEvents: jest.Mock;
   let exportAuditEvents: jest.Mock;
+  let logger: { error: jest.Mock; info: jest.Mock };
   let createObjectUrlMock: jest.Mock;
   let revokeObjectUrlMock: jest.Mock;
   let clickSpy: jest.SpyInstance;
@@ -25,6 +27,10 @@ describe('AuditMonitoringPage', () => {
       .fn()
       .mockImplementation((query: { page: number }) => of(buildPageResult(query.page)));
     exportAuditEvents = jest.fn().mockReturnValue(of([buildEvent('audit-export')]));
+    logger = {
+      error: jest.fn(),
+      info: jest.fn(),
+    };
 
     createObjectUrlMock = jest.fn().mockReturnValue('blob:mock-audit-export');
     revokeObjectUrlMock = jest.fn();
@@ -49,6 +55,10 @@ describe('AuditMonitoringPage', () => {
             getAuditEvents,
             exportAuditEvents,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -332,6 +342,14 @@ describe('AuditMonitoringPage', () => {
     expect(createObjectUrlMock).toHaveBeenCalled();
     expect(clickSpy).toHaveBeenCalled();
     expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:mock-audit-export');
+    expect(logger.info).toHaveBeenCalledWith(
+      'Audit CSV export completed',
+      expect.objectContaining({
+        event: 'audit_csv_export_completed',
+        exportedRows: 1,
+        mode: 'admin',
+      }),
+    );
   });
 
   it('should keep export button label stable while export is pending', async () => {
