@@ -1,53 +1,65 @@
 .dashboard {
-  padding: 1.5rem;
+  padding: 2rem;
 }
 
 .welcome {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .welcome h1 {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-main, #111827);
+}
+
+.welcome p {
+  margin-bottom: 0;
+  font-size: 1rem;
+  color: var(--text-secondary, #6b7280);
 }
 
 .stats-grid {
   display: flex;
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+  gap: 2rem;
+  margin-bottom: 2rem;
 }
 
 .stat-card {
-  background: white;
-  border-radius: 16px;
-  padding: 1.25rem;
   flex: 1;
+  padding: 1.5rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 12px);
+  background: var(--bg-card, #fff);
+  box-shadow: 0 12px 24px rgb(15 23 42 / 4%);
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e2e8f0;
 }
 
 .stat-title {
+  margin-bottom: 0.75rem;
   font-size: 0.9rem;
-  color: #64748b;
-  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-secondary, #6b7280);
 }
 
 .stat-number {
-  font-size: 2rem;
+  margin-bottom: 1.25rem;
+  font-size: 2.25rem;
   font-weight: 700;
-  color: #4f46e5;
-  margin-bottom: 1rem;
+  color: var(--primary, #4f46e5);
 }
 
 .stat-btn {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 40px;
-  cursor: pointer;
-  font-size: 0.85rem;
   width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary, #4f46e5);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
 .stat-btn:hover {
@@ -55,35 +67,38 @@
 }
 
 .subscription-card {
-  background: #f8fafc;
-  border-radius: 16px;
-  padding: 1.25rem;
-  border: 1px solid #e2e8f0;
+  padding: 1.5rem;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius, 12px);
+  background: var(--bg-card, #fff);
+  box-shadow: 0 12px 24px rgb(15 23 42 / 4%);
 }
 
 .subscription-title {
+  margin-bottom: 0.75rem;
+  font-size: 1.2rem;
   font-weight: 700;
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
+  color: var(--text-main, #111827);
 }
 
 .subscription-detail {
+  margin-bottom: 0.35rem;
   font-size: 0.9rem;
-  color: #334155;
-  margin-bottom: 0.25rem;
+  color: var(--text-secondary, #6b7280);
 }
 
 .btn-outline {
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--primary, #4f46e5);
+  border-radius: 999px;
   background: white;
-  border: 1px solid #4f46e5;
-  color: #4f46e5;
-  padding: 0.5rem 1rem;
-  border-radius: 40px;
-  cursor: pointer;
+  color: var(--primary, #4f46e5);
   font-weight: 500;
-  margin-top: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .btn-outline:hover {
-  background: #eef2ff;
+  background: rgb(79 70 229 / 10%);
 }
