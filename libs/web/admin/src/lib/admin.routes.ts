@@ -118,6 +118,13 @@ export const adminRoutes: Route[] = [
           import('./features/notifications/notifications').then((m) => m.AdminNotifications),
       },
       {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.AdminNotificationSettings,
+          ),
+      },
+      {
         path: 'statistics',
         ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),
       } as Route,

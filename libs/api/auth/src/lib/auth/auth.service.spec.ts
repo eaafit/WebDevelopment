@@ -1,6 +1,14 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
-import { LoginRequestSchema, UserRole, UserSchema, type User } from '@notary-portal/api-contracts';
+import {
+  ForgotPasswordRequestSchema,
+  LoginRequestSchema,
+  RegisterRequestSchema,
+  ResetPasswordRequestSchema,
+  UserRole,
+  UserSchema,
+  type User,
+} from '@notary-portal/api-contracts';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -8,6 +16,7 @@ describe('AuthService', () => {
     findByEmail: jest.fn(),
     findById: jest.fn(),
     createUser: jest.fn(),
+    updatePasswordHash: jest.fn(),
     toPrismaRole: jest.fn(),
     toMessage: jest.fn(),
   };
@@ -41,7 +50,7 @@ describe('AuthService', () => {
   let service: AuthService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     service = new AuthService(
       authRepository as never,
       refreshTokenRepository as never,
@@ -88,7 +97,7 @@ describe('AuthService', () => {
 
     const result = await service.login(
       create(LoginRequestSchema, {
-        email: 'Seed-User-000@Seed.Local',
+        email: ' Seed-User-000@Seed.Local ',
         password: 'SeedPass123!',
       }),
     );
@@ -103,6 +112,80 @@ describe('AuthService', () => {
     expect(result.result?.accessToken).toBe('access-token');
     expect(result.result?.refreshToken).toBe('refresh-token');
     expect(result.result?.user?.email).toBe('seed-user-000@seed.local');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        actorEmail: 'seed-user-000@seed.local',
+        actorName: 'Заявитель 1',
+        actorRole: 'Applicant',
+        eventType: 'user.login_succeeded',
+        targetType: 'User',
+        targetId: 'user-1',
+        after: expect.objectContaining({
+          outcome: 'succeeded',
+          email: 'seed-user-000@seed.local',
+          role: 'Applicant',
+        }),
+      }),
+    );
+  });
+
+  it('registers with a normalized email address', async () => {
+    const user: User = create(UserSchema, {
+      id: 'user-2',
+      email: 'new-user@example.com',
+      fullName: 'New User',
+      role: UserRole.APPLICANT,
+      phoneNumber: '+7999000001',
+      isActive: true,
+    });
+
+    authRepository.findByEmail.mockResolvedValue(null);
+    authRepository.toPrismaRole.mockReturnValue('Applicant');
+    authRepository.createUser.mockResolvedValue(user);
+    passwordService.hash.mockResolvedValue('password-hash');
+    tokenService.generateTokenPair.mockReturnValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshExpiresAt: new Date('2026-04-12T00:00:00.000Z'),
+    });
+    refreshTokenRepository.save.mockResolvedValue(undefined);
+
+    await service.register(
+      create(RegisterRequestSchema, {
+        email: ' New-User@Example.Com ',
+        password: 'Password123',
+        fullName: ' New User ',
+        phoneNumber: ' +7999000001 ',
+        role: UserRole.APPLICANT,
+      }),
+    );
+
+    expect(authRepository.findByEmail).toHaveBeenCalledWith('new-user@example.com');
+    expect(authRepository.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'new-user@example.com',
+        passwordHash: 'password-hash',
+        fullName: 'New User',
+        phoneNumber: '+7999000001',
+      }),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-2',
+        actorEmail: 'new-user@example.com',
+        actorName: 'New User',
+        actorRole: 'Applicant',
+        eventType: 'user.registered',
+        targetType: 'User',
+        targetId: 'user-2',
+        after: expect.objectContaining({
+          outcome: 'succeeded',
+          email: 'new-user@example.com',
+          role: 'Applicant',
+        }),
+      }),
+    );
   });
 
   it('rejects invalid credentials when password comparison fails', async () => {
@@ -110,6 +193,7 @@ describe('AuthService', () => {
       id: 'user-1',
       email: 'seed-user-000@seed.local',
       fullName: 'Заявитель 1',
+      role: 'Applicant',
       passwordHash: '$2a$12$abcdefghijklmnopqrstuuK1P6aQ4T6bVJj8M3R1xY8VfQ9g2zT4W',
       isActive: true,
     });
@@ -130,9 +214,12 @@ describe('AuthService', () => {
     expect(refreshTokenRepository.save).not.toHaveBeenCalled();
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorUserId: 'user-1',
+        actorEmail: 'seed-user-000@seed.local',
+        actorName: 'Заявитель 1',
+        actorRole: 'Applicant',
+        allowAnonymous: true,
         eventType: 'user.login_failed',
-        targetType: 'Security',
+        targetType: 'User',
         targetId: 'user-1',
         actionTitle: 'Неудачная попытка входа',
         actionContext: 'Неверный пароль',
@@ -141,8 +228,239 @@ describe('AuthService', () => {
         after: expect.objectContaining({
           reason: 'invalid_password',
           email: 'seed-user-000@seed.local',
+          role: 'Applicant',
         }),
       }),
     );
+  });
+
+  it('records a registration failure without storing the password', async () => {
+    authRepository.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: 'new-user@example.com',
+      fullName: 'Existing User',
+      role: 'Applicant',
+      isActive: true,
+    });
+
+    await expect(
+      service.register(
+        create(RegisterRequestSchema, {
+          email: ' New-User@Example.Com ',
+          password: 'Password123',
+          fullName: 'New User',
+          role: UserRole.APPLICANT,
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: Code.AlreadyExists,
+      message: '[already_exists] email already registered',
+    });
+
+    expect(authRepository.createUser).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'new-user@example.com',
+        actorName: 'Existing User',
+        actorRole: 'Applicant',
+        allowAnonymous: true,
+        eventType: 'user.registration_failed',
+        targetType: 'User',
+        targetId: 'user-1',
+        after: expect.objectContaining({
+          outcome: 'failed',
+          reason: 'email_already_registered',
+          email: 'new-user@example.com',
+          role: 'Applicant',
+        }),
+      }),
+    );
+    expect(JSON.stringify(auditService.record.mock.calls)).not.toContain('Password123');
+  });
+
+  it('records an anonymous login failure when the email is unknown', async () => {
+    authRepository.findByEmail.mockResolvedValue(null);
+
+    await expect(
+      service.login(
+        create(LoginRequestSchema, {
+          email: 'ghost@example.com',
+          password: 'wrong-password',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: Code.Unauthenticated,
+      message: '[unauthenticated] invalid credentials',
+    });
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'ghost@example.com',
+        allowAnonymous: true,
+        eventType: 'user.login_failed',
+        targetType: 'Security',
+        targetId: null,
+        after: expect.objectContaining({
+          outcome: 'failed',
+          reason: 'user_not_found',
+          email: 'ghost@example.com',
+        }),
+      }),
+    );
+    expect(JSON.stringify(auditService.record.mock.calls)).not.toContain('wrong-password');
+  });
+
+  it('records password reset requests without storing reset tokens or URLs', async () => {
+    authRepository.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: 'seed-user-000@seed.local',
+      fullName: 'Заявитель 1',
+      role: 'Applicant',
+      isActive: true,
+    });
+    tokenService.generatePasswordResetToken.mockReturnValue('raw-reset-token');
+    passwordResetRepository.create.mockResolvedValue(undefined);
+
+    await service.forgotPassword(
+      create(ForgotPasswordRequestSchema, {
+        email: ' Seed-User-000@Seed.Local ',
+      }),
+    );
+
+    expect(passwordResetRepository.create).toHaveBeenCalledWith(
+      'user-1',
+      'raw-reset-token',
+      expect.any(Date),
+    );
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'seed-user-000@seed.local',
+        actorName: 'Заявитель 1',
+        actorRole: 'Applicant',
+        allowAnonymous: true,
+        eventType: 'user.password_reset_requested',
+        targetType: 'User',
+        targetId: 'user-1',
+        after: expect.objectContaining({
+          outcome: 'succeeded',
+          email: 'seed-user-000@seed.local',
+          role: 'Applicant',
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(auditService.record.mock.calls);
+    expect(auditPayload).not.toContain('raw-reset-token');
+    expect(auditPayload).not.toContain('/auth/reset-password');
+  });
+
+  it('records password reset failures for unknown emails', async () => {
+    authRepository.findByEmail.mockResolvedValue(null);
+
+    await service.forgotPassword(
+      create(ForgotPasswordRequestSchema, {
+        email: 'ghost@example.com',
+      }),
+    );
+
+    expect(passwordResetRepository.create).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'ghost@example.com',
+        allowAnonymous: true,
+        eventType: 'user.password_reset_failed',
+        targetType: 'Security',
+        targetId: null,
+        after: expect.objectContaining({
+          outcome: 'failed',
+          reason: 'user_not_found_or_inactive',
+          email: 'ghost@example.com',
+        }),
+      }),
+    );
+  });
+
+  it('records successful password reset completion without storing the new password or token', async () => {
+    const record = {
+      id: 'user-1',
+      email: 'seed-user-000@seed.local',
+      fullName: 'Заявитель 1',
+      role: 'Applicant',
+      passwordHash: 'old-password-hash',
+      phoneNumber: '+7999000000',
+      isActive: true,
+      createdAt: new Date('2026-03-13T00:00:00.000Z'),
+      updatedAt: new Date('2026-03-13T00:00:00.000Z'),
+    };
+    passwordResetRepository.findValid.mockResolvedValue({
+      id: 'reset-1',
+      userId: 'user-1',
+    });
+    authRepository.findById.mockResolvedValue(record);
+    passwordService.hash.mockResolvedValue('new-password-hash');
+    authRepository.updatePasswordHash.mockResolvedValue(undefined);
+    passwordResetRepository.markUsed.mockResolvedValue(undefined);
+    refreshTokenRepository.revokeAll.mockResolvedValue(undefined);
+
+    await service.resetPassword(
+      create(ResetPasswordRequestSchema, {
+        token: 'raw-reset-token',
+        newPassword: 'NewPassword123',
+      }),
+    );
+
+    expect(authRepository.updatePasswordHash).toHaveBeenCalledWith('user-1', 'new-password-hash');
+    expect(passwordResetRepository.markUsed).toHaveBeenCalledWith('reset-1');
+    expect(refreshTokenRepository.revokeAll).toHaveBeenCalledWith('user-1');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        actorEmail: 'seed-user-000@seed.local',
+        actorName: 'Заявитель 1',
+        actorRole: 'Applicant',
+        eventType: 'user.password_reset_completed',
+        targetType: 'User',
+        targetId: 'user-1',
+        after: expect.objectContaining({
+          outcome: 'succeeded',
+          email: 'seed-user-000@seed.local',
+          role: 'Applicant',
+        }),
+      }),
+    );
+    const auditPayload = JSON.stringify(auditService.record.mock.calls);
+    expect(auditPayload).not.toContain('raw-reset-token');
+    expect(auditPayload).not.toContain('NewPassword123');
+    expect(auditPayload).not.toContain('new-password-hash');
+  });
+
+  it('records password reset failures for invalid tokens without storing the token', async () => {
+    passwordResetRepository.findValid.mockResolvedValue(null);
+
+    await expect(
+      service.resetPassword(
+        create(ResetPasswordRequestSchema, {
+          token: 'bad-reset-token',
+          newPassword: 'NewPassword123',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: Code.InvalidArgument,
+      message: '[invalid_argument] invalid or expired reset token',
+    });
+
+    expect(authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowAnonymous: true,
+        eventType: 'user.password_reset_failed',
+        targetType: 'Security',
+        targetId: null,
+        after: expect.objectContaining({
+          outcome: 'failed',
+          reason: 'invalid_or_expired_token',
+        }),
+      }),
+    );
+    expect(JSON.stringify(auditService.record.mock.calls)).not.toContain('bad-reset-token');
   });
 });

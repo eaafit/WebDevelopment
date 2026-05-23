@@ -81,6 +81,7 @@ export class ConnectRouterRegistry {
       getFiasAddressItemByGuid: this.assessmentRpcService.getFiasAddressItemByGuid,
       getFiasAddressDetails: this.assessmentRpcService.getFiasAddressDetails,
       searchFiasAddressByParts: this.assessmentRpcService.searchFiasAddressByParts,
+      logApplicantAssessmentAction: this.assessmentRpcService.logApplicantAssessmentAction,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,
@@ -100,6 +101,8 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+      getNotificationSettings: this.notificationRpcService.getNotificationSettings,
+      updateNotificationSettings: this.notificationRpcService.updateNotificationSettings,
     });
 
     // ─── Newsletter ────────────────────────────────────────

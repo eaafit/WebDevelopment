@@ -38,6 +38,10 @@ export type FailedAccessMetricPathGroup =
   | 'api'
   | 'other';
 
+export type NewsletterCampaignMetricStatus = 'sending' | 'sent' | 'partial_failed' | 'failed';
+export type NewsletterDeliveryOutcome = 'sent' | 'failed';
+export type NewsletterAudienceMetricType = 'all' | 'role' | 'selected';
+
 export interface BillingPaymentMetricContext {
   actor: BillingPaymentActor;
   scenario: BillingPaymentScenario;
@@ -69,6 +73,9 @@ export class MetricsService {
   private readonly usersRegistered: Counter<string>;
   private readonly auditEventsTotal: Counter<string>;
   private readonly reportsGenerated: Counter<string>;
+  private readonly newsletterCampaignsTotal: Counter<'status' | 'audience_type'>;
+  private readonly newsletterDeliveriesTotal: Counter<'outcome'>;
+  private readonly newsletterRecipientsTotal: Counter<'audience_type'>;
 
   constructor() {
     collectDefaultMetrics({ register: this.register, prefix: PREFIX });
@@ -161,6 +168,27 @@ export class MetricsService {
       help: 'Total number of reports generated',
       registers: [this.register],
     });
+
+    this.newsletterCampaignsTotal = new Counter({
+      name: `${PREFIX}newsletter_campaigns_total`,
+      help: 'Total number of newsletter campaigns by status and audience type',
+      labelNames: ['status', 'audience_type'],
+      registers: [this.register],
+    });
+
+    this.newsletterDeliveriesTotal = new Counter({
+      name: `${PREFIX}newsletter_deliveries_total`,
+      help: 'Total number of newsletter deliveries by outcome',
+      labelNames: ['outcome'],
+      registers: [this.register],
+    });
+
+    this.newsletterRecipientsTotal = new Counter({
+      name: `${PREFIX}newsletter_recipients_total`,
+      help: 'Total number of newsletter recipients targeted by audience type',
+      labelNames: ['audience_type'],
+      registers: [this.register],
+    });
   }
 
   async getMetrics(): Promise<string> {
@@ -245,5 +273,36 @@ export class MetricsService {
 
   recordReportGenerated(): void {
     this.reportsGenerated.inc();
+  }
+
+  recordNewsletterCampaignStarted(
+    audienceType: NewsletterAudienceMetricType,
+    recipientsCount: number,
+  ): void {
+    try {
+      this.newsletterCampaignsTotal.inc({ status: 'sending', audience_type: audienceType });
+      this.newsletterRecipientsTotal.inc({ audience_type: audienceType }, recipientsCount);
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNewsletterDelivery(outcome: NewsletterDeliveryOutcome): void {
+    try {
+      this.newsletterDeliveriesTotal.inc({ outcome });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNewsletterCampaignCompleted(
+    audienceType: NewsletterAudienceMetricType,
+    status: NewsletterCampaignMetricStatus,
+  ): void {
+    try {
+      this.newsletterCampaignsTotal.inc({ status, audience_type: audienceType });
+    } catch {
+      // best-effort
+    }
   }
 }
