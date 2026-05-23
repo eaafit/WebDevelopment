@@ -38,7 +38,8 @@
       "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
       "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
       "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"],
-      "@notary-portal/billing": ["libs/api/billing/src/index.ts"]
+      "@notary-portal/billing": ["libs/api/billing/src/index.ts"],
+      "@notary-portal/order": ["libs/api/order/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

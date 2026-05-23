@@ -7,6 +7,9 @@ export class OrderController {
   constructor(private orderService: OrderService) {}
 
   @Get()
+  test() {
+    return { message: 'Order controller works' };
+  }
   async listOrders(
     @Query('user_id') userId: string,
     @Query('role') role: 'applicant' | 'notary',
