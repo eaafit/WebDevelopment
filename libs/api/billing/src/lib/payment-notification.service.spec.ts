@@ -103,4 +103,46 @@ describe('PaymentNotificationService', () => {
 
     warnSpy.mockRestore();
   });
+
+  it('should send provider issue notifications to admins only', async () => {
+    await service.notifyPaymentProviderIssue(
+      {
+        id: 'payment-12345678',
+        userId: 'notary-1',
+        type: PaymentType.Subscription,
+        amount: '1350.00',
+        status: PaymentStatus.Pending,
+        paymentMethod: 'robokassa_redirect',
+      },
+      'Robokassa',
+      'signature is invalid',
+    );
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        role: PrismaRole.Admin,
+        isActive: true,
+        id: { notIn: ['notary-1'] },
+      },
+      select: { id: true },
+    });
+    expect(notificationService.createInternalNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'notary-1',
+      }),
+    );
+    expect(notificationService.createInternalNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'admin-1',
+        title: expect.stringContaining('Robokassa'),
+        message: expect.stringContaining('signature is invalid'),
+      }),
+    );
+    expect(notificationService.createInternalNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'admin-2',
+        message: expect.stringContaining('robokassa_redirect'),
+      }),
+    );
+  });
 });

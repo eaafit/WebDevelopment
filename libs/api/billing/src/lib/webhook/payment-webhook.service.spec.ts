@@ -36,6 +36,7 @@ describe('PaymentWebhookService', () => {
   const paymentNotificationService = {
     notifyPaymentCompleted: jest.fn(),
     notifyPaymentFailed: jest.fn(),
+    notifyPaymentProviderIssue: jest.fn(),
   };
   const prisma = {
     payment: {
@@ -74,6 +75,7 @@ describe('PaymentWebhookService', () => {
     auditService.record.mockReset();
     paymentNotificationService.notifyPaymentCompleted.mockReset();
     paymentNotificationService.notifyPaymentFailed.mockReset();
+    paymentNotificationService.notifyPaymentProviderIssue.mockReset();
 
     findPayment.mockResolvedValue({
       id: 'payment-1',
@@ -721,6 +723,15 @@ describe('PaymentWebhookService', () => {
         }),
       }),
     );
+    expect(paymentNotificationService.notifyPaymentCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PaymentType.Subscription,
+        status: PaymentStatus.Completed,
+        paymentMethod: 'robokassa_redirect',
+      }),
+    );
   });
 
   it('should reject Robokassa callback with invalid signature', async () => {
@@ -744,5 +755,81 @@ describe('PaymentWebhookService', () => {
         SignatureValue: 'bad-signature',
       }),
     ).rejects.toEqual(expect.objectContaining<Partial<PaymentWebhookError>>({ statusCode: 401 }));
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionTitle: 'Ошибка Robokassa callback',
+        after: expect.objectContaining({
+          paymentProvider: 'Robokassa',
+          callbackStatus: 'rejected',
+          callbackInvoiceId: 'payment-1',
+          callbackOutSum: '1350.00',
+          errorMessage: 'Robokassa signature is invalid',
+          providerStatusCode: 401,
+        }),
+      }),
+    );
+    expect(paymentNotificationService.notifyPaymentProviderIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        paymentMethod: 'robokassa_redirect',
+      }),
+      'Robokassa',
+      'Robokassa signature is invalid',
+    );
+  });
+
+  it('should audit and notify admins about Robokassa amount mismatches', async () => {
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      robokassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+      paymentNotificationService as never,
+    );
+
+    await expect(
+      service.handleRobokassaResult({
+        OutSum: '999.00',
+        InvId: 'payment-1',
+        SignatureValue: 'ok-signature',
+      }),
+    ).rejects.toEqual(expect.objectContaining<Partial<PaymentWebhookError>>({ statusCode: 401 }));
+
+    expect(paymentUpdateMany).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionTitle: 'Ошибка Robokassa callback',
+        after: expect.objectContaining({
+          paymentProvider: 'Robokassa',
+          callbackStatus: 'rejected',
+          callbackInvoiceId: 'payment-1',
+          callbackOutSum: '999.00',
+          errorMessage: 'Robokassa amount mismatch',
+          providerStatusCode: 401,
+        }),
+      }),
+    );
+    expect(paymentNotificationService.notifyPaymentProviderIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        paymentMethod: 'robokassa_redirect',
+      }),
+      'Robokassa',
+      'Robokassa amount mismatch',
+    );
   });
 });
