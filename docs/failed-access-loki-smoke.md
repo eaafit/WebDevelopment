@@ -80,6 +80,17 @@ auth_denied / 401 / payment_receipt
 scan_miss   / 404 / other
 ```
 
+`notary_failed_access_total` — накопительный counter. Если нужно увидеть, что
+неправильный пароль уже был зафиксирован, смотрите текущее значение по label'ам:
+
+```promql
+sum(notary_failed_access_total{reason="failed_login", path_group="auth_login"})
+```
+
+График с `increase(...[$__range])` показывает прирост только за выбранный
+диапазон времени в Grafana. Если попытка входа была раньше выбранного диапазона,
+counter останется увеличенным, но график прироста покажет `0`.
+
 ## Проверка в Grafana
 
 Откройте dashboard:
@@ -94,7 +105,8 @@ http://localhost:3001/d/notarius-failed-access-loki/failed-access-attempts-loki
 - `401 / 403 denials`: не меньше `2`;
 - `404 scan misses`: не меньше `3`;
 - `Recent failed requests with status code`: свежие строки с `statusCode=401` и `statusCode=404`.
-- `Prometheus failed access metrics`: те же события, сгруппированные по `reason`, `status_code` и `path_group`.
+- `Prometheus failed login total`: накопленное количество неправильных входов.
+- `Prometheus failed access increase in range`: те же события, сгруппированные по `reason`, `status_code` и `path_group` за выбранный диапазон.
 
 Панель `Failed login attempts` останется пустой, если smoke-тест не вызывает реальный endpoint `/notary.auth.v1alpha1.AuthService/Login` с неверным паролем.
 
