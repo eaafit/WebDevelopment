@@ -51,6 +51,20 @@ services:
       - '-config.file=/etc/loki/config.yml'
     restart: unless-stopped
 
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: notary-tempo
+    ports:
+      - '3200:3200'
+      - '4317:4317'
+      - '4318:4318'
+    volumes:
+      - ./monitoring/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    command:
+      - '-config.file=/etc/tempo/tempo.yml'
+    restart: unless-stopped
+
   promtail:
     image: grafana/promtail:3.2.1
     container_name: notary-promtail
@@ -80,6 +94,7 @@ services:
     depends_on:
       - prometheus
       - loki
+      - tempo
     restart: unless-stopped
 
   mailpit:
@@ -121,6 +136,7 @@ volumes:
   notary_data:
   prometheus_data:
   loki_data:
+  tempo_data:
   promtail_positions:
   grafana_data:
   minio_data:
