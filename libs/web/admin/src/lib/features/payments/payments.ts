@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -23,6 +23,7 @@ import {
 } from './payments.shared';
 import { AdminPaymentsApiService, type PaymentQuery } from '../../api/admin-payments-api.service';
 import { PaymentDeleteModalComponent } from './payment-delete-modal.component';
+import { AdminUserApiService } from '../RequestAssessment/services/user-api.service';
 
 type FilterColumn =
   | 'id'
@@ -58,6 +59,7 @@ export class Payments implements OnInit, OnDestroy {
   totalItems = 0;
   serverTotalPages = 1;
   loading = true;
+  exporting = false;
   loadError: string | null = null;
 
   searchTerm = '';
@@ -99,13 +101,11 @@ export class Payments implements OnInit, OnDestroy {
   filterSortDraft: '' | 'asc' | 'desc' = '';
   filterSelectedDraft = new Set<string>();
 
-  filterMenuStyle: Record<string, string> = {};
-
   fee = 0;
 
   readonly today: string = new Date().toISOString().split('T')[0];
 
-  pageSize = 7;
+  pageSize = 10;
   currentPage = 1;
   readonly skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
@@ -120,9 +120,13 @@ export class Payments implements OnInit, OnDestroy {
   private readonly api = inject(AdminPaymentsApiService);
   private readonly tokenStore = inject(TokenStore);
   private readonly logger = inject(WebLoggerService);
+  private readonly userApi = inject(AdminUserApiService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private dataSub?: Subscription;
   private loadSub?: Subscription;
   private filterReloadTimer?: ReturnType<typeof setTimeout>;
+  private destroyed = false;
+  private viewRefreshQueued = false;
 
   async openReceipt(paymentId: string | number): Promise<void> {
     this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
@@ -204,6 +208,7 @@ export class Payments implements OnInit, OnDestroy {
     this.logInfo('payment.admin.list_init_started');
     this.loading = true;
     this.loadError = null;
+    this.userApi.loadUsers().catch(() => undefined);
     this.api.preload();
     this.dataSub = this.api.payments$.subscribe({
       next: (data) => {
@@ -211,6 +216,7 @@ export class Payments implements OnInit, OnDestroy {
           this.payments = data;
           this.loading = false;
           this.logInfo('payment.admin.list_loaded', { total: data.length });
+          this.requestViewRefresh();
         }
       },
       error: (err) => {
@@ -218,17 +224,21 @@ export class Payments implements OnInit, OnDestroy {
         this.payments = [];
         this.loadError = 'Не удалось загрузить данные платежей с сервера';
         this.loading = false;
+        this.requestViewRefresh();
       },
     });
+    this.loadPayments();
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.logInfo('payment.admin.list_destroyed');
     this.dataSub?.unsubscribe();
     this.loadSub?.unsubscribe();
     if (this.filterReloadTimer) {
       clearTimeout(this.filterReloadTimer);
     }
+    this.unlockBodyScroll();
   }
 
   get filteredPayments(): Payment[] {
@@ -321,6 +331,7 @@ export class Payments implements OnInit, OnDestroy {
     this.currentPayment.id = this.getNextLocalId();
     this.fee = 0;
     this.isCreateEditModalOpen = true;
+    this.lockBodyScroll();
     this.logInfo('payment.admin.create_modal_opened', {
       draftPaymentId: String(this.currentPayment.id),
     });
@@ -343,12 +354,14 @@ export class Payments implements OnInit, OnDestroy {
     this.closeModals();
     this.currentPayment = { ...payment };
     this.isViewModalOpen = true;
+    this.lockBodyScroll();
     this.logInfo('payment.admin.view_opened', { paymentId: String(payment.id) });
   }
 
   openDeleteModal(payment: Payment): void {
     this.closeModals();
     this.paymentToDelete = { ...payment };
+    this.lockBodyScroll();
     this.logInfo('payment.admin.delete_modal_opened', { paymentId: String(payment.id) });
   }
 
@@ -381,6 +394,18 @@ export class Payments implements OnInit, OnDestroy {
     this.isCreateEditModalOpen = false;
     this.isViewModalOpen = false;
     this.paymentToDelete = null;
+    this.unlockBodyScroll();
+  }
+
+  private lockBodyScroll(): void {
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = `${scrollbarWidth}px`;
+  }
+
+  private unlockBodyScroll(): void {
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
   }
 
   onModalBackdropClick(event: MouseEvent): void {
@@ -441,22 +466,28 @@ export class Payments implements OnInit, OnDestroy {
       rows: this.filteredPayments.length,
       page: this.currentPage,
     });
-    const csvContent = this.buildCsvContent(this.filteredPayments);
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: 'text/csv;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    this.loadError = null;
 
-    link.href = url;
-    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    this.logInfo('payment.admin.export_csv_succeeded', {
-      rows: this.filteredPayments.length,
-    });
+    const exportPayments = this.filteredPayments;
+    if (!exportPayments.length) {
+      this.logWarn('payment.admin.export_csv_skipped_empty');
+      return;
+    }
+
+    this.exporting = true;
+    try {
+      this.downloadCsv(this.buildCsvContent(exportPayments));
+      this.logInfo('payment.admin.export_csv_succeeded', {
+        rows: exportPayments.length,
+      });
+    } catch (err) {
+      this.logError('payment.admin.export_csv_failed', err);
+      this.loadError =
+        err instanceof Error ? err.message : 'Не удалось экспортировать платежи в CSV';
+    } finally {
+      this.exporting = false;
+      this.requestViewRefresh();
+    }
   }
 
   goToApplication(assessmentId: string): void {
@@ -482,7 +513,6 @@ export class Payments implements OnInit, OnDestroy {
     event.stopPropagation();
     if (this.activeFilterColumn === column) {
       this.activeFilterColumn = null;
-      this.filterMenuStyle = {};
       return;
     }
 
@@ -492,42 +522,10 @@ export class Payments implements OnInit, OnDestroy {
     const allValues = this.getUniqueColumnValues(column);
     const selected = this.columnSelectedValues[column];
     this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
-
-    this.positionFilterMenu(event);
-  }
-
-  private positionFilterMenu(event: MouseEvent): void {
-    const trigger = event.target as HTMLElement;
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = 270;
-    const menuMaxHeight = 360;
-    const gap = 8;
-
-    let left = rect.right - menuWidth;
-    let top = rect.bottom + gap;
-
-    if (left < gap) {
-      left = rect.left;
-    }
-    if (left + menuWidth > window.innerWidth - gap) {
-      left = window.innerWidth - menuWidth - gap;
-    }
-    if (top + menuMaxHeight > window.innerHeight - gap) {
-      top = rect.top - menuMaxHeight - gap;
-    }
-    if (top < gap) {
-      top = gap;
-    }
-
-    this.filterMenuStyle = {
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(top)}px`,
-    };
   }
 
   closeColumnFilter(): void {
     this.activeFilterColumn = null;
-    this.filterMenuStyle = {};
   }
 
   setDraftSort(direction: 'asc' | 'desc'): void {
@@ -688,7 +686,7 @@ export class Payments implements OnInit, OnDestroy {
       case 'paymentDate':
         return payment.paymentDate;
       case 'payer':
-        return payment.payer;
+        return this.getPayerName(payment);
       case 'type':
         return this.getTypeLabel(payment.type);
       case 'amount':
@@ -731,6 +729,7 @@ export class Payments implements OnInit, OnDestroy {
         this.serverTotalPages = page.meta?.totalPages ?? 1;
         this.currentPage = page.meta?.currentPage ?? this.currentPage;
         this.loading = false;
+        this.requestViewRefresh();
       },
       error: (err) => {
         this.payments = [];
@@ -739,7 +738,22 @@ export class Payments implements OnInit, OnDestroy {
         this.loadError =
           err instanceof Error ? err.message : 'Не удалось загрузить данные платежей с сервера';
         this.loading = false;
+        this.requestViewRefresh();
       },
+    });
+  }
+
+  private requestViewRefresh(): void {
+    if (this.viewRefreshQueued) {
+      return;
+    }
+
+    this.viewRefreshQueued = true;
+    queueMicrotask(() => {
+      this.viewRefreshQueued = false;
+      if (!this.destroyed) {
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -812,6 +826,20 @@ export class Payments implements OnInit, OnDestroy {
       if (!selected.includes(value)) return false;
     }
     return true;
+  }
+
+  getPayerName(payment: Payment): string {
+    const userId = payment.userId;
+    if (userId) {
+      return this.userApi.getUserName(userId);
+    }
+    return payment.payer || '—';
+  }
+
+  shortId(id: string | null | undefined): string {
+    if (!id) return '—';
+    if (id.length <= 12) return id;
+    return id.slice(0, 8) + '…';
   }
 
   private getUniqueColumnValues(column: FilterColumn): string[] {
@@ -889,6 +917,22 @@ export class Payments implements OnInit, OnDestroy {
     return [header, ...rows]
       .map((row) => row.map((value) => this.escapeCsvValue(value)).join(this.csvSeparator))
       .join('\r\n');
+  }
+
+  private downloadCsv(csvContent: string): void {
+    const blob = new Blob([`\uFEFF${csvContent}`], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.style.display = 'none';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 }
 

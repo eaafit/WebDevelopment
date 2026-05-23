@@ -152,6 +152,7 @@ describe('AuditRepository', () => {
   it('should limit notary queries to assessment entities assigned to the current notary', async () => {
     findAssessments.mockResolvedValue([
       { id: '11111111-1111-4111-8111-111111111111' },
+      { id: '11111111-1111-4111-8111-111111111111' },
       { id: '22222222-2222-4222-8222-222222222222' },
     ]);
 
@@ -183,6 +184,33 @@ describe('AuditRepository', () => {
         },
       }),
     );
+  });
+
+  it('should reuse notary ownership scope for export count guards', async () => {
+    findAssessments.mockResolvedValue([
+      { id: '11111111-1111-4111-8111-111111111111' },
+      { id: '11111111-1111-4111-8111-111111111111' },
+    ]);
+
+    await repository.countAuditEvents({
+      filters: {
+        eventType: 'assessment.updated',
+      },
+      scope: {
+        kind: 'notary',
+        notaryId: 'notary-1',
+      },
+    });
+
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        actionType: 'assessment.updated',
+        entityName: 'Assessment',
+        entityId: {
+          in: ['11111111-1111-4111-8111-111111111111'],
+        },
+      },
+    });
   });
 
   it('should intersect notary target id filter with assigned assessments', async () => {

@@ -140,21 +140,14 @@ export class AuditService {
   }
 
   private normalizeListRequest(request: ListAuditEventsRequest): AuditListQuery {
-    const user = requireRole(Role.Admin, Role.Notary);
+    const user = requireRole(Role.Admin, Role.Notary, Role.Applicant);
     const filters = this.normalizeFilters(request.filters);
 
     return {
       page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE),
       limit: normalizePageLimit(request.pagination?.limit),
       filters,
-      scope: isNotaryRole(user.role)
-        ? {
-            kind: 'notary',
-            notaryId: user.sub,
-          }
-        : {
-            kind: 'admin',
-          },
+      scope: resolveAuditScope(user.role, user.sub),
     };
   }
 
@@ -274,6 +267,25 @@ function normalizeOptionalUuid(value: string | undefined, field: string): string
 
 function isNotaryRole(role: string): boolean {
   return role === '2' || role === Role.Notary;
+}
+
+function isApplicantRole(role: string): boolean {
+  return role === '1' || role === Role.Applicant;
+}
+
+function resolveAuditScope(
+  role: string,
+  userId: string,
+): AuditListQuery['scope'] {
+  if (isApplicantRole(role)) {
+    return { kind: 'applicant', applicantId: userId };
+  }
+
+  if (isNotaryRole(role)) {
+    return { kind: 'notary', notaryId: userId };
+  }
+
+  return { kind: 'admin' };
 }
 
 function compactJson(
