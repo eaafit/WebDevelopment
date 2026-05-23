@@ -24,6 +24,19 @@ export type PromoValidationFlow = 'preview' | 'payment_create';
 export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
+export type FailedAccessMetricReason =
+  | 'auth_denied'
+  | 'failed_login'
+  | 'scan_miss'
+  | 'rate_limited'
+  | 'client_error';
+export type FailedAccessMetricPathGroup =
+  | 'auth_login'
+  | 'payment_receipt'
+  | 'document_content'
+  | 'connect_rpc'
+  | 'api'
+  | 'other';
 
 export type NewsletterCampaignMetricStatus = 'sending' | 'sent' | 'partial_failed' | 'failed';
 export type NewsletterDeliveryOutcome = 'sent' | 'failed';
@@ -32,6 +45,13 @@ export type NewsletterAudienceMetricType = 'all' | 'role' | 'selected';
 export interface BillingPaymentMetricContext {
   actor: BillingPaymentActor;
   scenario: BillingPaymentScenario;
+}
+
+export interface FailedAccessMetricLabels {
+  method: string;
+  statusCode: string;
+  reason: FailedAccessMetricReason;
+  pathGroup: FailedAccessMetricPathGroup;
 }
 
 @Injectable()
@@ -47,6 +67,9 @@ export class MetricsService {
   private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
   private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
+  private readonly failedAccessTotal: Counter<
+    'method' | 'status_code' | 'reason' | 'path_group'
+  >;
   private readonly usersRegistered: Counter<string>;
   private readonly auditEventsTotal: Counter<string>;
   private readonly reportsGenerated: Counter<string>;
@@ -116,6 +139,14 @@ export class MetricsService {
       name: `${PREFIX}billing_payment_history_requests_total`,
       help: 'Total number of payment history requests by scope and result',
       labelNames: ['scope', 'result'],
+      registers: [this.register],
+    });
+
+    this.failedAccessTotal = new Counter({
+      name: `${PREFIX}failed_access_total`,
+      help:
+        'Total number of failed HTTP access attempts by method, status code, reason, and low-cardinality path group',
+      labelNames: ['method', 'status_code', 'reason', 'path_group'],
       registers: [this.register],
     });
 
@@ -221,6 +252,15 @@ export class MetricsService {
 
   recordPaymentHistoryRequest(scope: PaymentHistoryScope, result: MetricsResult): void {
     this.paymentHistoryRequestsTotal.inc({ scope, result });
+  }
+
+  recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
+    this.failedAccessTotal.inc({
+      method: labels.method,
+      status_code: labels.statusCode,
+      reason: labels.reason,
+      path_group: labels.pathGroup,
+    });
   }
 
   recordUserRegistered(): void {
