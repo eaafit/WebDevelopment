@@ -161,6 +161,9 @@ describe('AuditService', () => {
 
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith({
       userId: 'notary-1',
+      actorEmail: 'seed-user-010@seed.local',
+      actorName: undefined,
+      actorRole: 'Notary',
       actionType: 'assessment.updated',
       entityName: 'Assessment',
       entityId: '11111111-1111-4111-8111-111111111111',
@@ -173,6 +176,55 @@ describe('AuditService', () => {
         after: { address: 'Новый адрес' },
         ip: '10.0.0.5',
         userAgent: 'jest-agent',
+      },
+      timestamp: undefined,
+    });
+  });
+
+  it('should record anonymous security events when explicitly allowed', async () => {
+    await requestContextStorage.run(
+      {
+        user: null,
+        metadata: {
+          ip: '10.0.0.7',
+          userAgent: 'anonymous-agent',
+        },
+      },
+      () =>
+        service.record({
+          allowAnonymous: true,
+          actorEmail: 'ghost@example.com',
+          eventType: 'user.login_failed',
+          targetType: 'Security',
+          targetId: null,
+          actionTitle: 'Неудачная попытка входа',
+          actionContext: 'Пользователь не найден',
+          after: {
+            outcome: 'failed',
+            reason: 'user_not_found',
+            email: 'ghost@example.com',
+          },
+        }),
+    );
+
+    expect(auditRepository.createAuditLog).toHaveBeenCalledWith({
+      userId: null,
+      actorEmail: 'ghost@example.com',
+      actorName: undefined,
+      actorRole: undefined,
+      actionType: 'user.login_failed',
+      entityName: 'Security',
+      entityId: null,
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Пользователь не найден',
+        after: {
+          outcome: 'failed',
+          reason: 'user_not_found',
+          email: 'ghost@example.com',
+        },
+        ip: '10.0.0.7',
+        userAgent: 'anonymous-agent',
       },
       timestamp: undefined,
     });
@@ -331,6 +383,9 @@ describe('AuditService', () => {
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: '33333333-3333-4333-8333-333333333333',
+        actorEmail: 'admin@example.local',
+        actorName: undefined,
+        actorRole: 'Admin',
         actionType: 'audit.exported',
         entityName: 'Assessment',
         entityId: '22222222-2222-4222-8222-222222222222',
