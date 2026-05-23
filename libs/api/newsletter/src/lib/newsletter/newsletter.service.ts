@@ -3,6 +3,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
 import { Role, requireRole, type AccessTokenPayload } from '@internal/auth-shared';
+import { MetricsService, type NewsletterAudienceMetricType, type NewsletterCampaignMetricStatus } from '@internal/metrics';
 import { NotificationService } from '@internal/notification';
 import {
   EstimateNewsletterAudienceResponseSchema,
@@ -63,6 +64,7 @@ export class NewsletterService {
     @Inject(NEWSLETTER_MAILER) private readonly newsletterMailer: NewsletterMailer,
     private readonly auditService: AuditService,
     private readonly notificationService: NotificationService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   listNewsletterSubscribers(
@@ -128,6 +130,7 @@ export class NewsletterService {
   ): Promise<SendNewsletterCampaignResponse> {
     const actor = requireRole(Role.Admin);
     const audience = this.normalizeAudience(request.audience);
+    const audienceMetricType = toMetricAudienceType(audience.type);
     const subject = normalizeRequiredString(request.subject, 'subject', MAX_SUBJECT_LENGTH);
     const bodyHtml = normalizeBodyHtml(request.bodyHtml);
     const recipients = await this.newsletterRepository.resolveAudience(audience);
@@ -146,6 +149,7 @@ export class NewsletterService {
     });
 
     this.logCampaignStart(campaign.id, subject, campaign.audienceLabel, recipients.length);
+    this.metricsService.recordNewsletterCampaignStarted(audienceMetricType, recipients.length);
     await this.recordCampaignAuditBestEffort({
       actor,
       campaign,
@@ -171,6 +175,7 @@ export class NewsletterService {
         } catch (error) {
           const deliveryErrorMessage = normalizeErrorMessage(error);
           failedCount += 1;
+          this.metricsService.recordNewsletterDelivery('failed');
           this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
 
           try {
@@ -188,6 +193,7 @@ export class NewsletterService {
         }
 
         sentCount += 1;
+        this.metricsService.recordNewsletterDelivery('sent');
 
         try {
           await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
@@ -215,6 +221,10 @@ export class NewsletterService {
     });
 
     this.logCampaignCompletion(campaign.id, finalStatus, sentCount, failedCount);
+    this.metricsService.recordNewsletterCampaignCompleted(
+      audienceMetricType,
+      formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
+    );
     await this.recordCampaignAuditBestEffort({
       actor,
       campaign: completedCampaign,
@@ -528,6 +538,12 @@ function roleLabel(role: NewsletterAudienceQuery['role']): string {
   if (role === PrismaRole.Admin) return 'Администратор';
   if (role === PrismaRole.Notary) return 'Нотариус';
   return 'Заявитель';
+}
+
+function toMetricAudienceType(type: PrismaNewsletterAudienceType): NewsletterAudienceMetricType {
+  if (type === PrismaNewsletterAudienceType.All) return 'all';
+  if (type === PrismaNewsletterAudienceType.Role) return 'role';
+  return 'selected';
 }
 
 function resolveCampaignStatus(

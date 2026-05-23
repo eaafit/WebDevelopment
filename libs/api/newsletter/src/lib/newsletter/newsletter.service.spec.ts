@@ -51,11 +51,17 @@ describe('NewsletterService', () => {
     warn: jest.fn(),
     error: jest.fn(),
   };
+  const metricsService = {
+    recordNewsletterCampaignStarted: jest.fn(),
+    recordNewsletterDelivery: jest.fn(),
+    recordNewsletterCampaignCompleted: jest.fn(),
+  };
   const service = new NewsletterService(
     repository as never,
     mailer as never,
     auditService as never,
     notificationService as never,
+    metricsService as never,
   );
 
   beforeEach(() => {
@@ -117,6 +123,9 @@ describe('NewsletterService', () => {
     mailer.sendNewsletterEmail.mockResolvedValue(undefined);
     auditService.record.mockResolvedValue(undefined);
     notificationService.createNotification.mockResolvedValue(undefined);
+    metricsService.recordNewsletterCampaignStarted.mockReturnValue(undefined);
+    metricsService.recordNewsletterDelivery.mockReturnValue(undefined);
+    metricsService.recordNewsletterCampaignCompleted.mockReturnValue(undefined);
   });
 
   it('normalizes subscriber search, role, status and pagination for admins', async () => {
@@ -254,6 +263,11 @@ describe('NewsletterService', () => {
     );
     expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+    expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'sent');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'sent');
     expect(response.campaign?.sentCount).toBe(2);
   });
 
@@ -298,6 +312,11 @@ describe('NewsletterService', () => {
       message:
         'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 1 из 2, ошибок 1.',
     });
+    expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'failed');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'partial_failed');
   });
 
   it('marks campaign as failed when all deliveries fail', async () => {
@@ -323,6 +342,10 @@ describe('NewsletterService', () => {
       message:
         'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 0 из 1, ошибок 1.',
     });
+    expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 1);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(1);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledWith('failed');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'failed');
   });
 
   it('rejects empty audience and invalid body before sending', async () => {
@@ -349,6 +372,9 @@ describe('NewsletterService', () => {
     expect(logger.log).not.toHaveBeenCalled();
     expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+    expect(metricsService.recordNewsletterCampaignStarted).not.toHaveBeenCalled();
+    expect(metricsService.recordNewsletterDelivery).not.toHaveBeenCalled();
+    expect(metricsService.recordNewsletterCampaignCompleted).not.toHaveBeenCalled();
   });
 
   it('finalizes the campaign when delivery persistence breaks unexpectedly', async () => {
@@ -381,6 +407,11 @@ describe('NewsletterService', () => {
       message:
         'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 2 из 2, ошибок 0.',
     });
+    expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'sent');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'partial_failed');
   });
 });
 
