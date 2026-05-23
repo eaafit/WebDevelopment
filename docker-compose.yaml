@@ -3,13 +3,13 @@ services:
     image: postgres:latest
     container_name: notary-postgres
     environment:
-      POSTGRES_DB: db
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
     ports:
-      # Default 5433 avoids conflict with a local PostgreSQL on Windows/Linux using 5432.
+      # Default 5432 avoids conflict with a local PostgreSQL on Windows/Linux using 5432.
       # Set POSTGRES_HOST_PORT=5432 in `.env` if nothing else listens on that port.
-      - '${POSTGRES_HOST_PORT:-5433}:5432'
+      - '${DB_PORT}:5432'
     volumes:
       - notary_data:/var/lib/postgresql
     restart: always
@@ -20,9 +20,9 @@ services:
     ports:
       - '9187:9187'
     environment:
-      DATA_SOURCE_URI: 'postgres:5432/db?sslmode=disable'
-      DATA_SOURCE_USER: admin
-      DATA_SOURCE_PASS: admin
+      DATA_SOURCE_URI: 'postgres:5432/${DB_NAME}?sslmode=disable'
+      DATA_SOURCE_USER: ${DB_USER}
+      DATA_SOURCE_PASS: ${DB_PASS}
     depends_on:
       - postgres
     restart: unless-stopped

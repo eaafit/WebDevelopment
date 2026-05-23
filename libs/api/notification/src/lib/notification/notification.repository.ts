@@ -14,7 +14,7 @@ import {
   type ListNotificationsResponse,
 } from '@notary-portal/api-contracts';
 import {
-  NotificationEntityCategory as PrismaNotificationCategory,
+  NotificationCategory as PrismaNotificationCategory,
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
   Role as PrismaRole,
@@ -328,6 +328,8 @@ export class NotificationRepository {
 
   private toPrismaCategory(c: RpcNotificationCategory): PrismaNotificationCategory {
     const map: Record<number, PrismaNotificationCategory> = {
+      [RpcNotificationCategory.APPLICATION]: PrismaNotificationCategory.Application,
+      [RpcNotificationCategory.DOCUMENT]: PrismaNotificationCategory.Document,
       [RpcNotificationCategory.PAYMENT]: PrismaNotificationCategory.Payment,
       [RpcNotificationCategory.SYSTEM]: PrismaNotificationCategory.System,
       [RpcNotificationCategory.ASSESSMENT]: PrismaNotificationCategory.Assessment,
@@ -337,6 +339,8 @@ export class NotificationRepository {
 
   private fromPrismaCategory(c: PrismaNotificationCategory): RpcNotificationCategory {
     const map: Record<PrismaNotificationCategory, RpcNotificationCategory> = {
+      [PrismaNotificationCategory.Application]: RpcNotificationCategory.APPLICATION,
+      [PrismaNotificationCategory.Document]: RpcNotificationCategory.DOCUMENT,
       [PrismaNotificationCategory.Payment]: RpcNotificationCategory.PAYMENT,
       [PrismaNotificationCategory.System]: RpcNotificationCategory.SYSTEM,
       [PrismaNotificationCategory.Assessment]: RpcNotificationCategory.ASSESSMENT,

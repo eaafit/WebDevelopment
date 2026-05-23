@@ -13,7 +13,7 @@ import {
   NewsletterCampaignStatus,
   NewsletterDeliveryStatus,
   NewsletterSubscriptionStatus,
-  NotificationEntityCategory,
+  NotificationCategory,
   NotificationStatus,
   NotificationType,
   PaymentReceiptStatus,
@@ -1004,9 +1004,11 @@ async function upsertNotifications(count: number, userIds: string[]): Promise<vo
     NotificationType.InApp,
   ];
   const categories = [
-    NotificationEntityCategory.Assessment,
-    NotificationEntityCategory.Payment,
-    NotificationEntityCategory.System,
+    NotificationCategory.Application,
+    NotificationCategory.Document,
+    NotificationCategory.Payment,
+    NotificationCategory.System,
+    NotificationCategory.Assessment,
   ];
   const statuses = [NotificationStatus.Pending, NotificationStatus.Sent, NotificationStatus.Failed];
   const baseSent = new Date('2026-02-01T12:00:00.000Z');
@@ -1016,7 +1018,7 @@ async function upsertNotifications(count: number, userIds: string[]): Promise<vo
     const type = types[i % types.length];
     const category = categories[i % categories.length];
     const title =
-      category === NotificationEntityCategory.Assessment
+      category === NotificationCategory.Assessment
         ? 'Создана новая заявка на оценку'
         : `Seed уведомление ${i + 1}`;
     const message = `Seed уведомление ${i + 1}: тестовое сообщение.`;
