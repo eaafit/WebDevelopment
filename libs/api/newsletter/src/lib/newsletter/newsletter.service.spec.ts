@@ -8,14 +8,11 @@ import {
   NewsletterCampaignStatus,
   NewsletterSubscriberStatus,
   NotificationType as RpcNotificationType,
+  RepeatNewsletterCampaignRequestSchema,
   SendNewsletterCampaignRequestSchema,
   UserRole,
 } from '@notary-portal/api-contracts';
-import {
-  Role,
-  requestContextStorage,
-  type AccessTokenPayload,
-} from '@internal/auth-shared';
+import { Role, requestContextStorage, type AccessTokenPayload } from '@internal/auth-shared';
 import {
   NewsletterAudienceType as PrismaNewsletterAudienceType,
   NewsletterCampaignStatus as PrismaNewsletterCampaignStatus,
@@ -28,6 +25,7 @@ describe('NewsletterService', () => {
   const repository = {
     listSubscribers: jest.fn(),
     listCampaigns: jest.fn(),
+    getCampaignForRepeat: jest.fn(),
     resolveAudience: jest.fn(),
     createCampaign: jest.fn(),
     markDeliverySent: jest.fn(),
@@ -94,6 +92,7 @@ describe('NewsletterService', () => {
     );
     repository.listSubscribers.mockResolvedValue({ subscribers: [], meta: undefined });
     repository.listCampaigns.mockResolvedValue({ campaigns: [], meta: undefined });
+    repository.getCampaignForRepeat.mockResolvedValue(null);
     repository.createCampaign.mockResolvedValue(
       create(NewsletterCampaignSchema, {
         id: '11111111-1111-4111-a111-111111111111',
@@ -153,14 +152,12 @@ describe('NewsletterService', () => {
 
   it('rejects non-admin access', async () => {
     expect(() =>
-      runAs(
-        { ...adminUser(), role: Role.Notary },
-        () =>
-          service.listNewsletterSubscribers(
-            create(ListNewsletterSubscribersRequestSchema, {
-              pagination: { page: 1, limit: 20 },
-            }),
-          ),
+      runAs({ ...adminUser(), role: Role.Notary }, () =>
+        service.listNewsletterSubscribers(
+          create(ListNewsletterSubscribersRequestSchema, {
+            pagination: { page: 1, limit: 20 },
+          }),
+        ),
       ),
     ).toThrow(ConnectError);
   });
@@ -250,8 +247,7 @@ describe('NewsletterService', () => {
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
       type: RpcNotificationType.PUSH,
-      message:
-        'Рассылка «Тестовая рассылка» завершена: отправлено 2 из 2, ошибок 0.',
+      message: 'Рассылка «Тестовая рассылка» завершена: отправлено 2 из 2, ошибок 0.',
     });
     expect(logger.log).toHaveBeenNthCalledWith(
       1,
@@ -271,14 +267,123 @@ describe('NewsletterService', () => {
     expect(response.campaign?.sentCount).toBe(2);
   });
 
+  it('records audit, notification and logs when repeating a campaign', async () => {
+    repository.getCampaignForRepeat.mockResolvedValue({
+      subject: 'Повторяемая рассылка',
+      bodyHtml: '<p>Еще раз</p>',
+      recipients: [recipient('a@example.com'), recipient('b@example.com')],
+    });
+    repository.createCampaign.mockResolvedValue(
+      create(NewsletterCampaignSchema, {
+        id: '22222222-2222-4222-a222-222222222222',
+        subject: 'Повторяемая рассылка',
+        audienceType: NewsletterAudienceType.SELECTED,
+        audienceLabel: 'Повторная отправка (2)',
+        recipientsCount: 2,
+        sentCount: 0,
+        failedCount: 0,
+        status: NewsletterCampaignStatus.SENDING,
+      }),
+    );
+    repository.completeCampaign.mockImplementation((_id, input) =>
+      create(NewsletterCampaignSchema, {
+        id: '22222222-2222-4222-a222-222222222222',
+        subject: 'Повторяемая рассылка',
+        audienceType: NewsletterAudienceType.SELECTED,
+        audienceLabel: 'Повторная отправка (2)',
+        recipientsCount: input.sentCount + input.failedCount,
+        sentCount: input.sentCount,
+        failedCount: input.failedCount,
+        status: toRpcCampaignStatus(input.status),
+      }),
+    );
+
+    const response = await runAs(adminUser(), () =>
+      service.repeatNewsletterCampaign(validRepeatRequest()),
+    );
+
+    expect(repository.getCampaignForRepeat).toHaveBeenCalledWith(
+      '33333333-3333-4333-a333-333333333333',
+    );
+    expect(mailer.sendNewsletterEmail).toHaveBeenCalledTimes(2);
+    expect(mailer.sendNewsletterEmail).toHaveBeenNthCalledWith(1, {
+      to: 'a@example.com',
+      fullName: 'Тестовый пользователь',
+      subject: 'Повторяемая рассылка',
+      bodyHtml: '<p>Еще раз</p>',
+    });
+    expect(repository.markDeliverySent).toHaveBeenCalledTimes(2);
+    expect(repository.markDeliverySent).toHaveBeenNthCalledWith(
+      1,
+      '22222222-2222-4222-a222-222222222222',
+      'a@example.com',
+    );
+    expect(repository.markDeliverySent).toHaveBeenNthCalledWith(
+      2,
+      '22222222-2222-4222-a222-222222222222',
+      'b@example.com',
+    );
+    expect(repository.completeCampaign).toHaveBeenCalledWith(
+      '22222222-2222-4222-a222-222222222222',
+      {
+        sentCount: 2,
+        failedCount: 0,
+        status: PrismaNewsletterCampaignStatus.Sent,
+      },
+    );
+    expect(auditService.record).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        eventType: 'newsletter.campaign.repeat_started',
+        targetType: 'NewsletterCampaign',
+        targetId: '22222222-2222-4222-a222-222222222222',
+        after: expect.objectContaining({
+          sourceCampaignId: '33333333-3333-4333-a333-333333333333',
+          subject: 'Повторяемая рассылка',
+          sentCount: 0,
+          failedCount: 0,
+          status: 'sending',
+        }),
+      }),
+    );
+    expect(auditService.record).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        eventType: 'newsletter.campaign.repeat_completed',
+        targetType: 'NewsletterCampaign',
+        targetId: '22222222-2222-4222-a222-222222222222',
+        after: expect.objectContaining({
+          sourceCampaignId: '33333333-3333-4333-a333-333333333333',
+          sentCount: 2,
+          failedCount: 0,
+          status: 'sent',
+        }),
+      }),
+    );
+    expect(notificationService.createNotification).toHaveBeenCalledWith({
+      userId: '11111111-1111-4111-a111-111111111111',
+      type: RpcNotificationType.PUSH,
+      message: 'Рассылка «Повторяемая рассылка» завершена: отправлено 2 из 2, ошибок 0.',
+    });
+    expect(logger.log).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('newsletter.campaign.repeat_started'),
+    );
+    expect(logger.log).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('newsletter.campaign.repeat_completed'),
+    );
+    expect(response.campaign?.sentCount).toBe(2);
+  });
+
   it('records a partial failure when one delivery fails', async () => {
     repository.resolveAudience.mockResolvedValue([
       recipient('a@example.com'),
       recipient('b@example.com'),
     ]);
-    mailer.sendNewsletterEmail.mockResolvedValueOnce(undefined).mockRejectedValueOnce(
-      new Error('SMTP rejected recipient'),
-    );
+    mailer.sendNewsletterEmail
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('SMTP rejected recipient'));
 
     await runAs(adminUser(), () => service.sendNewsletterCampaign(validSendRequest()));
 
@@ -303,20 +408,20 @@ describe('NewsletterService', () => {
       expect.stringContaining('newsletter.campaign.delivery_failed'),
     );
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('b@example.com'));
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('SMTP rejected recipient'),
-    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('SMTP rejected recipient'));
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
       type: RpcNotificationType.PUSH,
-      message:
-        'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 1 из 2, ошибок 1.',
+      message: 'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 1 из 2, ошибок 1.',
     });
     expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 2);
     expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
     expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
     expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'failed');
-    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'partial_failed');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith(
+      'all',
+      'partial_failed',
+    );
   });
 
   it('marks campaign as failed when all deliveries fail', async () => {
@@ -339,8 +444,7 @@ describe('NewsletterService', () => {
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
       type: RpcNotificationType.PUSH,
-      message:
-        'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 0 из 1, ошибок 1.',
+      message: 'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 0 из 1, ошибок 1.',
     });
     expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 1);
     expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(1);
@@ -351,7 +455,9 @@ describe('NewsletterService', () => {
   it('rejects empty audience and invalid body before sending', async () => {
     repository.resolveAudience.mockResolvedValue([]);
 
-    await expect(runAs(adminUser(), () => service.sendNewsletterCampaign(validSendRequest()))).rejects.toMatchObject({
+    await expect(
+      runAs(adminUser(), () => service.sendNewsletterCampaign(validSendRequest())),
+    ).rejects.toMatchObject({
       code: Code.FailedPrecondition,
     });
     await expect(
@@ -404,14 +510,16 @@ describe('NewsletterService', () => {
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
       type: RpcNotificationType.PUSH,
-      message:
-        'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 2 из 2, ошибок 0.',
+      message: 'Рассылка «Тестовая рассылка» завершена с ошибками: отправлено 2 из 2, ошибок 0.',
     });
     expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('all', 2);
     expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
     expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
     expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'sent');
-    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('all', 'partial_failed');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith(
+      'all',
+      'partial_failed',
+    );
   });
 });
 
@@ -420,6 +528,12 @@ function validSendRequest() {
     audience: { type: NewsletterAudienceType.ALL },
     subject: 'Тестовая рассылка',
     bodyHtml: '<p>Текст письма</p>',
+  });
+}
+
+function validRepeatRequest() {
+  return create(RepeatNewsletterCampaignRequestSchema, {
+    id: '33333333-3333-4333-a333-333333333333',
   });
 }
 
