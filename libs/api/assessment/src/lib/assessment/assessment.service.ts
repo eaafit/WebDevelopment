@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { context, SpanStatusCode, trace, type Span, type Tracer } from '@opentelemetry/api';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
 import { NotificationService } from '@internal/notification';
@@ -94,9 +95,12 @@ const YEAR_BUILT_LIMITS = {
   maximum: new Date().getFullYear() + 1,
 } as const;
 
+type SpanAttributes = Record<string, string | number | boolean>;
+
 @Injectable()
 export class AssessmentService {
   private readonly logger = new Logger(AssessmentService.name);
+  private readonly tracer: Tracer = trace.getTracer(AssessmentService.name);
 
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
@@ -305,68 +309,131 @@ export class AssessmentService {
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    this.logger.log(
-      `Starting assessment creation userId=${request.userId}` +
-        formatLogFields({
-          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-          cityId: request.realEstateObject?.cityId,
-          districtId: request.realEstateObject?.districtId,
-        }),
+    return this.runInSpan(
+      'AssessmentService.createAssessment',
+      {
+        'app.operation': 'assessment.create',
+        'app.entity': 'Assessment',
+        'assessment.has_real_estate_object': hasRealEstateObjectInputData(request.realEstateObject),
+      },
+      async () => {
+        this.logger.log(
+          `Starting assessment creation userId=${request.userId}` +
+            formatLogFields({
+              hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+              cityId: request.realEstateObject?.cityId,
+              districtId: request.realEstateObject?.districtId,
+            }),
+        );
+
+        try {
+          const normalized = await this.runInSpan(
+            'AssessmentService.createAssessment.normalizeAndValidate',
+            {
+              'app.operation': 'assessment.create.normalize_and_validate',
+              'app.entity': 'Assessment',
+              'assessment.has_real_estate_object': hasRealEstateObjectInputData(
+                request.realEstateObject,
+              ),
+            },
+            async () => {
+              validateUuid(request.userId, 'user_id');
+
+              const realEstateObject = await this.normalizeRealEstateObjectGeography(
+                normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+              );
+              const address =
+                realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
+
+              return {
+                address,
+                description: normalizeOptionalText(request.description),
+                realEstateObject,
+              };
+            },
+          );
+
+          const assessment = await this.runInSpan(
+            'AssessmentRepository.createAssessment',
+            {
+              'app.operation': 'assessment.repository.create',
+              'app.entity': 'Assessment',
+              'db.operation': 'insert',
+            },
+            () =>
+              this.assessmentRepository.createAssessment({
+                userId: request.userId,
+                address: normalized.address,
+                description: normalized.description,
+                realEstateObject: normalized.realEstateObject,
+              }),
+          );
+          const snapshot = await this.runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot',
+            {
+              'app.operation': 'assessment.repository.snapshot',
+              'app.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+
+          this.metrics.recordAssessmentCreated('new');
+          await this.runInSpan(
+            'AuditService.record assessment.created',
+            {
+              'app.operation': 'audit.record',
+              'app.entity': 'Assessment',
+              'audit.event_type': 'assessment.created',
+            },
+            () =>
+              this.auditService.record({
+                actorUserId: getCurrentUser()?.sub ?? request.userId,
+                eventType: 'assessment.created',
+                targetType: 'Assessment',
+                targetId: assessment.id,
+                actionTitle: 'Создана заявка',
+                actionContext: 'Создание новой заявки на оценку',
+                targetTitle: `Заявка ${shortId(assessment.id)}`,
+                targetContext: snapshot.address,
+                after: toAuditSnapshot(snapshot),
+              }),
+          );
+          await this.runInSpan(
+            'NotificationService.createAdminAssessmentNotificationBestEffort',
+            {
+              'app.operation': 'notification.create_admin_assessment',
+              'app.entity': 'Assessment',
+              'notification.recipient_role': PrismaRole.Admin,
+            },
+            async () =>
+              this.createAdminAssessmentNotificationBestEffort({
+                title: 'Создана новая заявка на оценку',
+                message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+                  assessment.id,
+                )}: ${formatAssessmentAddress(snapshot.address)}.`,
+              }),
+          );
+
+          this.logger.log(
+            `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
+              formatLogFields({
+                status: assessment.status,
+                realEstateObjectId: assessment.realEstateObjectId,
+              }),
+          );
+
+          return create(CreateAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('createAssessment', error, {
+            userId: request.userId,
+            cityId: request.realEstateObject?.cityId,
+            districtId: request.realEstateObject?.districtId,
+          });
+          throw error;
+        }
+      },
     );
-
-    try {
-      validateUuid(request.userId, 'user_id');
-
-      const realEstateObject = await this.normalizeRealEstateObjectGeography(
-        normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
-      );
-      const address =
-        realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
-
-      const assessment = await this.assessmentRepository.createAssessment({
-        userId: request.userId,
-        address,
-        description: normalizeOptionalText(request.description),
-        realEstateObject,
-      });
-      const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-
-      this.metrics.recordAssessmentCreated('new');
-      await this.auditService.record({
-        actorUserId: getCurrentUser()?.sub ?? request.userId,
-        eventType: 'assessment.created',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Создана заявка',
-        actionContext: 'Создание новой заявки на оценку',
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: snapshot.address,
-        after: toAuditSnapshot(snapshot),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Создана новая заявка на оценку',
-        message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
-          assessment.id,
-        )}: ${formatAssessmentAddress(snapshot.address)}.`,
-      });
-
-      this.logger.log(
-        `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
-          formatLogFields({
-            status: assessment.status,
-            realEstateObjectId: assessment.realEstateObjectId,
-          }),
-      );
-
-      return create(CreateAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('createAssessment', error, {
-        userId: request.userId,
-        cityId: request.realEstateObject?.cityId,
-        districtId: request.realEstateObject?.districtId,
-      });
-      throw error;
-    }
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
@@ -689,6 +756,27 @@ export class AssessmentService {
     };
   }
 
+  private async runInSpan<T>(
+    name: string,
+    attributes: SpanAttributes,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const span = this.tracer.startSpan(name, { attributes });
+
+    return context.with(trace.setSpan(context.active(), span), async () => {
+      try {
+        const result = await action();
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (error) {
+        recordSpanFailure(span, error);
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
   private async normalizeRealEstateObjectGeography(
     realEstateObject: AssessmentRealEstateObjectData | undefined,
   ): Promise<AssessmentRealEstateObjectData | undefined> {
@@ -743,6 +831,31 @@ export class AssessmentService {
 
     return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
   }
+}
+
+function recordSpanFailure(span: Span, error: unknown): void {
+  if (error instanceof Error) {
+    span.recordException(error);
+  } else {
+    span.recordException(String(error));
+  }
+
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: spanErrorStatusMessage(error),
+  });
+}
+
+function spanErrorStatusMessage(error: unknown): string {
+  if (error instanceof ConnectError) {
+    return `ConnectError:${error.code}`;
+  }
+
+  if (error instanceof Error) {
+    return error.name;
+  }
+
+  return 'UnknownError';
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {

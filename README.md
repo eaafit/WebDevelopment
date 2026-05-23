@@ -22,13 +22,13 @@
 
 ### Запуск проекта
 
-- `docker-compose up` - запустить PostgreSQL, MinIO, Prometheus, Loki, Promtail и Grafana
+- `docker-compose up` - запустить PostgreSQL, MinIO, Prometheus, Loki, Promtail, Tempo и Grafana
 - `pnpm nx prune` - очистка nx
 - `docker system prune` - Глубокая чистка и освободить максимум места
 - `docker container prune` - Удаляет только остановленные контейнеры
 - `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
 - `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
-- `rm -rf node_modules` - удаление node_modules 
+- `rm -rf node_modules` - удаление node_modules
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
@@ -56,11 +56,13 @@
 
 ---
 
-### Логи в Grafana
+### Логи и трассировки в Grafana
 
-Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki** и **Promtail** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступен datasource **Loki** и дашборд **Container logs**.
+Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki**, **Promtail** и **Tempo** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступен источник данных **Loki** и дашборд **Container logs**.
 
-API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует payload и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
+API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует данные события и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
+
+Tempo доступен на `3200`, принимает OTLP/HTTP на `4318` и OTLP/gRPC на `4317`. Grafana получает источник данных **Tempo** через автоматическую настройку.
 
 В Explore можно использовать запрос:
 

@@ -32,10 +32,13 @@ type AuditLogRecord = PrismaTypes.AuditLogGetPayload<{
 }>;
 
 export interface CreateAuditLogInput {
-  userId: string;
+  userId?: string | null;
+  actorEmail?: string | null;
+  actorName?: string | null;
+  actorRole?: PrismaRole | null;
   actionType: string;
   entityName: string;
-  entityId: string;
+  entityId?: string | null;
   details?: Prisma.InputJsonValue;
   timestamp?: Date;
 }
@@ -97,10 +100,13 @@ export class AuditRepository {
   createAuditLog(input: CreateAuditLogInput): Promise<PrismaAuditLog> {
     return this.prisma.auditLog.create({
       data: {
-        userId: input.userId,
+        userId: input.userId ?? null,
+        ...(input.actorEmail !== undefined ? { actorEmail: input.actorEmail } : {}),
+        ...(input.actorName !== undefined ? { actorName: input.actorName } : {}),
+        ...(input.actorRole !== undefined ? { actorRole: input.actorRole } : {}),
         actionType: input.actionType,
         entityName: input.entityName,
-        entityId: input.entityId,
+        entityId: input.entityId ?? null,
         details: input.details,
         ...(input.timestamp ? { timestamp: input.timestamp } : {}),
       },
@@ -133,24 +139,40 @@ export class AuditRepository {
     }
 
     if (filters.actorQuery) {
-      where.user = {
-        is: {
-          OR: [
-            {
+      where.OR = [
+        {
+          user: {
+            is: {
               fullName: {
                 contains: filters.actorQuery,
                 mode: 'insensitive',
               },
             },
-            {
+          },
+        },
+        {
+          user: {
+            is: {
               email: {
                 contains: filters.actorQuery,
                 mode: 'insensitive',
               },
             },
-          ],
+          },
         },
-      };
+        {
+          actorName: {
+            contains: filters.actorQuery,
+            mode: 'insensitive',
+          },
+        },
+        {
+          actorEmail: {
+            contains: filters.actorQuery,
+            mode: 'insensitive',
+          },
+        },
+      ];
     }
 
     if (scope.kind === 'notary') {
@@ -187,12 +209,12 @@ export class AuditRepository {
       eventType: row.actionType,
       actionTitle: readString(details['actionTitle']) ?? humanizeActionType(row.actionType),
       actionContext: readString(details['actionContext']) ?? '',
-      actorUserId: row.userId,
-      actorName: row.user.fullName,
-      actorEmail: row.user.email,
-      actorRole: toRpcUserRole(row.user.role),
+      actorUserId: row.userId ?? '',
+      actorName: row.user?.fullName ?? row.actorName ?? row.actorEmail ?? 'Anonymous',
+      actorEmail: row.user?.email ?? row.actorEmail ?? '',
+      actorRole: toRpcUserRole(row.user?.role ?? row.actorRole),
       targetType: row.entityName,
-      targetId: row.entityId,
+      targetId: row.entityId ?? '',
       targetTitle: readString(details['targetTitle']) ?? buildTargetTitle(row),
       targetContext: readString(details['targetContext']) ?? buildTargetContext(row),
       ip: readString(details['ip']) ?? '',
@@ -229,6 +251,10 @@ function buildTargetTitle(row: AuditLogRecord): string {
       return `Платёж ${shortId(row.entityId)}`;
     case 'Subscription':
       return `Подписка ${shortId(row.entityId)}`;
+    case 'User':
+      return row.actorName ?? row.actorEmail ?? `User ${shortId(row.entityId)}`;
+    case 'Security':
+      return 'Security event';
     default:
       return `${row.entityName} ${shortId(row.entityId)}`;
   }
@@ -272,23 +298,42 @@ function humanizeActionType(value: string): string {
       return 'Чек платежа не открыт';
     case 'audit.exported':
       return 'Экспорт аудита';
+    case 'user.registered':
+      return 'Зарегистрирован пользователь';
+    case 'user.registration_failed':
+      return 'Ошибка регистрации';
+    case 'user.login_succeeded':
+      return 'Успешный вход';
+    case 'user.login_failed':
+      return 'Неудачная попытка входа';
+    case 'user.password_reset_requested':
+      return 'Запрошено восстановление пароля';
+    case 'user.password_reset_failed':
+      return 'Ошибка восстановления пароля';
+    case 'user.password_reset_completed':
+      return 'Пароль восстановлен';
     default:
       return value;
   }
 }
 
-function shortId(value: string): string {
+function shortId(value: string | null | undefined): string {
+  if (!value) {
+    return '#none';
+  }
+
   return value.length > 8 ? `#${value.slice(0, 8)}` : `#${value}`;
 }
 
-function toRpcUserRole(role: PrismaRole): RpcUserRole {
+function toRpcUserRole(role: PrismaRole | null | undefined): RpcUserRole {
   switch (role) {
     case PrismaRole.Admin:
       return RpcUserRole.ADMIN;
     case PrismaRole.Notary:
       return RpcUserRole.NOTARY;
     case PrismaRole.Applicant:
-    default:
       return RpcUserRole.APPLICANT;
+    default:
+      return RpcUserRole.UNSPECIFIED;
   }
 }
