@@ -14,6 +14,7 @@ import {
   GetFiasAddressHintsResponseSchema,
   GetFiasAddressItemByGuidResponseSchema,
   GetFiasAddressItemByIdResponseSchema,
+  LogApplicantAssessmentActionResponseSchema,
   RealEstateCondition,
   RealEstateObjectType,
   SearchFiasAddressItemsResponseSchema,
@@ -41,6 +42,8 @@ import {
   type ListCitiesResponse,
   type ListDistrictsRequest,
   type ListDistrictsResponse,
+  type LogApplicantAssessmentActionRequest,
+  type LogApplicantAssessmentActionResponse,
   type RealEstateObjectInput,
   type SearchFiasAddressByPartsRequest,
   type SearchFiasAddressByPartsResponse,
@@ -80,6 +83,13 @@ const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as co
 const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
 const FIAS_QUERY_MIN_LENGTH = 3;
 const FIAS_LIMITS = { default: 5, maximum: 10 } as const;
+const APPLICANT_ASSESSMENT_ACTIONS = new Set([
+  'status_loaded',
+  'status_load_failed',
+  'return_to_params',
+  'create_new_assessment',
+  'open_history',
+]);
 const YEAR_BUILT_LIMITS = {
   minimum: 1700,
   maximum: new Date().getFullYear() + 1,
@@ -115,17 +125,34 @@ export class AssessmentService {
     request: GetFiasAddressHintsRequest,
   ): Promise<GetFiasAddressHintsResponse> {
     const query = normalizeFiasQuery(request.query);
-    if (query.length < FIAS_QUERY_MIN_LENGTH) {
-      return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+    const limit = normalizeFiasLimit(request.limit);
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address hints request queryLength=${query.length} limit=${limit}`);
+
+    try {
+      if (query.length < FIAS_QUERY_MIN_LENGTH) {
+        this.logger.log(
+          `Completed FIAS address hints request hintsCount=0 durationMs=${Date.now() - startedAt}`,
+        );
+        return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+      }
+
+      const hints = await this.fiasProvider.getAddressHint({
+        query,
+        limit,
+        addressType: normalizeFiasAddressType(request.addressType),
+      });
+
+      this.logger.log(
+        `Completed FIAS address hints request hintsCount=${hints.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return create(GetFiasAddressHintsResponseSchema, { hints });
+    } catch (error) {
+      this.logFiasOperationFailure('address hints request', error, {
+        queryLength: query.length,
+      });
+      throw error;
     }
-
-    const hints = await this.fiasProvider.getAddressHint({
-      query,
-      limit: normalizeFiasLimit(request.limit),
-      addressType: normalizeFiasAddressType(request.addressType),
-    });
-
-    return create(GetFiasAddressHintsResponseSchema, { hints });
   }
 
   async searchFiasAddressItems(
@@ -148,12 +175,27 @@ export class AssessmentService {
   async getFiasAddressItemById(
     request: GetFiasAddressItemByIdRequest,
   ): Promise<GetFiasAddressItemByIdResponse> {
-    const item = await this.resolveFiasItemGeography(
-      await this.fiasProvider.getAddressItemById(
-        normalizeRequiredText(request.objectId, 'object_id'),
-      ),
-    );
-    return create(GetFiasAddressItemByIdResponseSchema, { item });
+    const objectId = normalizeRequiredText(request.objectId, 'object_id');
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address item lookup objectId=${objectId}`);
+
+    try {
+      const item = await this.resolveFiasItemGeography(
+        await this.fiasProvider.getAddressItemById(objectId),
+      );
+      this.logger.log(
+        `Completed FIAS address item lookup objectId=${objectId}` +
+          ` durationMs=${Date.now() - startedAt}` +
+          formatLogFields({
+            cityId: item.cityId,
+            districtId: item.districtId,
+          }),
+      );
+      return create(GetFiasAddressItemByIdResponseSchema, { item });
+    } catch (error) {
+      this.logFiasOperationFailure('address item lookup', error, { objectId });
+      throw error;
+    }
   }
 
   async getFiasAddressItemByGuid(
@@ -198,6 +240,30 @@ export class AssessmentService {
     });
 
     return create(SearchFiasAddressByPartsResponseSchema, { items });
+  }
+
+  logApplicantAssessmentAction(
+    request: LogApplicantAssessmentActionRequest,
+  ): LogApplicantAssessmentActionResponse {
+    const action = normalizeRequiredText(request.action, 'action');
+    if (!APPLICANT_ASSESSMENT_ACTIONS.has(action)) {
+      this.logger.warn(`Unsupported applicant assessment UI action action=${action}`);
+      throw new ConnectError(
+        'action must be a supported applicant assessment UI action',
+        Code.InvalidArgument,
+      );
+    }
+
+    this.logger.log(
+      `Applicant assessment UI action action=${action}` +
+        formatLogFields({
+          assessmentId: normalizeOptionalText(request.assessmentId),
+          status: normalizeOptionalText(request.status),
+          targetRoute: normalizeOptionalText(request.targetRoute),
+        }),
+    );
+
+    return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
   }
 
   async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
@@ -626,6 +692,25 @@ export class AssessmentService {
 
     this.logger.error(
       `Assessment operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
+      errorStack(error),
+    );
+  }
+
+  private logFiasOperationFailure(
+    operation: string,
+    error: unknown,
+    context: Record<string, unknown>,
+  ): void {
+    const contextFields = formatLogFields(context);
+    if (isExpectedOperationError(error)) {
+      this.logger.warn(
+        `FIAS ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.logger.error(
+      `FIAS ${operation} failed${contextFields}: ${errorMessage(error)}`,
       errorStack(error),
     );
   }

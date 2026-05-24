@@ -20,6 +20,7 @@ service AssessmentService {
   rpc GetFiasAddressItemByGuid(GetFiasAddressItemByGuidRequest) returns (GetFiasAddressItemByGuidResponse);
   rpc GetFiasAddressDetails(GetFiasAddressDetailsRequest) returns (GetFiasAddressDetailsResponse);
   rpc SearchFiasAddressByParts(SearchFiasAddressByPartsRequest) returns (SearchFiasAddressByPartsResponse);
+  rpc LogApplicantAssessmentAction(LogApplicantAssessmentActionRequest) returns (LogApplicantAssessmentActionResponse);
 
   // Смена статусов (Specific operations)
   rpc VerifyAssessment(VerifyAssessmentRequest) returns (VerifyAssessmentResponse); // Нотариус берет в работу
@@ -287,6 +288,17 @@ message SearchFiasAddressByPartsRequest {
 
 message SearchFiasAddressByPartsResponse {
   repeated FiasAddressItem items = 1;
+}
+
+message LogApplicantAssessmentActionRequest {
+  string action = 1;
+  optional string assessment_id = 2;
+  optional string status = 3;
+  optional string target_route = 4;
+}
+
+message LogApplicantAssessmentActionResponse {
+  bool ok = 1;
 }
 
 message VerifyAssessmentRequest {

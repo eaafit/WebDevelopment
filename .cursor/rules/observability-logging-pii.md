@@ -17,6 +17,7 @@
 
 ### Источники в репозитории
 
+- `.cursor/rules/logging-and-audit-technology.md` — трансфер: ops‑логи (Pino), продуктовый аудит (`AuditService`), контекст запроса, чеклист
 - `docs/issues/issue-32-nibylitsin-structured-logging.md`
 - `docs/issues/issue-33-nibylitsin-loki-grafana.md`
 - `docs/issues/issue-22-nibylitsin-audit-log.md`

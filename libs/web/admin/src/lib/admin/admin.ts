@@ -1,6 +1,6 @@
-import { Component, ViewEncapsulation, inject } from '@angular/core';
+import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
 
 const ADMIN_MENU = [
@@ -34,14 +34,21 @@ const ADMIN_MENU = [
   styleUrl: './admin.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Admin {
+export class Admin implements OnInit, OnDestroy {
+  private readonly notificationCounter = inject(NotificationCounterService);
+  private readonly paymentsApi = inject(AdminPaymentsApiService);
+
   menuItems = ADMIN_MENU;
   pageTitle = 'Панель администратора';
   userLabel = 'Администратор';
+  unreadNotifications = this.notificationCounter.unreadCount;
 
-  private readonly paymentsApi = inject(AdminPaymentsApiService);
-
-  constructor() {
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
     this.paymentsApi.preload();
+  }
+
+  ngOnDestroy(): void {
+    this.notificationCounter.stopPolling();
   }
 }
