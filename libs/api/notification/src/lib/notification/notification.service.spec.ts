@@ -10,6 +10,13 @@ import {
 } from '@notary-portal/api-contracts';
 import { NotificationService } from './notification.service';
 
+jest.mock('@internal/auth-shared', () => ({
+  getCurrentUser: jest.fn(),
+  requireAuth: jest.fn(),
+}));
+
+import { requireAuth } from '@internal/auth-shared';
+
 describe('NotificationService', () => {
   const repository = {
     createNotification: jest.fn(),
@@ -23,6 +30,9 @@ describe('NotificationService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (requireAuth as jest.Mock).mockReturnValue({
+      sub: '11111111-1111-4111-a111-111111111111',
+    });
     repository.createNotification.mockResolvedValue(
       create(NotificationSchema, {
         id: 'notification-1',
