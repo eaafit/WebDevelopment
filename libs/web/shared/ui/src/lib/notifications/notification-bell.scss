@@ -1,0 +1,101 @@
+.notification-bell {
+  position: relative;
+
+  &__trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+    background-color: var(--bg-secondary, #f3f4f6);
+  }
+
+  &__badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+    color: #fff;
+    background: var(--primary, #2563eb);
+  }
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: none;
+    background: transparent;
+    cursor: default;
+  }
+
+  &__panel {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    width: min(320px, 90vw);
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 10px 25px rgb(0 0 0 / 12%);
+  }
+
+  &__panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+  }
+
+  &__close {
+    border: none;
+    background: transparent;
+    font-size: 1.25rem;
+    cursor: pointer;
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item--unread .notification-bell__title {
+    font-weight: 600;
+  }
+
+  &__title {
+    display: block;
+    font-size: 0.85rem;
+  }
+
+  &__meta {
+    font-size: 0.75rem;
+    color: #6b7280;
+  }
+
+  &__empty {
+    margin: 0.5rem 0;
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  &__all {
+    display: block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--primary, #2563eb);
+  }
+}

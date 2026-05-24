@@ -24,10 +24,34 @@ export type PromoValidationFlow = 'preview' | 'payment_create';
 export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
+export type FailedAccessMetricReason =
+  | 'auth_denied'
+  | 'failed_login'
+  | 'scan_miss'
+  | 'rate_limited'
+  | 'client_error';
+export type FailedAccessMetricPathGroup =
+  | 'auth_login'
+  | 'payment_receipt'
+  | 'document_content'
+  | 'connect_rpc'
+  | 'api'
+  | 'other';
+
+export type NewsletterCampaignMetricStatus = 'sending' | 'sent' | 'partial_failed' | 'failed';
+export type NewsletterDeliveryOutcome = 'sent' | 'failed';
+export type NewsletterAudienceMetricType = 'all' | 'role' | 'selected';
 
 export interface BillingPaymentMetricContext {
   actor: BillingPaymentActor;
   scenario: BillingPaymentScenario;
+}
+
+export interface FailedAccessMetricLabels {
+  method: string;
+  statusCode: string;
+  reason: FailedAccessMetricReason;
+  pathGroup: FailedAccessMetricPathGroup;
 }
 
 @Injectable()
@@ -43,9 +67,15 @@ export class MetricsService {
   private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
   private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
+  private readonly failedAccessTotal: Counter<
+    'method' | 'status_code' | 'reason' | 'path_group'
+  >;
   private readonly usersRegistered: Counter<string>;
   private readonly auditEventsTotal: Counter<string>;
   private readonly reportsGenerated: Counter<string>;
+  private readonly newsletterCampaignsTotal: Counter<'status' | 'audience_type'>;
+  private readonly newsletterDeliveriesTotal: Counter<'outcome'>;
+  private readonly newsletterRecipientsTotal: Counter<'audience_type'>;
 
   constructor() {
     collectDefaultMetrics({ register: this.register, prefix: PREFIX });
@@ -112,6 +142,14 @@ export class MetricsService {
       registers: [this.register],
     });
 
+    this.failedAccessTotal = new Counter({
+      name: `${PREFIX}failed_access_total`,
+      help:
+        'Total number of failed HTTP access attempts by method, status code, reason, and low-cardinality path group',
+      labelNames: ['method', 'status_code', 'reason', 'path_group'],
+      registers: [this.register],
+    });
+
     this.usersRegistered = new Counter({
       name: `${PREFIX}users_registered_total`,
       help: 'Total number of user registrations',
@@ -128,6 +166,27 @@ export class MetricsService {
     this.reportsGenerated = new Counter({
       name: `${PREFIX}reports_generated_total`,
       help: 'Total number of reports generated',
+      registers: [this.register],
+    });
+
+    this.newsletterCampaignsTotal = new Counter({
+      name: `${PREFIX}newsletter_campaigns_total`,
+      help: 'Total number of newsletter campaigns by status and audience type',
+      labelNames: ['status', 'audience_type'],
+      registers: [this.register],
+    });
+
+    this.newsletterDeliveriesTotal = new Counter({
+      name: `${PREFIX}newsletter_deliveries_total`,
+      help: 'Total number of newsletter deliveries by outcome',
+      labelNames: ['outcome'],
+      registers: [this.register],
+    });
+
+    this.newsletterRecipientsTotal = new Counter({
+      name: `${PREFIX}newsletter_recipients_total`,
+      help: 'Total number of newsletter recipients targeted by audience type',
+      labelNames: ['audience_type'],
       registers: [this.register],
     });
   }
@@ -195,6 +254,15 @@ export class MetricsService {
     this.paymentHistoryRequestsTotal.inc({ scope, result });
   }
 
+  recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
+    this.failedAccessTotal.inc({
+      method: labels.method,
+      status_code: labels.statusCode,
+      reason: labels.reason,
+      path_group: labels.pathGroup,
+    });
+  }
+
   recordUserRegistered(): void {
     this.usersRegistered.inc();
   }
@@ -205,5 +273,36 @@ export class MetricsService {
 
   recordReportGenerated(): void {
     this.reportsGenerated.inc();
+  }
+
+  recordNewsletterCampaignStarted(
+    audienceType: NewsletterAudienceMetricType,
+    recipientsCount: number,
+  ): void {
+    try {
+      this.newsletterCampaignsTotal.inc({ status: 'sending', audience_type: audienceType });
+      this.newsletterRecipientsTotal.inc({ audience_type: audienceType }, recipientsCount);
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNewsletterDelivery(outcome: NewsletterDeliveryOutcome): void {
+    try {
+      this.newsletterDeliveriesTotal.inc({ outcome });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNewsletterCampaignCompleted(
+    audienceType: NewsletterAudienceMetricType,
+    status: NewsletterCampaignMetricStatus,
+  ): void {
+    try {
+      this.newsletterCampaignsTotal.inc({ status, audience_type: audienceType });
+    } catch {
+      // best-effort
+    }
   }
 }

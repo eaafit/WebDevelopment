@@ -400,6 +400,9 @@ importers:
         specifier: ^2.3.0
         version: 2.8.1
     devDependencies:
+      dotenv:
+        specifier: ^17.4.2
+        version: 17.4.2
       dotenv-cli:
         specifier: ^11.0.0
         version: 11.0.0
@@ -16946,7 +16949,7 @@ snapshots:
   dotenv-cli@11.0.0:
     dependencies:
       cross-spawn: 7.0.6
-      dotenv: 17.3.1
+      dotenv: 17.4.2
       dotenv-expand: 12.0.3
       minimist: 1.2.8
 
