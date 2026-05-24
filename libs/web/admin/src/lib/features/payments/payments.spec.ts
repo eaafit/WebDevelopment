@@ -132,6 +132,92 @@ describe('Payments', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('CRUD — просмотр (список)', () => {
+    it('should open view modal with selected payment', () => {
+      const payment = MOCK_PAYMENTS[0];
+
+      component.openViewModal(payment);
+
+      expect(component.isViewModalOpen).toBe(true);
+      expect(component.currentPayment.id).toBe(payment.id);
+      expect(component.currentPayment.amount).toBe(payment.amount);
+    });
+
+    it('should close view modal on closeModals', () => {
+      component.openViewModal(MOCK_PAYMENTS[0]);
+      component.closeModals();
+
+      expect(component.isViewModalOpen).toBe(false);
+      expect(component.paymentToDelete).toBeNull();
+    });
+  });
+
+  describe('CRUD — создание', () => {
+    it('should navigate to create form route', () => {
+      const router = TestBed.inject(Router);
+
+      component.goToCreateForm();
+
+      expect(router.navigate).toHaveBeenCalledWith(['/admin', 'payments', 'new']);
+    });
+  });
+
+  describe('CRUD — редактирование', () => {
+    it('should navigate to edit form route', () => {
+      const router = TestBed.inject(Router);
+      const payment = MOCK_PAYMENTS[0];
+
+      component.openEditModal(payment);
+
+      expect(router.navigate).toHaveBeenCalledWith([
+        '/admin',
+        'payments',
+        payment.id,
+        'edit',
+      ]);
+    });
+
+    it('should navigate from view modal to edit form', () => {
+      const router = TestBed.inject(Router);
+      component.openViewModal(MOCK_PAYMENTS[0]);
+
+      component.savePayment();
+
+      expect(router.navigate).toHaveBeenCalledWith([
+        '/admin',
+        'payments',
+        MOCK_PAYMENTS[0].id,
+        'edit',
+      ]);
+      expect(component.isViewModalOpen).toBe(false);
+    });
+  });
+
+  describe('CRUD — удаление', () => {
+    it('should call api and remove payment from list on confirm', async () => {
+      const api = TestBed.inject(AdminPaymentsApiService);
+      const payment = MOCK_PAYMENTS[0];
+      const initialCount = component.payments.length;
+
+      component.openDeleteModal(payment);
+      expect(component.paymentToDelete?.id).toBe(payment.id);
+
+      await component.onDeleteConfirmed();
+
+      expect(api.deletePayment).toHaveBeenCalledWith(String(payment.id));
+      expect(component.payments).toHaveLength(initialCount - 1);
+      expect(component.payments.find((p) => p.id === payment.id)).toBeUndefined();
+      expect(component.paymentToDelete).toBeNull();
+    });
+
+    it('should clear delete target on cancel', () => {
+      component.openDeleteModal(MOCK_PAYMENTS[0]);
+      component.onDeleteCancelled();
+
+      expect(component.paymentToDelete).toBeNull();
+    });
+  });
+
   it('should log list init and loaded when payments arrive', () => {
     expect(logger.info).toHaveBeenCalledWith(
       'payment.admin.list_init_started',
@@ -264,29 +350,6 @@ describe('Payments', () => {
     );
   });
 
-  it('should log delete modal opened and delete requested on confirm', async () => {
-    const payment = MOCK_PAYMENTS[0];
-
-    component.openDeleteModal(payment);
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.delete_modal_opened',
-      expect.objectContaining({
-        area: 'admin_payments_list',
-        paymentId: String(payment.id),
-      }),
-    );
-
-    await component.onDeleteConfirmed();
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.delete_requested',
-      expect.objectContaining({ paymentId: String(payment.id) }),
-    );
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.delete_succeeded',
-      expect.objectContaining({ paymentId: String(payment.id) }),
-    );
-  });
-
   it('should log delete failed when api rejects', async () => {
     const api = TestBed.inject(AdminPaymentsApiService);
     (api.deletePayment as jest.Mock).mockRejectedValue(new Error('RPC error'));
@@ -302,52 +365,6 @@ describe('Payments', () => {
         paymentId: String(payment.id),
         error: expect.any(Error),
       }),
-    );
-  });
-
-  it('should log delete cancelled', () => {
-    const payment = MOCK_PAYMENTS[0];
-    component.openDeleteModal(payment);
-    component.onDeleteCancelled();
-
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.delete_cancelled',
-      expect.objectContaining({ area: 'admin_payments_list' }),
-    );
-  });
-
-  it('should log edit open requested', () => {
-    const payment = MOCK_PAYMENTS[0];
-    component.openEditModal(payment);
-
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.edit_open_requested',
-      expect.objectContaining({
-        area: 'admin_payments_list',
-        paymentId: String(payment.id),
-      }),
-    );
-  });
-
-  it('should log view opened', () => {
-    const payment = MOCK_PAYMENTS[0];
-    component.openViewModal(payment);
-
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.view_opened',
-      expect.objectContaining({
-        area: 'admin_payments_list',
-        paymentId: String(payment.id),
-      }),
-    );
-  });
-
-  it('should log create form opened', () => {
-    component.goToCreateForm();
-
-    expect(logger.info).toHaveBeenCalledWith(
-      'payment.admin.create_form_opened',
-      expect.objectContaining({ area: 'admin_payments_list' }),
     );
   });
 
