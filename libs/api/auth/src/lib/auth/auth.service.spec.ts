@@ -1,8 +1,11 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
+import { Logger } from '@nestjs/common';
+import { Role as PrismaRole } from '@internal/prisma-client';
 import {
   ForgotPasswordRequestSchema,
   LoginRequestSchema,
+  NotificationType,
   RegisterRequestSchema,
   ResetPasswordRequestSchema,
   UserRole,
@@ -46,6 +49,9 @@ describe('AuthService', () => {
   const auditService = {
     record: jest.fn(),
   };
+  const notificationService = {
+    createInternalNotificationsForRole: jest.fn(),
+  };
 
   let service: AuthService;
 
@@ -59,6 +65,7 @@ describe('AuthService', () => {
       tokenService as never,
       metrics as never,
       auditService as never,
+      notificationService as never,
       null,
       null,
     );
@@ -186,6 +193,65 @@ describe('AuthService', () => {
         }),
       }),
     );
+    expect(notificationService.createInternalNotificationsForRole).toHaveBeenCalledWith(
+      PrismaRole.Admin,
+      expect.objectContaining({
+        title: 'Новый пользователь зарегистрировался',
+        message: expect.stringContaining('New User создал аккаунт (Заявитель)'),
+        type: NotificationType.IN_APP,
+      }),
+    );
+    expect(
+      notificationService.createInternalNotificationsForRole.mock.calls[0][1],
+    ).not.toHaveProperty('category');
+  });
+
+  it('keeps registration successful when admin notification creation fails', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const user: User = create(UserSchema, {
+      id: 'user-3',
+      email: 'new-notary@example.com',
+      fullName: '',
+      role: UserRole.NOTARY,
+      isActive: true,
+    });
+
+    authRepository.findByEmail.mockResolvedValue(null);
+    authRepository.toPrismaRole.mockReturnValue('Notary');
+    authRepository.createUser.mockResolvedValue(user);
+    passwordService.hash.mockResolvedValue('password-hash');
+    tokenService.generateTokenPair.mockReturnValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshExpiresAt: new Date('2026-04-12T00:00:00.000Z'),
+    });
+    refreshTokenRepository.save.mockResolvedValue(undefined);
+    notificationService.createInternalNotificationsForRole.mockRejectedValue(
+      new Error('notification failed'),
+    );
+
+    const result = await service.register(
+      create(RegisterRequestSchema, {
+        email: 'new-notary@example.com',
+        password: 'Password123',
+        fullName: 'New Notary',
+        role: UserRole.NOTARY,
+      }),
+    );
+
+    expect(result.result?.accessToken).toBe('access-token');
+    expect(result.result?.refreshToken).toBe('refresh-token');
+    expect(notificationService.createInternalNotificationsForRole).toHaveBeenCalledWith(
+      PrismaRole.Admin,
+      expect.objectContaining({
+        message: expect.stringContaining('new-notary@example.com создал аккаунт (Нотариус)'),
+      }),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to create admin registration notification'),
+    );
+
+    warnSpy.mockRestore();
   });
 
   it('rejects invalid credentials when password comparison fails', async () => {
@@ -258,6 +324,7 @@ describe('AuthService', () => {
     });
 
     expect(authRepository.createUser).not.toHaveBeenCalled();
+    expect(notificationService.createInternalNotificationsForRole).not.toHaveBeenCalled();
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'new-user@example.com',

@@ -1,14 +1,16 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
 import { MetricsService } from '@internal/metrics';
+import { NotificationService } from '@internal/notification';
 import { Prisma, Role as PrismaRole } from '@internal/prisma-client';
 import {
   AuthResultSchema,
   ForgotPasswordResponseSchema,
   LoginResponseSchema,
   LogoutResponseSchema,
+  NotificationType as RpcNotificationType,
   RegisterResponseSchema,
   RefreshTokenResponseSchema,
   ResetPasswordResponseSchema,
@@ -64,8 +66,31 @@ function roleLabelForRpc(role: RpcUserRole): string {
   }
 }
 
+function toRpcRole(
+  role: RpcUserRole | PrismaRole | string | number | null | undefined,
+): RpcUserRole {
+  switch (String(role ?? '')) {
+    case '1':
+    case 'USER_ROLE_APPLICANT':
+    case PrismaRole.Applicant:
+      return RpcUserRole.APPLICANT;
+    case '2':
+    case 'USER_ROLE_NOTARY':
+    case PrismaRole.Notary:
+      return RpcUserRole.NOTARY;
+    case '3':
+    case 'USER_ROLE_ADMIN':
+    case PrismaRole.Admin:
+      return RpcUserRole.ADMIN;
+    default:
+      return RpcUserRole.UNSPECIFIED;
+  }
+}
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly authRepository: AuthRepository,
     private readonly refreshTokenRepository: RefreshTokenRepository,
@@ -74,6 +99,7 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly metrics: MetricsService,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
     @Optional()
     @Inject(PASSWORD_RESET_MAILER)
     private readonly passwordResetMailer: PasswordResetMailer | null = null,
@@ -108,7 +134,12 @@ export class AuthService {
 
     const existing = await this.authRepository.findByEmail(email);
     if (existing) {
-      await this.recordRegistrationFailure(email, 'email_already_registered', request.role, existing);
+      await this.recordRegistrationFailure(
+        email,
+        'email_already_registered',
+        request.role,
+        existing,
+      );
       throw new ConnectError('email already registered', Code.AlreadyExists);
     }
 
@@ -131,6 +162,7 @@ export class AuthService {
 
     this.metrics.recordUserRegistered();
     await this.recordRegistered(user);
+    await this.notifyAdminsAboutRegistrationBestEffort(user);
 
     if (this.transactionalMailer) {
       const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
@@ -334,6 +366,19 @@ export class AuthService {
     });
   }
 
+  private async notifyAdminsAboutRegistrationBestEffort(user: AuthAuditUser): Promise<void> {
+    try {
+      const displayName = user.fullName?.trim() || user.email;
+      await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+        title: 'Новый пользователь зарегистрировался',
+        message: `${displayName} создал аккаунт (${roleLabelForRpc(toRpcRole(user.role))}). Проверьте профиль пользователя.`,
+        type: RpcNotificationType.IN_APP,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to create admin registration notification: ${errorMessage(error)}`);
+    }
+  }
+
   private async recordRegistrationFailure(
     email: string,
     reason: string,
@@ -408,10 +453,7 @@ export class AuthService {
     });
   }
 
-  private async recordPasswordResetRequested(
-    user: AuthAuditUser,
-    expiresAt: Date,
-  ): Promise<void> {
+  private async recordPasswordResetRequested(user: AuthAuditUser, expiresAt: Date): Promise<void> {
     await this.auditService.record({
       actorEmail: user.email,
       actorName: user.fullName,
@@ -552,4 +594,8 @@ function reasonLabel(reason: string): string {
     default:
       return reason;
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
