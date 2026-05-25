@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
 import { Login } from './login';
 
@@ -8,9 +9,11 @@ describe('Login', () => {
   let component: Login;
   let fixture: ComponentFixture<Login>;
   let login: jest.Mock;
+  let logger: { warn: jest.Mock };
 
   beforeEach(async () => {
     login = jest.fn();
+    logger = { warn: jest.fn() };
 
     await TestBed.configureTestingModule({
       imports: [Login],
@@ -23,6 +26,10 @@ describe('Login', () => {
             error: signal<string | null>(null).asReadonly(),
             login,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -51,9 +58,7 @@ describe('Login', () => {
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
-    const link = root.querySelector<HTMLAnchorElement>(
-      '[data-testid="register-link"]',
-    );
+    const link = root.querySelector<HTMLAnchorElement>('[data-testid="register-link"]');
 
     expect(link).not.toBeNull();
     expect(link?.getAttribute('href')).toContain('/auth/register');
@@ -64,9 +69,7 @@ describe('Login', () => {
 
     const root = fixture.nativeElement as HTMLElement;
     const input = root.querySelector<HTMLInputElement>('#password');
-    const button = root.querySelector<HTMLButtonElement>(
-      '.login__password-toggle',
-    );
+    const button = root.querySelector<HTMLButtonElement>('.login__password-toggle');
 
     expect(input?.type).toBe('password');
 
@@ -88,7 +91,31 @@ describe('Login', () => {
     await component.onLogin();
 
     expect(login).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'auth.login.validation_failed',
+      expect.objectContaining({
+        reason: 'invalid_email',
+        outcome: 'failed',
+      }),
+    );
     expect(component.validationError()).toBe('Укажите корректный email.');
+  });
+
+  it('should log password validation without storing the password', async () => {
+    component.email = 'user@example.com';
+    component.password = '';
+
+    await component.onLogin();
+
+    expect(login).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'auth.login.validation_failed',
+      expect.objectContaining({
+        emailDomain: 'example.com',
+        reason: 'password_required',
+      }),
+    );
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('Password123');
   });
 
   it('should fill the form and mark credentials as copied', async () => {
