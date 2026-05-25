@@ -10,7 +10,7 @@ describe('resolveRpcBaseUrl', () => {
     expect(resolveRpcBaseUrl(undefined)).toBe('http://localhost:3000');
   });
 
-  it('points Angular dev-server traffic at the API port', () => {
+  it('keeps localhost:4200 on the portal origin', () => {
     expect(
       resolveRpcBaseUrl({
         protocol: 'http:',
@@ -18,7 +18,7 @@ describe('resolveRpcBaseUrl', () => {
         port: '4200',
         origin: 'http://localhost:4200',
       }),
-    ).toBe('http://localhost:3000');
+    ).toBe('http://localhost:4200');
   });
 
   it('keeps localhost:3000 when UI is already served from the API port', () => {
