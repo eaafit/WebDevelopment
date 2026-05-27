@@ -177,6 +177,10 @@ describe('AuthService', () => {
         phoneNumber: '+7999000001',
       }),
     );
+    expect(metrics.recordUserRegistered).toHaveBeenCalledTimes(1);
+    expect(authRepository.createUser.mock.invocationCallOrder[0]).toBeLessThan(
+      metrics.recordUserRegistered.mock.invocationCallOrder[0],
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-2',
@@ -324,6 +328,7 @@ describe('AuthService', () => {
     });
 
     expect(authRepository.createUser).not.toHaveBeenCalled();
+    expect(metrics.recordUserRegistered).not.toHaveBeenCalled();
     expect(notificationService.createInternalNotificationsForRole).not.toHaveBeenCalled();
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
