@@ -19,8 +19,14 @@
         <ul class="notification-bell__list">
           @for (item of preview(); track item.id) {
             <li [class.notification-bell__item--unread]="item.isUnread">
+              <button
+                type="button"
+                class="notification-bell__item-button"
+                (click)="markAsRead(item)"
+                [attr.aria-label]="'Отметить уведомление прочитанным: ' + item.title">
               <span class="notification-bell__title">{{ item.title }}</span>
               <span class="notification-bell__meta">{{ relativeTime(item.createdAt) }}</span>
+              </button>
             </li>
           }
         </ul>

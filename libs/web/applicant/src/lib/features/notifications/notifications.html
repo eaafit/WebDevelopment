@@ -11,6 +11,15 @@
 
     <div class="role-notifications__actions">
       <div class="role-notifications__action-row">
+        <a routerLink="settings" class="role-notifications__btn role-notifications__btn--ghost" (click)="logSettingsClick()">
+          Настройки
+        </a>
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--ghost"
+          (click)="reloadNotifications()">
+          Обновить
+        </button>
         <button
           type="button"
           class="role-notifications__btn role-notifications__btn--secondary"

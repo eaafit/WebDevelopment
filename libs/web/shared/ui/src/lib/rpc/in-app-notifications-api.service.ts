@@ -19,7 +19,7 @@ export class InAppNotificationsApiService {
   private readonly tokenStore = inject(TokenStore);
 
   async listRecent(limit = 5): Promise<{ notifications: Notification[]; unreadCount: number }> {
-    return this.listMine({ page: 1, limit, unreadOnly: false });
+    return this.listMine({ page: 1, limit, unreadOnly: true });
   }
 
   async listMine(params?: {
