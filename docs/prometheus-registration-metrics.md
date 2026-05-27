@@ -41,3 +41,61 @@ targets: ['api:3000']
 - `host.docker.internal:3000` — API запущен на хосте, Prometheus в Docker.
 - `api:3000` — API и Prometheus запущены в Docker и находятся в одной сети.
 - Если target выбран неправильно, регистрация в приложении будет работать, но Grafana останется пустой, потому что Prometheus не сможет собрать `/metrics`.
+
+## Как проверить регистрацию на защите
+
+Цепочка должна выглядеть так:
+
+```text
+пользователь зарегистрировался -> backend увеличил Counter -> Prometheus собрал /metrics -> Grafana показала значение
+```
+
+1. Запустите инфраструктуру мониторинга:
+
+   ```bash
+   docker-compose up
+   ```
+
+2. Запустите API так, чтобы Prometheus видел его на `host.docker.internal:3000`:
+
+   ```bash
+   pnpm nx serve api
+   ```
+
+3. Откройте Prometheus:
+
+   ```text
+   http://localhost:9090
+   ```
+
+4. Выполните запрос и запомните текущее значение:
+
+   ```promql
+   notary_users_registered_total
+   ```
+
+5. Зарегистрируйте нового пользователя на сайте.
+
+6. Снова выполните запрос в Prometheus:
+
+   ```promql
+   notary_users_registered_total
+   ```
+
+   Значение должно увеличиться на `1`.
+
+7. Проверьте запрос за последние 7 дней:
+
+   ```promql
+   increase(notary_users_registered_total[7d])
+   ```
+
+8. Откройте Grafana:
+
+   ```text
+   http://localhost:3001
+   ```
+
+9. Перейдите в dashboard `Business metrics` и найдите панель `User registrations`.
+
+Панель показывает результат `increase(notary_users_registered_total[7d])`. Если регистраций мало, значение будет зелёным; при достижении порогов `2` и `3` цвет меняется на жёлтый и красный.
