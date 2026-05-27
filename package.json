@@ -5,7 +5,11 @@
   "scripts": {
     "lint-staged": "lint-staged",
     "prepare": "husky",
-    "db:seed": "cd libs/api/shared/prisma && prisma db seed"
+    "db:seed": "cd libs/api/shared/prisma; prisma db seed",
+    "dev:web": "nx serve web",
+    "dev:api": "nx serve api",
+    "dev": "nx run-many -t serve -p api web --parallel",
+    "test:notifications": "npx ts-node --project scripts/tsconfig.json scripts/trigger-assessment-for-notifications.ts"
   },
   "private": true,
   "devDependencies": {
@@ -89,6 +93,12 @@
     "@nestjs/common": "^11.1.14",
     "@nestjs/core": "^11.1.14",
     "@nestjs/platform-express": "^11.1.14",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "0.76.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.218.0",
+    "@opentelemetry/resources": "2.7.1",
+    "@opentelemetry/sdk-node": "0.218.0",
+    "@opentelemetry/semantic-conventions": "1.41.1",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.1",
     "axios": "^1.13.2",

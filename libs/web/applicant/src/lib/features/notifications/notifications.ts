@@ -1,10 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  NotificationCenterApiService,
+  TokenStore,
+  type NotificationCenterChannel,
+  type NotificationCenterDomainType,
+  type NotificationCenterItem,
+} from '@notary-portal/ui';
 
 /** У заявителя в UI только «отправлено» и «прочитано» */
 export type UserNotificationLifecycle = 'sent' | 'read';
-type NotificationChannel = 'in-app' | 'email' | 'push';
-type NotificationType = 'application' | 'document' | 'payment' | 'system';
+type NotificationChannel = NotificationCenterChannel;
+type NotificationType = NotificationCenterDomainType;
 
 interface ApplicantNotification {
   id: string;
@@ -31,79 +39,6 @@ const DEFAULT_FILTERS: ApplicantNotificationFilters = {
   lifecycle: 'all',
 };
 
-const MOCK_NOTIFICATIONS: ApplicantNotification[] = [
-  {
-    id: 'a-1',
-    title: 'Заявка #1244 принята в работу',
-    description: 'Нотариус начал проверку документов по вашей заявке на оценку наследства.',
-    createdAt: '2026-03-10T10:24:00+03:00',
-    relativeTime: '10 мин назад',
-    type: 'application',
-    channel: 'in-app',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'a-2',
-    title: 'Требуется дополнительный документ',
-    description: 'Загрузите копию свидетельства о праве на наследство в раздел «Документы».',
-    createdAt: '2026-03-10T09:40:00+03:00',
-    relativeTime: '45 мин назад',
-    type: 'document',
-    channel: 'in-app',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'a-3',
-    title: 'Отчёт по оценке готов',
-    description: 'Результаты оценки наследственного имущества доступны для скачивания в PDF.',
-    createdAt: '2026-03-09T18:10:00+03:00',
-    relativeTime: 'вчера',
-    type: 'document',
-    channel: 'email',
-    lifecycle: 'read',
-  },
-  {
-    id: 'a-4',
-    title: 'Платёж успешно проведён',
-    description: 'Оплата по счёту №5110 за услугу оценки прошла успешно.',
-    createdAt: '2026-03-08T12:20:00+03:00',
-    relativeTime: '2 дн назад',
-    type: 'payment',
-    channel: 'email',
-    lifecycle: 'read',
-  },
-  {
-    id: 'a-5',
-    title: 'Напоминание о незавершённой заявке',
-    description: 'Вы начали заполнять заявку #1250, но не отправили её. Продолжите оформление.',
-    createdAt: '2026-03-07T19:30:00+03:00',
-    relativeTime: '3 дн назад',
-    type: 'application',
-    channel: 'in-app',
-    lifecycle: 'sent',
-  },
-  {
-    id: 'a-6',
-    title: 'Изменена дата встречи у нотариуса',
-    description: 'Назначенная встреча по заявке #1198 перенесена на 15 марта в 14:00.',
-    createdAt: '2026-03-06T11:05:00+03:00',
-    relativeTime: '4 дн назад',
-    type: 'system',
-    channel: 'email',
-    lifecycle: 'read',
-  },
-  {
-    id: 'a-7',
-    title: 'Новый ответ в чате поддержки',
-    description: 'Специалист поддержки ответил на ваш вопрос по загрузке документов.',
-    createdAt: '2026-03-10T08:55:00+03:00',
-    relativeTime: '1 ч назад',
-    type: 'system',
-    channel: 'push',
-    lifecycle: 'sent',
-  },
-];
-
 @Component({
   selector: 'lib-applicant-notifications',
   standalone: true,
@@ -113,8 +48,13 @@ const MOCK_NOTIFICATIONS: ApplicantNotification[] = [
 })
 export class ApplicantNotifications {
   protected readonly filters = signal<ApplicantNotificationFilters>({ ...DEFAULT_FILTERS });
+  protected readonly notifications = signal<ApplicantNotification[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly error = signal<string | null>(null);
 
-  protected readonly notifications = signal<ApplicantNotification[]>([...MOCK_NOTIFICATIONS]);
+  private readonly api = inject(NotificationCenterApiService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly tokenStore = inject(TokenStore);
 
   protected readonly filtered = computed(() => {
     const { type, channel, lifecycle } = this.filters();
@@ -131,6 +71,10 @@ export class ApplicantNotifications {
     () => this.notifications().filter((n) => n.lifecycle === 'sent').length,
   );
 
+  constructor() {
+    this.loadNotifications();
+  }
+
   protected setFilter<K extends keyof ApplicantNotificationFilters>(
     key: K,
     value: ApplicantNotificationFilters[K],
@@ -142,38 +86,136 @@ export class ApplicantNotifications {
     return l === 'sent' ? 'Отправлено' : 'Прочитано';
   }
 
+  protected typeLabel(type: NotificationType): string {
+    switch (type) {
+      case 'application':
+        return 'Заявка';
+      case 'document':
+        return 'Документы';
+      case 'payment':
+        return 'Платёж';
+      case 'assessment':
+        return 'Оценка';
+      case 'system':
+      default:
+        return 'Система';
+    }
+  }
+
+  protected channelLabel(channel: NotificationChannel): string {
+    switch (channel) {
+      case 'email':
+        return 'Email';
+      case 'sms':
+        return 'SMS';
+      case 'in-app':
+        return 'In-app';
+      case 'push':
+      default:
+        return 'Push';
+    }
+  }
+
   protected markAllAsRead(): void {
-    this.notifications.update((items) =>
-      items.map((n) => ({
-        ...n,
-        lifecycle: 'read' as const,
-      })),
-    );
+    const userId = this.currentUserId();
+    if (!userId) return;
+
+    this.api
+      .markAllAsRead(userId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.notifications.update((items) =>
+            items.map((n) => ({
+              ...n,
+              lifecycle: 'read' as const,
+            })),
+          );
+        },
+        error: () => this.error.set('Не удалось отметить уведомления прочитанными.'),
+      });
   }
 
   protected toggleReadOnCard(id: string): void {
-    this.notifications.update((items) =>
-      items.map((n) => {
-        if (n.id !== id) return n;
-        return { ...n, lifecycle: n.lifecycle === 'read' ? 'sent' : 'read' };
-      }),
-    );
+    const target = this.notifications().find((item) => item.id === id);
+    if (!target || target.lifecycle === 'read') {
+      return;
+    }
+
+    this.api
+      .markAsRead(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.notifications.update((items) =>
+            items.map((n) => (n.id === id ? { ...n, lifecycle: 'read' as const } : n)),
+          );
+        },
+        error: () => this.error.set('Не удалось отметить уведомление прочитанным.'),
+      });
   }
 
   protected removeOne(id: string, event: Event): void {
     event.stopPropagation();
-    this.notifications.update((items) => items.filter((n) => n.id !== id));
+    this.deleteNotification(id);
   }
 
   protected clearAllHistory(): void {
     if (!confirm('Очистить всю историю уведомлений?')) {
       return;
     }
-    this.notifications.set([]);
+
+    for (const notification of this.notifications()) {
+      this.deleteNotification(notification.id);
+    }
   }
 
-  protected restoreDemoData(): void {
-    this.notifications.set([...MOCK_NOTIFICATIONS]);
-    this.filters.set({ ...DEFAULT_FILTERS });
+  protected reloadNotifications(): void {
+    this.loadNotifications();
   }
+
+  private deleteNotification(id: string): void {
+    this.api
+      .deleteNotification(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.notifications.update((items) => items.filter((n) => n.id !== id)),
+        error: () => this.error.set('Не удалось удалить уведомление.'),
+      });
+  }
+
+  private loadNotifications(): void {
+    const userId = this.currentUserId();
+    if (!userId) {
+      this.error.set('Не удалось определить текущего пользователя для загрузки уведомлений.');
+      return;
+    }
+
+    this.loading.set(true);
+    this.error.set(null);
+    this.api
+      .listNotifications(userId, { limit: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (page) => {
+          this.notifications.set(page.notifications.map(toApplicantNotification));
+          this.loading.set(false);
+        },
+        error: () => {
+          this.error.set('Не удалось загрузить уведомления.');
+          this.loading.set(false);
+        },
+      });
+  }
+
+  private currentUserId(): string {
+    return this.tokenStore.user()?.id ?? '';
+  }
+}
+
+function toApplicantNotification(item: NotificationCenterItem): ApplicantNotification {
+  return {
+    ...item,
+    lifecycle: item.lifecycle === 'read' ? 'read' : 'sent',
+  };
 }

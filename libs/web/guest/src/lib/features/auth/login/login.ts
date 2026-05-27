@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
 import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
 interface TestAccount {
   role: string;
   email: string;
@@ -27,6 +29,8 @@ export class Login {
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;
   readonly copiedAccount = signal<string | null>(null);
+  readonly validationError = signal<string | null>(null);
+  readonly showPassword = signal(false);
   readonly testAccounts: TestAccount[] = [
     { role: 'Applicant', email: 'seed-user-000@seed.local', password: 'SeedPass123!' },
     { role: 'Notary', email: 'seed-user-010@seed.local', password: 'SeedPass123!' },
@@ -37,8 +41,22 @@ export class Login {
   password = '';
 
   async onLogin(): Promise<void> {
-    if (!this.email || !this.password) return;
-    await this.authService.login(this.email, this.password);
+    const email = this.email.trim();
+    if (!EMAIL_RE.test(email)) {
+      this.validationError.set('Укажите корректный email.');
+      return;
+    }
+    if (!this.password) {
+      this.validationError.set('Укажите пароль.');
+      return;
+    }
+
+    this.validationError.set(null);
+    await this.authService.login(email, this.password);
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword.update((value) => !value);
   }
 
   async onUseTestAccount(account: TestAccount): Promise<void> {

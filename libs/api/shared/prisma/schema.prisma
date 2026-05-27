@@ -83,6 +83,15 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum NotificationPreferenceChannel {
+  Email @map("email")
+  Sms   @map("sms")
+  Push  @map("push")
+  InApp @map("in_app")
+
+  @@map("notification_preference_channel")
+}
+
 enum NotificationCategory {
   Application @map("application")
   Document    @map("document")
@@ -91,6 +100,21 @@ enum NotificationCategory {
   Assessment  @map("assessment")
 
   @@map("notification_category")
+}
+
+enum NotificationEntityCategory {
+  Assessment @map("assessment")
+  Payment    @map("payment")
+  System     @map("system")
+
+  @@map("notification_entity_category")
+}
+
+enum NotificationPreferenceStatus {
+  Active   @map("active")
+  Inactive @map("inactive")
+
+  @@map("notification_preference_status")
 }
 
 enum NewsletterSubscriptionStatus {
@@ -217,7 +241,8 @@ model User {
   payments          Payment[]
   uploadedDocuments Document[]         @relation("UploadedBy")
   signedReports     AssessmentReport[] @relation("SignedBy")
-  notifications     Notification[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
@@ -390,19 +415,34 @@ model AssessmentReport {
 }
 
 model Notification {
-  id       String               @id @default(uuid()) @db.Uuid
-  userId   String               @map("user_id") @db.Uuid
+  id       String                 @id @default(uuid()) @db.Uuid
+  userId   String                 @map("user_id") @db.Uuid
   type     NotificationType
   category NotificationCategory @default(System)
-  title    String               @default("Уведомление") @db.VarChar
-  message  String               @db.Text
-  sentAt   DateTime             @default(now()) @map("sent_at") @db.Timestamp()
-  readAt   DateTime?            @map("read_at") @db.Timestamp() // [FIX] время прочтения
-  status   NotificationStatus   @default(Pending)
+  title    String                 @default("Уведомление") @db.VarChar
+  message  String                 @db.Text
+  sentAt   DateTime               @default(now()) @map("sent_at") @db.Timestamp()
+  readAt   DateTime?              @map("read_at") @db.Timestamp() // [FIX] время прочтения
+  status   NotificationStatus     @default(Pending)
 
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String                       @id @default(uuid()) @db.Uuid
+  userId         String                       @map("user_id") @db.Uuid
+  channel        NotificationPreferenceChannel @map("channel")
+  entityCategory NotificationEntityCategory   @map("entity_category")
+  status         NotificationPreferenceStatus @default(Active) @map("status")
+  updatedAt      DateTime                     @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel, entityCategory])
+  @@index([userId])
+  @@map("notification_preferences")
 }
 
 model NewsletterSubscription {
@@ -495,19 +535,24 @@ model PasswordReset {
 
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  actorEmail String?  @map("actor_email") @db.VarChar
+  actorName  String?  @map("actor_name") @db.VarChar
+  actorRole  Role?    @map("actor_role")
   actionType String   @map("action_type") @db.VarChar
   entityName String   @map("entity_name") @db.VarChar
-  entityId   String   @map("entity_id") @db.Uuid
+  entityId   String?  @map("entity_id") @db.Uuid
   timestamp  DateTime @default(now()) @db.Timestamp()
   details    Json?    @db.JsonB
 
-  user User @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([timestamp(sort: Desc)])
   @@index([actionType])
   @@index([entityId])
   @@index([userId])
+  @@index([actorEmail])
+  @@index([actorName])
   @@index([entityName, entityId])
   @@index([entityName, entityId, timestamp(sort: Desc)])
   @@map("audit_logs")

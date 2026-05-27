@@ -121,4 +121,14 @@ describe('TransactionTable', () => {
       'Платежи по выбранным фильтрам не найдены.',
     );
   });
+
+  it('should use the configured top-up route', async () => {
+    fixture.componentRef.setInput('topUpRoute', '/applicant/checkout');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const topUpLink = fixture.nativeElement.querySelector('.btn.btn-primary') as HTMLAnchorElement;
+
+    expect(topUpLink.getAttribute('href')).toBe('/applicant/checkout');
+  });
 });

@@ -48,6 +48,12 @@ export class NewsletterNew {
     if (this.selectedCount() > 0) {
       this.audienceMode.set('selected');
     }
+    const template = this.selection.consumeDraftTemplate();
+    if (template) {
+      this.subject.set(template.subject);
+      this.bodyHtml.set(template.bodyHtml);
+      this.statusMessage.set(`Шаблон «${template.subject}» подставлен в новое письмо.`);
+    }
     void this.refreshEstimate();
   }
 

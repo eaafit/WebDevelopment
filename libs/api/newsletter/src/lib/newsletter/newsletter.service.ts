@@ -3,20 +3,31 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
 import { Role, requireRole, type AccessTokenPayload } from '@internal/auth-shared';
+import {
+  MetricsService,
+  type NewsletterAudienceMetricType,
+  type NewsletterCampaignMetricStatus,
+} from '@internal/metrics';
 import { NotificationService } from '@internal/notification';
 import {
   EstimateNewsletterAudienceResponseSchema,
+  GetNewsletterCampaignResponseSchema,
   NewsletterAudienceType,
   NotificationType as RpcNotificationType,
+  RepeatNewsletterCampaignResponseSchema,
   SendNewsletterCampaignResponseSchema,
   UserRole,
   type EstimateNewsletterAudienceRequest,
   type EstimateNewsletterAudienceResponse,
+  type GetNewsletterCampaignRequest,
+  type GetNewsletterCampaignResponse,
   type ListNewsletterCampaignsRequest,
   type ListNewsletterCampaignsResponse,
   type ListNewsletterSubscribersRequest,
   type ListNewsletterSubscribersResponse,
   type NewsletterAudience,
+  type RepeatNewsletterCampaignRequest,
+  type RepeatNewsletterCampaignResponse,
   type SendNewsletterCampaignRequest,
   type SendNewsletterCampaignResponse,
 } from '@notary-portal/api-contracts';
@@ -25,14 +36,8 @@ import {
   NewsletterCampaignStatus as PrismaNewsletterCampaignStatus,
   Role as PrismaRole,
 } from '@internal/prisma-client';
-import {
-  NEWSLETTER_MAILER,
-  type NewsletterMailer,
-} from './newsletter-mailer.interface';
-import {
-  NewsletterRepository,
-  type NewsletterAudienceQuery,
-} from './newsletter.repository';
+import { NEWSLETTER_MAILER, type NewsletterMailer } from './newsletter-mailer.interface';
+import { NewsletterRepository, type NewsletterAudienceQuery } from './newsletter.repository';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -48,6 +53,12 @@ interface NewsletterCampaignSummary {
   recipientsCount: number;
 }
 
+type NewsletterCampaignAuditEventType =
+  | 'newsletter.campaign.started'
+  | 'newsletter.campaign.completed'
+  | 'newsletter.campaign.repeat_started'
+  | 'newsletter.campaign.repeat_completed';
+
 @Injectable()
 export class NewsletterService {
   private readonly logger = new Logger(NewsletterService.name);
@@ -57,6 +68,7 @@ export class NewsletterService {
     @Inject(NEWSLETTER_MAILER) private readonly newsletterMailer: NewsletterMailer,
     private readonly auditService: AuditService,
     private readonly notificationService: NotificationService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   listNewsletterSubscribers(
@@ -85,7 +97,24 @@ export class NewsletterService {
       page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE),
       limit: normalizePageLimit(request.pagination?.limit),
       search: normalizeOptionalString(request.filters?.query),
+      status: request.filters?.status
+        ? this.newsletterRepository.toPrismaCampaignStatus(request.filters.status)
+        : undefined,
     });
+  }
+
+  async getNewsletterCampaign(
+    request: GetNewsletterCampaignRequest,
+  ): Promise<GetNewsletterCampaignResponse> {
+    requireRole(Role.Admin);
+    const id = normalizeUuid(request.id, 'id');
+    const campaign = await this.newsletterRepository.getCampaignDetail(id);
+
+    if (!campaign) {
+      throw new ConnectError('newsletter campaign not found', Code.NotFound);
+    }
+
+    return create(GetNewsletterCampaignResponseSchema, { campaign });
   }
 
   async estimateNewsletterAudience(
@@ -105,6 +134,7 @@ export class NewsletterService {
   ): Promise<SendNewsletterCampaignResponse> {
     const actor = requireRole(Role.Admin);
     const audience = this.normalizeAudience(request.audience);
+    const audienceMetricType = toMetricAudienceType(audience.type);
     const subject = normalizeRequiredString(request.subject, 'subject', MAX_SUBJECT_LENGTH);
     const bodyHtml = normalizeBodyHtml(request.bodyHtml);
     const recipients = await this.newsletterRepository.resolveAudience(audience);
@@ -123,6 +153,7 @@ export class NewsletterService {
     });
 
     this.logCampaignStart(campaign.id, subject, campaign.audienceLabel, recipients.length);
+    this.metricsService.recordNewsletterCampaignStarted(audienceMetricType, recipients.length);
     await this.recordCampaignAuditBestEffort({
       actor,
       campaign,
@@ -144,6 +175,138 @@ export class NewsletterService {
             fullName: recipient.fullName,
             subject,
             bodyHtml,
+          });
+        } catch (error) {
+          const deliveryErrorMessage = normalizeErrorMessage(error);
+          failedCount += 1;
+          this.metricsService.recordNewsletterDelivery('failed');
+          this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
+
+          try {
+            await this.newsletterRepository.markDeliveryFailed(
+              campaign.id,
+              recipient.email,
+              deliveryErrorMessage,
+            );
+          } catch (deliveryUpdateError) {
+            interruptedError = deliveryUpdateError;
+            break;
+          }
+
+          continue;
+        }
+
+        sentCount += 1;
+        this.metricsService.recordNewsletterDelivery('sent');
+
+        try {
+          await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
+        } catch (deliveryUpdateError) {
+          interruptedError = deliveryUpdateError;
+          break;
+        }
+      }
+    } catch (error) {
+      interruptedError = error;
+    }
+
+    const finalStatus = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
+
+    if (interruptedError) {
+      this.logger.error(
+        `newsletter.campaign.send_flow_interrupted campaignId=${campaign.id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
+      );
+    }
+
+    const completedCampaign = await this.newsletterRepository.completeCampaign(campaign.id, {
+      sentCount,
+      failedCount,
+      status: finalStatus,
+    });
+
+    this.logCampaignCompletion(campaign.id, finalStatus, sentCount, failedCount);
+    this.metricsService.recordNewsletterCampaignCompleted(
+      audienceMetricType,
+      formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
+    );
+    await this.recordCampaignAuditBestEffort({
+      actor,
+      campaign: completedCampaign,
+      eventType: 'newsletter.campaign.completed',
+      sentCount,
+      failedCount,
+      status: finalStatus,
+    });
+    await this.createCampaignSummaryNotificationBestEffort({
+      actor,
+      campaign: completedCampaign,
+      sentCount,
+      failedCount,
+      status: finalStatus,
+    });
+
+    return create(SendNewsletterCampaignResponseSchema, {
+      campaign: completedCampaign,
+    });
+  }
+
+  async repeatNewsletterCampaign(
+    request: RepeatNewsletterCampaignRequest,
+  ): Promise<RepeatNewsletterCampaignResponse> {
+    const actor = requireRole(Role.Admin);
+    const id = normalizeUuid(request.id, 'id');
+    const source = await this.newsletterRepository.getCampaignForRepeat(id);
+
+    if (!source) {
+      throw new ConnectError('newsletter campaign not found', Code.NotFound);
+    }
+    if (!source.recipients.length) {
+      throw new ConnectError('newsletter campaign has no recipients', Code.FailedPrecondition);
+    }
+
+    const campaign = await this.newsletterRepository.createCampaign({
+      createdById: isUuid(actor.sub) ? actor.sub : null,
+      subject: source.subject,
+      bodyHtml: source.bodyHtml,
+      audience: {
+        type: PrismaNewsletterAudienceType.Selected,
+        selectedUserIds: source.recipients
+          .map((recipient) => recipient.userId)
+          .filter((userId): userId is string => Boolean(userId)),
+      },
+      audienceLabel: `Повторная отправка (${source.recipients.length})`,
+      recipients: source.recipients,
+    });
+
+    this.logCampaignStart(
+      campaign.id,
+      source.subject,
+      campaign.audienceLabel,
+      source.recipients.length,
+      'newsletter.campaign.repeat_started',
+    );
+    await this.recordCampaignAuditBestEffort({
+      actor,
+      campaign,
+      eventType: 'newsletter.campaign.repeat_started',
+      sourceCampaignId: id,
+      sentCount: 0,
+      failedCount: 0,
+      status: PrismaNewsletterCampaignStatus.Sending,
+    });
+
+    let sentCount = 0;
+    let failedCount = 0;
+    let interruptedError: unknown = null;
+
+    try {
+      for (const recipient of source.recipients) {
+        try {
+          await this.newsletterMailer.sendNewsletterEmail({
+            to: recipient.email,
+            fullName: recipient.fullName,
+            subject: source.subject,
+            bodyHtml: source.bodyHtml,
           });
         } catch (error) {
           const deliveryErrorMessage = normalizeErrorMessage(error);
@@ -181,7 +344,7 @@ export class NewsletterService {
 
     if (interruptedError) {
       this.logger.error(
-        `newsletter.campaign.send_flow_interrupted campaignId=${campaign.id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
+        `newsletter.campaign.repeat_flow_interrupted campaignId=${campaign.id} sourceCampaignId=${id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
       );
     }
 
@@ -191,11 +354,18 @@ export class NewsletterService {
       status: finalStatus,
     });
 
-    this.logCampaignCompletion(campaign.id, finalStatus, sentCount, failedCount);
+    this.logCampaignCompletion(
+      campaign.id,
+      finalStatus,
+      sentCount,
+      failedCount,
+      'newsletter.campaign.repeat_completed',
+    );
     await this.recordCampaignAuditBestEffort({
       actor,
       campaign: completedCampaign,
-      eventType: 'newsletter.campaign.completed',
+      eventType: 'newsletter.campaign.repeat_completed',
+      sourceCampaignId: id,
       sentCount,
       failedCount,
       status: finalStatus,
@@ -208,7 +378,7 @@ export class NewsletterService {
       status: finalStatus,
     });
 
-    return create(SendNewsletterCampaignResponseSchema, {
+    return create(RepeatNewsletterCampaignResponseSchema, {
       campaign: completedCampaign,
     });
   }
@@ -218,10 +388,13 @@ export class NewsletterService {
     subject: string,
     audienceLabel: string,
     recipientsCount: number,
+    event:
+      | 'newsletter.campaign.started'
+      | 'newsletter.campaign.repeat_started' = 'newsletter.campaign.started',
   ): void {
     this.logger.log(
       JSON.stringify({
-        event: 'newsletter.campaign.started',
+        event,
         campaignId,
         subject,
         audienceLabel,
@@ -250,10 +423,13 @@ export class NewsletterService {
     status: PrismaNewsletterCampaignStatus,
     sentCount: number,
     failedCount: number,
+    event:
+      | 'newsletter.campaign.completed'
+      | 'newsletter.campaign.repeat_completed' = 'newsletter.campaign.completed',
   ): void {
     this.logger.log(
       JSON.stringify({
-        event: 'newsletter.campaign.completed',
+        event,
         campaignId,
         status: formatCampaignStatus(status),
         sentCount,
@@ -265,7 +441,8 @@ export class NewsletterService {
   private async recordCampaignAuditBestEffort(input: {
     actor: AccessTokenPayload;
     campaign: NewsletterCampaignSummary;
-    eventType: 'newsletter.campaign.started' | 'newsletter.campaign.completed';
+    eventType: NewsletterCampaignAuditEventType;
+    sourceCampaignId?: string;
     sentCount: number;
     failedCount: number;
     status: PrismaNewsletterCampaignStatus;
@@ -276,17 +453,17 @@ export class NewsletterService {
         eventType: input.eventType,
         targetType: 'NewsletterCampaign',
         targetId: input.campaign.id,
-        actionTitle:
-          input.eventType === 'newsletter.campaign.started'
-            ? 'Запущена кампания рассылки'
-            : 'Кампания рассылки завершена',
-        actionContext:
-          input.eventType === 'newsletter.campaign.started'
-            ? `Получателей: ${input.campaign.recipientsCount}`
-            : `Отправлено: ${input.sentCount}, ошибок: ${input.failedCount}`,
+        actionTitle: newsletterAuditTitle(input.eventType),
+        actionContext: newsletterAuditContext(
+          input.eventType,
+          input.campaign.recipientsCount,
+          input.sentCount,
+          input.failedCount,
+        ),
         targetTitle: input.campaign.subject,
         targetContext: input.campaign.audienceLabel,
         after: {
+          ...(input.sourceCampaignId ? { sourceCampaignId: input.sourceCampaignId } : {}),
           subject: input.campaign.subject,
           audienceLabel: input.campaign.audienceLabel,
           recipientsCount: input.campaign.recipientsCount,
@@ -363,7 +540,10 @@ export class NewsletterService {
 
       const invalid = selectedUserIds.find((id) => !isUuid(id));
       if (invalid) {
-        throw new ConnectError('audience.selected_user_ids must contain UUID values', Code.InvalidArgument);
+        throw new ConnectError(
+          'audience.selected_user_ids must contain UUID values',
+          Code.InvalidArgument,
+        );
       }
 
       return { type, selectedUserIds };
@@ -376,7 +556,10 @@ export class NewsletterService {
 function normalizePageLimit(value: number | undefined): number {
   const limit = normalizePositiveInt(value, DEFAULT_LIMIT);
   if (limit > MAX_PAGE_LIMIT) {
-    throw new ConnectError(`pagination.limit must not exceed ${MAX_PAGE_LIMIT}`, Code.InvalidArgument);
+    throw new ConnectError(
+      `pagination.limit must not exceed ${MAX_PAGE_LIMIT}`,
+      Code.InvalidArgument,
+    );
   }
   return limit;
 }
@@ -400,7 +583,18 @@ function normalizeRequiredString(value: string, field: string, maxLength: number
     throw new ConnectError(`${field} is required`, Code.InvalidArgument);
   }
   if (normalized.length > maxLength) {
-    throw new ConnectError(`${field} must not exceed ${maxLength} characters`, Code.InvalidArgument);
+    throw new ConnectError(
+      `${field} must not exceed ${maxLength} characters`,
+      Code.InvalidArgument,
+    );
+  }
+  return normalized;
+}
+
+function normalizeUuid(value: string, field: string): string {
+  const normalized = value.trim();
+  if (!isUuid(normalized)) {
+    throw new ConnectError(`${field} must be a valid UUID`, Code.InvalidArgument);
   }
   return normalized;
 }
@@ -428,6 +622,41 @@ function roleLabel(role: NewsletterAudienceQuery['role']): string {
   if (role === PrismaRole.Admin) return 'Администратор';
   if (role === PrismaRole.Notary) return 'Нотариус';
   return 'Заявитель';
+}
+
+function newsletterAuditTitle(eventType: NewsletterCampaignAuditEventType): string {
+  if (eventType === 'newsletter.campaign.started') {
+    return 'Запущена кампания рассылки';
+  }
+  if (eventType === 'newsletter.campaign.completed') {
+    return 'Кампания рассылки завершена';
+  }
+  if (eventType === 'newsletter.campaign.repeat_started') {
+    return 'Запущена повторная отправка рассылки';
+  }
+  return 'Повторная отправка рассылки завершена';
+}
+
+function newsletterAuditContext(
+  eventType: NewsletterCampaignAuditEventType,
+  recipientsCount: number,
+  sentCount: number,
+  failedCount: number,
+): string {
+  if (
+    eventType === 'newsletter.campaign.started' ||
+    eventType === 'newsletter.campaign.repeat_started'
+  ) {
+    return `Получателей: ${recipientsCount}`;
+  }
+
+  return `Отправлено: ${sentCount}, ошибок: ${failedCount}`;
+}
+
+function toMetricAudienceType(type: PrismaNewsletterAudienceType): NewsletterAudienceMetricType {
+  if (type === PrismaNewsletterAudienceType.All) return 'all';
+  if (type === PrismaNewsletterAudienceType.Role) return 'role';
+  return 'selected';
 }
 
 function resolveCampaignStatus(

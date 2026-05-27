@@ -1,7 +1,10 @@
 import { defineConfig, env } from 'prisma/config';
+import { loadProjectEnv } from './load-env';
 
-// Do not import `dotenv/config` here: the Docker `migrate` one-shot container only
-// mounts this directory (no node_modules). Load secrets via process env / compose `env_file`.
+loadProjectEnv();
+
+// Root `.env` is loaded by `loadProjectEnv` when Prisma runs from `libs/api/shared/prisma`.
+// In Docker one-shot migrate jobs, pass secrets via `environment` / `env_file` as usual.
 export default defineConfig({
   schema: 'schema.prisma',
   migrations: {

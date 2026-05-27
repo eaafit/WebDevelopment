@@ -34,11 +34,11 @@
     }
 
     <div class="status-actions mt-6">
-      <a class="btn btn-outline" routerLink="/applicant/assessment" [queryParams]="returnQueryParams()">
+      <button class="btn btn-outline" type="button" (click)="returnToParams()">
         {{ returnButtonLabel() }}
-      </a>
+      </button>
       <button class="btn btn-outline" type="button" (click)="createNewAssessment()">Создать новую заявку</button>
-      <a class="btn btn-primary" routerLink="/applicant/assessment/history">Открыть историю заявок</a>
+      <button class="btn btn-primary" type="button" (click)="openAssessmentHistory()">Открыть историю заявок</button>
     </div>
   </section>
 </main>

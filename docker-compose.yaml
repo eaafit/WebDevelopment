@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASS}
     ports:
+      # Default 5432 avoids conflict with a local PostgreSQL on Windows/Linux using 5432.
+      # Set POSTGRES_HOST_PORT=5432 in `.env` if nothing else listens on that port.
       - '${DB_PORT}:5432'
     volumes:
       - notary_data:/var/lib/postgresql
@@ -39,6 +41,45 @@ services:
       - '--web.enable-lifecycle'
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: notary-loki
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command:
+      - '-config.file=/etc/loki/config.yml'
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: notary-tempo
+    ports:
+      - '3200:3200'
+      - '4317:4317'
+      - '4318:4318'
+    volumes:
+      - ./monitoring/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    command:
+      - '-config.file=/etc/tempo/tempo.yml'
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: notary-promtail
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp
+    command:
+      - '-config.file=/etc/promtail/config.yml'
+    depends_on:
+      - loki
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: notary-grafana
@@ -54,6 +95,8 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     depends_on:
       - prometheus
+      - loki
+      - tempo
     restart: unless-stopped
 
   mailpit:
@@ -94,5 +137,8 @@ services:
 volumes:
   notary_data:
   prometheus_data:
+  loki_data:
+  tempo_data:
+  promtail_positions:
   grafana_data:
   minio_data:

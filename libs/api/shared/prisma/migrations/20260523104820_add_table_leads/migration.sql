@@ -79,6 +79,8 @@ CREATE UNIQUE INDEX "client_sync_user_id_key" ON "client_sync"("user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "leads_assessment_id_key" ON "leads"("assessment_id");
+SELECT * FROM leads;
+SELECT * FROM assessments ;
 
 -- CreateIndex
 CREATE INDEX "leads_applicant_id_idx" ON "leads"("applicant_id");

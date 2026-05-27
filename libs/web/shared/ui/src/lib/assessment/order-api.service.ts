@@ -12,7 +12,7 @@ export interface ListOrdersResponse {
 @Injectable({ providedIn: 'root' })
 export class OrderApiService {
   private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:3000/orders';
+  private baseUrl = 'http://localhost:3000';
 
   listOrders(params: {
     userId: string;

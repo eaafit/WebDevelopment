@@ -4,7 +4,8 @@
       <p class="role-notifications__eyebrow">Кабинет нотариуса</p>
       <h2>Уведомления</h2>
       <p class="role-notifications__lead">
-        Уведомления по заявкам и подписке. Статусы в интерфейсе: только «отправлено» и «прочитано».
+        Уведомления по заявкам и подписке загружаются из backend. Статусы в интерфейсе: только «отправлено» и
+        «прочитано».
       </p>
     </div>
 
@@ -19,15 +20,14 @@
         <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
       @if (!notifications().length) {
-        <button
-          type="button"
-          class="role-notifications__btn role-notifications__btn--ghost"
-          (click)="restoreDemoData()">
-          Вернуть демо-данные
-        </button>
-      }
-      @if (inboxCount(); as c) {
-        <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
+      <button
+        type="button"
+        class="role-notifications__btn role-notifications__btn--ghost"
+        (click)="reloadNotifications()">
+        Обновить
+      </button>
+      } @if (inboxCount(); as c) {
+      <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
       }
     </div>
   </header>
@@ -48,8 +48,8 @@
       <span>Канал</span>
       <select (change)="setFilter('channel', $any($event.target).value)">
         <option value="all">Все</option>
-        <option value="in-app">In-app</option>
         <option value="email">Email</option>
+        <option value="sms">SMS</option>
         <option value="push">Push</option>
       </select>
     </label>
@@ -65,10 +65,20 @@
   </section>
 
   <p class="role-notifications__hint">
-    Клик по карточке переключает «прочитано» и «отправлено». «Удалить» убирает запись из списка.
+    Клик по новой карточке отмечает уведомление прочитанным. «Удалить» убирает запись из списка.
   </p>
 
-  @if (filtered().length) {
+  @if (loading()) {
+  <div class="role-notifications__empty">
+    <strong>Загружаем уведомления.</strong>
+    <p>Получаем актуальную историю из backend.</p>
+  </div>
+  } @else if (error()) {
+  <div class="role-notifications__empty">
+    <strong>Не удалось загрузить уведомления.</strong>
+    <p>{{ error() }}</p>
+  </div>
+  } @else if (filtered().length) {
   <section class="role-notifications__list">
     @for (item of filtered(); track item.id) {
     <article
@@ -85,11 +95,10 @@
 
         <div class="role-notifications__chips">
           <span class="chip chip--type">
-            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
-            ? 'Платёж' : 'Система' }}
+            {{ typeLabel(item.type) }}
           </span>
           <span class="chip chip--channel">
-            {{ item.channel === 'in-app' ? 'In-app' : item.channel === 'email' ? 'Email' : 'Push' }}
+            {{ channelLabel(item.channel) }}
           </span>
           <span
             class="chip chip--lifecycle"

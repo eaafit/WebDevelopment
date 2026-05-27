@@ -17,6 +17,20 @@ import type {
   SelectedFiasAddress,
 } from './estimation-form.models';
 
+export type ApplicantAssessmentUiAction =
+  | 'status_loaded'
+  | 'status_load_failed'
+  | 'return_to_params'
+  | 'create_new_assessment'
+  | 'open_history';
+
+export interface ApplicantAssessmentUiActionLog {
+  action: ApplicantAssessmentUiAction;
+  assessmentId?: string;
+  status?: string;
+  targetRoute?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AssessmentApiService {
   private readonly client = createClient(AssessmentService, inject(RPC_TRANSPORT));
@@ -81,6 +95,10 @@ export class AssessmentApiService {
     }
 
     return toSelectedFiasAddress(response.item);
+  }
+
+  async logApplicantAssessmentAction(input: ApplicantAssessmentUiActionLog): Promise<void> {
+    await this.client.logApplicantAssessmentAction(input);
   }
 
   private requireAssessment(assessment: Assessment | undefined): AssessmentDraftModel {

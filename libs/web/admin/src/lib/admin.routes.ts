@@ -90,6 +90,13 @@ export const adminRoutes: Route[] = [
           import('./features/newsletter/newsletter-new').then((m) => m.NewsletterNew),
       },
       {
+        path: 'newsletter/history',
+        loadComponent: () =>
+          import('./features/newsletter/newsletter-list/newsletter-list').then(
+            (m) => m.NewsletterListComponent,
+          ),
+      },
+      {
         path: 'newsletter',
         loadComponent: () => import('./features/newsletter/newsletter').then((m) => m.Newsletter),
       },
@@ -109,6 +116,13 @@ export const adminRoutes: Route[] = [
         path: 'notifications',
         loadComponent: () =>
           import('./features/notifications/notifications').then((m) => m.AdminNotifications),
+      },
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.AdminNotificationSettings,
+          ),
       },
       {
         path: 'statistics',

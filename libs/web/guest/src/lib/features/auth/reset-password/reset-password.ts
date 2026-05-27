@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
@@ -21,13 +21,15 @@ export class ResetPassword implements OnInit {
   token = '';
   newPassword = '';
   confirmPassword = '';
+  readonly showNewPassword = signal(false);
+  readonly showConfirmPassword = signal(false);
 
   ngOnInit(): void {
     this.token = this.route.snapshot.queryParamMap.get('token')?.trim() ?? '';
   }
 
   async onSubmit(): Promise<void> {
-    if (!this.token || !this.newPassword) return;
+    if (!this.token || this.newPassword.length < 8) return;
     if (this.newPassword !== this.confirmPassword) return;
     try {
       await this.authService.resetPassword(this.token, this.newPassword);
@@ -35,5 +37,13 @@ export class ResetPassword implements OnInit {
     } catch {
       /* authService.error */
     }
+  }
+
+  toggleNewPasswordVisibility(): void {
+    this.showNewPassword.update((value) => !value);
+  }
+
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword.update((value) => !value);
   }
 }

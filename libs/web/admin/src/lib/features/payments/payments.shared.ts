@@ -1,12 +1,14 @@
 export type PaymentType = 'Subscription' | 'Assessment' | 'DocumentCopy';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
-export type PaymentMethod = 'card' | 'cash' | 'invoice';
+export type PaymentMethod = string;
 
 export interface Payment {
   id: string | number;
+  userId?: string;
   paymentDate: string;
   payer: string;
   amount: number;
+  currency: string;
   fee: number;
   status: PaymentStatus;
   statusText: string;
@@ -17,7 +19,42 @@ export interface Payment {
   transactionId?: string;
   attachmentFileName?: string;
   attachmentFileUrl?: string;
+  description?: string;
 }
+
+export const MOCK_PAYMENTS: Payment[] = [
+  {
+    id: 'payment-1',
+    userId: 'user-1',
+    paymentDate: '2026-03-06T08:45:00.000Z',
+    payer: 'user-1',
+    amount: 12500,
+    currency: 'RUB',
+    fee: 0,
+    status: 'completed',
+    statusText: 'Завершен',
+    type: 'Assessment',
+    assessmentId: 'assessment-1',
+    paymentMethod: 'bank_card',
+    transactionId: 'txn_abc123',
+    attachmentFileName: 'check_1001.pdf',
+    attachmentFileUrl: '/receipts/check_1001.pdf',
+  },
+  {
+    id: 'payment-2',
+    userId: 'user-2',
+    paymentDate: '2026-03-05T10:15:00.000Z',
+    payer: 'user-2',
+    amount: 5400.5,
+    currency: 'RUB',
+    fee: 0,
+    status: 'pending',
+    statusText: 'В обработке',
+    type: 'Subscription',
+    subscriptionId: 'sub_xyz789',
+    paymentMethod: 'invoice',
+  },
+];
 
 export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   Subscription: 'Подписка',
@@ -25,10 +62,14 @@ export const PAYMENT_TYPE_LABELS: Record<PaymentType, string> = {
   DocumentCopy: 'Копия документа',
 };
 
-export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   card: 'Банковская карта',
+  bank_card: 'Банковская карта',
   cash: 'Наличные',
   invoice: 'Счет',
+  sbp: 'СБП',
+  bank_transfer: 'Банковский перевод',
+  yookassa_widget: 'ЮKassa',
 };
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -45,94 +86,4 @@ export const PAYMENT_STATUS_OPTIONS: PaymentStatus[] = [
   'pending',
   'failed',
   'refunded',
-];
-
-export const MOCK_PAYMENTS: Payment[] = [
-  {
-    id: 1001,
-    paymentDate: '2025-03-02',
-    payer: 'ООО "Ромашка"',
-    amount: 12500.0,
-    fee: 125.0,
-    status: 'completed',
-    statusText: 'Завершен',
-    type: 'Assessment',
-    assessmentId: 'a1b2c3d4-5001',
-    paymentMethod: 'card',
-    transactionId: 'txn_abc123',
-    attachmentFileName: 'check_1001.pdf',
-    attachmentFileUrl: '/receipts/check_1001.pdf',
-  },
-  {
-    id: 1002,
-    paymentDate: '2025-03-05',
-    payer: 'ИП Иванов А.А.',
-    amount: 5400.5,
-    fee: 54.01,
-    status: 'pending',
-    statusText: 'В обработке',
-    type: 'Subscription',
-    subscriptionId: 'sub_xyz789',
-    paymentMethod: 'invoice',
-  },
-  {
-    id: 1003,
-    paymentDate: '2025-03-13',
-    payer: 'Петров В.К.',
-    amount: 3200.0,
-    fee: 32.0,
-    status: 'failed',
-    statusText: 'Ошибка',
-    type: 'Assessment',
-    paymentMethod: 'card',
-  },
-  {
-    id: 1004,
-    paymentDate: '2025-03-12',
-    payer: 'ООО "ТехноСервис"',
-    amount: 8700.75,
-    fee: 87.01,
-    status: 'completed',
-    statusText: 'Завершен',
-    type: 'DocumentCopy',
-    assessmentId: 'e5f6g7h8-5003',
-    paymentMethod: 'cash',
-    transactionId: 'txn_def456',
-  },
-  {
-    id: 1005,
-    paymentDate: '2025-03-11',
-    payer: 'Сидорова Е.М.',
-    amount: 2100.0,
-    fee: 21.0,
-    status: 'pending',
-    statusText: 'В обработке',
-    type: 'Assessment',
-    paymentMethod: 'card',
-  },
-  {
-    id: 1006,
-    paymentDate: '2025-03-10',
-    payer: 'Былой Е.М.',
-    amount: 21000.0,
-    fee: 210.0,
-    status: 'completed',
-    statusText: 'Завершен',
-    type: 'Subscription',
-    subscriptionId: 'sub_abc111',
-    paymentMethod: 'card',
-    transactionId: 'txn_ghi789',
-  },
-  {
-    id: 1007,
-    paymentDate: '2025-03-09',
-    payer: 'Елесей Е.М.',
-    amount: 2500.0,
-    fee: 25.0,
-    status: 'refunded',
-    statusText: 'Возврат',
-    type: 'Assessment',
-    paymentMethod: 'card',
-    transactionId: 'txn_jkl012',
-  },
 ];

@@ -248,6 +248,9 @@ export class EstimationForm implements OnDestroy {
     this.estimationForm.markAllAsTouched();
 
     if (this.estimationForm.invalid) {
+      console.warn('[ApplicantAssessment] form.validation:invalid', {
+        invalidControls: this.getInvalidControlNames(),
+      });
       const firstInvalidControl = form.querySelector<FormControlElement>(
         'input.ng-invalid, select.ng-invalid, textarea.ng-invalid',
       );
@@ -273,6 +276,11 @@ export class EstimationForm implements OnDestroy {
     }
 
     this.saving.set(true);
+    console.info('[ApplicantAssessment] submit:start', {
+      assessmentId: this.assessmentId() ?? undefined,
+      documentsCount: this.documentFiles.length + this.uploadedDocumentItems().length,
+      photosCount: this.photoFiles.length + this.uploadedPhotoItems().length,
+    });
 
     try {
       const assessment = await this.flushDraftSave('submit');
@@ -296,8 +304,12 @@ export class EstimationForm implements OnDestroy {
       if (navigated) {
         this.clearCompletedDraftState(assessment.id);
       }
+      console.info('[ApplicantAssessment] submit:success', {
+        assessmentId: assessment.id,
+        navigatedToStatus: navigated,
+      });
     } catch (error) {
-      console.error('Failed to submit estimation form', error);
+      console.error('[ApplicantAssessment] submit:error', error);
       this.saveError.set(
         extractUserFacingSaveErrorMessage(
           error,
@@ -703,6 +715,10 @@ export class EstimationForm implements OnDestroy {
 
     this.addressLookupError.set(null);
     this.addressSuggestLoading.set(true);
+    const startedAt = Date.now();
+    console.info('[ApplicantAssessment] fias.select:start', {
+      objectId: suggestion.objectId,
+    });
 
     try {
       const selectedAddress = await this.assessmentApi.getFiasAddressItemById(suggestion.objectId);
@@ -718,8 +734,13 @@ export class EstimationForm implements OnDestroy {
       });
       this.formControls.cityId.updateValueAndValidity();
       this.addressSuggestions.set([]);
+      console.info('[ApplicantAssessment] fias.select:success', {
+        cityId: selectedAddress.cityId,
+        districtId: selectedAddress.districtId,
+        durationMs: Date.now() - startedAt,
+      });
     } catch (error) {
-      console.error('Failed to load selected FIAS address', error);
+      console.error('[ApplicantAssessment] fias.select:error', error);
       this.addressLookupError.set(
         extractErrorMessage(error, 'Не удалось получить выбранный адрес из ФИАС.'),
       );
@@ -791,6 +812,15 @@ export class EstimationForm implements OnDestroy {
   }
 
   private async initialize(): Promise<void> {
+    const routeAssessmentId =
+      this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
+    const routeReadOnly = this.isReadOnlyQueryParam();
+    let restoredFromDraft = false;
+
+    console.info('[ApplicantAssessment] form.init:start', {
+      routeAssessmentId: routeAssessmentId || undefined,
+      readonly: routeReadOnly,
+    });
     this.loading.set(true);
     this.loadError.set(null);
     this.documentsError.set(null);
@@ -799,11 +829,8 @@ export class EstimationForm implements OnDestroy {
     try {
       const userId = await this.requireUserId();
       const localDraftSnapshot = this.localDraftService.load(userId);
-      const routeAssessmentId =
-        this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
       const localAssessmentId = localDraftSnapshot?.assessmentId?.trim() ?? '';
       const forceNewAssessment = this.isNewAssessmentRoute();
-      const routeReadOnly = this.isReadOnlyQueryParam();
 
       this.userId.set(userId);
 
@@ -817,6 +844,7 @@ export class EstimationForm implements OnDestroy {
         const draft = await this.assessmentApi.getAssessment(routeAssessmentId);
         const isReadOnlyDraft = routeReadOnly || !isEditableDraftStatus(draft.status);
         this.applyDraft(draft, isReadOnlyDraft);
+        restoredFromDraft = true;
 
         if (!isReadOnlyDraft) {
           shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
@@ -838,6 +866,7 @@ export class EstimationForm implements OnDestroy {
             const draft = await this.assessmentApi.getAssessment(localAssessmentId);
             const isReadOnlyDraft = !isEditableDraftStatus(draft.status);
             this.applyDraft(draft, isReadOnlyDraft);
+            restoredFromDraft = true;
 
             if (!isReadOnlyDraft) {
               shouldAutosaveRestoredState = this.applyLocalDraftSnapshot(localDraftSnapshot, draft);
@@ -860,23 +889,31 @@ export class EstimationForm implements OnDestroy {
       if (localDraftSnapshot && !localDraftSnapshot.assessmentId) {
         this.patchDraftForm(localDraftSnapshot.form);
         shouldAutosaveRestoredState = this.canPersistDraft();
+        restoredFromDraft = true;
         return;
       }
 
       const latestDraft = await this.assessmentApi.findLatestDraft(userId);
       if (latestDraft && !this.localDraftService.isCompleted(userId, latestDraft.id)) {
         this.applyDraft(latestDraft, false);
+        restoredFromDraft = true;
         this.persistAssessmentSnapshot(latestDraft);
         await this.syncAssessmentId(latestDraft.id);
         await this.loadStoredDocuments(latestDraft.id);
       }
     } catch (error) {
-      console.error('Failed to initialize estimation form', error);
+      console.error('[ApplicantAssessment] form.init:error', error);
       this.loadError.set(
         extractErrorMessage(error, 'Не удалось загрузить форму параметров оценки.'),
       );
     } finally {
       this.loading.set(false);
+      if (!this.loadError()) {
+        console.info('[ApplicantAssessment] form.init:success', {
+          assessmentId: this.assessmentId() ?? undefined,
+          restoredFromDraft,
+        });
+      }
 
       if (shouldAutosaveRestoredState) {
         void this.handleAutosave();
@@ -997,6 +1034,17 @@ export class EstimationForm implements OnDestroy {
     const formData = this.toDraftData();
     this.draftSaving.set(true);
     this.saveError.set(null);
+    const startedAt = Date.now();
+    if (currentAssessmentId) {
+      console.info('[ApplicantAssessment] draft.update:start', {
+        assessmentId: currentAssessmentId,
+      });
+    } else {
+      console.info('[ApplicantAssessment] draft.create:start', {
+        hasRealEstateObject: Boolean(formData.cityId || formData.address || formData.objectType),
+        objectType: formData.objectType || undefined,
+      });
+    }
 
     const savePromise = currentAssessmentId
       ? this.assessmentApi.updateDraft(currentAssessmentId, formData)
@@ -1018,7 +1066,28 @@ export class EstimationForm implements OnDestroy {
         this.queuePendingUploads();
       }
 
+      if (currentAssessmentId) {
+        console.info('[ApplicantAssessment] draft.update:success', {
+          assessmentId: savedAssessment.id,
+          durationMs: Date.now() - startedAt,
+        });
+      } else {
+        console.info('[ApplicantAssessment] draft.create:success', {
+          assessmentId: savedAssessment.id,
+          status: savedAssessment.status,
+          durationMs: Date.now() - startedAt,
+        });
+      }
+
       return savedAssessment;
+    } catch (error) {
+      console.error(
+        currentAssessmentId
+          ? '[ApplicantAssessment] draft.update:error'
+          : '[ApplicantAssessment] draft.create:error',
+        error,
+      );
+      throw error;
     } finally {
       if (this.draftSavePromise === savePromise) {
         this.draftSavePromise = null;
@@ -1129,6 +1198,12 @@ export class EstimationForm implements OnDestroy {
       : 'Проверьте заполнение полей формы.';
   }
 
+  private getInvalidControlNames(): string[] {
+    return Object.entries(this.estimationForm.controls)
+      .filter(([, control]) => control.invalid)
+      .map(([name]) => name);
+  }
+
   private applyConditionalValidators(objectType: string): void {
     const isLandPlot = objectType === LAND_PLOT_OBJECT_TYPE;
     const roomsMaximum = getRoomsMaximum(objectType);
@@ -1190,11 +1265,21 @@ export class EstimationForm implements OnDestroy {
     }
 
     this.addressSuggestLoading.set(true);
+    const startedAt = Date.now();
+    console.info('[ApplicantAssessment] fias.hints:start', {
+      queryLength: normalizedQuery.length,
+      limit: 5,
+    });
 
     try {
-      this.addressSuggestions.set(await this.assessmentApi.getFiasAddressHints(normalizedQuery));
+      const hints = await this.assessmentApi.getFiasAddressHints(normalizedQuery);
+      this.addressSuggestions.set(hints);
+      console.info('[ApplicantAssessment] fias.hints:success', {
+        hintsCount: hints.length,
+        durationMs: Date.now() - startedAt,
+      });
     } catch (error) {
-      console.error('Failed to load FIAS address hints', error);
+      console.error('[ApplicantAssessment] fias.hints:error', error);
       this.addressSuggestions.set([]);
       this.addressLookupError.set(
         extractErrorMessage(error, 'Не удалось получить подсказки ФИАС.'),

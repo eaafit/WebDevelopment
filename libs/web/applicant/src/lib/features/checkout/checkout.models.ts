@@ -1,6 +1,6 @@
 import { PaymentType } from '@notary-portal/api-contracts';
 
-export type ApplicantCheckoutServiceCode = 'assessment' | 'document_copy';
+export type ApplicantCheckoutServiceCode = 'balance' | 'assessment' | 'document_copy';
 
 export interface ApplicantCheckoutServiceViewModel {
   code: ApplicantCheckoutServiceCode;
@@ -16,6 +16,19 @@ export interface ApplicantCheckoutServiceViewModel {
 }
 
 export const APPLICANT_CHECKOUT_SERVICES: readonly ApplicantCheckoutServiceViewModel[] = [
+  {
+    code: 'balance',
+    rpcType: PaymentType.DOCUMENT_COPY,
+    title: 'Пополнение баланса',
+    subtitle: 'Авансовый платёж для оплаты услуг в кабинете заявителя.',
+    description:
+      'После оплаты сумма появится в истории платежей. Средства можно использовать для дальнейшей обработки услуг.',
+    price: '2500.00',
+    badge: 'Баланс',
+    targetLabel: 'ID плательщика',
+    targetAliases: ['targetId'],
+    successMessage: 'Платёж принят. Информация о пополнении появится в истории платежей.',
+  },
   {
     code: 'assessment',
     rpcType: PaymentType.ASSESSMENT,
@@ -57,6 +70,7 @@ export function resolveApplicantCheckoutServiceCode(
   rawValue: string | null | undefined,
 ): ApplicantCheckoutServiceCode {
   const normalized = rawValue?.trim().toLowerCase();
+  if (!normalized || normalized === 'balance') return 'balance';
   return normalized === 'document_copy' ? 'document_copy' : 'assessment';
 }
 
