@@ -43,12 +43,26 @@ export class HistoryItemComponent {
     return map[this.order.status];
   }
 
-  formatDate(date: Date): string {
+  formatDate(date: any): string {
+    if (!date) return '—';
+
+    let dateObj: Date;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'object' && 'seconds' in date) {
+      // Timestamp из protobuf
+      dateObj = new Date(Number(date.seconds) * 1000);
+    } else if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } else {
+      return '—';
+    }
+
     return new Intl.DateTimeFormat('ru-RU', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-    }).format(date);
+    }).format(dateObj);
   }
 
   onRepeat(): void {
