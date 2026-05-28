@@ -19,6 +19,7 @@ describe('auth Prometheus metrics', () => {
     metrics.recordAuthRegistration('failed', 'notary', 'email_already_registered');
     metrics.recordAuthPasswordReset('request', 'success');
     metrics.recordAuthPasswordReset('submit', 'failed', 'invalid_or_expired_token');
+    metrics.recordAuthBrowserValidationFailed('register', 'invalid_email');
 
     const output = await metrics.getMetrics();
 
@@ -45,6 +46,9 @@ describe('auth Prometheus metrics', () => {
         'notary_auth_password_reset_total{stage="submit",outcome="failed",',
         'reason="invalid_or_expired_token"} 1',
       ].join(''),
+    );
+    expect(output).toContain(
+      'notary_auth_browser_validation_failed_total{form="register",reason="invalid_email"} 1',
     );
   });
 });

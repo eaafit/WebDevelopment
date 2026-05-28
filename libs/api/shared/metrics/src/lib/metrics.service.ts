@@ -26,6 +26,11 @@ export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
 export type AuthMetricOutcome = 'success' | 'failed';
 export type AuthPasswordResetStage = 'request' | 'submit';
+export type AuthBrowserValidationForm =
+  | 'login'
+  | 'register'
+  | 'password_reset_request'
+  | 'password_reset_submit';
 export type FailedAccessMetricReason =
   | 'auth_denied'
   | 'failed_login'
@@ -72,6 +77,7 @@ export class MetricsService {
   private readonly authLoginTotal: Counter<'outcome' | 'reason'>;
   private readonly authRegistrationTotal: Counter<'outcome' | 'role' | 'reason'>;
   private readonly authPasswordResetTotal: Counter<'stage' | 'outcome' | 'reason'>;
+  private readonly authBrowserValidationFailedTotal: Counter<'form' | 'reason'>;
   private readonly failedAccessTotal: Counter<
     'method' | 'status_code' | 'reason' | 'path_group'
   >;
@@ -165,6 +171,13 @@ export class MetricsService {
       name: `${PREFIX}auth_password_reset_total`,
       help: 'Total number of password reset events by stage, outcome, and reason',
       labelNames: ['stage', 'outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authBrowserValidationFailedTotal = new Counter({
+      name: `${PREFIX}auth_browser_validation_failed_total`,
+      help: 'Total number of client-side auth validation failures by form and reason',
+      labelNames: ['form', 'reason'],
       registers: [this.register],
     });
 
@@ -294,6 +307,13 @@ export class MetricsService {
     reason = 'none',
   ): void {
     this.authPasswordResetTotal.inc({ stage, outcome, reason });
+  }
+
+  recordAuthBrowserValidationFailed(
+    form: AuthBrowserValidationForm,
+    reason = 'unknown',
+  ): void {
+    this.authBrowserValidationFailedTotal.inc({ form, reason });
   }
 
   recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
