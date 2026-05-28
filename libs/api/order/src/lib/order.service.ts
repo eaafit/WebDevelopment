@@ -22,9 +22,10 @@ export class OrderService {
 
     if (role === 'applicant') {
       where.applicantId = userId;
-    } else if (role === 'notary') {
-      where.executorId = userId;
     }
+    // } else if (role === 'notary') {
+    //   where.executorId = userId;
+    // }
 
     if (status && status !== 'all') {
       // Пытаемся преобразовать статус в число, если это возможно (т.к. в БД статус хранится как число)

@@ -22,7 +22,7 @@
         <p><strong>Фактическая дата окончания:</strong> {{ order.actualCompletionDate | date:'dd.MM.yyyy' }}</p>
         }
         <p><strong>Статус:</strong> {{ getStatusLabel(order.status) }}</p>
-        <p><strong>Итоговая стоимость:</strong> {{ order.totalAmount }} ₽</p>
+        <p><strong>Итоговая стоимость:</strong> {{ order.totalAmount > 0 ? (order.totalAmount + ' ₽') : 'ещё не назначена' }}</p>
         @if (order.transactionId) {
         <p><strong>ID транзакции:</strong> {{ order.transactionId }}</p>
         }

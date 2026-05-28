@@ -8,6 +8,7 @@ import { AssessmentDetailModalComponent } from '../assessment-detail-modal';
 import { OrderApiService } from '../order-api.service';
 // import { NotificationService } from '@internal/notification';
 import { TokenStore } from '@notary-portal/ui';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 
 @Component({
   selector: 'lib-assessment-history',
@@ -107,6 +108,7 @@ export class AssessmentHistoryComponent implements OnInit {
         page: this.currentPage(),
         pageSize: this.pageSize(),
       });
+      console.log('Loaded orders sample:', response.orders[0]);
       this.orders.set(response.orders);
       this.totalPages.set(response.totalPages);
     } catch (err) {
@@ -153,9 +155,19 @@ export class AssessmentHistoryComponent implements OnInit {
     this.loadOrders();
   }
 
-  getSelectedOrder(): AssessmentOrder | null {
+  getSelectedOrder(): any {
     const id = this.selectedOrderId();
-    return id ? this.orders().find(o => o.id === id) ?? null : null;
+    if (!id) return null;
+    const order = this.orders().find(o => o.id === id);
+    if (!order) return null;
+
+    // Преобразуем Timestamp → Date
+    return {
+      ...order,
+      orderDate: order.orderDate ? timestampDate(order.orderDate) : null,
+      plannedCompletionDate: order.plannedCompletionDate ? timestampDate(order.plannedCompletionDate) : null,
+      actualCompletionDate: order.actualCompletionDate ? timestampDate(order.actualCompletionDate) : null,
+    };
   }
 
   repeatOrder(orderId: string): void {

@@ -7,7 +7,9 @@
       </div>
       <div class="item-address text-secondary">{{ order.objectAddress }}</div>
     </div>
-    <div class="item-amount text-bold">{{ order.totalAmount }} ₽</div>
+    <div class="item-amount text-bold">
+      {{ order.totalAmount > 0 ? (order.totalAmount + ' ₽') : 'Цена ещё не назначена' }}
+    </div>
   </div>
 
   <div class="item-body">
