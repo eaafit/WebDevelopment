@@ -39,7 +39,7 @@ export class AssessmentHistoryComponent implements OnInit {
   }
 
 
-  orders = signal<AssessmentOrder[]>([]);
+  orders = signal<any[]>([]);
   totalPages = signal<number>(1);
   isLoading = signal<boolean>(false);
 
@@ -92,29 +92,27 @@ export class AssessmentHistoryComponent implements OnInit {
     // this.loadNotifications();
   }
 
-  loadOrders(): void {
+  async loadOrders(): Promise<void> {
     const userId = this.getCurrentUserId();
     this.isLoading.set(true);
-    this.orderApi.listOrders({
-      userId, // TODO: заменить на реальный ID
-      role: this.role,
-      status: this.statusFilter() !== 'all' ? this.statusFilter() : undefined,
-      search: this.searchQuery() || undefined,
-      dateFrom: this.dateFrom() || undefined,
-      dateTo: this.dateTo() || undefined,
-      page: this.currentPage(),
-      pageSize: this.pageSize(),
-    }).subscribe({
-      next: (response) => {
-        this.orders.set(response.orders);
-        this.totalPages.set(response.totalPages);
-        this.isLoading.set(false);
-      },
-      error: (err) => {
-        console.error('Ошибка загрузки заказов:', err);
-        this.isLoading.set(false);
-      },
-    });
+    try {
+      const response = await this.orderApi.listOrders({
+        userId,
+        role: this.role,
+        status: this.statusFilter() !== 'all' ? this.statusFilter() : undefined,
+        search: this.searchQuery() || undefined,
+        dateFrom: this.dateFrom() || undefined,
+        dateTo: this.dateTo() || undefined,
+        page: this.currentPage(),
+        pageSize: this.pageSize(),
+      });
+      this.orders.set(response.orders);
+      this.totalPages.set(response.totalPages);
+    } catch (err) {
+      console.error('Ошибка загрузки заказов:', err);
+    } finally {
+      this.isLoading.set(false);
+    }
   }
 
   // private async loadNotifications(): Promise<void> {

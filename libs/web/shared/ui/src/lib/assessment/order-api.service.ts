@@ -1,20 +1,20 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { AssessmentOrder } from './history/models';
+import { createClient } from '@connectrpc/connect';
+import { OrderService, Order } from '@notary-portal/api-contracts';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
 
 export interface ListOrdersResponse {
-  orders: AssessmentOrder[];
+  orders: Order[];
   totalCount: number;
   totalPages: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class OrderApiService {
-  private http = inject(HttpClient);
-  private baseUrl = 'http://localhost:3000';
+  private readonly client = createClient(OrderService, inject(RPC_TRANSPORT));
 
-  listOrders(params: {
+  async listOrders(params: {
     userId: string;
     role: string;
     status?: string;
@@ -23,13 +23,25 @@ export class OrderApiService {
     dateTo?: string;
     page: number;
     pageSize: number;
-  }): Observable<ListOrdersResponse> {
-    const cleanParams: any = { ...params };
-    if (cleanParams.status === 'all') delete cleanParams.status;
-    return this.http.get<ListOrdersResponse>(this.baseUrl, { params: cleanParams });
+  }): Promise<ListOrdersResponse> {
+    const response = await this.client.listOrders({
+      userId: params.userId,
+      role: params.role,
+      status: params.status,
+      searchQuery: params.search,
+      dateFrom: params.dateFrom ? timestampFromDate(new Date(params.dateFrom)) : undefined,
+      dateTo: params.dateTo ? timestampFromDate(new Date(params.dateTo)) : undefined,
+      page: params.page,
+      pageSize: params.pageSize,
+    });
+    return {
+      orders: response.orders,
+      totalCount: response.totalCount,
+      totalPages: response.totalPages,
+    };
   }
 
-  getOrder(id: string): Observable<AssessmentOrder> {
-    return this.http.get<AssessmentOrder>(`${this.baseUrl}/${id}`);
+  async getOrder(id: string): Promise<Order> {
+    return await this.client.getOrder({ orderId: id });
   }
 }
