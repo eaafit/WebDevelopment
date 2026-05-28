@@ -1,5 +1,50 @@
 <main class="dashboard-container">
   <header class="dashboard-header">
+    <article class="filters-card">
+    <div class="filters-grid">
+      <label class="filter-field">
+        <span class="field-label">Название файла</span>
+        <input
+          class="input-control"
+          type="text"
+          placeholder="Например: Паспорт"
+          [value]="draftFilters().fileName"
+          (input)="updateFilter('fileName', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Номер заявки (ID)</span>
+        <input
+          class="input-control"
+          type="text"
+          placeholder="UUID заявки"
+          [value]="draftFilters().assessmentId"
+          (input)="updateFilter('assessmentId', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Загружено от</span>
+        <input
+          class="input-control"
+          type="date"
+          [value]="draftFilters().dateFrom"
+          (change)="updateFilter('dateFrom', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Загружено до</span>
+        <input
+          class="input-control"
+          type="date"
+          [value]="draftFilters().dateTo"
+          (change)="updateFilter('dateTo', $any($event.target).value)" 
+        />
+      </label>
+    </div>
+  </article>
     <div class="header-text">
       <h1 class="page-title">Мои копии документов</h1>
       <p class="page-subtitle">Управляйте запросами на создание копий нотариальных документов</p>

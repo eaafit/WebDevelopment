@@ -16,7 +16,6 @@ export class DocumentRow {
   ) { }
   document = input.required<Document>()
 
-  // Настраиваем локальные форматеры по аналогии с примером
   private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'short',
@@ -28,7 +27,6 @@ export class DocumentRow {
     minute: '2-digit',
   });
 
-  // Используем computed для реактивности и отдаем раздельные строки для шаблона
   uploaded = computed(() => {
     const doc = this.document();
     if (doc?.uploadedAt?.seconds) {
@@ -36,7 +34,7 @@ export class DocumentRow {
       
       if (!isNaN(parsedDate.getTime())) {
         return {
-          date: this.dateFormatter.format(parsedDate).replace(/\s?г\.$/, ''), // Убираем " г." на конце
+          date: this.dateFormatter.format(parsedDate).replace(/\s?г\.$/, ''),
           time: this.timeFormatter.format(parsedDate)
         };
       }

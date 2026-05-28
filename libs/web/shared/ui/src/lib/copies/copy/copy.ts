@@ -1,29 +1,31 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, OnDestroy } from '@angular/core';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
 import { Document } from '../services/document.service';
-import { CommonModule } from '@angular/common'; // Импортируем CommonModule для шаблона
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'lib-copy',
-  imports: [CommonModule], // Убедись, что CommonModule здесь
+  imports: [CommonModule],
   templateUrl: './copy.html',
   styleUrl: './copy.scss',
 })
-export class Copy implements OnInit {
+export class Copy implements OnInit, OnDestroy {
   private readonly assessmentService = inject(AssessmentService);
   private readonly documentService = inject(DocumentService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   id: string | null = null;
   
   doc = signal<Document | null>(null);
   assesment = signal<Assessment | null>(null);
-  timer = signal(0);
+  timer = signal<number>(0);
   
-  // Флаг для отслеживания ошибок бэкенда
   hasError = signal<boolean>(false);
+  private timerId: any = null;
 
   createDate = computed(() => {
     const currentDoc = this.doc();
@@ -33,7 +35,19 @@ export class Copy implements OnInit {
     return new Date(Number(currentDoc.uploadedAt.seconds) * 1000).toLocaleDateString();
   });
 
-  constructor(private route: ActivatedRoute) { }
+  constructor() { }
+
+  // Хелпер считает минуты, привязываясь строго к дате загрузки ДОКУМЕНТА (bigint)
+  private calculateMinutesLeft(uploadedAtSeconds: bigint): number {
+    const deadlineRangeInSeconds = 24 * 60 * 60; // 10 дней дедлайна
+    const secDiff = Number(uploadedAtSeconds) + deadlineRangeInSeconds - (Date.now() / 1000);
+    return secDiff > 0 ? Math.floor(secDiff / 60) : 0;
+  }
+
+  // Метод для редиректа обратно в список при клике на свободную область
+  goBackToList(): void {
+    this.router.navigate(['../'], { relativeTo: this.route });
+  }
 
   async ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id');
@@ -42,7 +56,6 @@ export class Copy implements OnInit {
     try {
       const fetchedDoc = await this.documentService.getDocument(this.id);
       
-      // Если бэкенд вернул null или структуру с ошибкой (вместо документа)
       if (!fetchedDoc || (fetchedDoc as any).error) {
         this.hasError.set(true);
         return;
@@ -56,26 +69,28 @@ export class Copy implements OnInit {
 
         if (fetchedAssessment.status === AssessmentStatus.COMPLETED) return;
 
-        if (!fetchedAssessment.createdAt?.seconds) {
-          this.timer.set(0);
-        } else {
-          const deadlineRange = 10 * 24 * 60;
-          const secDiff = Number(fetchedAssessment.createdAt.seconds) + deadlineRange - Date.now() / 1000;
-          this.timer.set(Math.floor(secDiff / 60));
+        // Первый точный расчёт таймера от даты документа
+        if (fetchedDoc.uploadedAt?.seconds) {
+          this.timer.set(this.calculateMinutesLeft(fetchedDoc.uploadedAt.seconds));
         }
 
-        const timerId = setInterval(async () => {
+        // Интервал для проверки статуса на бэкенде и синхронизации времени
+        this.timerId = setInterval(async () => {
           const currentDoc = this.doc();
-          if (!currentDoc) return clearInterval(timerId);
+          if (!currentDoc) return clearInterval(this.timerId);
 
           try {
             const updatedAssessment = await this.assessmentService.getAssessment(currentDoc.assessmentId);
             this.assesment.set(updatedAssessment);
             
             if (updatedAssessment.status === AssessmentStatus.COMPLETED) {
-              clearInterval(timerId);
-            } else {
-              this.timer.set(this.timer() - 1);
+              clearInterval(this.timerId);
+              return;
+            }
+
+            // Каждую минуту пересчитываем остаток от Date.now()
+            if (currentDoc.uploadedAt?.seconds) {
+              this.timer.set(this.calculateMinutesLeft(currentDoc.uploadedAt.seconds));
             }
           } catch (timerErr) {
             console.error('Ошибка обновления таймера:', timerErr);
@@ -84,7 +99,14 @@ export class Copy implements OnInit {
       }
     } catch (error) {
       console.error('Ошибка загрузки данных:', error);
-      this.hasError.set(true); // Включаем состояние ошибки в интерфейсе
+      this.hasError.set(true);
+    }
+  }
+
+  // Обязательно вычищаем интервал из памяти при уходе со страницы
+  ngOnDestroy() {
+    if (this.timerId) {
+      clearInterval(this.timerId);
     }
   }
 }

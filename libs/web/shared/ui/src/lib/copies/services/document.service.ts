@@ -40,13 +40,34 @@ export class DocumentService {
     return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
   }
 
-  async listDocumentsByAssessment(assessmentId?: string, pagination?: { page: number, limit: number }): Promise<{
+async listDocumentsByAssessment(
+    assessmentId?: string, 
+    params?: { 
+      page: number; 
+      limit: number; 
+      fileName?: string; 
+      dateFrom?: string; 
+      dateTo?: string; 
+    }
+  ): Promise<{
     documents: Document[],
     meta?: PageInfo
   }> {
-    const res = await this.client.listDocumentsByAssessment({ assessmentId, pagination });
+    // Отделяем пагинацию от фильтров для отправки в RPC клиент
+    const pagination = params ? { page: params.page, limit: params.limit } : undefined;
+    
+    // Формируем запрос. Если api-contracts на бэке еще не обновили под новые фильтры,
+    // 'as any' спасет от новых ошибок компиляции контрактов.
+    const res = await this.client.listDocumentsByAssessment({ 
+      assessmentId, 
+      pagination,
+      fileName: params?.fileName,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo
+    } as any);
+
     return {
-      documents: res.documents.map(v => ({ ...v, downloadUrl: resolveStoredDocumentUrl(v.downloadUrl) })),
+      documents: res.documents.map((v: any) => ({ ...v, downloadUrl: resolveStoredDocumentUrl(v.downloadUrl) })),
       meta: res.meta
     }
   }

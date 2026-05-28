@@ -1,14 +1,39 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+
+.page-overlay {
+  cursor: pointer;
+}
+
 .new-doc-fieldset {
   max-width: 480px;
-  margin: 2rem auto;
+  width: 100%;
+  margin: 0 auto;
   padding: 2rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  cursor: default;
+
+  // Базовое состояние границы и тени
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  
+  // Плавный переход для ховера (0.3s как в list.scss)
+  transition: all 0.3s ease;
+
+  // Фиолетовый ободок при наведении
+  &:hover {
+    transform: translateY(-4px);
+    border-color: #6366f1; // Тот самый фиолетовый цвет
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
 
   .form-title {
     font-size: 1.25rem;
@@ -41,33 +66,31 @@
 
     &:focus {
       border-color: #4f46e5;
-      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-    }
-
-    // Стили для заблокированного селекта (когда файл загружен)
-    &:disabled {
-      background-color: #e2e8f0;
-      color: #64748b;
-      cursor: not-allowed;
-      border-color: #cbd5e1;
     }
   }
 
-  .file-input {
-    font-size: 0.875rem;
-    &::file-selector-button {
-      padding: 0.6rem 1rem;
-      border-radius: 8px;
-      border: 1px solid #4f46e5;
-      background: #f5f3ff;
-      color: #4f46e5;
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 1rem;
+
+    .btn-submit {
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      border: none;
+      background: #4f46e5;
+      color: #fff;
       font-weight: 600;
       cursor: pointer;
-      margin-right: 1rem;
       transition: 0.2s;
-      &:hover {
-        background: #4f46e5;
-        color: #fff;
+
+      &:hover:not(:disabled) {
+        background: #4338ca;
+      }
+
+      &:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
       }
     }
   }
@@ -75,7 +98,6 @@
   .document-section {
     position: relative;
 
-    // Склеиваем твои новые элементы внутрь секции документа
     .file-uploaded-container {
       display: flex;
       gap: 10px;
@@ -113,29 +135,6 @@
           background: #dc2626;
         }
       }
-    }
-  }
-
-  .submit-btn {
-    margin-top: 1rem;
-    padding: 0.85rem;
-    border-radius: 10px;
-    border: none;
-    background: #4f46e5;
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: 0.2s;
-
-    &:hover:not(:disabled) {
-      background: #4338ca;
-    }
-
-    &:disabled {
-      background: #cbd5e1;
-      color: #94a3b8;
-      cursor: not-allowed;
     }
   }
 }

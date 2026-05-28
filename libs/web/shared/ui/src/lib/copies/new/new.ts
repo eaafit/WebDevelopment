@@ -6,7 +6,7 @@ import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-co
 import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
 import { AssessmentDocumentModel } from '../../../../../../applicant/src/lib/features/estimation-form/estimation-form.models';
 import { Router, ActivatedRoute } from '@angular/router';
-import { CommonModule } from '@angular/common'; // Обязательно для @for и директив в standalone
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'lib-new',
@@ -21,14 +21,14 @@ export class New implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  fileToUpload: File | null = null;
+  // Храним выбранный файл локально в памяти браузера
   selectedFile: File | null = null;
-  doc = signal<Document | null>(null);
   
-  // Переводим список заявок на сигнал, чтобы Angular гарантированно обновлял @for
   assesments = signal<Assessment[]>([]);
   selectedAssesmentID = signal<string>('');
-  fileRes = signal<AssessmentDocumentModel | null>(null);
+  
+  // Флаг загрузки, чтобы кнопка блокировалась во время отправки на сервер
+  isSubmitting = signal<boolean>(false);
 
   async ngOnInit() {
     try {
@@ -36,15 +36,12 @@ export class New implements OnInit {
       
       if (data && data.assesments && data.assesments.length > 0) {
         this.assesments.set(data.assesments);
-        // Сразу жестко выставляем ID первой заявки из списка
         this.selectedAssesmentID.set(data.assesments[0].id);
-        console.log('Заявки успешно загружены:', data.assesments);
       } else {
         console.warn('Бэкенд вернул успешный ответ, но список заявок пуст.');
       }
     } catch (error) {
-      console.error('Ошибка загрузки заявок с бэкенда. Селектор упал в фоллбек:', error);
-      // На всякий случай оставляем дефолтный ID для фоллбека, чтобы не слать пустую строку
+      console.error('Ошибка загрузки заявок:', error);
       this.selectedAssesmentID.set('123');
     }
   }
@@ -52,69 +49,54 @@ export class New implements OnInit {
   onAssesmentChange(event: any) {
     const value = event.target.value;
     this.selectedAssesmentID.set(value);
-    console.log('Пользователь выбрал заявку с ID:', value);
   }
 
-  async onDocumentUpload(event: any) {
+  // Метод теперь просто запоминает файл локально, ничего не отправляя на бэкенд!
+  onDocumentUpload(event: any) {
     const file = event.target!.files[0];
     if (!file) return;
 
     this.selectedFile = file;
-    
-    const currentAssessmentId = this.selectedAssesmentID();
-    console.log('Отправка файла на сервер для заявки:', currentAssessmentId);
-
-    try {
-      const res = await this.documentApiService.uploadDocument({
-        assessmentId: currentAssessmentId,
-        file: file,
-        group: 'documents'
-      });
-      this.fileRes.set(res);
-      console.log('Файл успешно предзагружен:', res);
-    } catch (err) {
-      console.error('Ошибка при предварительной загрузке файла:', err);
-    }
+    console.log('Файл успешно выбран локально (готов к замене):', file.name);
   }
 
+  // Вся отправка происходит здесь по кнопке "Сохранить документ"
   async onSubmit() {
-    const fileRes = this.fileRes();
-    const fileBlob = this.selectedFile;
+  const fileBlob = this.selectedFile;
 
-    if (!fileRes || !fileBlob) {
-      console.error('Невозможно сохранить: файл отсутствует в памяти');
-      return;
-    }
-
-    try {
-      const fileContent = new Uint8Array(await fileBlob.arrayBuffer());
-
-      await this.documentService.createDocument(
-        this.selectedAssesmentID(),
-        fileRes.fileName,
-        fileRes.fileType,
-        '', // userId
-        fileContent
-      );
-
-      console.log('Документ окончательно привязан и сохранен');
-    } catch (err) {
-      console.error('Ошибка при финальном сохранении документа:', err);
-    } finally {
-      this.router.navigate(['../'], { relativeTo: this.route });
-    }
+  if (!fileBlob) {
+    console.error('Невозможно сохранить: файл не выбран');
+    return;
   }
 
-  async removeDoc() {
-    const currentFile = this.fileRes();
-    if (currentFile?.id) {
-      try {
-        await this.documentApiService.deleteDocument(currentFile.id);
-      } catch (error) {
-        console.error('Ошибка при удалении файла:', error);
-      }
-    }
-    this.fileRes.set(null);
-    this.doc.set(null);
+  try {
+    this.isSubmitting.set(true);
+    const currentAssessmentId = this.selectedAssesmentID();
+    
+    console.log('Отправка файла на сервер для заявки:', currentAssessmentId);
+    
+    const uploadedFileRes = await this.documentApiService.uploadDocument({
+      assessmentId: currentAssessmentId,
+      file: fileBlob,
+      group: 'documents'
+    });
+
+    console.log('Файл успешно сохранен на бэкенде:', uploadedFileRes);
+
+    this.router.navigate(['../'], { relativeTo: this.route });
+
+  } catch (err) {
+    console.error('Ошибка при сохранении документа:', err);
+  } finally {
+    this.isSubmitting.set(false);
+  }
+}
+  removeDoc() {
+    this.selectedFile = null;
+    console.log('Локальный выбор сброшен');
+  }
+
+  goBackToList(): void {
+    this.router.navigate(['../'], { relativeTo: this.route });
   }
 }

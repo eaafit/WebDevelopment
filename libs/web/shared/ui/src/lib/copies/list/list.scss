@@ -1,7 +1,7 @@
 :host {
   // Цветовая палитра и переменные
   --primary-color: #6366f1;
-  --bg-page: #f8fafc;
+  // --bg-page: #f8fafc;
   --bg-card: #ffffff;
   --text-main: #1e293b;
   --text-muted: #64748b;
@@ -149,4 +149,47 @@ pagination {
   display: flex;
   justify-content: center;
   margin-top: 32px;
+}
+
+.filters-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .field-label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .input-control {
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background-color: #f8fafc;
+      font-size: 0.95rem;
+      color: #1e293b;
+      outline: none;
+      transition: border-color 0.2s;
+
+      &:focus {
+        border-color: #4f46e5;
+        background-color: #ffffff;
+      }
+    }
+  }
 }
