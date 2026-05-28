@@ -45,6 +45,9 @@ describe('AuthService', () => {
   };
   const metrics = {
     recordUserRegistered: jest.fn(),
+    recordAuthLogin: jest.fn(),
+    recordAuthRegistration: jest.fn(),
+    recordAuthPasswordReset: jest.fn(),
   };
   const auditService = {
     record: jest.fn(),
@@ -119,6 +122,7 @@ describe('AuthService', () => {
     expect(result.result?.accessToken).toBe('access-token');
     expect(result.result?.refreshToken).toBe('refresh-token');
     expect(result.result?.user?.email).toBe('seed-user-000@seed.local');
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-1',
@@ -181,6 +185,7 @@ describe('AuthService', () => {
     expect(authRepository.createUser.mock.invocationCallOrder[0]).toBeLessThan(
       metrics.recordUserRegistered.mock.invocationCallOrder[0],
     );
+    expect(metrics.recordAuthRegistration).toHaveBeenCalledWith('success', 'applicant');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-2',
@@ -282,6 +287,7 @@ describe('AuthService', () => {
     });
 
     expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('failed', 'invalid_password');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'seed-user-000@seed.local',
@@ -329,6 +335,11 @@ describe('AuthService', () => {
 
     expect(authRepository.createUser).not.toHaveBeenCalled();
     expect(metrics.recordUserRegistered).not.toHaveBeenCalled();
+    expect(metrics.recordAuthRegistration).toHaveBeenCalledWith(
+      'failed',
+      'applicant',
+      'email_already_registered',
+    );
     expect(notificationService.createInternalNotificationsForRole).not.toHaveBeenCalled();
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -365,6 +376,7 @@ describe('AuthService', () => {
       message: '[unauthenticated] invalid credentials',
     });
 
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('failed', 'user_not_found');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'ghost@example.com',
@@ -404,6 +416,7 @@ describe('AuthService', () => {
       'raw-reset-token',
       expect.any(Date),
     );
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith('request', 'success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'seed-user-000@seed.local',
@@ -435,6 +448,11 @@ describe('AuthService', () => {
     );
 
     expect(passwordResetRepository.create).not.toHaveBeenCalled();
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith(
+      'request',
+      'failed',
+      'user_not_found_or_inactive',
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'ghost@example.com',
@@ -483,6 +501,7 @@ describe('AuthService', () => {
     expect(authRepository.updatePasswordHash).toHaveBeenCalledWith('user-1', 'new-password-hash');
     expect(passwordResetRepository.markUsed).toHaveBeenCalledWith('reset-1');
     expect(refreshTokenRepository.revokeAll).toHaveBeenCalledWith('user-1');
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith('submit', 'success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-1',
@@ -521,6 +540,11 @@ describe('AuthService', () => {
     });
 
     expect(authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith(
+      'submit',
+      'failed',
+      'invalid_or_expired_token',
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         allowAnonymous: true,

@@ -161,6 +161,7 @@ export class AuthService {
     await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
 
     this.metrics.recordUserRegistered();
+    this.metrics.recordAuthRegistration('success', metricRole(user.role));
     await this.recordRegistered(user);
     await this.notifyAdminsAboutRegistrationBestEffort(user);
 
@@ -275,13 +276,13 @@ export class AuthService {
   async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
     const email = (request.email ?? '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) {
-      await this.recordPasswordResetFailed('invalid_email', email);
+      await this.recordPasswordResetFailed('request', 'invalid_email', email);
       return create(ForgotPasswordResponseSchema, {});
     }
 
     const record = await this.authRepository.findByEmail(email);
     if (!record?.isActive) {
-      await this.recordPasswordResetFailed('user_not_found_or_inactive', email, record);
+      await this.recordPasswordResetFailed('request', 'user_not_found_or_inactive', email, record);
       return create(ForgotPasswordResponseSchema, {});
     }
 
@@ -313,11 +314,11 @@ export class AuthService {
   async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
     const token = request.token?.trim();
     if (!token) {
-      await this.recordPasswordResetFailed('token_required');
+      await this.recordPasswordResetFailed('submit', 'token_required');
       throw new ConnectError('token is required', Code.InvalidArgument);
     }
     if (request.newPassword.length < MIN_PASSWORD_LEN) {
-      await this.recordPasswordResetFailed('weak_password');
+      await this.recordPasswordResetFailed('submit', 'weak_password');
       throw new ConnectError(
         `password must be at least ${MIN_PASSWORD_LEN} characters`,
         Code.InvalidArgument,
@@ -326,13 +327,13 @@ export class AuthService {
 
     const stored = await this.passwordResetRepository.findValid(token);
     if (!stored) {
-      await this.recordPasswordResetFailed('invalid_or_expired_token');
+      await this.recordPasswordResetFailed('submit', 'invalid_or_expired_token');
       throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
     }
 
     const record = await this.authRepository.findById(stored.userId);
     if (!record) {
-      await this.recordPasswordResetFailed('user_not_found');
+      await this.recordPasswordResetFailed('submit', 'user_not_found');
       throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
     }
 
@@ -385,6 +386,7 @@ export class AuthService {
     role?: RpcUserRole | PrismaRole | string | number | null,
     targetUser?: AuthAuditUser | null,
   ): Promise<void> {
+    this.metrics.recordAuthRegistration('failed', metricRole(role), reason);
     await this.auditService.record({
       actorEmail: normalizeAuditEmail(email),
       actorName: targetUser?.fullName,
@@ -407,6 +409,7 @@ export class AuthService {
   }
 
   private async recordLoginSucceeded(user: AuthAuditUser): Promise<void> {
+    this.metrics.recordAuthLogin('success');
     await this.auditService.record({
       actorUserId: user.id,
       actorEmail: user.email,
@@ -432,6 +435,7 @@ export class AuthService {
     reason: string,
     targetUser?: AuthAuditUser | null,
   ): Promise<void> {
+    this.metrics.recordAuthLogin('failed', reason);
     await this.auditService.record({
       actorEmail: normalizeAuditEmail(email),
       actorName: targetUser?.fullName,
@@ -454,6 +458,7 @@ export class AuthService {
   }
 
   private async recordPasswordResetRequested(user: AuthAuditUser, expiresAt: Date): Promise<void> {
+    this.metrics.recordAuthPasswordReset('request', 'success');
     await this.auditService.record({
       actorEmail: user.email,
       actorName: user.fullName,
@@ -476,10 +481,12 @@ export class AuthService {
   }
 
   private async recordPasswordResetFailed(
+    stage: 'request' | 'submit',
     reason: string,
     email?: string,
     targetUser?: AuthAuditUser | null,
   ): Promise<void> {
+    this.metrics.recordAuthPasswordReset(stage, 'failed', reason);
     await this.auditService.record({
       actorEmail: normalizeAuditEmail(email),
       actorName: targetUser?.fullName,
@@ -563,6 +570,17 @@ function roleDetail(
   role: RpcUserRole | PrismaRole | string | number | null | undefined,
 ): string | undefined {
   return toAuditRole(role)?.toString();
+}
+
+function metricRole(
+  role: RpcUserRole | PrismaRole | string | number | null | undefined,
+): string {
+  const auditRole = toAuditRole(role);
+  if (!auditRole) {
+    return 'unspecified';
+  }
+
+  return auditRole.toString().toLowerCase();
 }
 
 function reasonLabel(reason: string): string {

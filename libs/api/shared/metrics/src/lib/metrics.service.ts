@@ -24,6 +24,8 @@ export type PromoValidationFlow = 'preview' | 'payment_create';
 export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
+export type AuthMetricOutcome = 'success' | 'failed';
+export type AuthPasswordResetStage = 'request' | 'submit';
 export type FailedAccessMetricReason =
   | 'auth_denied'
   | 'failed_login'
@@ -67,6 +69,9 @@ export class MetricsService {
   private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
   private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
+  private readonly authLoginTotal: Counter<'outcome' | 'reason'>;
+  private readonly authRegistrationTotal: Counter<'outcome' | 'role' | 'reason'>;
+  private readonly authPasswordResetTotal: Counter<'stage' | 'outcome' | 'reason'>;
   private readonly failedAccessTotal: Counter<
     'method' | 'status_code' | 'reason' | 'path_group'
   >;
@@ -139,6 +144,27 @@ export class MetricsService {
       name: `${PREFIX}billing_payment_history_requests_total`,
       help: 'Total number of payment history requests by scope and result',
       labelNames: ['scope', 'result'],
+      registers: [this.register],
+    });
+
+    this.authLoginTotal = new Counter({
+      name: `${PREFIX}auth_login_total`,
+      help: 'Total number of auth login attempts by outcome and reason',
+      labelNames: ['outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authRegistrationTotal = new Counter({
+      name: `${PREFIX}auth_registration_total`,
+      help: 'Total number of auth registration attempts by outcome, role, and reason',
+      labelNames: ['outcome', 'role', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authPasswordResetTotal = new Counter({
+      name: `${PREFIX}auth_password_reset_total`,
+      help: 'Total number of password reset events by stage, outcome, and reason',
+      labelNames: ['stage', 'outcome', 'reason'],
       registers: [this.register],
     });
 
@@ -252,6 +278,22 @@ export class MetricsService {
 
   recordPaymentHistoryRequest(scope: PaymentHistoryScope, result: MetricsResult): void {
     this.paymentHistoryRequestsTotal.inc({ scope, result });
+  }
+
+  recordAuthLogin(outcome: AuthMetricOutcome, reason = 'none'): void {
+    this.authLoginTotal.inc({ outcome, reason });
+  }
+
+  recordAuthRegistration(outcome: AuthMetricOutcome, role = 'unspecified', reason = 'none'): void {
+    this.authRegistrationTotal.inc({ outcome, role, reason });
+  }
+
+  recordAuthPasswordReset(
+    stage: AuthPasswordResetStage,
+    outcome: AuthMetricOutcome,
+    reason = 'none',
+  ): void {
+    this.authPasswordResetTotal.inc({ stage, outcome, reason });
   }
 
   recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
