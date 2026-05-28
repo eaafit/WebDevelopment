@@ -15,7 +15,7 @@ import { getCurrentUser } from '@internal/auth-shared';
 import { AuditService } from '@internal/audit';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
-import { NotificationService } from '@internal/notification';
+import { PaymentNotificationService } from '../payment-notification.service';
 import {
   TransactionHistoryRepository,
   type PaymentAuditSnapshot,
@@ -43,7 +43,7 @@ export class TransactionHistoryService {
     private readonly transactionHistoryRepository: TransactionHistoryRepository,
     private readonly metrics: MetricsService,
     private readonly auditService: AuditService,
-    private readonly notificationService: NotificationService,
+    private readonly paymentNotificationService: PaymentNotificationService,
   ) {}
 
   async getPaymentHistory(request: GetPaymentHistoryRequest): Promise<GetPaymentHistoryResponse> {
@@ -103,14 +103,7 @@ export class TransactionHistoryService {
       // audit failure must not break the main operation
     }
 
-    try {
-      await this.notificationService.createInternalNotification({
-        userId: after.userId,
-        message: `Платёж ${shortPaymentId} обновлён`,
-      });
-    } catch {
-      // notification failure must not break the main operation
-    }
+    await this.paymentNotificationService.notifyPaymentUpdated(after);
 
     return response;
   }
@@ -147,14 +140,7 @@ export class TransactionHistoryService {
       // audit failure must not break the main operation
     }
 
-    try {
-      await this.notificationService.createInternalNotification({
-        userId: before.userId,
-        message: `Платёж ${shortPaymentId} удалён`,
-      });
-    } catch {
-      // notification failure must not break the main operation
-    }
+    await this.paymentNotificationService.notifyPaymentDeleted(before);
 
     return response;
   }

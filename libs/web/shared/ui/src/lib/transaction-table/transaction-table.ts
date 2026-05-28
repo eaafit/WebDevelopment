@@ -107,6 +107,7 @@ const PAYMENT_METHOD_PRESENTATIONS: Record<string, PaymentMethodPresentation> = 
 export class TransactionTable implements OnChanges {
   @Input() transactions: TransactionItem[] = [];
   @Input() copyVariant: TransactionTableCopyVariant = 'transactions';
+  @Input() topUpRoute: string | unknown[] = '/notary/subscription/checkout';
   @Input() filters: TransactionTableFilters = DEFAULT_FILTERS;
   @Input() meta: TransactionPageMeta | null = null;
   @Input() loading = false;
