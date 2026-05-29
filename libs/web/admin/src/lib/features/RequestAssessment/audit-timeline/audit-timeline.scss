@@ -1,0 +1,130 @@
+:host {
+  display: block;
+}
+
+.audit-timeline {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+
+  &__title {
+    margin: 0 0 0.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+  }
+
+  &__state {
+    margin: 0;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    color: #6b7280;
+
+    &--error {
+      color: #b91c1c;
+    }
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    position: relative;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0 0.5rem 0.25rem;
+
+    &:not(:last-child)::before {
+      content: '';
+
+      position: absolute;
+      top: 1.9rem;
+      bottom: -0.5rem;
+      left: 0.85rem;
+
+      width: 2px;
+
+      background: #e5e7eb;
+    }
+
+    // Цветовая кодировка по типу события (совпадает с палитрой бейджей статусов).
+    &--created .audit-timeline__icon {
+      background: #eef2ff;
+    }
+
+    &--updated .audit-timeline__icon {
+      background: #f3f4f6;
+    }
+
+    &--assigned .audit-timeline__icon {
+      background: #ecfeff;
+    }
+
+    &--progress .audit-timeline__icon {
+      background: #fffbeb;
+    }
+
+    &--completed .audit-timeline__icon {
+      background: #ecfdf5;
+    }
+
+    &--cancelled .audit-timeline__icon {
+      background: #fef2f2;
+    }
+
+    &--default .audit-timeline__icon {
+      background: #f3f4f6;
+    }
+  }
+
+  &__icon {
+    z-index: 1;
+
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+
+    font-size: 0.95rem;
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__label {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  &__context {
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    color: #4b5563;
+    overflow-wrap: break-word;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+
+    margin-top: 0.2rem;
+
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+
+  &__actor::before {
+    content: '👤 ';
+  }
+}
