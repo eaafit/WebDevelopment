@@ -14,17 +14,35 @@
     <span class="param">Заявка</span>
     <span class="value">{{ document().assessmentId }}</span>
   </div>
+  
   <div class="row date-row">
-  <span class="param">Дата загрузки</span>
-  <div class="value date-container">
-    @if (uploaded()) {
-      <div class="date-text">{{ uploaded()?.date }}</div>
-      <div class="time-text">{{ uploaded()?.time }}</div>
-    } @else {
-      -
-    }
+    <span class="param">Дата загрузки</span>
+    <div class="value date-container">
+      @if (uploaded()) {
+        <div class="date-text">{{ uploaded()?.date }}</div>
+        <div class="time-text">{{ uploaded()?.time }}</div>
+      } @else {
+        -
+      }
+    </div>
   </div>
-</div>
+
+  <div class="row comment-row">
+    <span class="param">Комментарий</span>
+    <div class="value comment-container">
+      @if ($any(document()).comment) {
+        <div class="comment-wrapper" [title]="$any(document()).comment">
+          <svg class="comment-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span class="comment-text">{{ $any(document()).comment }}</span>
+        </div>
+      } @else {
+        <span class="no-comment">—</span>
+      }
+    </div>
+  </div>
+
   <div class="card-footer" (click)="navigateToDocumentPage()">
     <span class="action-text">Открыть детали</span>
   </div>

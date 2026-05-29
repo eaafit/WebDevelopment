@@ -1,33 +1,44 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import { Document } from '../services/document.service';
-import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
+import { AssessmentStatus } from '@notary-portal/api-contracts'; // Проверьте путь импорта
 import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
-import { AssessmentDocumentModel } from '../../../../../../applicant/src/lib/features/estimation-form/estimation-form.models';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms'; // Добавляем для работы с комментариями
 
 @Component({
   selector: 'lib-new',
-  imports: [CommonModule],
+  standalone: true,
+  imports: [CommonModule, FormsModule],
   templateUrl: './new.html',
   styleUrl: './new.scss',
 })
 export class New implements OnInit {
   private readonly assessmentService = inject(AssessmentService);
-  private readonly documentService = inject(DocumentService);
   private readonly documentApiService = inject(DocumentApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  // Храним выбранный файл локально в памяти браузера
+  // Список типов документов из proto
+  readonly documentTypes = [
+    { value: 1, label: 'Паспорт' },
+    { value: 2, label: 'Свидетельство о праве собственности' },
+    { value: 3, label: 'Технический план' },
+    { value: 4, label: 'Кадастровый паспорт' },
+    { value: 5, label: 'Фотография' },
+    { value: 7, label: 'Дополнительный документ (основание)' },
+    { value: 6, label: 'Прочее' },
+  ];
+
   selectedFile: File | null = null;
+  assesments = signal<any[]>([]);
   
-  assesments = signal<Assessment[]>([]);
+  // Поля формы
   selectedAssesmentID = signal<string>('');
+  selectedDocType = signal<number>(1); // По умолчанию "Паспорт"
+  comment = signal<string>('');
   
-  // Флаг загрузки, чтобы кнопка блокировалась во время отправки на сервер
   isSubmitting = signal<boolean>(false);
 
   async ngOnInit() {
@@ -37,66 +48,42 @@ export class New implements OnInit {
       if (data && data.assesments && data.assesments.length > 0) {
         this.assesments.set(data.assesments);
         this.selectedAssesmentID.set(data.assesments[0].id);
-      } else {
-        console.warn('Бэкенд вернул успешный ответ, но список заявок пуст.');
       }
     } catch (error) {
       console.error('Ошибка загрузки заявок:', error);
-      this.selectedAssesmentID.set('123');
     }
   }
 
-  onAssesmentChange(event: any) {
-    const value = event.target.value;
-    this.selectedAssesmentID.set(value);
-  }
-
-  // Метод теперь просто запоминает файл локально, ничего не отправляя на бэкенд!
   onDocumentUpload(event: any) {
     const file = event.target!.files[0];
-    if (!file) return;
-
-    this.selectedFile = file;
-    console.log('Файл успешно выбран локально (готов к замене):', file.name);
+    if (file) this.selectedFile = file;
   }
 
-  // Вся отправка происходит здесь по кнопке "Сохранить документ"
   async onSubmit() {
-  const fileBlob = this.selectedFile;
+    if (!this.selectedFile) return;
 
-  if (!fileBlob) {
-    console.error('Невозможно сохранить: файл не выбран');
-    return;
+    try {
+      this.isSubmitting.set(true);
+      
+      // Отправляем файл вместе с типом документа
+      // Примечание: если ваш API uploadDocument не принимает тип или комментарий, 
+      // они просто логируются или расширяются в контрактах позже.
+      await this.documentApiService.uploadDocument({
+        assessmentId: this.selectedAssesmentID(),
+        file: this.selectedFile,
+        group: 'documents',
+        documentType: this.selectedDocType(), // Добавили тип
+        metadata: { comment: this.comment() }  // Передаем комментарий в метаданных, если поддерживается
+      } as any);
+
+      this.router.navigate(['../'], { relativeTo: this.route });
+    } catch (err) {
+      console.error('Ошибка при сохранении:', err);
+    } finally {
+      this.isSubmitting.set(false);
+    }
   }
 
-  try {
-    this.isSubmitting.set(true);
-    const currentAssessmentId = this.selectedAssesmentID();
-    
-    console.log('Отправка файла на сервер для заявки:', currentAssessmentId);
-    
-    const uploadedFileRes = await this.documentApiService.uploadDocument({
-      assessmentId: currentAssessmentId,
-      file: fileBlob,
-      group: 'documents'
-    });
-
-    console.log('Файл успешно сохранен на бэкенде:', uploadedFileRes);
-
-    this.router.navigate(['../'], { relativeTo: this.route });
-
-  } catch (err) {
-    console.error('Ошибка при сохранении документа:', err);
-  } finally {
-    this.isSubmitting.set(false);
-  }
-}
-  removeDoc() {
-    this.selectedFile = null;
-    console.log('Локальный выбор сброшен');
-  }
-
-  goBackToList(): void {
-    this.router.navigate(['../'], { relativeTo: this.route });
-  }
+  removeDoc() { this.selectedFile = null; }
+  goBackToList() { this.router.navigate(['../'], { relativeTo: this.route }); }
 }

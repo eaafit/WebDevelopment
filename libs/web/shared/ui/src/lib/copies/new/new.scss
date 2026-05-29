@@ -36,10 +36,11 @@
   }
 
   .form-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1e293b;
-    padding: 0 0.5rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0;
+    letter-spacing: -0.025em;
   }
 
   .input-block {
@@ -95,14 +96,69 @@
     }
   }
 
+  // ============== ОБНОВЛЕННЫЙ БЛОК СТИЛЕЙ ==============
   .document-section {
-    position: relative;
+    position: relative; // Важно для позиционирования невидимого инпута
 
+    // 1. Дропзона: Контейнер для "Файл не выбран"
+    .file-upload-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 32px 24px;
+      border: 2px dashed #cbd5e1; // Светло-серая пунктирная граница
+      border-radius: 12px; // Соответствует общему стилю формы
+      background-color: #f8fafc;
+      transition: all 0.2s ease;
+      position: relative;
+      cursor: pointer;
+      text-align: center;
+
+      // 📥 Временная иконка (можно заменить на SVG потом)
+      &::before {
+        content: '📤'; 
+        font-size: 1.5rem;
+        color: #64748b;
+      }
+
+      // Стилизация текста внутри дропзоны
+      .upload-text {
+        font-size: 0.875rem;
+        color: #64748b;
+        line-height: 1.4;
+      }
+
+      // Визуальная реакция на наведение
+      &:hover {
+        border-color: #4f46e5; // Фиолетовый акцент
+        background-color: #f0f4ff; // Легкий фиолетовый фон
+
+        // Иконка/текст тоже меняют цвет
+        &::before, .upload-text {
+          color: #4f46e5;
+        }
+      }
+    }
+
+    // 2. Невидимый нативный инпут - растянут на весь контейнер
+    .file-input {
+      position: absolute;
+      inset: 0; // Растянуть во все стороны (top:0, left:0...)
+      opacity: 0; // Полностью невидимый, но кликабельный! Стандартная кнопка скрыта.
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+      z-index: 2; // Ситсит поверх текста, ловит клики.
+    }
+
+    // 3. Контейнер для ЗАГРУЖЕННОГО файла (оставляем твой аккуратный стиль)
     .file-uploaded-container {
       display: flex;
       gap: 10px;
       align-items: center;
-      margin-top: 0.5rem;
+      margin-top: 0.5rem; // keep consistent gap from label.
 
       .file-card {
         flex-grow: 1;
@@ -122,7 +178,7 @@
       }
 
       .btn-remove {
-        background: #ef4444;
+        background: #ef4444; // Стандартный красный
         color: white;
         border: none;
         padding: 0.75rem 1rem;
@@ -132,9 +188,35 @@
         transition: background 0.2s;
 
         &:hover {
-          background: #dc2626;
+          background: #dc2626; // Темнее при наведении
         }
       }
     }
+  }
+}
+
+.textarea-field {
+  width: 100%;
+  padding: 14px 16px; /* Вот это самое главное: 14px сверху/снизу, 16px по бокам */
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.95rem;
+  font-family: inherit; // Чтобы шрифт наследовался от документа, а не был стандартным браузерным
+  line-height: 1.5;     // Межстрочный интервал для удобства чтения
+  min-height: 100px;    // Начальная высота
+  resize: vertical;     // Разрешаем юзеру тянуть поле только вниз, чтобы не сломал верстку вширь
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &::placeholder {
+    color: #94a3b8;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #6366f1; // Фиолетовый акцент при клике (как у карточки)
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); // Легкое свечение при фокусе
   }
 }

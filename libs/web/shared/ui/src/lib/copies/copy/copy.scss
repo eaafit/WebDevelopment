@@ -9,13 +9,19 @@
   --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   
   display: block;
-  padding: 20px;
+  min-height: 100vh;      /* Добавлено: чтобы host занимал всю высоту экрана */
+  padding: 40px 20px;     /* Изменено: отступы сверху/снизу как в new.scss */
+  box-sizing: border-box; /* Добавлено: чтобы padding не раздувал ширину */
 }
+
 .page-overlay {
   cursor: pointer;
 }
+
 .status-container {
   max-width: 600px;
+  width: 100%;            /* Добавлено: чтобы контейнер был адаптивным */
+  margin: 0 auto;         /* Добавлено: это и центрирует элемент по горизонтали */
   background: var(--bg-main);
   border-radius: 20px;
   border: 1px solid #e2e8f0;
@@ -23,6 +29,7 @@
   padding: 24px;
   transition: transform 0.2s ease;
   cursor: default;
+  
   &:hover {
     transform: translateY(-2px);
     border-color: #6366f1;
@@ -219,4 +226,50 @@
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+
+    .info-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .info-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      word-break: break-all;
+    }
+
+    // Стилизация карточки комментария для визуального отличия
+    &.comment-item {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+
+      .comment-text {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text-dark);
+        line-height: 1.5;
+        word-break: break-word;
+      }
+    }
+  }
 }

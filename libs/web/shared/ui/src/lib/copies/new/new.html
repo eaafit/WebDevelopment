@@ -1,32 +1,38 @@
 <div class="page-overlay" (click)="goBackToList()">
-  <fieldset class="new-doc-fieldset" (click)="$event.stopPropagation()">
-    <legend class="form-title">Заказать копию</legend>
+  <div class="new-doc-fieldset" (click)="$event.stopPropagation()">
+    
+    <h3 class="form-title">Запрос копии документа</h3>
 
     <div class="input-block">
-      <label class="label" for="assessment-select">Выберите заявку</label>
-      <select 
-        id="assessment-select"
-        class="select-field" 
-        name="assessment" 
-        (change)="onAssesmentChange($event)">
+      <label class="label" for="doc-type">Тип документа <span class="required">*</span></label>
+      <select id="doc-type" class="select-field" (change)="selectedDocType.set(+$any($event.target).value)">
+        @for (type of documentTypes; track type.value) {
+          <option [value]="type.value">{{ type.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="input-block">
+      <label class="label" for="assessment-select">Номер дела / заявки <span class="required">*</span></label>
+      <select id="assessment-select" class="select-field" (change)="selectedAssesmentID.set($any($event.target).value)">
         @for (assesment of assesments(); track assesment.id) {
           <option [value]="assesment.id" [selected]="assesment.id === selectedAssesmentID()">
             {{ assesment.description || 'Заявка #' + assesment.id }}
           </option>
         } @empty {
-          <option value="123" selected>Тестовая заявка (Ошибка бэкенда)</option>
+          <option value="">Нет активных заявок</option>
         }
       </select>
     </div>
 
     <div class="input-block document-section">
-      <label class="label">
-        Заключение <span class="required">*</span>
-      </label>
+      <label class="label">Основания (доверенность, свидетельство и т.д.) <span class="required">*</span></label>
       
       @if (!selectedFile) {
-        <input class="file-input" id="documentFile" type="file" accept=".pdf,.doc,.docx"
-          (change)="onDocumentUpload($event)" />
+        <div class="file-upload-placeholder">
+          <input class="file-input" id="documentFile" type="file" (change)="onDocumentUpload($event)" />
+          <span class="upload-text">Выберите файл или перетащите сюда</span>
+        </div>
       }
 
       @if (selectedFile) {
@@ -34,20 +40,30 @@
           <div class="file-card">
             <span class="file-name">📄 {{ selectedFile.name }}</span>
           </div>
-          
           <button type="button" class="btn-remove" (click)="removeDoc()">✕</button>
         </div>
       }
+    </div>
+
+    <div class="input-block">
+      <label class="label" for="form-comment">Комментарий к запросу</label>
+      <textarea 
+        id="form-comment" 
+        class="textarea-field" 
+        placeholder="Например: оригинал находится у нотариуса..."
+        [ngModel]="comment()"
+        (ngModelChange)="comment.set($event)">
+      </textarea>
     </div>
 
     <div class="form-actions">
       <button 
         type="button" 
         class="btn-submit" 
-        [disabled]="!selectedFile || isSubmitting()" 
+        [disabled]="!selectedFile || isSubmitting() || !selectedAssesmentID()" 
         (click)="onSubmit()">
-        {{ isSubmitting() ? 'Сохранение...' : 'Сохранить документ' }}
+        Отправить запрос
       </button>
     </div>
-  </fieldset>
+  </div>
 </div>

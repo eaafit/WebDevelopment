@@ -150,6 +150,7 @@ export class List implements OnInit {
       limit: 1000 
     })
     .then((data) => {
+      console.log('Пришедшие документы с бэкенда:', data.documents);
       this.rawDocuments.set(data.documents || []);
       this.page.set(1);
     })

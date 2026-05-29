@@ -38,3 +38,10 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px; // Чтобы коммент не выталкивал другие элементы
+}
