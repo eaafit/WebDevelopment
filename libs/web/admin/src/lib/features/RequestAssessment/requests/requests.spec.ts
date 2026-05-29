@@ -249,6 +249,69 @@ describe('RequestsComponent', () => {
     expect(component.activeFilterColumn).toBeNull();
     expect(component.filterDropdownStyle).toBeNull();
   });
+
+  // ─── Лаба №8: логирование админ-действий ──────────────────────────────────
+
+  it('logs card open with assessment id and status', () => {
+    const target = component.assessments[0];
+
+    component.viewAssessment(target);
+
+    expect(loggerMock.logCardOpened).toHaveBeenCalledWith(target.id, target.status);
+  });
+
+  it('logs the top-filter apply action via onApplyTopFilters', () => {
+    component.dateFrom = '2024-03-01';
+    component.dateTo = '2024-03-31';
+    component.notaryFilter = NOTARY_ACTIVE_ID;
+
+    component.onApplyTopFilters();
+
+    expect(loggerMock.logFilterChanged).toHaveBeenCalledWith({
+      filter: 'top',
+      dateFrom: '2024-03-01',
+      dateTo: '2024-03-31',
+      notaryFilter: NOTARY_ACTIVE_ID,
+    });
+  });
+
+  it('logs the filter reset action', () => {
+    component.resetTopFilters();
+
+    expect(loggerMock.logFilterChanged).toHaveBeenCalledWith({ filter: 'reset' });
+  });
+
+  it('logs column filter and sort when a column filter is applied with a sort draft', () => {
+    component.toggleColumnFilter('status', {
+      stopPropagation: () => undefined,
+      currentTarget: null,
+    } as unknown as MouseEvent);
+    component.setDraftSort('asc');
+
+    component.applyColumnFilter();
+
+    expect(loggerMock.logFilterChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ filter: 'column', column: 'status' }),
+    );
+    expect(loggerMock.logSortChanged).toHaveBeenCalledWith('status', 'asc');
+  });
+
+  it('logs search input once on the debounced commit', () => {
+    // Проект zoneless — fakeAsync недоступен; используем фейковые таймеры jest
+    // для прокрутки debounceTime(300).
+    jest.useFakeTimers();
+    try {
+      component.onSearchChange('Москва');
+      jest.advanceTimersByTime(300);
+
+      expect(loggerMock.logFilterChanged).toHaveBeenCalledWith({
+        filter: 'search',
+        value: 'Москва',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 // ─── helpers ──────────────────────────────────────────────────────────────
