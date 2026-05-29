@@ -149,8 +149,9 @@ export class AssessmentHistoryComponent implements OnInit {
     }
   }
 
-  changePageSize(newSize: number): void {
-    this.pageSize.set(newSize);
+  changePageSize(newSize: string | number): void {
+    const size = typeof newSize === 'string' ? parseInt(newSize, 10) : newSize;
+    this.pageSize.set(size);
     this.currentPage.set(1);
     this.loadOrders();
   }
