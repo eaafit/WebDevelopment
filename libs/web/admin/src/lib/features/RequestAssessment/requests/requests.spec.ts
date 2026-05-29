@@ -312,6 +312,46 @@ describe('RequestsComponent', () => {
       jest.useRealTimers();
     }
   });
+
+  // ─── Лаба №8: экспорт CSV ─────────────────────────────────────────────────
+
+  it('builds CSV with a header and a row per filtered assessment', () => {
+    const csv = component.buildOrdersCsv();
+    const lines = csv.split('\r\n');
+
+    expect(lines[0]).toBe('ID,Адрес,Заявитель,Статус,Стоимость,Дата создания');
+    expect(lines.length).toBe(component.filteredAssessments.length + 1);
+    expect(lines[1]).toContain(component.filteredAssessments[0].id);
+  });
+
+  it('exports a CSV download and logs the export action', () => {
+    const createObjectURL = jest.fn(() => 'blob:mock');
+    const revokeObjectURL = jest.fn();
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = revokeObjectURL;
+    const clickSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    component.onExportCsv();
+
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(loggerMock.logExport).toHaveBeenCalledWith('csv', component.filteredAssessments.length);
+
+    clickSpy.mockRestore();
+  });
+
+  it('does not export or log when the filtered list is empty', () => {
+    component.filteredAssessments = [];
+    const createObjectURL = jest.fn();
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createObjectURL;
+
+    component.onExportCsv();
+
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(loggerMock.logExport).not.toHaveBeenCalled();
+  });
 });
 
 // ─── helpers ──────────────────────────────────────────────────────────────
