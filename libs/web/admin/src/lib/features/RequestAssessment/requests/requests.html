@@ -236,6 +236,9 @@
         </div>
       </div>
 
+      <!-- Лаба №7: лента истории событий заявки (читает Audit RPC по assessmentId) -->
+      <lib-audit-timeline [assessmentId]="selectedAssessment.id" />
+
       <div class="view-card-actions">
         @if (selectedAssessment.status === 'New') {
         <button class="btn btn-primary" (click)="openVerifyModal(selectedAssessment)">✅ Взять в работу</button>
@@ -376,9 +379,7 @@
 
       <div class="form-actions">
         <button class="btn btn-secondary" (click)="closeCompleteModal()">Отмена</button>
-        <button class="btn btn-success" [disabled]="mutationInFlight" (click)="confirmComplete()">
-          ✔️ Завершить
-        </button>
+        <button class="btn btn-success" [disabled]="mutationInFlight" (click)="confirmComplete()">✔️ Завершить</button>
       </div>
     </div>
   </div>

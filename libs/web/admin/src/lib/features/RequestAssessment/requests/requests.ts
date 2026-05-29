@@ -15,6 +15,7 @@ import {
   type AdminAssessmentRow,
 } from '../services/assessment-api.service';
 import { AdminUserApiService } from '../services/user-api.service';
+import { AuditTimelineComponent } from '../audit-timeline/audit-timeline';
 
 export interface AssessmentItem {
   id: string;
@@ -113,7 +114,7 @@ const ADMIN_STATUS_OVERRIDES_KEY = 'admin_status_overrides';
 
 @Component({
   selector: 'lib-requests',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AuditTimelineComponent],
   templateUrl: './requests.html',
   styleUrl: './requests.scss',
 })
@@ -263,9 +264,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     });
     const overrides = this.readStatusOverrides();
     const assignments = this.readNotaryAssignments();
-    this.assessments = page.items.map((row) =>
-      this.toAssessmentItem(row, overrides, assignments),
-    );
+    this.assessments = page.items.map((row) => this.toAssessmentItem(row, overrides, assignments));
   }
 
   private toAssessmentItem(
@@ -783,8 +782,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
       return;
     }
     if (!DECIMAL_PATTERN.test(value) || Number(value) <= 0) {
-      this.finalEstimatedValueError =
-        'Введите положительное число (до двух знаков после точки)';
+      this.finalEstimatedValueError = 'Введите положительное число (до двух знаков после точки)';
       return;
     }
     const id = this.assessmentToComplete.id;
@@ -795,8 +793,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.closeCompleteModal();
       await this.refreshAfterMutation(id);
     } catch (error) {
-      this.finalEstimatedValueError =
-        (error as Error).message || 'Не удалось завершить заявку';
+      this.finalEstimatedValueError = (error as Error).message || 'Не удалось завершить заявку';
     } finally {
       this.mutationInFlight = false;
     }
