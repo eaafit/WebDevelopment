@@ -17,6 +17,13 @@
   <div class="list-container">
     <div class="list-header">
       <h2>Список заявок</h2>
+      <button
+        type="button"
+        class="btn btn-secondary"
+        [disabled]="filteredAssessments.length === 0"
+        (click)="onExportCsv()">
+        Экспорт CSV
+      </button>
     </div>
 
     <!-- ФИЛЬТРЫ -->

@@ -658,6 +658,30 @@ export class RequestsComponent implements OnInit, OnDestroy {
     return this.statusBadgeClasses[status] || 'badge-primary';
   }
 
+  // ========== ЭКСПОРТ CSV (Лаба №8) ==========
+
+  /** Собирает CSV из текущего отфильтрованного списка заявок. */
+  buildOrdersCsv(): string {
+    const header = ['ID', 'Адрес', 'Заявитель', 'Статус', 'Стоимость', 'Дата создания'];
+    const body = this.filteredAssessments.map((a) => [
+      a.id,
+      a.address,
+      a.applicantName,
+      this.getStatusLabel(a.status),
+      a.estimatedValue,
+      a.createdAt,
+    ]);
+    return [header, ...body].map((cols) => cols.map(toCsvCell).join(',')).join('\r\n');
+  }
+
+  onExportCsv(): void {
+    if (this.filteredAssessments.length === 0) return;
+    const csv = this.buildOrdersCsv();
+    const stamp = new Date().toISOString().slice(0, 10);
+    triggerCsvDownload(csv, `orders-${stamp}.csv`);
+    this.activityLogger.logExport('csv', this.filteredAssessments.length);
+  }
+
   // ========== НАВИГАЦИЯ ==========
 
   viewAssessment(item: AssessmentItem): void {
@@ -822,4 +846,22 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.mutationInFlight = false;
     }
   }
+}
+
+/** Экранирует значение для ячейки CSV (кавычки, запятые, переводы строк). */
+function toCsvCell(value: string): string {
+  const safe = value ?? '';
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/** Скачивает CSV-файл в браузере (BOM для корректной кириллицы в Excel). */
+function triggerCsvDownload(content: string, filename: string): void {
+  const utf8Bom = '﻿';
+  const blob = new Blob([utf8Bom, content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
