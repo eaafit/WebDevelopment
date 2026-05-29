@@ -12,3 +12,13 @@ scrape_configs:
       - targets: ['postgres_exporter:9187']
     metrics_path: /metrics
     scrape_interval: 15s
+
+# Alert rules for monitoring
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
