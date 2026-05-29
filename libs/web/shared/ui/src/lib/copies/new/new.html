@@ -55,6 +55,10 @@
         (ngModelChange)="comment.set($event)">
       </textarea>
     </div>
+    <div class="price-calculation-block">
+  <span class="price-label">Итоговая стоимость копии:</span>
+  <span class="price-value">{{ price() }} ₽</span>
+</div>
 
     <div class="form-actions">
       <button 

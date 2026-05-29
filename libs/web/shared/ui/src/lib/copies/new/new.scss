@@ -220,3 +220,26 @@
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); // Легкое свечение при фокусе
   }
 }
+
+.price-calculation-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #f0fdf4; // Мягкий зеленый фон (с намёком на финансы/успех)
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+
+  .price-label {
+    font-size: 0.95rem;
+    color: #166534;
+    font-weight: 500;
+  }
+
+  .price-value {
+    font-size: 1.25rem;
+    color: #15803d;
+    font-weight: 700;
+  }
+}
