@@ -3,13 +3,12 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
-
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DocumentService, Document, PageInfo } from '../services/document.service';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentRow } from './document-row/document-row';
 import { Pagination } from './pagination/pagination';
 
-// 1. Описываем интерфейс наших фильтров
 export interface DocumentFilters {
   fileName: string;
   assessmentId: string;
@@ -34,55 +33,98 @@ export class List implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly documentService = inject(DocumentService);
-  private readonly destroyRef = inject(DestroyRef); // Нужен для отписки
+  private readonly destroyRef = inject(DestroyRef);
 
-  page = signal<number>(1);
-  private readonly limit = 9;
+  readonly rawDocuments = signal<Document[]>([]);
+  readonly page = signal<number>(1);
+  
+  // ⚙️ Теперь лимит — это реактивный сигнал со значением по умолчанию 9
+  readonly limit = signal<number>(9);
 
-  documents = signal<Document[]>([]);
-  loading = signal(true);
-  pageInfo = signal<PageInfo>({
-    totalItems: 0,
-    totalPages: 0,
-    currentPage: 1,
-    perPage: 9
-  });
+  readonly loading = signal(true);
 
   @Input() role: 'applicant' | 'notary' = 'applicant';
 
-  // 2. Добавляем сигналы для фильтров
   readonly draftFilters = signal<DocumentFilters>({ ...DEFAULT_FILTERS });
   readonly appliedFilters = signal<DocumentFilters>({ ...DEFAULT_FILTERS });
 
+  // Глобальный фильтр по всему массиву данных
+  readonly filteredDocuments = computed(() => {
+    const docs = this.rawDocuments();
+    const filters = this.appliedFilters();
+
+    let result = docs;
+
+    if (filters.fileName.trim()) {
+      const searchName = filters.fileName.toLowerCase().trim();
+      result = result.filter(doc => 
+        doc.fileName && doc.fileName.toLowerCase().includes(searchName)
+      );
+    }
+
+    if (filters.dateFrom) {
+      const fromTimestamp = Math.floor(Date.parse(filters.dateFrom) / 1000);
+      result = result.filter(doc => {
+        const docSeconds = doc.uploadedAt?.seconds ? Number(doc.uploadedAt.seconds) : 0;
+        return docSeconds >= fromTimestamp;
+      });
+    }
+
+    if (filters.dateTo) {
+      const toTimestamp = Math.floor(Date.parse(filters.dateTo) / 1000) + 86399;
+      result = result.filter(doc => {
+        const docSeconds = doc.uploadedAt?.seconds ? Number(doc.uploadedAt.seconds) : 0;
+        return docSeconds <= toTimestamp;
+      });
+    }
+
+    return result;
+  });
+
+  // Пагинация: теперь динамически подстраивается под значение лимита `this.limit()`
+  readonly documents = computed(() => {
+    const start = (this.page() - 1) * this.limit();
+    const end = start + this.limit();
+    return this.filteredDocuments().slice(start, end);
+  });
+
+  // Подсчет страниц теперь тоже зависит от динамического лимита
+  readonly totalPages = computed(() => {
+    return Math.ceil(this.filteredDocuments().length / this.limit()) || 1;
+  });
+
+  // Эмуляция метаданных для компонента пагинации
+  readonly pageInfo = computed<PageInfo>(() => ({
+    totalItems: this.filteredDocuments().length,
+    totalPages: this.totalPages(),
+    currentPage: this.page(),
+    perPage: this.limit()
+  }));
+
+  readonly hasPrev = computed(() => this.page() > 1 && !this.loading());
+  readonly hasNext = computed(() => this.page() < this.totalPages() && !this.loading());
+
   constructor() {
-    // 3. Настраиваем реактивное применение фильтров
     toObservable(this.draftFilters)
       .pipe(
-        debounceTime(300), // Ждем 300мс после последнего ввода
-        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)), // Проверяем, изменились ли данные
+        debounceTime(300),
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((filters) => {
+        const prevAssessmentId = this.appliedFilters().assessmentId;
         this.appliedFilters.set(filters);
-        this.page.set(1); // Сбрасываем пагинацию на первую страницу
-        this.fetchDocuments(1); // Запрашиваем новые данные
+        this.page.set(1);
+
+        if (filters.assessmentId !== prevAssessmentId || this.rawDocuments().length === 0) {
+          this.fetchDocuments();
+        }
       });
   }
 
   ngOnInit() {
     const routeRole = this.route.snapshot.data['role'];
     if (routeRole) this.role = routeRole;
-    
-    this.fetchDocuments();
-
-    this.documents.set([{
-      assessmentId: '12',
-      id: 'qwe',
-      fileName: 'test',
-      fileType: 'png',
-      version: 1,
-      uploadedById: Date().toString(),
-      downloadUrl: 'qweasd'
-    }]);
 
     this.goToPrev = this.goToPrev.bind(this);
     this.goToNext = this.goToNext.bind(this);
@@ -92,42 +134,42 @@ export class List implements OnInit {
     this.draftFilters.update((filters) => ({ ...filters, [key]: value }));
   }
 
-  fetchDocuments(page = 1) {
+  // 🔄 Метод для изменения количества отображаемых элементов
+  changeLimit(newLimit: number): void {
+    this.limit.set(newLimit);
+    this.page.set(1); // Обязательно сбрасываем на первую страницу
+  }
+
+  fetchDocuments() {
     this.loading.set(true);
     const filters = this.appliedFilters();
     const assessmentIdParam = filters.assessmentId.trim() || undefined;
 
     this.documentService.listDocumentsByAssessment(assessmentIdParam, { 
-      page, 
-      limit: this.limit,
-      fileName: filters.fileName || undefined,
-      dateFrom: filters.dateFrom || undefined,
-      dateTo: filters.dateTo || undefined
+      page: 1, 
+      limit: 1000 
     })
     .then((data) => {
-      this.documents.set(data.documents);
-      if (data.meta) this.pageInfo.set(data.meta);
-      this.page.set(data.meta?.currentPage ?? page);
+      this.rawDocuments.set(data.documents || []);
+      this.page.set(1);
     })
-    .catch(() => {})
+    .catch((err) => {
+      console.error('Ошибка при получении документов:', err);
+      this.rawDocuments.set([]);
+    })
     .finally(() => this.loading.set(false));
   }
 
-  hasPrev = computed(() => this.page() > 1 && !this.loading());
-
-  hasNext = computed(() => {
-    const totalPages = this.pageInfo()?.totalPages;
-    return Boolean(totalPages && this.page() < totalPages && !this.loading());
-  });
-
   goToPrev() {
-    if (this.page() > 1) this.fetchDocuments(this.page() - 1);
+    if (this.page() > 1) {
+      this.page.update(p => p - 1);
+    }
   }
 
   goToNext() {
-    const lastPage = this.pageInfo()?.totalPages;
-    if (!lastPage || this.page() >= lastPage) return;
-    this.fetchDocuments(this.page() + 1);
+    if (this.page() < this.totalPages()) {
+      this.page.update(p => p + 1);
+    }
   }
 
   navigateToNew(): void {

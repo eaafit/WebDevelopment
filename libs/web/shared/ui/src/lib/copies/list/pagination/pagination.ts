@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -14,4 +14,13 @@ export class Pagination {
   totalPages = input.required<number>();
   goToPrev = input.required<() => void>();
   goToNext = input.required<() => void>();
+
+  // ⚙️ Новые параметры для настройки лимита страниц
+  pageSize = input.required<number>();
+  pageSizeChange = output<number>();
+
+  onPageSizeChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.pageSizeChange.emit(Number(select.value));
+  }
 }
