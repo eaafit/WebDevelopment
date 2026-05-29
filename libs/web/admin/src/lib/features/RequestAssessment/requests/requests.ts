@@ -16,6 +16,7 @@ import {
 } from '../services/assessment-api.service';
 import { AdminUserApiService } from '../services/user-api.service';
 import { AuditTimelineComponent } from '../audit-timeline/audit-timeline';
+import { AdminOrderActivityLogger } from '../services/admin-order-activity-logger.service';
 
 export interface AssessmentItem {
   id: string;
@@ -122,6 +123,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private readonly assessmentApi = inject(AdminAssessmentApiService);
   private readonly userApi = inject(AdminUserApiService);
+  private readonly activityLogger = inject(AdminOrderActivityLogger);
 
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
@@ -210,6 +212,8 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.searchSubscription = this.searchSubject$.pipe(debounceTime(300)).subscribe(() => {
+      // Лаба №8: лог поиска на завершённом вводе (debounce), а не на каждый символ.
+      this.activityLogger.logFilterChanged({ filter: 'search', value: this.searchTerm });
       this.applyFilters();
       this.cdr.detectChanges();
     });
@@ -400,7 +404,18 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.updatePagination();
   }
 
+  onApplyTopFilters(): void {
+    this.activityLogger.logFilterChanged({
+      filter: 'top',
+      dateFrom: this.dateFrom,
+      dateTo: this.dateTo,
+      notaryFilter: this.notaryFilter,
+    });
+    this.applyFilters();
+  }
+
   resetTopFilters(): void {
+    this.activityLogger.logFilterChanged({ filter: 'reset' });
     this.dateFrom = '';
     this.dateTo = '';
     this.notaryFilter = '';
@@ -499,6 +514,14 @@ export class RequestsComponent implements OnInit, OnDestroy {
     } else if (this.currentSortColumn === column) {
       this.currentSortColumn = null;
       this.currentSortDirection = '';
+    }
+    this.activityLogger.logFilterChanged({
+      filter: 'column',
+      column,
+      selectedCount: this.columnSelectedValues[column].length,
+    });
+    if (this.filterSortDraft) {
+      this.activityLogger.logSortChanged(column, this.filterSortDraft);
     }
     this.closeColumnFilter();
     this.applyFilters();
@@ -638,6 +661,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   // ========== НАВИГАЦИЯ ==========
 
   viewAssessment(item: AssessmentItem): void {
+    this.activityLogger.logCardOpened(item.id, item.status);
     this.selectedAssessment = item;
     this.showView = true;
   }

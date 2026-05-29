@@ -5,6 +5,7 @@ import {
   type AdminAssessmentListPage,
 } from '../services/assessment-api.service';
 import { AdminUserApiService, type AdminUserRef } from '../services/user-api.service';
+import { AdminOrderActivityLogger } from '../services/admin-order-activity-logger.service';
 import { RequestsComponent } from './requests';
 
 const NOTARY_ACTIVE_ID = 'notary-active-1';
@@ -19,17 +20,20 @@ describe('RequestsComponent', () => {
   let fixture: ComponentFixture<RequestsComponent>;
   let apiMock: ReturnType<typeof createApiMock>;
   let userMock: ReturnType<typeof createUserMock>;
+  let loggerMock: ReturnType<typeof createLoggerMock>;
 
   beforeEach(async () => {
     localStorage.clear();
     apiMock = createApiMock();
     userMock = createUserMock();
+    loggerMock = createLoggerMock();
 
     await TestBed.configureTestingModule({
       imports: [RequestsComponent],
       providers: [
         { provide: AdminAssessmentApiService, useValue: apiMock },
         { provide: AdminUserApiService, useValue: userMock },
+        { provide: AdminOrderActivityLogger, useValue: loggerMock },
       ],
     }).compileComponents();
 
@@ -61,10 +65,7 @@ describe('RequestsComponent', () => {
   });
 
   it('overlays notaryId from the localStorage workaround onto loaded rows', async () => {
-    localStorage.setItem(
-      ADMIN_NOTARY_ASSIGNMENTS_KEY,
-      JSON.stringify({ 'a-2': NOTARY_ACTIVE_ID }),
-    );
+    localStorage.setItem(ADMIN_NOTARY_ASSIGNMENTS_KEY, JSON.stringify({ 'a-2': NOTARY_ACTIVE_ID }));
     component.reload();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -144,10 +145,7 @@ describe('RequestsComponent', () => {
   });
 
   it('confirmComplete clears the status override after a successful call', async () => {
-    localStorage.setItem(
-      ADMIN_STATUS_OVERRIDES_KEY,
-      JSON.stringify({ 'a-2': 'InProgress' }),
-    );
+    localStorage.setItem(ADMIN_STATUS_OVERRIDES_KEY, JSON.stringify({ 'a-2': 'InProgress' }));
     const verified = component.assessments.find((a) => a.id === 'a-2');
     if (!verified) {
       throw new Error('Expected a-2 in the seed data');
@@ -165,10 +163,7 @@ describe('RequestsComponent', () => {
 
   it('only applies the InProgress override when the server still reports Verified', async () => {
     // Сервер ушёл вперёд (Completed), но локальный override от прежней сессии остался.
-    localStorage.setItem(
-      ADMIN_STATUS_OVERRIDES_KEY,
-      JSON.stringify({ 'a-3': 'InProgress' }),
-    );
+    localStorage.setItem(ADMIN_STATUS_OVERRIDES_KEY, JSON.stringify({ 'a-3': 'InProgress' }));
     component.reload();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -193,10 +188,7 @@ describe('RequestsComponent', () => {
   });
 
   it('narrows filteredAssessments by the selected notaryId', async () => {
-    localStorage.setItem(
-      ADMIN_NOTARY_ASSIGNMENTS_KEY,
-      JSON.stringify({ 'a-2': NOTARY_ACTIVE_ID }),
-    );
+    localStorage.setItem(ADMIN_NOTARY_ASSIGNMENTS_KEY, JSON.stringify({ 'a-2': NOTARY_ACTIVE_ID }));
     component.reload();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -363,5 +355,15 @@ function createUserMock() {
     get usersById(): ReadonlyMap<string, AdminUserRef> {
       return users;
     },
+  };
+}
+
+function createLoggerMock() {
+  return {
+    logCardOpened: jest.fn(),
+    logFilterChanged: jest.fn(),
+    logSortChanged: jest.fn(),
+    logExport: jest.fn(),
+    getRecentEntries: jest.fn(() => []),
   };
 }
