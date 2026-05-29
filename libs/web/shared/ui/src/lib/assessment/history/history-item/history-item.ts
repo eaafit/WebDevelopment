@@ -72,4 +72,9 @@ export class HistoryItemComponent {
   onView(): void {
     this.view.emit(this.order.id);
   }
+
+  onTakeWork(): void {
+    // TODO: сделаю позже вызов verifyAssessment
+    console.log('Take work for order', this.order.id);
+  }
 }

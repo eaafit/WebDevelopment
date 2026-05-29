@@ -70,6 +70,7 @@ export class OrderService {
         orderBy: { startDate: 'desc' },
       });
       console.log('[OrderService] leads found:', leads.length);
+      console.log('[OrderService] First lead assessment status:', leads[0]?.assessment?.status, typeof leads[0]?.assessment?.status);
 
       const orders = leads.map((lead) => this.mapLeadToOrder(lead));
       console.log('[OrderService] orders mapped:', orders.length);
@@ -98,27 +99,43 @@ export class OrderService {
     return this.mapLeadToOrder(lead);
   }
 
-  private mapAssessmentStatusToOrderStatus(assessmentStatus: string | number | undefined): string {
-    // Если статус пришёл как число, преобразуем в строку (на всякий случай)
+  private mapAssessmentStatusToOrderStatus(assessmentStatus: any): string {
     const statusStr = assessmentStatus?.toString() ?? '';
+    console.log('[OrderService] mapAssessmentStatusToOrderStatus input:', statusStr, typeof statusStr);
+
     const mapping: Record<string, string> = {
-      'NEW': 'created',
-      'VERIFIED': 'accepted',
-      'IN_PROGRESS': 'under_review',
-      'COMPLETED': 'completed',
-      'CANCELLED': 'rejected',
+      'new': 'created',
+      'verified': 'accepted',
+      'in_progress': 'under_review',
+      'completed': 'completed',
+      'cancelled': 'rejected',
+      'New': 'created',
+      'Verified': 'accepted',
+      'InProgress': 'under_review',
+      'Completed': 'completed',
+      'Cancelled': 'rejected',
+      '1': 'created',
+      '2': 'accepted',
+      '3': 'under_review',
+      '4': 'completed',
+      '5': 'rejected',
     };
-    return mapping[statusStr] || 'created'; // по умолчанию 'created'
+    const result = mapping[statusStr] || 'created';
+    console.log('[OrderService] mapAssessmentStatusToOrderStatus result:', result);
+    return result;
   }
 
   // Маппинг данных из БД в формат, который будет отправлен на фронт
   private mapLeadToOrder(lead: any) {
     try {
-      const statusHistory = [] as any[]; // пока пустая
-
+      const statusHistory = [] as any[];
       const realEstateObject = lead.assessment?.realEstateObject;
 
-      // Защита от отсутствия realEstateObject
+      // Логируем исходный статус и результат маппинга
+      const rawStatus = lead.assessment?.status;
+      const mappedStatus = this.mapAssessmentStatusToOrderStatus(rawStatus);
+      console.log(`[OrderService] Lead ${lead.id}: rawStatus=${rawStatus} (${typeof rawStatus}), mappedStatus=${mappedStatus}`);
+
       const realEstateObjectMapped = realEstateObject
         ? {
           id: realEstateObject.id,
@@ -143,7 +160,7 @@ export class OrderService {
         id: lead.id,
         objectAddress: lead.assessment?.address || '',
         orderDate: lead.startDate,
-        status: this.mapAssessmentStatusToOrderStatus(lead.assessment?.status),
+        status: mappedStatus,
         totalAmount: lead.assessment?.estimatedValue,
         statusHistory,
         applicantId: lead.applicant?.id,
