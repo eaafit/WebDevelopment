@@ -9,7 +9,7 @@ export class OrderRpcService {
 
   async listOrders(request: ListOrdersRequest): Promise<any> {
     try {
-      console.log('[OrderRpcService] listOrders called with:', JSON.stringify(request, null, 2));
+      // console.log('[OrderRpcService] listOrders called with:', JSON.stringify(request, null, 2));
 
       const findManyParams = {
         userId: request.userId,

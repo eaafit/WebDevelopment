@@ -27,7 +27,7 @@
           <label class="form-label" for="assessment-search">Поиск</label>
           <div class="input-icon-wrap">
             <input id="assessment-search" type="text" class="form-input" placeholder="ID или адрес"
-              [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event)" />
+              [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event); onSearchChange()" />
             <span class="input-icon-right">🔍</span>
           </div>
         </div>
@@ -35,7 +35,7 @@
         <div class="form-group">
           <label class="form-label" for="assessment-status">Статус</label>
           <select id="assessment-status" class="form-input form-select" [ngModel]="statusFilter()"
-            (ngModelChange)="statusFilter.set($event)">
+            (ngModelChange)="statusFilter.set($event); onStatusChange()">
             @for (opt of statusOptions; track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
             }
@@ -45,13 +45,13 @@
         <div class="form-group">
           <label class="form-label" for="assessment-date-from">Дата от</label>
           <input id="assessment-date-from" type="date" class="form-input" [ngModel]="dateFrom()"
-            (ngModelChange)="dateFrom.set($event)" />
+            (ngModelChange)="dateFrom.set($event); onDateFromChange()" />
         </div>
 
         <div class="form-group">
           <label class="form-label" for="assessment-date-to">Дата до</label>
           <input id="assessment-date-to" type="date" class="form-input" [ngModel]="dateTo()"
-            (ngModelChange)="dateTo.set($event)" />
+            (ngModelChange)="dateTo.set($event); onDateToChange()" />
         </div>
       </div>
     </div>

@@ -96,6 +96,7 @@ export class AssessmentHistoryComponent implements OnInit {
   async loadOrders(): Promise<void> {
     const userId = this.getCurrentUserId();
     console.log('Current user ID:', this.getCurrentUserId());
+    console.log('Sending status filter:', this.statusFilter());
     this.isLoading.set(true);
     try {
       const response = await this.orderApi.listOrders({

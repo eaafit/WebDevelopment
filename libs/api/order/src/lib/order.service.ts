@@ -17,6 +17,8 @@ export class OrderService {
     pageSize: number;
   }) {
     console.log('[OrderService] findMany params:', JSON.stringify(params, null, 2));
+    // проверка что сервер работает с обновленным файлом
+    // console.log('🔥🔥🔥 USING UPDATED ORDER.SERVICE.TS WITH SWITCH 🔥🔥🔥');
     const { userId, role, status, searchQuery, dateFrom, dateTo, page, pageSize } = params;
     const where: any = {};
 
@@ -27,19 +29,36 @@ export class OrderService {
     //   where.executorId = userId;
     // }
 
+    console.log('[OrderService] status filter raw value:', status, 'type:', typeof status);
+
     if (status && status !== 'all') {
-      // Пытаемся преобразовать статус в число, если это возможно (т.к. в БД статус хранится как число)
-      let statusValue: any = status;
-      if (!isNaN(Number(status))) {
-        statusValue = Number(status);
+      let dbStatus: string;
+      switch (status) {
+        case 'created':
+          dbStatus = 'New';
+          break;
+        case 'accepted':
+          dbStatus = 'Verified';
+          break;
+        case 'under_review':
+          dbStatus = 'InProgress';
+          break;
+        case 'completed':
+          dbStatus = 'Completed';
+          break;
+        case 'rejected':
+          dbStatus = 'Cancelled';
+          break;
+        default:
+          dbStatus = status;
       }
-      where.assessment = { status: statusValue };
+      console.log('[OrderService] Filter status:', status, '-> DB status:', dbStatus);
+      where.assessment = { status: dbStatus };
     }
-    if (dateFrom) {
-      where.startDate = { gte: dateFrom };
-    }
-    if (dateTo) {
-      where.startDate = { lte: dateTo };
+    if (dateFrom || dateTo) {
+      where.startDate = {};
+      if (dateFrom) where.startDate.gte = dateFrom;
+      if (dateTo) where.startDate.lte = dateTo;
     }
     if (searchQuery) {
       where.OR = [
@@ -178,4 +197,19 @@ export class OrderService {
       throw error;
     }
   }
+
+  // из формата фронта в формат БД
+  // private mapOrderStatusToAssessmentStatus(orderStatus: string): string | undefined {
+  //   console.log('[OrderService] mapOrderStatusToAssessmentStatus input:', orderStatus);
+  //   const mapping: Record<string, string> = {
+  //     'created': 'New',
+  //     'accepted': 'Verified',
+  //     'under_review': 'InProgress',
+  //     'completed': 'Completed',
+  //     'rejected': 'Cancelled',
+  //   };
+  //   const result = mapping[orderStatus];
+  //   console.log('[OrderService] mapOrderStatusToAssessmentStatus output:', result);
+  //   return result;
+  // }
 }
