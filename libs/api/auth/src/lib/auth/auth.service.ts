@@ -509,6 +509,7 @@ export class AuthService {
   }
 
   private async recordPasswordResetCompleted(user: AuthAuditUser): Promise<void> {
+    this.metrics.recordAuthPasswordReset('submit', 'success');
     await this.auditService.record({
       actorUserId: user.id,
       actorEmail: user.email,
