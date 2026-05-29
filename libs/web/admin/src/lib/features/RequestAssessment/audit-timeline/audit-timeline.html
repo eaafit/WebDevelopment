@@ -1,0 +1,31 @@
+<section class="audit-timeline" aria-label="История заявки">
+  <h4 class="audit-timeline__title">История заявки</h4>
+
+  @if (loading()) {
+  <p class="audit-timeline__state">Загрузка истории…</p>
+  } @else if (error()) {
+  <p class="audit-timeline__state audit-timeline__state--error">{{ error() }}</p>
+  } @else if (isEmpty()) {
+  <p class="audit-timeline__state">Событий по заявке пока нет.</p>
+  } @else {
+  <ol class="audit-timeline__list">
+    @for (event of events(); track event.id) {
+    <li class="audit-timeline__item" [ngClass]="'audit-timeline__item--' + colorKey(event.eventType)">
+      <span class="audit-timeline__icon" aria-hidden="true">{{ iconFor(event.eventType) }}</span>
+      <div class="audit-timeline__body">
+        <div class="audit-timeline__label">{{ labelFor(event) }}</div>
+        @if (event.actionContext) {
+        <div class="audit-timeline__context">{{ event.actionContext }}</div>
+        }
+        <div class="audit-timeline__meta">
+          <span class="audit-timeline__date">{{ formatDate(event.occurredAt) }}</span>
+          @if (actorFor(event)) {
+          <span class="audit-timeline__actor">{{ actorFor(event) }}</span>
+          }
+        </div>
+      </div>
+    </li>
+    }
+  </ol>
+  }
+</section>
