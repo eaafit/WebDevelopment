@@ -70,12 +70,36 @@
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "max": 5,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 3 }
+            ]
+          },
+          "unit": "short"
+        },
         "overrides": []
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "id": 4,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -85,7 +109,7 @@
         }
       ],
       "title": "User registrations",
-      "type": "timeseries"
+      "type": "gauge"
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },

@@ -18,7 +18,10 @@
             Настройки каналов
           </a>
         }
-        <button type="button" class="notification-inbox__btn notification-inbox__btn--secondary" (click)="markAllAsRead()">
+        <button
+          type="button"
+          class="notification-inbox__btn notification-inbox__btn--secondary"
+          (click)="markAllAsRead()">
           Прочитать все
         </button>
       </div>
@@ -143,8 +146,13 @@
 </section>
 
 @if (showPopupOnUnread() && popupNotification(); as popup) {
-  <div class="notification-inbox__popup-backdrop" (click)="closePopup()">
-    <div class="notification-inbox__popup" (click)="$event.stopPropagation()">
+  <div class="notification-inbox__popup-layer">
+    <button
+      type="button"
+      class="notification-inbox__popup-backdrop"
+      aria-label="Закрыть уведомление"
+      (click)="closePopup()"></button>
+    <div class="notification-inbox__popup" role="dialog" aria-modal="true">
       <h3>{{ popup.title }}</h3>
       @if (popup.description) {
         <p>{{ popup.description }}</p>

@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
+import { buildAuthLogContext, currentBrowserRoute, emailDomainOf } from '../auth-browser-log';
 import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -21,6 +23,7 @@ interface TestAccount {
 })
 export class Login {
   private readonly authService = inject(AuthService);
+  private readonly logger = inject(WebLoggerService);
   private copyResetTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Off by default; set `NG_APP_SHOW_TEST_ACCOUNTS=true` at web image build (or `nx serve` dev config) to show test-account UI. */
@@ -44,10 +47,12 @@ export class Login {
     const email = this.email.trim();
     if (!EMAIL_RE.test(email)) {
       this.validationError.set('Укажите корректный email.');
+      this.logValidationFailure('invalid_email', email);
       return;
     }
     if (!this.password) {
       this.validationError.set('Укажите пароль.');
+      this.logValidationFailure('password_required', email);
       return;
     }
 
@@ -71,6 +76,18 @@ export class Login {
       clearTimeout(this.copyResetTimer);
     }
     this.copyResetTimer = setTimeout(() => this.copiedAccount.set(null), 2000);
+  }
+
+  private logValidationFailure(reason: string, email: string): void {
+    this.logger.warn(
+      'auth.login.validation_failed',
+      buildAuthLogContext({
+        emailDomain: emailDomainOf(email),
+        reason,
+        route: currentBrowserRoute(),
+        outcome: 'failed',
+      }),
+    );
   }
 }
 

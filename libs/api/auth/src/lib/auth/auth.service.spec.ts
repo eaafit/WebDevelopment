@@ -1,8 +1,11 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
+import { Logger } from '@nestjs/common';
+import { Role as PrismaRole } from '@internal/prisma-client';
 import {
   ForgotPasswordRequestSchema,
   LoginRequestSchema,
+  NotificationType,
   RegisterRequestSchema,
   ResetPasswordRequestSchema,
   UserRole,
@@ -42,9 +45,15 @@ describe('AuthService', () => {
   };
   const metrics = {
     recordUserRegistered: jest.fn(),
+    recordAuthLogin: jest.fn(),
+    recordAuthRegistration: jest.fn(),
+    recordAuthPasswordReset: jest.fn(),
   };
   const auditService = {
     record: jest.fn(),
+  };
+  const notificationService = {
+    createInternalNotificationsForRole: jest.fn(),
   };
 
   let service: AuthService;
@@ -59,6 +68,7 @@ describe('AuthService', () => {
       tokenService as never,
       metrics as never,
       auditService as never,
+      notificationService as never,
       null,
       null,
     );
@@ -112,6 +122,7 @@ describe('AuthService', () => {
     expect(result.result?.accessToken).toBe('access-token');
     expect(result.result?.refreshToken).toBe('refresh-token');
     expect(result.result?.user?.email).toBe('seed-user-000@seed.local');
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-1',
@@ -170,6 +181,11 @@ describe('AuthService', () => {
         phoneNumber: '+7999000001',
       }),
     );
+    expect(metrics.recordUserRegistered).toHaveBeenCalledTimes(1);
+    expect(authRepository.createUser.mock.invocationCallOrder[0]).toBeLessThan(
+      metrics.recordUserRegistered.mock.invocationCallOrder[0],
+    );
+    expect(metrics.recordAuthRegistration).toHaveBeenCalledWith('success', 'applicant');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-2',
@@ -186,6 +202,65 @@ describe('AuthService', () => {
         }),
       }),
     );
+    expect(notificationService.createInternalNotificationsForRole).toHaveBeenCalledWith(
+      PrismaRole.Admin,
+      expect.objectContaining({
+        title: 'Новый пользователь зарегистрировался',
+        message: expect.stringContaining('New User создал аккаунт (Заявитель)'),
+        type: NotificationType.IN_APP,
+      }),
+    );
+    expect(
+      notificationService.createInternalNotificationsForRole.mock.calls[0][1],
+    ).not.toHaveProperty('category');
+  });
+
+  it('keeps registration successful when admin notification creation fails', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const user: User = create(UserSchema, {
+      id: 'user-3',
+      email: 'new-notary@example.com',
+      fullName: '',
+      role: UserRole.NOTARY,
+      isActive: true,
+    });
+
+    authRepository.findByEmail.mockResolvedValue(null);
+    authRepository.toPrismaRole.mockReturnValue('Notary');
+    authRepository.createUser.mockResolvedValue(user);
+    passwordService.hash.mockResolvedValue('password-hash');
+    tokenService.generateTokenPair.mockReturnValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshExpiresAt: new Date('2026-04-12T00:00:00.000Z'),
+    });
+    refreshTokenRepository.save.mockResolvedValue(undefined);
+    notificationService.createInternalNotificationsForRole.mockRejectedValue(
+      new Error('notification failed'),
+    );
+
+    const result = await service.register(
+      create(RegisterRequestSchema, {
+        email: 'new-notary@example.com',
+        password: 'Password123',
+        fullName: 'New Notary',
+        role: UserRole.NOTARY,
+      }),
+    );
+
+    expect(result.result?.accessToken).toBe('access-token');
+    expect(result.result?.refreshToken).toBe('refresh-token');
+    expect(notificationService.createInternalNotificationsForRole).toHaveBeenCalledWith(
+      PrismaRole.Admin,
+      expect.objectContaining({
+        message: expect.stringContaining('new-notary@example.com создал аккаунт (Нотариус)'),
+      }),
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to create admin registration notification'),
+    );
+
+    warnSpy.mockRestore();
   });
 
   it('rejects invalid credentials when password comparison fails', async () => {
@@ -212,6 +287,7 @@ describe('AuthService', () => {
     });
 
     expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('failed', 'invalid_password');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'seed-user-000@seed.local',
@@ -258,6 +334,13 @@ describe('AuthService', () => {
     });
 
     expect(authRepository.createUser).not.toHaveBeenCalled();
+    expect(metrics.recordUserRegistered).not.toHaveBeenCalled();
+    expect(metrics.recordAuthRegistration).toHaveBeenCalledWith(
+      'failed',
+      'applicant',
+      'email_already_registered',
+    );
+    expect(notificationService.createInternalNotificationsForRole).not.toHaveBeenCalled();
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'new-user@example.com',
@@ -293,6 +376,7 @@ describe('AuthService', () => {
       message: '[unauthenticated] invalid credentials',
     });
 
+    expect(metrics.recordAuthLogin).toHaveBeenCalledWith('failed', 'user_not_found');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'ghost@example.com',
@@ -332,6 +416,7 @@ describe('AuthService', () => {
       'raw-reset-token',
       expect.any(Date),
     );
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith('request', 'success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'seed-user-000@seed.local',
@@ -363,6 +448,11 @@ describe('AuthService', () => {
     );
 
     expect(passwordResetRepository.create).not.toHaveBeenCalled();
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith(
+      'request',
+      'failed',
+      'user_not_found_or_inactive',
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorEmail: 'ghost@example.com',
@@ -411,6 +501,7 @@ describe('AuthService', () => {
     expect(authRepository.updatePasswordHash).toHaveBeenCalledWith('user-1', 'new-password-hash');
     expect(passwordResetRepository.markUsed).toHaveBeenCalledWith('reset-1');
     expect(refreshTokenRepository.revokeAll).toHaveBeenCalledWith('user-1');
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith('submit', 'success');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-1',
@@ -449,6 +540,11 @@ describe('AuthService', () => {
     });
 
     expect(authRepository.updatePasswordHash).not.toHaveBeenCalled();
+    expect(metrics.recordAuthPasswordReset).toHaveBeenCalledWith(
+      'submit',
+      'failed',
+      'invalid_or_expired_token',
+    );
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         allowAnonymous: true,

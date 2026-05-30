@@ -13,6 +13,12 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 15s
 
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
 # Alert rules for monitoring
 rule_files:
   - '/etc/prometheus/alerts.yml'
