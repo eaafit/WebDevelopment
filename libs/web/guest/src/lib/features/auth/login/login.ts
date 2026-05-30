@@ -55,6 +55,23 @@ export class Login {
     await this.authService.login(email, this.password);
   }
 
+  async onGoogleLogin(): Promise<void> {
+    this.validationError.set(null);
+    try {
+      const url = await this.authService.getGoogleAuthorizeUrl();
+      this.redirectToProvider(url);
+    } catch {
+      // Сообщение об ошибке уже выставлено в authService.error().
+    }
+  }
+
+  /** Вынесено отдельно для тестируемости (jsdom не выполняет реальную навигацию). */
+  protected redirectToProvider(url: string): void {
+    if (typeof window !== 'undefined') {
+      window.location.assign(url);
+    }
+  }
+
   togglePasswordVisibility(): void {
     this.showPassword.update((value) => !value);
   }

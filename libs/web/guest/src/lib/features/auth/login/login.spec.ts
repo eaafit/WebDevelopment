@@ -8,9 +8,11 @@ describe('Login', () => {
   let component: Login;
   let fixture: ComponentFixture<Login>;
   let login: jest.Mock;
+  let getGoogleAuthorizeUrl: jest.Mock;
 
   beforeEach(async () => {
     login = jest.fn();
+    getGoogleAuthorizeUrl = jest.fn();
 
     await TestBed.configureTestingModule({
       imports: [Login],
@@ -22,6 +24,7 @@ describe('Login', () => {
             loading: signal(false).asReadonly(),
             error: signal<string | null>(null).asReadonly(),
             login,
+            getGoogleAuthorizeUrl,
           },
         },
       ],
@@ -45,6 +48,23 @@ describe('Login', () => {
 
     expect(links.length).toBe(1);
     expect(link?.getAttribute('href')).toContain('/auth/forgot-password');
+  });
+
+  it('should render the Google login button and start the OAuth redirect on click', async () => {
+    getGoogleAuthorizeUrl.mockResolvedValue('https://google/auth?x=1');
+    const redirect = jest
+      .spyOn(component as unknown as { redirectToProvider: (u: string) => void }, 'redirectToProvider')
+      .mockImplementation(() => undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const button = root.querySelector<HTMLButtonElement>('[data-testid="google-login"]');
+    expect(button).not.toBeNull();
+
+    await component.onGoogleLogin();
+
+    expect(getGoogleAuthorizeUrl).toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith('https://google/auth?x=1');
   });
 
   it('should expose the register link', () => {
