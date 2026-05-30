@@ -48,6 +48,22 @@ enum Role {
 
 
 
+enum OAuthProvider {
+
+  Google @map("google")
+
+  Yandex @map("yandex")
+
+  Vk     @map("vk")
+
+
+
+  @@map("oauth_provider")
+
+}
+
+
+
 enum AssessmentStatus {
 
   New        @map("new")
@@ -454,7 +470,7 @@ model User {
 
   email        String   @unique @db.VarChar
 
-  passwordHash String   @map("password_hash") @db.VarChar
+  passwordHash String?  @map("password_hash") @db.VarChar
 
   fullName     String   @map("full_name") @db.VarChar
 
@@ -504,9 +520,39 @@ model User {
 
   newsletterDeliveries   NewsletterDelivery[]
 
+  oauthAccounts          OAuthAccount[]
+
 
 
   @@map("users")
+
+}
+
+
+
+model OAuthAccount {
+
+  id             String        @id @default(uuid()) @db.Uuid
+
+  userId         String        @map("user_id") @db.Uuid
+
+  provider       OAuthProvider
+
+  providerUserId String        @map("provider_user_id") @db.VarChar
+
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamp()
+
+
+
+  user User @relation(fields: [userId], references: [id])
+
+
+
+  @@unique([provider, providerUserId])
+
+  @@index([userId])
+
+  @@map("oauth_accounts")
 
 }
 

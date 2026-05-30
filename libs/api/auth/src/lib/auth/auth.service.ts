@@ -171,6 +171,12 @@ export class AuthService {
       throw new ConnectError('account is deactivated', Code.PermissionDenied);
     }
 
+    // OAuth-only аккаунт (вход через внешний сервис) — пароля нет, парольный вход невозможен.
+    if (!record.passwordHash) {
+      await this.recordLoginFailure(email, 'oauth_only_account', record);
+      throw new ConnectError('invalid credentials', Code.Unauthenticated);
+    }
+
     const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
     if (!passwordValid) {
       await this.recordLoginFailure(email, 'invalid_password', record);
@@ -543,6 +549,8 @@ function reasonLabel(reason: string): string {
       return 'Аккаунт деактивирован';
     case 'invalid_password':
       return 'Неверный пароль';
+    case 'oauth_only_account':
+      return 'Аккаунт без пароля (вход через внешний сервис)';
     case 'user_not_found_or_inactive':
       return 'Пользователь не найден или неактивен';
     case 'token_required':
