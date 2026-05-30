@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Code, ConnectError } from '@connectrpc/connect';
 import { AuthService } from './auth.service';
+import { OAuthService } from './oauth.service';
 import type {
   ForgotPasswordRequest,
   ForgotPasswordResponse,
@@ -22,7 +22,10 @@ import type {
 
 @Injectable()
 export class AuthRpcService {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly oauthService: OAuthService,
+  ) {}
 
   readonly register     = (r: RegisterRequest):     Promise<RegisterResponse>     =>
     this.authService.register(r);
@@ -42,14 +45,10 @@ export class AuthRpcService {
   readonly resetPassword = (r: ResetPasswordRequest): Promise<ResetPasswordResponse> =>
     this.authService.resetPassword(r);
 
-  // OAuth — заглушки (реальная реализация подключается в следующем коммите вместе с OAuthService).
   readonly getOAuthAuthorizeUrl = (
-    _r: GetOAuthAuthorizeUrlRequest,
-  ): Promise<GetOAuthAuthorizeUrlResponse> => {
-    throw new ConnectError('OAuth authorize URL is not implemented yet', Code.Unimplemented);
-  };
+    r: GetOAuthAuthorizeUrlRequest,
+  ): Promise<GetOAuthAuthorizeUrlResponse> => this.oauthService.getAuthorizeUrl(r);
 
-  readonly oAuthLogin = (_r: OAuthLoginRequest): Promise<OAuthLoginResponse> => {
-    throw new ConnectError('OAuth login is not implemented yet', Code.Unimplemented);
-  };
+  readonly oAuthLogin = (r: OAuthLoginRequest): Promise<OAuthLoginResponse> =>
+    this.oauthService.login(r);
 }
