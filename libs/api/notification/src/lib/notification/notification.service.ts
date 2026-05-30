@@ -6,6 +6,7 @@ import {
   Role as PrismaRole,
 } from '@internal/prisma-client';
 import { getCurrentUser, requireAuth } from '@internal/auth-shared';
+import { MetricsService } from '@internal/metrics';
 import {
   DeleteNotificationResponseSchema,
   GetNotificationSettingsResponseSchema,
@@ -56,12 +57,45 @@ export interface CreateNotificationInput {
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly notificationRepository: NotificationRepository) {}
+  constructor(
+    private readonly notificationRepository: NotificationRepository,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
     validateUuid(request.userId, 'user_id');
 
     const message = normalizeMessage(request.message);
+
+    try {
+      // Record metric for notification sent
+      const channelMap: Record<RpcNotificationType, string> = {
+        [RpcNotificationType.EMAIL]: 'email',
+        [RpcNotificationType.SMS]: 'sms',
+        [RpcNotificationType.PUSH]: 'push',
+        [RpcNotificationType.IN_APP]: 'in_app',
+        [RpcNotificationType.UNSPECIFIED]: 'unknown',
+      };
+
+      const channel = channelMap[request.type] || 'unknown';
+      this.metricsService.recordNotificationSent(channel as any, String(request.category || 'system'));
+      this.metricsService.recordNotificationUnread('user');
+    } catch (error) {
+      // best-effort metrics
+      try {
+        const channelMap: Record<RpcNotificationType, string> = {
+          [RpcNotificationType.EMAIL]: 'email',
+          [RpcNotificationType.SMS]: 'sms',
+          [RpcNotificationType.PUSH]: 'push',
+          [RpcNotificationType.IN_APP]: 'in_app',
+          [RpcNotificationType.UNSPECIFIED]: 'unknown',
+        };
+        const channel = channelMap[request.type] || 'unknown';
+        this.metricsService.recordNotificationError(channel as any, 'unknown');
+      } catch {
+        // ignore
+      }
+    }
 
     return this.notificationRepository.createNotification({
       userId: request.userId,
@@ -91,12 +125,43 @@ export class NotificationService {
       return;
     }
 
+    const notificationType = params.type ?? RpcNotificationType.PUSH;
+
+    try {
+      const channelMap: Record<RpcNotificationType, string> = {
+        [RpcNotificationType.EMAIL]: 'email',
+        [RpcNotificationType.SMS]: 'sms',
+        [RpcNotificationType.PUSH]: 'push',
+        [RpcNotificationType.IN_APP]: 'in_app',
+        [RpcNotificationType.UNSPECIFIED]: 'unknown',
+      };
+
+      const channel = channelMap[notificationType] || 'unknown';
+      this.metricsService.recordNotificationSent(channel as any, String(params.category ?? 'system'));
+      this.metricsService.recordNotificationUnread('user');
+    } catch (error) {
+      // best-effort metrics
+      try {
+        const channelMap: Record<RpcNotificationType, string> = {
+          [RpcNotificationType.EMAIL]: 'email',
+          [RpcNotificationType.SMS]: 'sms',
+          [RpcNotificationType.PUSH]: 'push',
+          [RpcNotificationType.IN_APP]: 'in_app',
+          [RpcNotificationType.UNSPECIFIED]: 'unknown',
+        };
+        const channel = channelMap[notificationType] || 'unknown';
+        this.metricsService.recordNotificationError(channel as any, 'unknown');
+      } catch {
+        // ignore
+      }
+    }
+
     await this.notificationRepository.createNotification({
       userId: params.userId,
       title: normalizeOptionalTitle(params.title),
       category: params.category ?? RpcNotificationCategory.SYSTEM,
       message: normalizeMessage(params.message),
-      type: params.type ?? RpcNotificationType.PUSH,
+      type: notificationType,
       status: params.status ?? RpcNotificationStatus.SENT,
     });
   }
@@ -164,6 +229,7 @@ export class NotificationService {
   async markAsRead(request: MarkAsReadRequest): Promise<MarkAsReadResponse> {
     validateUuid(request.id, 'id');
     const notification = await this.notificationRepository.markAsRead(request.id);
+
     return create(MarkAsReadResponseSchema, { notification });
   }
 

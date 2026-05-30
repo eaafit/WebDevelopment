@@ -1,0 +1,19 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'email-notifications'
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 4h
+
+receivers:
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'example@mail.com'
+        from: 'noreply@notary-portal.local'
+        smarthost: 'mailpit:1025'
+        auth_username: ''
+        auth_password: ''
+        require_tls: false
