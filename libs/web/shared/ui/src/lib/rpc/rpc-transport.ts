@@ -21,7 +21,14 @@ export function resolveRpcBaseUrl(location: RpcBaseUrlLocation | undefined): str
     return 'http://localhost:3000';
   }
 
-  const { origin } = location;
+  const { protocol, hostname, port, origin } = location;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  // Local dev: Angular dev-server (e.g. :4200) → Nest API on :3000.
+  // In Docker/nginx the same origin already proxies /notary.* to the API.
+  if (isLocalHost && port !== '3000') {
+    return `${protocol}//${hostname}:3000`;
+  }
 
   return origin;
 }
