@@ -16,8 +16,8 @@ export const applicantRoutes: Route[] = [
       { path: '', ...placeholder('Главная', ['Обзор кабинета заявителя']) } as Route,
       {
         path: 'orders',
-        ...placeholder('Мои заявки', ['Список заявок', 'Просмотр статусов', 'Фильтры']),
-      } as Route,
+        loadComponent: () => import('./features/orders/orders').then((m) => m.Orders),
+      },
       {
         path: 'orders/new',
         ...placeholder('Подача заявки', [
