@@ -324,6 +324,7 @@ model Assessment {
   address            String           @db.VarChar
   description        String?          @db.Text
   estimatedValue     Decimal?         @map("estimated_value") @db.Decimal(15, 2)
+  bitrixLeadId       String?          @map("bitrix_lead_id") @db.VarChar(50)
 
   user             User              @relation("ApplicantAssessments", fields: [userId], references: [id])
   notary           User?             @relation("NotaryAssessments", fields: [notaryId], references: [id])
