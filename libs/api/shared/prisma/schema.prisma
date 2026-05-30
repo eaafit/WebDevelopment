@@ -333,7 +333,7 @@ model Assessment {
   payments         Payment[]
 
   lead Lead?
-  
+
   @@map("assessments")
 }
 
