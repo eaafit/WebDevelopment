@@ -187,11 +187,11 @@ export class AssessmentService {
       );
       this.logger.log(
         `Completed FIAS address item lookup objectId=${objectId}` +
-          ` durationMs=${Date.now() - startedAt}` +
-          formatLogFields({
-            cityId: item.cityId,
-            districtId: item.districtId,
-          }),
+        ` durationMs=${Date.now() - startedAt}` +
+        formatLogFields({
+          cityId: item.cityId,
+          districtId: item.districtId,
+        }),
       );
       return create(GetFiasAddressItemByIdResponseSchema, { item });
     } catch (error) {
@@ -258,11 +258,11 @@ export class AssessmentService {
 
     this.logger.log(
       `Applicant assessment UI action action=${action}` +
-        formatLogFields({
-          assessmentId: normalizeOptionalText(request.assessmentId),
-          status: normalizeOptionalText(request.status),
-          targetRoute: normalizeOptionalText(request.targetRoute),
-        }),
+      formatLogFields({
+        assessmentId: normalizeOptionalText(request.assessmentId),
+        status: normalizeOptionalText(request.status),
+        targetRoute: normalizeOptionalText(request.targetRoute),
+      }),
     );
 
     return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
@@ -272,17 +272,17 @@ export class AssessmentService {
     const query = this.normalizeListRequest(request);
     this.logger.log(
       `Starting assessment list request page=${query.page} limit=${query.limit}` +
-        formatLogFields({
-          userId: query.userId,
-          status: query.status,
-        }),
+      formatLogFields({
+        userId: query.userId,
+        status: query.status,
+      }),
     );
 
     try {
       const response = await this.assessmentRepository.listAssessments(query);
       this.logger.log(
         `Completed assessment list request page=${response.meta?.currentPage ?? query.page}` +
-          ` totalItems=${response.meta?.totalItems ?? response.assessments.length}`,
+        ` totalItems=${response.meta?.totalItems ?? response.assessments.length}`,
       );
       return response;
     } catch (error) {
@@ -321,11 +321,11 @@ export class AssessmentService {
       async () => {
         this.logger.log(
           `Starting assessment creation userId=${request.userId}` +
-            formatLogFields({
-              hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-              cityId: request.realEstateObject?.cityId,
-              districtId: request.realEstateObject?.districtId,
-            }),
+          formatLogFields({
+            hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+            cityId: request.realEstateObject?.cityId,
+            districtId: request.realEstateObject?.districtId,
+          }),
         );
 
         try {
@@ -370,6 +370,14 @@ export class AssessmentService {
                 realEstateObject: normalized.realEstateObject,
               }),
           );
+
+          try {
+            await this.assessmentRepository.createLeadFromAssessment(assessment.id, assessment.userId);
+            this.logger.log(`Created lead for assessment ${assessment.id}`);
+          } catch (error) {
+            this.logger.warn(`Failed to create lead for assessment ${assessment.id}: ${errorMessage(error)}`);
+          }
+
           const snapshot = await this.runInSpan(
             'AssessmentRepository.getAssessmentSnapshot',
             {
@@ -428,10 +436,10 @@ export class AssessmentService {
 
           this.logger.log(
             `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
-              formatLogFields({
-                status: assessment.status,
-                realEstateObjectId: assessment.realEstateObjectId,
-              }),
+            formatLogFields({
+              status: assessment.status,
+              realEstateObjectId: assessment.realEstateObjectId,
+            }),
           );
 
           return create(CreateAssessmentResponseSchema, { assessment });
@@ -450,11 +458,11 @@ export class AssessmentService {
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
     this.logger.log(
       `Starting assessment update assessmentId=${request.id}` +
-        formatLogFields({
-          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-          cityId: request.realEstateObject?.cityId,
-          districtId: request.realEstateObject?.districtId,
-        }),
+      formatLogFields({
+        hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+        cityId: request.realEstateObject?.cityId,
+        districtId: request.realEstateObject?.districtId,
+      }),
     );
 
     try {
@@ -494,10 +502,10 @@ export class AssessmentService {
 
       this.logger.log(
         `Updated assessment assessmentId=${assessment.id}` +
-          formatLogFields({
-            status: assessment.status,
-            realEstateObjectId: assessment.realEstateObjectId,
-          }),
+        formatLogFields({
+          status: assessment.status,
+          realEstateObjectId: assessment.realEstateObjectId,
+        }),
       );
 
       return create(UpdateAssessmentResponseSchema, { assessment });
@@ -569,10 +577,10 @@ export class AssessmentService {
 
       this.logger.log(
         `Verified assessment assessmentId=${assessment.id}` +
-          formatLogFields({
-            status: assessment.status,
-            notaryId: isNotaryRole(actor?.role) ? actor?.sub : undefined,
-          }),
+        formatLogFields({
+          status: assessment.status,
+          notaryId: isNotaryRole(actor?.role) ? actor?.sub : undefined,
+        }),
       );
 
       return create(VerifyAssessmentResponseSchema, { assessment });
@@ -624,7 +632,7 @@ export class AssessmentService {
 
       this.logger.log(
         `Completed assessment assessmentId=${assessment.id}` +
-          formatLogFields({ status: assessment.status }),
+        formatLogFields({ status: assessment.status }),
       );
 
       return create(CompleteAssessmentResponseSchema, { assessment });
@@ -666,7 +674,7 @@ export class AssessmentService {
 
       this.logger.log(
         `Cancelled assessment assessmentId=${assessment.id}` +
-          formatLogFields({ status: assessment.status }),
+        formatLogFields({ status: assessment.status }),
       );
 
       return create(CancelAssessmentResponseSchema, { assessment });
@@ -805,11 +813,11 @@ export class AssessmentService {
     const resolvedIds = existingIds.cityId
       ? existingIds
       : await this.assessmentRepository.resolveGeographyIds({
-          cityId: realEstateObject.cityId,
-          districtId: realEstateObject.districtId ?? undefined,
-          cityName: fallbackItem?.addressDetails?.city,
-          districtName: fallbackItem?.addressDetails?.district,
-        });
+        cityId: realEstateObject.cityId,
+        districtId: realEstateObject.districtId ?? undefined,
+        cityName: fallbackItem?.addressDetails?.city,
+        districtName: fallbackItem?.addressDetails?.district,
+      });
 
     if (!resolvedIds.cityId) {
       throw new ConnectError(
@@ -1247,8 +1255,8 @@ function buildInProgressMessage(assessmentId: string, actorName: string | undefi
 function buildCompletedMessage(assessmentId: string, estimatedValue: string | null): string {
   return estimatedValue
     ? `По заявке ${shortId(assessmentId)} завершена оценка объекта. Итоговая стоимость: ${formatRubles(
-        estimatedValue,
-      )} ₽.`
+      estimatedValue,
+    )} ₽.`
     : `По заявке ${shortId(assessmentId)} завершена оценка объекта.`;
 }
 
