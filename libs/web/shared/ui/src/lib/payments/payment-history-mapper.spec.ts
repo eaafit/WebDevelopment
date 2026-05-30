@@ -27,14 +27,18 @@ describe('payment history mapper', () => {
     expect(request.filters.searchQuery).toBe('txn_100');
     expect(request.filters.statuses).toEqual([PaymentStatus.COMPLETED, PaymentStatus.REFUNDED]);
     expect(request.filters.types).toEqual([PaymentType.ASSESSMENT]);
-    expect(request.filters.paymentDateRange?.startDate).toBeDefined();
-    expect(request.filters.paymentDateRange?.endDate).toBeDefined();
-    expect(timestampDate(request.filters.paymentDateRange!.startDate!).toISOString()).toBe(
+    const paymentDateRange = request.filters.paymentDateRange;
+    expect(paymentDateRange?.startDate).toBeDefined();
+    expect(paymentDateRange?.endDate).toBeDefined();
+
+    if (!paymentDateRange?.startDate || !paymentDateRange.endDate) {
+      throw new Error('Expected payment date range to include start and end dates');
+    }
+
+    expect(timestampDate(paymentDateRange.startDate).toISOString()).toBe(
       '2026-03-01T00:00:00.000Z',
     );
-    expect(timestampDate(request.filters.paymentDateRange!.endDate!).toISOString()).toBe(
-      '2026-03-31T23:59:59.999Z',
-    );
+    expect(timestampDate(paymentDateRange.endDate).toISOString()).toBe('2026-03-31T23:59:59.999Z');
   });
 
   it('should map payment history response into normalized records and transaction rows', () => {

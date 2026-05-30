@@ -816,6 +816,21 @@ export class EstimationForm implements OnDestroy {
       this.route.snapshot.queryParamMap.get(ASSESSMENT_ID_QUERY_PARAM)?.trim() ?? '';
     const routeReadOnly = this.isReadOnlyQueryParam();
     let restoredFromDraft = false;
+    // Проверяем, не перешли ли мы сюда из «Повторить заказ»
+    const navigation = this.router.getCurrentNavigation();
+    const repeatData = navigation?.extras.state?.['repeatOrderData'] as EstimationFormDraftData | undefined;
+
+    if (repeatData) {
+      console.log('[EstimationForm] Повтор заказа, заполняем форму данными');
+      this.isApplyingDraft = true;
+      this.patchDraftForm(repeatData);
+      this.isApplyingDraft = false;
+      // Очищаем state, чтобы при обновлении страницы не применилось снова
+      this.router.navigate([], { replaceUrl: true, state: {} });
+      // Завершаем инициализацию, не загружая черновик
+      this.loading.set(false);
+      return;
+    }
 
     console.info('[ApplicantAssessment] form.init:start', {
       routeAssessmentId: routeAssessmentId || undefined,
@@ -1224,9 +1239,9 @@ export class EstimationForm implements OnDestroy {
       isLandPlot
         ? [optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum)]
         : [
-            trimmedRequiredValidator,
-            optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum),
-          ],
+          trimmedRequiredValidator,
+          optionalIntegerRangeValidator(FLOOR_LIMITS.minimum, FLOOR_LIMITS.maximum),
+        ],
     );
     this.setControlValidators(
       this.formControls.condition,

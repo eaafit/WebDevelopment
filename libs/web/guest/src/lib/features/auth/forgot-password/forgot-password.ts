@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
+import { buildAuthLogContext, currentBrowserRoute, emailDomainOf } from '../auth-browser-log';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -14,6 +16,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 })
 export class ForgotPassword {
   private readonly authService = inject(AuthService);
+  private readonly logger = inject(WebLoggerService);
 
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;
@@ -26,6 +29,7 @@ export class ForgotPassword {
     const email = this.email.trim();
     if (!EMAIL_RE.test(email)) {
       this.validationError.set('Укажите корректный email.');
+      this.logValidationFailure(email);
       return;
     }
 
@@ -37,5 +41,17 @@ export class ForgotPassword {
     } catch {
       /* сообщение в authService.error */
     }
+  }
+
+  private logValidationFailure(email: string): void {
+    this.logger.warn(
+      'auth.password_reset.request.validation_failed',
+      buildAuthLogContext({
+        emailDomain: emailDomainOf(email),
+        reason: 'invalid_email',
+        route: currentBrowserRoute(),
+        outcome: 'failed',
+      }),
+    );
   }
 }

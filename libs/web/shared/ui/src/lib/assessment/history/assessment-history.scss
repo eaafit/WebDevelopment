@@ -134,4 +134,14 @@
     /* убираем анимацию поднятия */
     box-shadow: none;
   }
+
+  .loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
+  }
 }

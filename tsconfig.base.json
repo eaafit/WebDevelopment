@@ -21,6 +21,7 @@
       "@internal/auth-shared": ["libs/api/shared/auth/src/index.ts"],
       "@internal/billing": ["libs/api/billing/src/index.ts"],
       "@internal/bitrix": ["libs/api/bitrix/src/index.ts"],
+      "@internal/bitrix-leads": ["libs/api/bitrix-leads/src/index.ts"],
       "@internal/document": ["libs/api/document/src/index.ts"],
       "@internal/metrics": ["libs/api/shared/metrics/src/index.ts"],
       "@internal/newsletter": ["libs/api/newsletter/src/index.ts"],
@@ -38,7 +39,8 @@
       "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
       "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
       "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"],
-      "@notary-portal/billing": ["libs/api/billing/src/index.ts"]
+      "@notary-portal/billing": ["libs/api/billing/src/index.ts"],
+      "@notary-portal/order": ["libs/api/order/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

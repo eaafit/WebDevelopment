@@ -259,17 +259,27 @@
     }
   }
 
-  &__popup-backdrop {
+  &__popup-layer {
     position: fixed;
     z-index: 1000;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 1rem;
+  }
+
+  &__popup-backdrop {
+    position: absolute;
+    inset: 0;
+    border: none;
     background: rgb(17 24 39 / 45%);
+    cursor: default;
   }
 
   &__popup {
+    position: relative;
+    z-index: 1;
     width: min(560px, 92vw);
     padding: 1rem 1.2rem;
     border-radius: 0.8rem;

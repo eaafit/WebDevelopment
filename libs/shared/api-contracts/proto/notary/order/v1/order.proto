@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package notary.order.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Сервис для работы с заказами
+service OrderService {
+  // Получить список заказов
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  // Получить детали одного заказа по его ID
+  rpc GetOrder(GetOrderRequest) returns (Order);
+
+  rpc TakeOrder(TakeOrderRequest) returns (TakeOrderResponse);
+}
+
+// Запрос на получение списка заказов
+message ListOrdersRequest {
+  string user_id = 1;             // ID текущего пользователя
+  string role = 2;                // роль: "applicant" или "notary"
+  optional string status = 3;     // фильтр по статусу
+  optional string search_query = 4; // поиск по адресу или ID
+  optional google.protobuf.Timestamp date_from = 5; // фильтр по дате "от"
+  optional google.protobuf.Timestamp date_to = 6;   // фильтр по дате "до"
+  int32 page = 7;                 // номер страницы
+  int32 page_size = 8;            // сколько записей на странице
+}
+
+// Ответ со списком заказов
+message ListOrdersResponse {
+  repeated Order orders = 1;      // список заказов
+  int32 total_count = 2;          // общее количество
+  int32 total_pages = 3;          // общее количество страниц
+}
+
+// Запрос на получение одного заказа
+message GetOrderRequest {
+  string order_id = 1;
+}
+
+// Сущность "Заказ"
+message Order {
+  string id = 1;
+  string object_address = 2;
+  google.protobuf.Timestamp order_date = 3;
+  string status = 4;
+  double total_amount = 5;
+  repeated StatusHistoryEntry status_history = 6;
+  string applicant_id = 7;
+  string applicant_name = 8;
+  optional string notary_id = 9;
+  optional string notary_name = 10;
+  google.protobuf.Timestamp planned_completion_date = 11;
+  optional google.protobuf.Timestamp actual_completion_date = 12;
+  optional string transaction_id = 13;
+  RealEstateObjectInfo real_estate_object = 14;
+}
+
+// Запись в истории изменения статуса заявки
+message StatusHistoryEntry {
+  string status = 1;
+  google.protobuf.Timestamp date = 2;
+  optional string comment = 3;
+}
+
+// Краткая информация об объекте недвижимости
+message RealEstateObjectInfo {
+  string id = 1;
+  string address = 2;
+  optional string city = 3;
+  optional double area = 4;
+  optional string object_type = 5;
+  optional int32 rooms_count = 6;
+  optional int32 floor = 7;
+}
+
+message TakeOrderRequest {
+  string order_id = 1;
+  string notary_id = 2;
+}
+
+message TakeOrderResponse {
+  Order order = 1;
+}

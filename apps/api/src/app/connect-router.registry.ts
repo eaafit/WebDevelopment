@@ -12,6 +12,8 @@ import { NewsletterRpcService } from '@internal/newsletter';
 import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
 import { UserRpcService } from '@internal/user';
+import { OrderRpcService } from '@notary-portal/order';
+import { OrderService } from '@notary-portal/api-contracts';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
@@ -40,7 +42,8 @@ export class ConnectRouterRegistry {
     private readonly notificationRpcService: NotificationRpcService,
     private readonly reportRpcService: ReportRpcService,
     private readonly userRpcService: UserRpcService,
-  ) {}
+    private readonly orderRpcService: OrderRpcService,
+  ) { }
 
   register(router: ConnectRouter): void {
     // ─── Audit ───────────────────────────────────────────────
@@ -144,6 +147,13 @@ export class ConnectRouterRegistry {
       syncUsersWithBitrix: this.bitrixRpcService.syncUsersWithBitrix,
       getSyncStatus: this.bitrixRpcService.getSyncStatus,
       getSyncLogs: this.bitrixRpcService.getSyncLogs,
+    });
+
+    // ─── Order ────────────────────────────────────────────────
+    router.service(OrderService, {
+      listOrders: this.orderRpcService.listOrders.bind(this.orderRpcService),
+      getOrder: this.orderRpcService.getOrder.bind(this.orderRpcService),
+      takeOrder: this.orderRpcService.takeOrder.bind(this.orderRpcService),
     });
   }
 }

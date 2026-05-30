@@ -16,8 +16,8 @@ export const applicantRoutes: Route[] = [
       { path: '', ...placeholder('Главная', ['Обзор кабинета заявителя']) } as Route,
       {
         path: 'orders',
-        ...placeholder('Мои заявки', ['Список заявок', 'Просмотр статусов', 'Фильтры']),
-      } as Route,
+        loadComponent: () => import('./features/orders/orders').then((m) => m.Orders),
+      },
       {
         path: 'orders/new',
         ...placeholder('Подача заявки', [
@@ -82,12 +82,19 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Форма запроса',
-          'Прикрепление оснований',
-          'Расчёт стоимости',
-          'Оплата и выдача копий',
-        ]),
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            data: { role: 'applicant' },
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
       },
       {
         path: 'notifications',
