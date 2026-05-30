@@ -1,14 +1,18 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { createClient } from '@connectrpc/connect';
-import { AuthService as RpcAuthService } from '@notary-portal/api-contracts';
-import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME } from '@notary-portal/ui';
+import { AuthService as RpcAuthService, OauthProvider } from '@notary-portal/api-contracts';
+import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME, WebLoggerService } from '@notary-portal/ui';
+
+/** Ключ sessionStorage для сверки OAuth state на callback (defense-in-depth против CSRF). */
+const OAUTH_STATE_KEY = 'oauth_state';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly tokenStore = inject(TokenStore);
   private readonly router     = inject(Router);
   private readonly transport  = inject(RPC_TRANSPORT);
+  private readonly logger     = inject(WebLoggerService);
 
   private readonly client = createClient(RpcAuthService, this.transport);
 
@@ -60,6 +64,72 @@ export class AuthService {
     } finally {
       this._loading.set(false);
     }
+  }
+
+  // ─── OAuth (Google) ───────────────────────────────────────────────────────
+
+  /**
+   * Старт входа через Google: получает authorize URL с подписанным state,
+   * сохраняет state в sessionStorage и возвращает URL для редиректа браузера.
+   */
+  async getGoogleAuthorizeUrl(): Promise<string> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const res = await this.client.getOAuthAuthorizeUrl({ provider: OauthProvider.GOOGLE });
+      if (!res.url || !res.state) throw new Error('Пустой ответ сервера');
+      this.persistOAuthState(res.state);
+      this.logger.info('oauth.google.authorize_requested', { provider: 'google' });
+      return res.url;
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      this.logger.warn('oauth.google.authorize_failed', { provider: 'google' });
+      throw err;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  /**
+   * Завершение Google-входа на callback: сверяет state с сохранённым, отправляет
+   * code/state на бэкенд, на успехе сохраняет токены и редиректит по роли.
+   * Возвращает true при успешном входе.
+   */
+  async completeGoogleLogin(code: string, state: string): Promise<boolean> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const expected = this.readOAuthState();
+      this.clearOAuthState();
+      if (!code || !state || !expected || state !== expected) {
+        throw new Error('Некорректный ответ авторизации.');
+      }
+      const res = await this.client.oAuthLogin({ provider: OauthProvider.GOOGLE, code, state });
+      if (!res.result) throw new Error('Пустой ответ сервера');
+      this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
+      this.logger.info('oauth.google.login_succeeded', { provider: 'google' });
+      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      return true;
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      this.logger.warn('oauth.google.login_failed', { provider: 'google' });
+      return false;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  private persistOAuthState(state: string): void {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(OAUTH_STATE_KEY, state);
+  }
+
+  private readOAuthState(): string | null {
+    if (typeof sessionStorage === 'undefined') return null;
+    return sessionStorage.getItem(OAUTH_STATE_KEY);
+  }
+
+  private clearOAuthState(): void {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(OAUTH_STATE_KEY);
   }
 
   // ─── Refresh (вызывается из RPC-интерсептора) ─────────────────────────────
