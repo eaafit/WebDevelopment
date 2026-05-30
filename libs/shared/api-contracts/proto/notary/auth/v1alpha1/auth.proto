@@ -11,6 +11,19 @@ service AuthService {
   rpc Logout (LogoutRequest) returns (LogoutResponse);
   rpc ForgotPassword (ForgotPasswordRequest) returns (ForgotPasswordResponse);
   rpc ResetPassword (ResetPasswordRequest) returns (ResetPasswordResponse);
+
+  // OAuth (внешние провайдеры). На этом этапе реализован только Google;
+  // generic-форма (поле provider) позволит добавить Yandex/VK без новых RPC.
+  rpc GetOAuthAuthorizeUrl (GetOAuthAuthorizeUrlRequest) returns (GetOAuthAuthorizeUrlResponse);
+  rpc OAuthLogin (OAuthLoginRequest) returns (OAuthLoginResponse);
+}
+
+// Внешний OAuth-провайдер. UNSPECIFIED = 0 для совместимости proto3.
+enum OauthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0;
+  OAUTH_PROVIDER_GOOGLE = 1;
+  OAUTH_PROVIDER_YANDEX = 2;
+  OAUTH_PROVIDER_VK = 3;
 }
 
 message RegisterRequest {
@@ -68,3 +81,26 @@ message ResetPasswordRequest {
 }
 
 message ResetPasswordResponse {}
+
+// Запрос URL авторизации провайдера. Бэкенд возвращает готовый URL
+// (с подписанным state) и сам state — фронт дублирует его в sessionStorage
+// для сверки на callback (defense-in-depth против CSRF).
+message GetOAuthAuthorizeUrlRequest {
+  OauthProvider provider = 1;
+}
+
+message GetOAuthAuthorizeUrlResponse {
+  string url = 1;
+  string state = 2;
+}
+
+// Завершение OAuth-входа: фронт передаёт code и state, полученные на callback.
+message OAuthLoginRequest {
+  OauthProvider provider = 1;
+  string code = 2;
+  string state = 3;
+}
+
+message OAuthLoginResponse {
+  AuthResult result = 1;
+}
