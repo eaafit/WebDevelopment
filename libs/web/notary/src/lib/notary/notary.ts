@@ -27,4 +27,13 @@ export class Notary implements OnInit, OnDestroy {
   menuItems = NOTARY_MENU;
   pageTitle = 'Личный кабинет нотариуса';
   userLabel = 'Нотариус';
+  unreadNotifications = this.notificationCounter.unreadCount;
+
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.notificationCounter.stopPolling();
+  }
 }
