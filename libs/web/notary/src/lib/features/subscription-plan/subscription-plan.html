@@ -1,0 +1,13 @@
+<div class="content">
+  <div class="card">
+    <h1>Подписка нотариуса</h1>
+
+    <div class="subscription-info">
+      <p><strong>Тариф:</strong> {{ tariff }}</p>
+      <p><strong>Стоимость:</strong> {{ price }} ₽ / месяц</p>
+      <p><strong>Срок действия:</strong> до {{ validUntil }}</p>
+    </div>
+
+    <button class="btn btn-primary" (click)="goToCheckout()">Продлить / Оплатить</button>
+  </div>
+</div>

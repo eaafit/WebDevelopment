@@ -1,0 +1,26 @@
+<div class="dashboard">
+  <div class="welcome">
+    <h1>Добро пожаловать в Личный кабинет нотариуса!</h1>
+    <p>У вас {{ activeOrdersCount }} активных заказа и {{ notificationsCount }} новых уведомления</p>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-title">Активных заказов</div>
+      <div class="stat-number">{{ activeOrdersCount }}</div>
+      <button class="stat-btn" [routerLink]="'/notary/orders'">Перейти к заказам</button>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">Новых уведомлений</div>
+      <div class="stat-number">{{ notificationsCount }}</div>
+      <button class="stat-btn" [routerLink]="'/notary/notifications'">Перейти к уведомлениям</button>
+    </div>
+  </div>
+
+  <div class="subscription-card">
+    <div class="subscription-title">Тариф: Нотариус PRO</div>
+    <div class="subscription-detail">Стоимость: 2990 ₽ / месяц</div>
+    <div class="subscription-detail">Срок действия: до 31.07.2026</div>
+    <button class="btn-outline" [routerLink]="'/notary/subscription'">Управление подпиской</button>
+  </div>
+</div>
