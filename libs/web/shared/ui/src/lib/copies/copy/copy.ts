@@ -39,7 +39,7 @@ export class Copy implements OnInit, OnDestroy {
 
   // Хелпер считает минуты, привязываясь строго к дате загрузки ДОКУМЕНТА (bigint)
   private calculateMinutesLeft(uploadedAtSeconds: bigint): number {
-    const deadlineRangeInSeconds = 24 * 60 * 60; // 10 дней дедлайна
+    const deadlineRangeInSeconds = 24 * 60 * 60; // 1 день дедлайна
     const secDiff = Number(uploadedAtSeconds) + deadlineRangeInSeconds - (Date.now() / 1000);
     return secDiff > 0 ? Math.floor(secDiff / 60) : 0;
   }
@@ -49,6 +49,30 @@ export class Copy implements OnInit, OnDestroy {
     this.router.navigate(['../'], { relativeTo: this.route });
   }
 
+  // Маппинг реальных статусов в mock-статусы по ТЗ
+  getMappedStatus(status: number | undefined): string {
+    if (status === undefined) return 'pending';
+    
+    // Предполагаем стандартную структуру: 1 - создан, 4 - завершен
+    if (status === 1) return 'pending';      // Желтый
+    if (status === 4) return 'ready';        // Зеленый
+    if (status === 5) return 'delivered';    // Серый (если будет выдано)
+    
+    return 'processing'; // все промежуточные статусы (2, 3) — Синий
+  }
+
+  // Получение русского текста для бейджа
+  getStatusText(status: number | undefined): string {
+    const mapped = this.getMappedStatus(status);
+    const texts: Record<string, string> = {
+      'pending': 'Ожидает оплаты',
+      'processing': 'В обработке',
+      'ready': 'Готово',
+      'delivered': 'Выдано'
+    };
+    return texts[mapped] || 'В обработке';
+  }
+  
   async ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id');
     if (this.id === null) throw new Error('No id!');
@@ -103,7 +127,7 @@ export class Copy implements OnInit, OnDestroy {
     }
   }
 
-  // Обязательно вычищаем интервал из памяти при уходе со страницы
+  // Вычищаем интервал из памяти при уходе со страницы
   ngOnDestroy() {
     if (this.timerId) {
       clearInterval(this.timerId);

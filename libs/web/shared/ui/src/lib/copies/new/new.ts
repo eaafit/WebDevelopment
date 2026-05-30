@@ -2,8 +2,6 @@ import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
-
-// Импорты для работы с API и gRPC
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
 import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts'; 
@@ -106,9 +104,9 @@ export class New implements OnInit {
         metadata: { comment: this.comment() }  
       } as any);
 
-      // 2. Создаем запрос на оплату с правильной ценой и РЕАЛЬНЫМ ID ЮЗЕРА
+      // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
       const paymentResponse = await this.paymentClient.createPayment({
-        userId: this.getCurrentUserId(), // <--- ВОТ ЗДЕСЬ ИСПРАВЛЕНИЕ
+        userId: this.getCurrentUserId(),
         amount: this.price().toString(), 
         type: PaymentType.DOCUMENT_COPY, 
         targetId: this.selectedAssesmentID(), 

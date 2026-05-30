@@ -45,3 +45,62 @@
   text-overflow: ellipsis;
   max-width: 180px; // Чтобы коммент не выталкивал другие элементы
 }
+
+/* Выравнивание верхней строки (Имя файла + Статус) */
+.title-row {
+  align-items: center;
+  margin-bottom: 0.5rem;
+  
+  .file-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #111827;
+    max-width: 60%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* --- БЕЙДЖИ СТАТУСОВ --- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #d97706;
+  .status-dot { background: #d97706; }
+}
+
+.status-processing {
+  background: #dbeafe;
+  color: #2563eb;
+  .status-dot { background: #2563eb; }
+}
+
+.status-ready {
+  background: #d1fae5;
+  color: #059669;
+  .status-dot { background: #059669; }
+}
+
+.status-delivered {
+  background: #f3f4f6;
+  color: #4b5563;
+  .status-dot { background: #4b5563; }
+}

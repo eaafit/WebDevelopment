@@ -66,116 +66,6 @@
   }
 }
 
-.info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 12px;
-  margin-bottom: 32px;
-
-  .info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-
-    .info-label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      font-weight: 600;
-    }
-
-    .info-value {
-      font-weight: 600;
-      color: var(--text-dark);
-    }
-  }
-}
-
-.progress-section {
-  margin-bottom: 32px;
-}
-
-.progress-track {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.step-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  position: relative;
-  z-index: 1;
-
-  .step-indicator {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: white;
-    border: 2px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-
-    .step-icon {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--border-color);
-      transition: all 0.3s ease;
-    }
-  }
-
-  .step-text {
-    font-size: 0.813rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    transition: color 0.3s ease;
-  }
-
-  // Active state
-  &.active {
-    .step-indicator {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 4px var(--primary-light);
-      .step-icon { background: var(--primary); }
-    }
-    .step-text { color: var(--primary); font-weight: 700; }
-  }
-
-  // Completed state
-  &.completed {
-    .step-indicator {
-      border-color: var(--success);
-      background: var(--success);
-      .step-icon {
-        background: white;
-        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%); // Галочка
-        width: 14px;
-        height: 14px;
-        border-radius: 0;
-      }
-    }
-    .step-text { color: var(--success); }
-  }
-}
-
-.step-connector {
-  flex: 1;
-  height: 2px;
-  background: var(--border-color);
-  margin: 0 -20px;
-  margin-bottom: 24px; // Выравнивание по линии кружков
-}
-
 .action-footer {
   display: flex;
   justify-content: center;
@@ -272,4 +162,57 @@
       }
     }
   }
+}
+
+/* --- БЕЙДЖИ СТАТУСОВ --- */
+.status-badge-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 99px; // Делает края идеально круглыми
+  font-size: 0.938rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* 1. Ожидает оплаты (Желтый) */
+.status-pending {
+  background: #fef3c7;
+  color: #d97706;
+  .status-dot { background: #d97706; }
+}
+
+/* 2. В обработке (Синий) */
+.status-processing {
+  background: #dbeafe;
+  color: #2563eb;
+  .status-dot { background: #2563eb; }
+}
+
+/* 3. Готово (Зеленый) */
+.status-ready {
+  background: #d1fae5;
+  color: #059669;
+  .status-dot { background: #059669; }
+}
+
+/* 4. Выдано (Серый) */
+.status-delivered {
+  background: #f3f4f6;
+  color: #4b5563;
+  .status-dot { background: #4b5563; }
 }

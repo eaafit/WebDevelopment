@@ -43,6 +43,13 @@
     </div>
   </div>
 
+  <div class="row title-row">
+    <span class="status-badge" [ngClass]="'status-' + getMappedStatus(status())">
+      <span class="status-dot"></span>
+      {{ getStatusText(status()) }}
+    </span>
+  </div>
+
   <div class="card-footer" (click)="navigateToDocumentPage()">
     <span class="action-text">Открыть детали</span>
   </div>

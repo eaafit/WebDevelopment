@@ -42,24 +42,11 @@
       </div>
     </div>
 
-    <div class="progress-section">
-      <div class="progress-track">
-        <div class="step-item" [class.active]="assesment()?.status !== 4" [class.completed]="assesment()?.status === 4">
-          <div class="step-indicator">
-            <span class="step-icon"></span>
-          </div>
-          <span class="step-text">В обработке</span>
-        </div>
-
-        <div class="step-connector"></div>
-
-        <div class="step-item" [class.active]="assesment()?.status === 4">
-          <div class="step-indicator">
-            <span class="step-icon"></span>
-          </div>
-          <span class="step-text">Готово</span>
-        </div>
-      </div>
+    <div class="status-badge-container">
+      <span class="status-badge" [ngClass]="'status-' + getMappedStatus(assesment()?.status)">
+        <span class="status-dot"></span>
+        {{ getStatusText(assesment()?.status) }}
+      </span>
     </div>
 
     @if (assesment() !== null && doc() !== null) {

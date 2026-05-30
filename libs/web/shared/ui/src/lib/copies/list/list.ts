@@ -6,6 +6,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DocumentService, Document, PageInfo } from '../services/document.service';
 import { AssessmentService } from '../services/assesment.service';
+import { AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
 import { DocumentRow } from './document-row/document-row';
 import { Pagination } from './pagination/pagination';
 
@@ -34,11 +35,12 @@ export class List implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly documentService = inject(DocumentService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly assessmentService = inject(AssessmentService);
 
+  readonly assessmentStatuses = signal<Record<string, number>>({});
   readonly rawDocuments = signal<Document[]>([]);
   readonly page = signal<number>(1);
-  
-  // ⚙️ Теперь лимит — это реактивный сигнал со значением по умолчанию 9
+
   readonly limit = signal<number>(9);
 
   readonly loading = signal(true);
@@ -81,14 +83,14 @@ export class List implements OnInit {
     return result;
   });
 
-  // Пагинация: теперь динамически подстраивается под значение лимита `this.limit()`
+  // Пагинация: динамически подстраивается под значение лимита `this.limit()`
   readonly documents = computed(() => {
     const start = (this.page() - 1) * this.limit();
     const end = start + this.limit();
     return this.filteredDocuments().slice(start, end);
   });
 
-  // Подсчет страниц теперь тоже зависит от динамического лимита
+  // Подсчет страниц зависит от динамического лимита
   readonly totalPages = computed(() => {
     return Math.ceil(this.filteredDocuments().length / this.limit()) || 1;
   });
@@ -134,31 +136,52 @@ export class List implements OnInit {
     this.draftFilters.update((filters) => ({ ...filters, [key]: value }));
   }
 
-  // 🔄 Метод для изменения количества отображаемых элементов
+  // Метод для изменения количества отображаемых элементов
   changeLimit(newLimit: number): void {
     this.limit.set(newLimit);
-    this.page.set(1); // Обязательно сбрасываем на первую страницу
+    this.page.set(1);
   }
 
-  fetchDocuments() {
+  async fetchDocuments() {
     this.loading.set(true);
     const filters = this.appliedFilters();
     const assessmentIdParam = filters.assessmentId.trim() || undefined;
 
-    this.documentService.listDocumentsByAssessment(assessmentIdParam, { 
-      page: 1, 
-      limit: 1000 
-    })
-    .then((data) => {
-      console.log('Пришедшие документы с бэкенда:', data.documents);
-      this.rawDocuments.set(data.documents || []);
+    try {
+      const data = await this.documentService.listDocumentsByAssessment(assessmentIdParam, { 
+        page: 1, 
+        limit: 1000 
+      });
+      
+      const docs = data.documents || [];
+      this.rawDocuments.set(docs);
       this.page.set(1);
-    })
-    .catch((err) => {
+
+      if (docs.length > 0) {
+        // Получаем уникальные ID заявок из всех документов
+        const uniqueAssessmentIds = [...new Set(docs.map(d => d.assessmentId).filter(Boolean))];
+        
+        const statuses: Record<string, number> = {};
+        
+        await Promise.all(uniqueAssessmentIds.map(async (id) => {
+          try {
+            const assessment = await this.assessmentService.getAssessment(id);
+            if (assessment) {
+              statuses[id] = assessment.status;
+            }
+          } catch (e) {
+            console.warn(`Не удалось загрузить статус для заявки ${id}`);
+          }
+        }));
+
+        this.assessmentStatuses.set(statuses);
+      }
+    } catch (err) {
       console.error('Ошибка при получении документов:', err);
       this.rawDocuments.set([]);
-    })
-    .finally(() => this.loading.set(false));
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   goToPrev() {

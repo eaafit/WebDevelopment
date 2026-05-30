@@ -54,11 +54,7 @@ async listDocumentsByAssessment(
     documents: Document[],
     meta?: PageInfo
   }> {
-    // Отделяем пагинацию от фильтров для отправки в RPC клиент
     const pagination = params ? { page: params.page, limit: params.limit } : undefined;
-    
-    // Формируем запрос. Если api-contracts на бэке еще не обновили под новые фильтры,
-    // 'as any' спасет от новых ошибок компиляции контрактов.
     const res = await this.client.listDocumentsByAssessment({ 
       assessmentId, 
       pagination,

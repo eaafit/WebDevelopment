@@ -1,7 +1,5 @@
 :host {
-  // Цветовая палитра и переменные
   --primary-color: #6366f1;
-  // --bg-page: #f8fafc;
   --bg-card: #ffffff;
   --text-main: #1e293b;
   --text-muted: #64748b;
@@ -16,13 +14,11 @@
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-// Контейнер для всего дашборда
 .dashboard-container {
   max-width: 1200px;
   margin: 0 auto;
 }
 
-// Хедер с заголовком и кнопкой
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -42,7 +38,6 @@
   }
 }
 
-// Кнопка создания
 .btn-create-action {
   background: var(--primary-color);
   color: white;
@@ -63,28 +58,23 @@
   }
 }
 
-// СЕТКА: Здесь настраиваем 3 элемента в ряд
 .copies-grid {
   display: grid;
-  // grid-template-columns: repeat(3, 1fr) — строго 3 колонки
-  // auto-fill + minmax — лучше для адаптивности, но будет 3 на средних экранах
   grid-template-columns: repeat(3, 1fr); 
   gap: 24px;
   align-items: stretch;
 
   @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr); // 2 колонки на планшетах
+    grid-template-columns: repeat(2, 1fr);
   }
 
   @media (max-width: 640px) {
-    grid-template-columns: 1fr; // 1 колонка на мобилках
+    grid-template-columns: 1fr;
   }
 }
 
-// Стили для компонента document-row (карточка)
-// Примечание: стили применяются к селектору тега
 document-row {
-  display: block; // Важно для корректных отступов
+  display: block;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 16px;
@@ -98,8 +88,6 @@ document-row {
     border-color: var(--primary-color);
   }
 
-  // Внутренние элементы (ориентируясь на твой скриншот)
-  // Названия классов могут отличаться, подправь под document-row.html если нужно
   h4, .doc-title {
     font-weight: 700;
     margin-bottom: 16px;
@@ -130,7 +118,6 @@ document-row {
   }
 }
 
-// Пустое состояние
 .empty-dashboard-state {
   grid-column: 1 / -1;
   text-align: center;
@@ -143,7 +130,6 @@ document-row {
   .empty-icon { font-size: 3rem; margin-bottom: 12px; }
 }
 
-// Пагинация
 pagination {
   grid-column: 1 / -1;
   display: flex;

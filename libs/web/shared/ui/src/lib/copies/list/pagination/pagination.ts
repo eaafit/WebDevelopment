@@ -15,7 +15,6 @@ export class Pagination {
   goToPrev = input.required<() => void>();
   goToNext = input.required<() => void>();
 
-  // ⚙️ Новые параметры для настройки лимита страниц
   pageSize = input.required<number>();
   pageSizeChange = output<number>();
 
