@@ -105,8 +105,6 @@
 - `SignatureData` (bytea) — цифровая подпись
 - `Version` (integer) — версия отчёта
 
-# <<<<<<< HEAD
-
 ## 8. Результат оценки недвижимости (RealEstateAppraisalResult)
 
 - `Id` (UUID, PK) — уникальный идентификатор результата оценки
@@ -125,16 +123,19 @@
 - `CreatedBy` (UUID, FK) — нотариус/пользователь, выполнивший оценку
 - `AssessmentReportId` (UUID, FK, nullable) — ссылка на сгенерированный отчёт (AssessmentReport), если уже сформирован
 
-> > > > > > > main
-
 ## 9. Уведомление (Notification)
+
+In-app и исходящие сообщения для пользователя. Таблица `notifications`. RPC: `NotificationService` (`ListNotifications`, `MarkAsRead`, `MarkAllAsRead`, `DeleteNotification`).
 
 - `Id` (UUID, PK) — идентификатор уведомления
 - `UserId` (UUID, FK) — получатель
-- `Type` (enum: Email, SMS, Push) — тип уведомления
-- `Message` (text) — текст уведомления
-- `SentAt` (timestamp) — время отправки
-- `Status` (enum: Pending, Sent, Failed) — статус доставки
+- `Type` (enum: Email, SMS, Push) — канал доставки (для in-app в БД используется `Push`)
+- `Message` (text) — текст уведомления (многострочный: заголовок, адрес, статус)
+- `SentAt` (timestamp) — время отправки / появления в ленте
+- `ReadAt` (timestamp, nullable) — время прочтения; `null` — непрочитано
+- `Status` (enum: Pending, Sent, Failed) — статус доставки по каналу
+
+Связь с аудитом: бизнес-событие (например `assessment.created`) пишется в `audit_logs` и может порождать запись в `notifications` для затронутых пользователей.
 
 ## 10. Лог действий (AuditLog)
 
@@ -145,6 +146,8 @@
 - `EntityId` (UUID) — ID объекта действия
 - `Timestamp` (timestamp) — время действия
 - `Details` (jsonb) — дополнительные данные
+
+Сервис доступа: `AuditService.ListAuditEvents` и `AuditService.ExportAuditEvents`. Фильтры: тип события, имя/email исполнителя, точный `actor_user_id`, `target_id`, диапазон дат. Для событий заявки используется `EntityName = Assessment`, `EntityId = id заявки`; UI-фильтр «ID заявки» отправляет `target_id`. `/admin/monitoring` использует полный scope, `/notary/monitoring` ограничен заявками текущего нотариуса через список его assessments и `EntityId`.
 
 ## 11. Промокод (Promo)
 
@@ -172,6 +175,76 @@
 - `MaxDiscountAmount` (numeric, nullable) — максимальная сумма скидки
 - `Type` (enum: Permanent, Subscription, Product, Promo) — тип скидки
 
+## 12. Рассылка (Mailing)
+
+- `Id` (UUID, PK) — идентификатор рассылки
+- `Name` (varchar) — название рассылки
+- `Subject` (varchar) — тема письма
+- `Body` (text) — содержимое письма/шаблона
+- `Status` (enum: Draft, Scheduled, Sending, Completed, Failed, Cancelled) — статус рассылки
+- `ScheduledAt` (timestamp, nullable) — дата и время запланированной отправки
+- `StartedAt` (timestamp, nullable) — дата и время начала отправки
+- `FinishedAt` (timestamp, nullable) — дата и время завершения отправки
+- `SubscriberGroupId` (UUID, FK) — группа подписчиков-получателей
+- `SmtpClientId` (UUID, FK) — SMTP-клиент, через который выполняется отправка
+- `CreatedBy` (UUID, FK) — пользователь, создавший рассылку
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 13. SMTP клиент (SmtpClient)
+
+- `Id` (UUID, PK) — идентификатор SMTP-клиента
+- `Name` (varchar) — наименование SMTP-профиля
+- `Host` (varchar) — SMTP-сервер
+- `Port` (integer) — SMTP-порт
+- `Username` (varchar) — логин для аутентификации
+- `PasswordEncrypted` (varchar) — зашифрованный пароль/токен
+- `EncryptionType` (enum: None, SSL, TLS, STARTTLS) — тип шифрования соединения
+- `FromEmail` (varchar) — email отправителя
+- `FromName` (varchar, nullable) — отображаемое имя отправителя
+- `IsActive` (boolean) — активность профиля
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 14. Группа подписчиков (SubscriberGroup)
+
+- `Id` (UUID, PK) — идентификатор группы подписчиков
+- `Name` (varchar) — название группы
+- `Description` (text, nullable) — описание группы
+- `Type` (enum: Static, Dynamic) — тип группы (фиксированный список или по фильтру)
+- `FilterCriteria` (jsonb, nullable) — критерии отбора получателей для динамической группы
+- `SubscribersCount` (integer, nullable) — количество подписчиков на момент формирования
+- `IsActive` (boolean) — активность группы
+- `CreatedBy` (UUID, FK) — пользователь, создавший группу
+- `CreatedAt` (timestamp) — дата создания
+- `UpdatedAt` (timestamp) — дата последнего обновления
+
+## 15. Заказ (Lead)
+
+- `Id` (UUID, PK) — уникальный идентификатор заказа
+- `ApplicantUserId` (UUID, FK) — кто заказал (заявитель, ссылка на User.Id)
+- `ExecutorUserId` (UUID, FK) — кто исполнитель (нотариус, ссылка на User.Id)
+- `AssessmentId` (UUID, FK) — ID заявки на оценку (Assessment.Id)
+- `StartDate` (date) — дата начала работ
+- `ActualCompletionDate` (date, nullable) — фактическая дата окончания
+- `PlannedCompletionDate` (date) — планируемая дата окончания
+- `TransactionId` (varchar, nullable) — идентификатор транзакции (оплата)
+
+---
+
+## 16. Настройки уведомлений (NotificationPreference)
+
+Таблица `notification_preferences`. Одна строка на комбинацию **пользователь + канал + категория события**. RPC: `GetNotificationSettings` / `UpdateNotificationSettings` (матрица 3×3 на UI: заявки / платежи / системные × Email / Push / In-app).
+
+- `Id` (UUID, PK) — идентификатор настройки
+- `UserId` (UUID, FK) — пользователь
+- `Channel` (enum: Email, SMS, Push, InApp) — канал доставки (`InApp` — уведомления в колокольчике и на странице `/notifications`)
+- `EntityCategory` (enum: Assessment, Payment, System) — категория события (заявки на оценку, платежи, системные)
+- `Status` (enum: Active, Inactive) — включено (`Active`) или отключено (`Inactive`)
+- `UpdatedAt` (timestamp) — время последнего изменения
+
+Ограничение: `UNIQUE (user_id, channel, entity_category)` — не более одной записи на пару канал/категория для пользователя. При первом обращении создаются строки по умолчанию (все каналы `Active`).
+
 ---
 
 # Краткие пояснения
@@ -184,4 +257,6 @@
 - Связь по данным оценки: **Assessment** (заявка) → **RealEstateAppraisalResult** (результат расчёта: стоимость, метод, аналоги) → **AssessmentReport** (сгенерированный PDF, подпись). У одной заявки может быть один или несколько результатов оценки; по результату формируется отчёт. Связь результата с отчётом задаётся полем `AssessmentReportId` в `RealEstateAppraisalResult`.
 - Поля `Latitude` и `Longitude` в Assessment используются для отображения объекта на карте в разделе «География объектов» админ-панели; при отсутствии значений координаты могут получаться путём геокодирования по полю `Address`.
 - `AuditLogs` обеспечивают прозрачность и контроль безопасности.
+- `Notifications` и `NotificationPreference` разделены: лента in-app vs настройки каналов по типам событий.
 - `RealEstateObject` хранит характеристики объекта недвижимости, а связанные сканы, фото и дополнительные файлы описываются через `Document` с разделением по категориям.
+

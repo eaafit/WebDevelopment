@@ -9,7 +9,49 @@
   padding: 2rem;
 }
 
+.login__error {
+  width: min(100%, 24rem);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+
+  color: #8b1538;
+
+  background: #fdecef;
+}
+
+.login__hint {
+  width: min(100%, 24rem);
+  margin: 0;
+
+  line-height: 1.5;
+  color: #243447;
+  text-align: center;
+}
+
+.login__footer-link {
+  width: min(100%, 24rem);
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.login__footer-link a {
+  color: #06c;
+  text-decoration: none;
+}
+
+.login__footer-link a:hover {
+  text-decoration: underline;
+}
+
 .login__field {
+  width: min(100%, 24rem);
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
   width: min(100%, 24rem);
 }
 
@@ -24,6 +66,107 @@
   padding: 0.75rem 0.9rem;
   border: 1px solid #c9d3df;
   border-radius: 0.75rem;
+}
+
+.login__password-control {
+  position: relative;
+  width: 100%;
+}
+
+.login__password-control input {
+  padding-right: 3rem;
+}
+
+.login__password-toggle {
+  cursor: pointer;
+
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  transform: translateY(-50%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+
+  color: #47637f;
+
+  background: transparent;
+}
+
+.login__password-toggle:hover,
+.login__password-toggle:focus-visible {
+  color: #16324f;
+  background: #edf3f8;
+}
+
+.login__password-toggle:focus-visible {
+  outline: 2px solid #7aa8d8;
+  outline-offset: 2px;
+}
+
+.login__password-toggle svg {
+  width: 1.25rem;
+  height: 1.25rem;
+
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.login__role-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+}
+
+.login__role-field legend {
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.login__checkbox {
+  cursor: pointer;
+
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+
+  width: min(100%, 24rem);
+
+  line-height: 1.4;
+}
+
+.login__checkbox input,
+.role-option input {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0.15rem;
+}
+
+.login__restore-link {
+  width: min(100%, 24rem);
+  margin-top: -0.25rem;
+
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #295a8a;
+  text-align: right;
+  text-decoration: none;
+}
+
+.login__restore-link:hover {
+  text-decoration: underline;
 }
 
 .role-list {

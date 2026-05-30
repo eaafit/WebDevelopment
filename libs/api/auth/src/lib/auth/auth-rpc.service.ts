@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import type {
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
@@ -9,6 +11,8 @@ import type {
   RefreshTokenResponse,
   RegisterRequest,
   RegisterResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
@@ -26,4 +30,10 @@ export class AuthRpcService {
 
   readonly logout       = (r: LogoutRequest):       Promise<LogoutResponse>       =>
     this.authService.logout(r);
+
+  readonly forgotPassword = (r: ForgotPasswordRequest): Promise<ForgotPasswordResponse> =>
+    this.authService.forgotPassword(r);
+
+  readonly resetPassword = (r: ResetPasswordRequest): Promise<ResetPasswordResponse> =>
+    this.authService.resetPassword(r);
 }

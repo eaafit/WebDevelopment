@@ -35,6 +35,13 @@ export class AuthRepository {
 
   // ─── Создание пользователя ───────────────────────────────────────────────
 
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+  }
+
   async createUser(data: CreateUserData): Promise<RpcUser> {
     const user = await this.prisma.user.create({
       data: {

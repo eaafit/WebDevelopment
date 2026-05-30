@@ -14,12 +14,36 @@ export const RPC_TRANSPORT = new InjectionToken<Transport>('RPC_TRANSPORT');
 
 // ─── Base URL ────────────────────────────────────────────────────────────────
 
-export function buildRpcBaseUrl(): string {
-  if (typeof window === 'undefined') return 'http://localhost:3000';
-  const { hostname, port, origin } = window.location;
-  const isLocal = ['localhost', '127.0.0.1'].includes(hostname);
-  return isLocal && port !== '3000' ? `http://${hostname}:3000` : origin;
+type RpcBaseUrlLocation = Pick<Location, 'protocol' | 'hostname' | 'port' | 'origin'>;
+
+export function resolveRpcBaseUrl(location: RpcBaseUrlLocation | undefined): string {
+  if (!location) {
+    return 'http://localhost:3000';
+  }
+
+  const { protocol, hostname, port, origin } = location;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  // Local dev: Angular dev-server (e.g. :4200) → Nest API on :3000.
+  // In Docker/nginx the same origin already proxies /notary.* to the API.
+  if (isLocalHost && port !== '3000') {
+    return `${protocol}//${hostname}:3000`;
+  }
+
+  return origin;
 }
+
+export function buildRpcBaseUrl(): string {
+  return resolveRpcBaseUrl(typeof window === 'undefined' ? undefined : window.location);
+}
+
+const PUBLIC_AUTH_METHODS = [
+  '/notary.auth.v1alpha1.AuthService/Register',
+  '/notary.auth.v1alpha1.AuthService/Login',
+  '/notary.auth.v1alpha1.AuthService/RefreshToken',
+  '/notary.auth.v1alpha1.AuthService/ForgotPassword',
+  '/notary.auth.v1alpha1.AuthService/ResetPassword',
+];
 
 // ─── Фабрика провайдера ──────────────────────────────────────────────────────
 // Вызывается в app.config.ts: provideRpcTransport()
@@ -41,7 +65,7 @@ export type RpcTransportOptionsFactory = () => RpcTransportOptions;
 export function createAuthInterceptor(opts: RpcTransportOptions, router: Router): Interceptor {
   return (next) => async (req) => {
     // Пропускаем публичные методы auth-сервиса — у них нет токена
-    const isPublic = req.url.includes('/notary.auth.v1alpha1.AuthService/');
+    const isPublic = PUBLIC_AUTH_METHODS.some((method) => req.url.includes(method));
     if (isPublic) return next(req);
 
     let token = opts.getToken();
@@ -64,6 +88,16 @@ export function createAuthInterceptor(opts: RpcTransportOptions, router: Router)
   };
 }
 
+export function createRequestIdInterceptor(generateRequestId = defaultRequestId): Interceptor {
+  return (next) => async (req) => {
+    if (!req.header.get('X-Request-Id')) {
+      req.header.set('X-Request-Id', generateRequestId());
+    }
+
+    return next(req);
+  };
+}
+
 export function provideRpcTransport(
   optsOrFactory: RpcTransportOptions | RpcTransportOptionsFactory,
 ): EnvironmentProviders {
@@ -76,9 +110,17 @@ export function provideRpcTransport(
 
         return createConnectTransport({
           baseUrl: buildRpcBaseUrl(),
-          interceptors: [createAuthInterceptor(opts, router)],
+          interceptors: [createRequestIdInterceptor(), createAuthInterceptor(opts, router)],
         });
       },
     },
   ]);
+}
+
+function defaultRequestId(): string {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }

@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -43,23 +44,51 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'assessment',
-        ...placeholder('Модуль оценки', [
-          'Запрос оценки с параметрами',
-          'Ввод параметров объекта',
-          'Результаты и отчёты',
-        ]),
-      } as Route,
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
+      {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
+        path: 'assessment/history',
+        component: AssessmentHistoryComponent,
+        data: { role: 'notary' },
+      },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Запрос, оплата и получение копий',
-          'Статус «в обработке/готово»',
-        ]),
-      } as Route,
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            data: { role: 'notary' },
+          },
+          {
+            path: 'new',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/new/new').then((m) => m.New),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
+      },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
-      } as Route,
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.NotaryNotificationSettings,
+          ),
+      },
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),

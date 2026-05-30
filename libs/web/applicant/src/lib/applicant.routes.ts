@@ -1,6 +1,7 @@
 import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -36,6 +37,11 @@ export const applicantRoutes: Route[] = [
         ]),
       },
       {
+        path: 'assessment/new/params',
+        loadComponent: () =>
+          import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
+      } as Route,
+      {
         path: 'assessment',
         loadComponent: () =>
           import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
@@ -55,44 +61,53 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'assessment/history',
-        ...placeholder('История заказов', [
-          'Лента заказов',
-          'Статусы и таймлайн',
-          'Фильтры',
-          'Уведомления по изменениям',
-        ]),
+        component: AssessmentHistoryComponent,
+        data: { role: 'applicant' },
       },
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Выбор тарифа',
-          'Ввод реквизитов',
-          'Промокод',
-          'История платежей',
-        ]),
-      },
+        loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
+      } as Route,
+      {
+        path: 'checkout/success',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
+      {
+        path: 'checkout/cancel',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
       {
         path: 'checkout',
         loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Форма запроса',
-          'Прикрепление оснований',
-          'Расчёт стоимости',
-          'Оплата и выдача копий',
-        ]),
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            data: { role: 'applicant' },
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'In-app уведомления',
-          'Фильтры',
-          'Прочитано/не прочитано',
-          'История событий',
-        ]),
-      },
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.ApplicantNotifications),
+      } as Route,
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.ApplicantNotificationSettings,
+          ),
+      } as Route,
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения', 'SLA-статусы']),

@@ -11,12 +11,28 @@ import {
   type GetDocumentResponse,
   type ListDocumentsByAssessmentResponse,
 } from '@notary-portal/api-contracts';
-import { DocumentType as PrismaDocumentType, type Prisma } from '@internal/prisma-client';
+import {
+  DocumentType as PrismaDocumentType,
+  type Document as PrismaDocumentRecord,
+  type Prisma,
+} from '@internal/prisma-client';
 import type { DocumentQuery } from './document.query';
+import { DocumentFileUrlService } from './document-file-url.service';
+import { fromPrismaDocumentType } from './document-type.mapper';
+
+export class DocumentRecordNotFoundError extends Error {
+  constructor(id: string) {
+    super(`document ${id} not found`);
+    this.name = 'DocumentRecordNotFoundError';
+  }
+}
 
 @Injectable()
 export class DocumentRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly documentFileUrlService: DocumentFileUrlService,
+  ) {}
 
   async listDocumentsByAssessment(query: DocumentQuery): Promise<ListDocumentsByAssessmentResponse> {
     const page = query.page ?? 1;
@@ -41,16 +57,35 @@ export class DocumentRepository {
   }
 
   async getDocument(id: string): Promise<GetDocumentResponse> {
-    const document = await this.prisma.document.findUniqueOrThrow({ where: { id } });
+    const document = await this.findDocumentRecord(id);
+    if (!document) {
+      throw new DocumentRecordNotFoundError(id);
+    }
+
     return create(GetDocumentResponseSchema, { document: this.toMessage(document) });
+  }
+
+  findDocumentRecord(id: string): Promise<PrismaDocumentRecord | null> {
+    return this.prisma.document.findUnique({ where: { id } });
+  }
+
+  async assessmentExists(id: string): Promise<boolean> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    return !!assessment;
   }
 
   async createDocument(data: {
     assessmentId: string;
     fileName: string;
     fileType: string;
+    fileSize: number;
     documentType: PrismaDocumentType;
-    filePath: string;
+    bucketName: string;
+    objectKey: string;
     uploadedById: string;
   }): Promise<RpcDocument> {
     const lastVersion = await this.prisma.document.findFirst({
@@ -64,14 +99,20 @@ export class DocumentRepository {
         assessmentId: data.assessmentId,
         fileName: data.fileName,
         fileType: data.fileType,
+        fileSize: data.fileSize,
         documentType: data.documentType,
-        filePath: data.filePath,
+        bucketName: data.bucketName,
+        objectKey: data.objectKey,
         uploadedById: data.uploadedById,
         version: (lastVersion?.version ?? 0) + 1,
       },
     });
 
     return this.toMessage(document);
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await this.prisma.document.delete({ where: { id } });
   }
 
   private buildWhere(query: DocumentQuery): Prisma.DocumentWhereInput {
@@ -92,20 +133,28 @@ export class DocumentRepository {
     assessmentId: string;
     fileName: string;
     fileType: string;
-    filePath: string;
+    fileSize: number;
+    bucketName: string;
+    objectKey: string;
     version: number;
     uploadedAt: Date;
     uploadedById: string;
+    documentType: PrismaDocumentType;
   }): RpcDocument {
     return create(DocumentSchema, {
       id: d.id,
       assessmentId: d.assessmentId,
       fileName: d.fileName,
       fileType: d.fileType,
-      filePath: d.filePath,
+      fileSize: d.fileSize,
+      bucketName: d.bucketName,
+      objectKey: d.objectKey,
       version: d.version,
       uploadedAt: timestampFromDate(d.uploadedAt),
       uploadedById: d.uploadedById,
+      documentType: fromPrismaDocumentType(d.documentType),
+      previewUrl: this.documentFileUrlService.buildPreviewUrl(d.id),
+      downloadUrl: this.documentFileUrlService.buildDownloadUrl(d.id),
     });
   }
 }

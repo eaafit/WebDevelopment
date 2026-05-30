@@ -1,33 +1,83 @@
-import { Logger } from '@nestjs/common';
+import 'dotenv/config';
+import './tracing';
 import { NestFactory } from '@nestjs/core';
-import { cors } from '@connectrpc/connect';
+import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
+import cors from 'cors';
 import express from 'express';
+import { Logger as PinoNestLogger } from 'nestjs-pino';
 import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
-import { AuthInterceptor } from '@internal/auth';
-import { PaymentWebhookError, PaymentWebhookService } from '@internal/billing';
+import { createHttpLoggingMiddleware } from './app/logging/logging.config';
+import { registerWebLogIngestion } from './app/logging/web-log-ingest';
+import { createFailedAccessMetricsMiddleware } from './app/security/failed-access-metrics.middleware';
+import { createHttpRequestDurationMetricsMiddleware } from './app/security/http-request-duration-metrics.middleware';
+import { AuthInterceptor, TokenService } from '@internal/auth';
+import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
+import {
+  PaymentAttachmentService,
+  PaymentWebhookError,
+  PaymentWebhookService,
+} from '@internal/billing';
+import {
+  DocumentFileUrlService,
+  DocumentObjectNotFoundError,
+  DocumentService,
+  DocumentStorageUnavailableError,
+} from '@internal/document';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
+    bufferLogs: true,
   });
-
-  const connectRouterRegistry = app.get(ConnectRouterRegistry);
-  const authInterceptor = app.get(AuthInterceptor);
-  const paymentWebhookService = app.get(PaymentWebhookService);
-
-  app.enableCors({
-    origin: true,
-    methods: [...cors.allowedMethods],
-    allowedHeaders: [...cors.allowedHeaders, 'Authorization'],
-    exposedHeaders: [...cors.exposedHeaders],
-  });
+  app.useLogger(app.get(PinoNestLogger));
 
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
+  const metricsService = app.get(MetricsService);
+  expressInstance.use(createHttpLoggingMiddleware());
+  expressInstance.use(createHttpRequestDurationMetricsMiddleware(metricsService));
+  expressInstance.use(createFailedAccessMetricsMiddleware(metricsService));
+
+  // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
+  // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
+  // without CORS headers otherwise.
+  const corsOriginEnv = process.env['CORS_ORIGIN'];
+  const corsOriginList = corsOriginEnv
+    ? corsOriginEnv
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    : undefined;
+  expressInstance.use(
+    cors({
+      origin:
+        corsOriginList && corsOriginList.length > 0
+          ? corsOriginList
+          : (requestOrigin: string | undefined, cb) => {
+              cb(null, requestOrigin ? requestOrigin : true);
+            },
+      methods: [...connectCors.allowedMethods],
+      allowedHeaders: [
+        ...connectCors.allowedHeaders,
+        'Authorization',
+        'X-Request-Id',
+        'traceparent',
+      ],
+      exposedHeaders: [...connectCors.exposedHeaders, 'X-Request-Id'],
+    }),
+  );
+
+  const connectRouterRegistry = app.get(ConnectRouterRegistry);
+  const authInterceptor = app.get(AuthInterceptor);
+  const tokenService = app.get(TokenService);
+  const documentService = app.get(DocumentService);
+  const documentFileUrlService = app.get(DocumentFileUrlService);
+  const paymentWebhookService = app.get(PaymentWebhookService);
+  const paymentAttachmentService = app.get(PaymentAttachmentService);
 
   expressInstance.get('/health', async (_req: express.Request, res: express.Response) => {
     try {
@@ -41,7 +91,6 @@ async function bootstrap() {
 
   expressInstance.get('/metrics', async (_req: express.Request, res: express.Response) => {
     try {
-      const metricsService = app.get(MetricsService);
       const content = await metricsService.getMetrics();
       const contentType = metricsService.getContentType();
       res.setHeader('Content-Type', contentType);
@@ -50,6 +99,52 @@ async function bootstrap() {
       res.status(500).end();
     }
   });
+
+  registerWebLogIngestion(expressInstance, undefined, metricsService);
+
+  expressInstance.get(
+    '/api/documents/:documentId/content',
+    async (req: express.Request, res: express.Response) => {
+      const documentId = req.params['documentId'] ?? '';
+      const accessGrant = documentFileUrlService.validateAccess({
+        documentId,
+        mode: asString(req.query['mode']),
+        expires: asString(req.query['expires']),
+        signature: asString(req.query['signature']),
+      });
+
+      if (!accessGrant) {
+        res.status(403).json({ error: 'invalid or expired document url' });
+        return;
+      }
+
+      try {
+        const file = await documentService.getDocumentFile(documentId);
+        if (!file) {
+          res.status(404).json({ error: `document ${documentId} not found` });
+          return;
+        }
+
+        res.setHeader('Content-Type', file.fileType);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.setHeader(
+          'Content-Disposition',
+          buildContentDisposition(
+            accessGrant.mode === 'download' ? 'attachment' : 'inline',
+            file.fileName,
+          ),
+        );
+
+        if (file.fileSize > 0) {
+          res.setHeader('Content-Length', String(file.fileSize));
+        }
+
+        file.body.pipe(res);
+      } catch (error: unknown) {
+        writeDocumentFileError(res, error);
+      }
+    },
+  );
 
   expressInstance.post(
     '/api/payments/webhook',
@@ -70,19 +165,85 @@ async function bootstrap() {
     },
   );
 
+  expressInstance.post(
+    '/api/payments/robokassa/result',
+    express.urlencoded({ extended: false }),
+    (req: express.Request, res: express.Response) => {
+      paymentWebhookService
+        .handleRobokassaResult(req.body)
+        .then((result) => res.status(200).type('text/plain').send(result))
+        .catch((error: unknown) => {
+          if (error instanceof PaymentWebhookError) {
+            res.status(error.statusCode).send(error.message);
+            return;
+          }
+          res.status(500).send('Internal server error');
+        });
+    },
+  );
+
+  expressInstance.get(
+    '/api/payments/:paymentId/receipt',
+    (req: express.Request, res: express.Response) => {
+      const token = parseBearerToken(req.header('authorization'));
+      if (!token) {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+
+      let payload;
+      try {
+        payload = tokenService.verifyAccessToken(token);
+      } catch {
+        res.status(401).json({ message: 'Unauthorized' });
+        return;
+      }
+
+      paymentAttachmentService
+        .getReceiptFile({
+          paymentId: req.params['paymentId'],
+          userId: payload.sub,
+          role: payload.role,
+        })
+        .then((receipt) => {
+          const dispositionType = req.query['download'] === '1' ? 'attachment' : 'inline';
+          res.setHeader('Content-Type', receipt.contentType);
+          res.setHeader(
+            'Content-Disposition',
+            `${dispositionType}; filename*=UTF-8''${encodeURIComponent(receipt.fileName)}`,
+          );
+          res.setHeader('Cache-Control', 'no-store');
+          res.status(200).send(receipt.body);
+        })
+        .catch((error: unknown) => {
+          if (isHttpError(error)) {
+            res.status(error.statusCode ?? error.status).json({ message: error.message });
+            return;
+          }
+
+          res.status(500).json({ message: 'Internal server error' });
+        });
+    },
+  );
+
   app.use(
     connectNodeAdapter({
       connect: true,
       grpc: false,
       grpcWeb: false,
       interceptors: [authInterceptor.build()],
+      contextValues: (req) => {
+        const values = createContextValues();
+        values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
+        return values;
+      },
       routes: (router) => connectRouterRegistry.register(router),
     }),
   );
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);
-  Logger.log(`Connect RPC server is running on http://localhost:${port}`);
+  app.get(PinoNestLogger).log(`Connect RPC server is running on http://localhost:${port}`);
 }
 
 bootstrap();
@@ -103,4 +264,94 @@ function parseBearerToken(value: string | undefined): string | undefined {
 
   const match = /^Bearer\s+(.+)$/i.exec(value);
   return match?.[1];
+}
+
+function resolveRequestIp(req: {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string | null };
+}): string | null {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0]?.trim() || null;
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0]?.split(',')[0]?.trim() || null;
+  }
+
+  return req.socket?.remoteAddress ?? null;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function isHttpError(
+  error: unknown,
+): error is { status?: number; statusCode?: number; message: string } {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as { status?: unknown; statusCode?: unknown; message?: unknown };
+  return (
+    typeof (candidate.statusCode ?? candidate.status) === 'number' &&
+    typeof candidate.message === 'string'
+  );
+}
+
+function writeDocumentFileError(res: express.Response, error: unknown): void {
+  if (error instanceof DocumentObjectNotFoundError) {
+    res.status(404).json({ error: 'document file not found' });
+    return;
+  }
+
+  if (error instanceof DocumentStorageUnavailableError) {
+    res.status(503).json({ error: 'document object storage unavailable' });
+    return;
+  }
+
+  if (error instanceof ConnectError) {
+    if (error.code === Code.InvalidArgument) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+
+    if (error.code === Code.NotFound) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+
+    if (error.code === Code.Unavailable) {
+      res.status(503).json({ error: error.message });
+      return;
+    }
+  }
+
+  res.status(500).json({ error: 'unexpected document file error' });
+}
+
+function buildContentDisposition(
+  dispositionType: 'inline' | 'attachment',
+  fileName: string,
+): string {
+  const safeFileName = sanitizeAsciiFileName(fileName);
+  const encodedFileName = encodeRfc5987(fileName);
+  return `${dispositionType}; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`;
+}
+
+function sanitizeAsciiFileName(fileName: string): string {
+  const sanitized = fileName
+    .replace(/[/\\"]/g, '_')
+    .replace(/[^\x20-\x7E]+/g, '_')
+    .trim();
+
+  return sanitized || 'document';
+}
+
+function encodeRfc5987(value: string): string {
+  return encodeURIComponent(value).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }

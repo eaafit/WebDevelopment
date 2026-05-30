@@ -1,0 +1,78 @@
+@if (order; as order) {
+<div
+  class="modal-overlay"
+  role="button"
+  tabindex="0"
+  aria-label="Закрыть окно деталей заказа"
+  (click)="onBackdropClick($event)"
+  (keydown.enter)="onBackdropKeydown($event)"
+  (keydown.space)="onBackdropKeydown($event)">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h2>Детали заказа №{{ order.id }}</h2>
+      <button class="modal-close" type="button" aria-label="Закрыть" (click)="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-section">
+        <h3>Информация о заявке</h3>
+        <p><strong>ID заявки:</strong> {{ order.id }}</p>
+        <p><strong>Дата начала:</strong> {{ order.orderDate | date:'dd.MM.yyyy' }}</p>
+        <p><strong>Планируемая дата окончания:</strong> {{ order.plannedCompletionDate | date:'dd.MM.yyyy' }}</p>
+        @if (order.actualCompletionDate) {
+        <p><strong>Фактическая дата окончания:</strong> {{ order.actualCompletionDate | date:'dd.MM.yyyy' }}</p>
+        }
+        <p><strong>Статус:</strong> {{ getStatusLabel(order.status) }}</p>
+        <p><strong>Итоговая стоимость:</strong> {{ order.totalAmount > 0 ? (order.totalAmount + ' ₽') : 'ещё не назначена' }}</p>
+        @if (order.transactionId) {
+        <p><strong>ID транзакции:</strong> {{ order.transactionId }}</p>
+        }
+      </div>
+
+      <div class="detail-section">
+        <h3>Участники</h3>
+        <p><strong>Заявитель:</strong> {{ order.applicantName }}</p>
+        @if (order.notaryName) {
+        <p><strong>Нотариус:</strong> {{ order.notaryName }}</p>
+        }
+      </div>
+
+      <div class="detail-section">
+        <h3>Объект недвижимости</h3>
+        <p><strong>Адрес:</strong> {{ order.realEstateObject.address }}</p>
+        @if (order.realEstateObject.city) {
+        <p><strong>Город:</strong> {{ order.realEstateObject.city }}</p>
+        }
+        @if (order.realEstateObject.objectType) {
+        <p><strong>Тип:</strong> {{ getObjectTypeLabel(order.realEstateObject.objectType) }}</p>
+        }
+        @if (order.realEstateObject.area) {
+        <p><strong>Площадь:</strong> {{ order.realEstateObject.area }} м²</p>
+        }
+        @if (order.realEstateObject.roomsCount) {
+        <p><strong>Комнат:</strong> {{ order.realEstateObject.roomsCount }}</p>
+        }
+        @if (order.realEstateObject.floor) {
+        <p><strong>Этаж:</strong> {{ order.realEstateObject.floor }}</p>
+        }
+      </div>
+
+       <!--т.к. логика изменения статусов (кроме изменения с Создана на Принята при нажатии Взять в работу Нотариусом) еще не реализована (не моя часть)  -->
+      <!-- <div class="detail-section">
+        <h3>История статусов</h3>
+        @for (entry of order.statusHistory; track entry.date) {
+        <div class="history-item-mini">
+          <span class="history-date">{{ entry.date | date:'dd.MM.yyyy HH:mm' }}</span>
+          <span class="history-status">{{ getStatusLabel(entry.status) }}</span>
+          @if (entry.comment) {
+          <span class="history-comment">({{ entry.comment }})</span>
+          }
+        </div>
+        }
+      </div> -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" type="button" (click)="closeModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+}

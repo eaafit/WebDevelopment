@@ -59,6 +59,7 @@ export class SubscriptionCheckoutApiService {
     amount: string;
     subscriptionId: string;
     promoCode?: string;
+    paymentProvider?: string;
   }) {
     return this.client.createPayment({
       userId: params.userId,
@@ -66,6 +67,7 @@ export class SubscriptionCheckoutApiService {
       type: PaymentType.SUBSCRIPTION,
       targetId: params.subscriptionId,
       promoCode: params.promoCode?.trim() ?? '',
+      paymentProvider: params.paymentProvider?.trim() ?? '',
     });
   }
 

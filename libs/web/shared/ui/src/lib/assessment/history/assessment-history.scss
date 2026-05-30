@@ -1,0 +1,147 @@
+@use 'sass:meta';
+
+.assessment-history {
+  // Все переменные и базовые стили наследуются от родительской обёртки (.applicant-wrapper или .notary-wrapper)
+  // Поэтому здесь достаточно дополнительных специфичных стилей
+
+  .filters-section {
+    margin-bottom: 2rem;
+  }
+
+  .orders-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+  }
+
+  .order-item-wrapper {
+    transition: all 0.2s;
+  }
+
+  // Лёгкая адаптация для роли нотариуса (можно менять фон или отступы)
+  &.notary-role {
+    .card-header {
+      background: linear-gradient(to right, var(--bg-card), var(--bg-secondary));
+    }
+  }
+
+  .notifications-block {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+
+    .notifications-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .notification-item {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+
+      font-size: 0.9rem;
+
+      .notification-icon {
+        font-size: 1.2rem;
+      }
+
+      .notification-message {
+        flex: 1;
+      }
+
+      .notification-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+      }
+    }
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+
+    .pagination-info {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .pagination-controls {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    gap: 1rem;
+  }
+
+  .pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    justify-self: center;
+    /* центрирование внутри своей колонки */
+  }
+
+  .pagination-left {
+    visibility: hidden;
+    /* скрываем, но оставляем место для симметрии */
+  }
+
+
+  .pagination-page-size {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-self: end;
+
+    select {
+      width: auto;
+      padding: 0.3rem 1rem;
+    }
+  }
+
+  /* Стили для неактивных кнопок пагинации */
+  .pagination-buttons button:disabled,
+  .pagination-buttons button:disabled:hover {
+    background-color: #e5e7eb;
+    /* серый фон */
+    color: #9ca3af;
+    /* серый текст */
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+    transform: none;
+    /* убираем анимацию поднятия */
+    box-shadow: none;
+  }
+
+  .loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    font-size: 1rem;
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: 1rem;
+  }
+}

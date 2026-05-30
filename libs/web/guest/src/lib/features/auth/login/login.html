@@ -5,25 +5,69 @@
   <div class="login__error">{{ error() }}</div>
   }
 
-  <div class="login__field">
-    <label for="email">Email</label>
-    <input id="email" type="email" [(ngModel)]="email" placeholder="you@example.com" autocomplete="email" />
-  </div>
+  @if (validationError()) {
+  <div class="login__error">{{ validationError() }}</div>
+  }
 
-  <div class="login__field">
-    <label for="password">Пароль</label>
-    <input
-      id="password"
-      type="password"
-      [(ngModel)]="password"
-      placeholder="••••••••"
-      autocomplete="current-password" />
-  </div>
+  <form class="login__form" (ngSubmit)="onLogin()" novalidate>
+    <div class="login__field">
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        [(ngModel)]="email"
+        placeholder="you@example.com"
+        autocomplete="email" />
+    </div>
 
-  <button class="btn-login" type="button" (click)="onLogin()" [disabled]="loading()">
-    {{ loading() ? 'Вход...' : 'Войти' }}
-  </button>
+    <div class="login__field">
+      <label for="password">Пароль</label>
+      <div class="login__password-control">
+        <input
+          id="password"
+          name="password"
+          [type]="showPassword() ? 'text' : 'password'"
+          [(ngModel)]="password"
+          placeholder="••••••••"
+          autocomplete="current-password" />
+        <button
+          class="login__password-toggle"
+          type="button"
+          [attr.aria-label]="showPassword() ? 'Скрыть пароль' : 'Показать пароль'"
+          [attr.title]="showPassword() ? 'Скрыть пароль' : 'Показать пароль'"
+          (click)="togglePasswordVisibility()">
+          @if (showPassword()) {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 3l18 18" />
+            <path d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58" />
+            <path d="M9.88 4.24A9.4 9.4 0 0 1 12 4c5.5 0 9 5.5 9 8a6.4 6.4 0 0 1-1.56 2.95" />
+            <path d="M6.1 6.1C4.14 7.46 3 10.06 3 12c0 2.5 3.5 8 9 8 1.27 0 2.43-.29 3.45-.76" />
+          </svg>
+          } @else {
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2.5 12s3.5-7 9.5-7 9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          }
+        </button>
+      </div>
+    </div>
 
+    <a class="login__restore-link" data-testid="forgot-password-link" routerLink="/auth/forgot-password">
+      Забыли пароль?
+    </a>
+
+    <button class="btn-login" type="submit" [disabled]="loading()">
+      {{ loading() ? 'Вход...' : 'Войти' }}
+    </button>
+  </form>
+
+  <p class="login__footer-link">
+    <a data-testid="register-link" routerLink="/auth/register">Регистрация</a>
+  </p>
+
+  @if (showTestAccountHints) {
   <section class="login__test-accounts" aria-label="Тестовые аккаунты">
     <h2>Тестовые аккаунты</h2>
     <ul>
@@ -46,4 +90,5 @@
       }
     </ul>
   </section>
+  }
 </main>

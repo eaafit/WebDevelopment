@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package notary.bitrix.v1alpha1;
+
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+service BitrixService {
+  // Конфигурация
+  rpc GetBitrixConfig(GetBitrixConfigRequest) returns (GetBitrixConfigResponse);
+  rpc UpdateBitrixConfig(UpdateBitrixConfigRequest) returns (UpdateBitrixConfigResponse);
+  rpc TestBitrixConnection(TestBitrixConnectionRequest) returns (TestBitrixConnectionResponse);
+
+  // Синхронизация
+  rpc SyncUsersWithBitrix(SyncUsersWithBitrixRequest) returns (SyncUsersWithBitrixResponse);
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
+  rpc GetSyncLogs(GetSyncLogsRequest) returns (GetSyncLogsResponse);
+}
+
+// Конфигурация Bitrix
+message BitrixConfig {
+  string portal_url = 1;
+  string member_id = 2;
+  string access_token = 3;
+  bool is_active = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp updated_at = 6;
+}
+
+message GetBitrixConfigRequest {}
+
+message GetBitrixConfigResponse {
+  BitrixConfig config = 1;
+}
+
+message UpdateBitrixConfigRequest {
+  string portal_url = 1;
+  string member_id = 2;
+  string access_token = 3;
+  bool is_active = 4;
+}
+
+message UpdateBitrixConfigResponse {
+  BitrixConfig config = 1;
+}
+
+message TestBitrixConnectionRequest {}
+
+message TestBitrixConnectionResponse {
+  bool success = 1;
+  string message = 2;
+  google.protobuf.Timestamp tested_at = 3;
+}
+
+// Синхронизация
+message SyncUsersWithBitrixRequest {
+  bool force_resync = 1; // Принудительная пересинхронизация всех пользователей
+}
+
+message SyncUsersWithBitrixResponse {
+  string job_id = 1;
+  string status = 2; // "started", "already_running", "error"
+  string message = 3;
+}
+
+message SyncStatus {
+  string job_id = 1;
+  string status = 2; // "pending", "running", "completed", "failed"
+  int32 total_users = 3;
+  int32 processed_users = 4;
+  int32 successful_syncs = 5;
+  int32 failed_syncs = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp completed_at = 8;
+  string error_message = 9;
+}
+
+message GetSyncStatusRequest {
+  string job_id = 1;
+}
+
+message GetSyncStatusResponse {
+  SyncStatus status = 1;
+}
+
+message SyncLogEntry {
+  string user_id = 1;
+  string bitrix_contact_id = 2;
+  string action = 3; // "created", "updated", "skipped", "error"
+  string status = 4; // "success", "error"
+  string message = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message GetSyncLogsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1;
+  string job_id = 2;
+  string user_id = 3;
+}
+
+message GetSyncLogsResponse {
+  repeated SyncLogEntry logs = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}

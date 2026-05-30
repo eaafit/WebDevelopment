@@ -104,8 +104,8 @@ export class SaleComponent {
     }
 
     result.sort((a, b) => {
-      let aVal: any = a[this.sortField];
-      let bVal: any = b[this.sortField];
+      let aVal: string | number | boolean | Date | undefined = a[this.sortField as keyof Discount];
+      let bVal: string | number | boolean | Date | undefined = b[this.sortField as keyof Discount];
 
       // Если поле — дата, сравниваем по числовому значению
       if (aVal instanceof Date && bVal instanceof Date) {
@@ -213,7 +213,7 @@ export class SaleComponent {
 
   saveDiscount(): void {
     if (this.isEditMode && this.selectedDiscount) {
-      const index = this.allDiscounts.findIndex((d) => d.id === this.selectedDiscount!.id);
+      const index = this.allDiscounts.findIndex((d) => d.id === this.selectedDiscount?.id);
       if (index !== -1) {
         this.allDiscounts[index] = {
           ...this.selectedDiscount,
@@ -255,7 +255,7 @@ export class SaleComponent {
 
   deleteDiscount(): void {
     if (this.discountToDelete) {
-      this.allDiscounts = this.allDiscounts.filter((d) => d.id !== this.discountToDelete!.id);
+      this.allDiscounts = this.allDiscounts.filter((d) => d.id !== this.discountToDelete?.id);
       console.log('Удалена скидка:', this.discountToDelete);
       this.showDeleteModal = false;
       this.discountToDelete = null;

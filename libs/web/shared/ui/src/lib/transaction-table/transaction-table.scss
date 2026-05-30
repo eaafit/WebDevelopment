@@ -148,6 +148,8 @@
 }
 
 .document-link {
+  cursor: pointer;
+
   display: inline-flex;
   gap: 0.75rem;
   align-items: center;
@@ -158,9 +160,11 @@
   border: 1px solid rgb(79 70 229 / 12%);
   border-radius: var(--radius-sm);
 
+  font: inherit;
   color: inherit;
   text-align: left;
 
+  appearance: none;
   background: rgb(79 70 229 / 6%);
 
   transition:

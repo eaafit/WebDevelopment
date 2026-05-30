@@ -1,0 +1,109 @@
+<section class="order-status-history">
+  <header class="order-status-history__hero">
+    <div>
+      <p class="order-status-history__eyebrow">Администратор / RD</p>
+      <h2>История состояний заявок</h2>
+      <p class="order-status-history__lead">
+        Таблица переходов по диаграмме состояний: создание, модерация нотариусом, оценщик, завершение. Фильтры,
+        сортировка по дате, удаление записи (стаб для проверки UI).
+      </p>
+    </div>
+    <button type="button" class="order-status-history__btn order-status-history__btn--ghost" (click)="restoreDemo()">
+      Сбросить демо-данные
+    </button>
+  </header>
+
+  <div class="order-status-history__toolbar">
+    <label class="order-status-history__field">
+      <span>Заявка (поиск)</span>
+      <input
+        type="text"
+        placeholder="например A-1244"
+        [value]="searchOrderId()"
+        (input)="setSearch($any($event.target).value)" />
+    </label>
+
+    <label class="order-status-history__field">
+      <span>Новый статус (к чему перешли)</span>
+      <select [value]="filterToStatus()" (change)="setFilterToStatus($any($event.target).value)">
+        <option value="all">Все</option>
+        @for (st of statusOptions; track st) {
+        <option [value]="st">{{ statusLabel(st) }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="order-status-history__field">
+      <span>Дата от</span>
+      <input type="date" [value]="dateFrom()" (change)="setDateFrom($any($event.target).value)" />
+    </label>
+
+    <label class="order-status-history__field">
+      <span>Дата до</span>
+      <input type="date" [value]="dateTo()" (change)="setDateTo($any($event.target).value)" />
+    </label>
+
+    <div class="order-status-history__toolbar-actions">
+      <button type="button" class="order-status-history__btn" (click)="toggleSort()">
+        Сортировка по дате: {{ sortDir() === 'asc' ? '↑ старые сначала' : '↓ новые сначала' }}
+      </button>
+      <button type="button" class="order-status-history__btn order-status-history__btn--ghost" (click)="resetFilters()">
+        Сбросить фильтры
+      </button>
+    </div>
+  </div>
+
+  @if (filteredSorted().length) {
+  <div class="order-status-history__table-wrap">
+    <table class="order-status-history__table">
+      <thead>
+        <tr>
+          <th>Заявка</th>
+          <th>Было</th>
+          <th>Стало</th>
+          <th>Дата и время</th>
+          <th>Инициатор</th>
+          <th>Уведомления</th>
+          <th>Комментарий</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of filteredSorted(); track row.id) {
+        <tr>
+          <td><strong>{{ row.orderId }}</strong></td>
+          <td>{{ statusLabel(row.fromStatus) }}</td>
+          <td>{{ statusLabel(row.toStatus) }}</td>
+          <td>{{ row.changedAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+          <td>{{ row.actor }}</td>
+          <td>
+            @if (row.notifyApplicant) {
+            <span class="order-status-history__pill">Заявитель</span>
+            } @if (row.notifyNotary) {
+            <span class="order-status-history__pill order-status-history__pill--notary">Нотариус</span>
+            } @if (!row.notifyApplicant && !row.notifyNotary) {
+            <span class="order-status-history__muted">—</span>
+            }
+          </td>
+          <td class="order-status-history__notes">{{ row.notes }}</td>
+          <td>
+            <button
+              type="button"
+              class="order-status-history__btn-delete"
+              (click)="deleteRow(row.id)"
+              title="Удалить запись истории">
+              Удалить
+            </button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  } @else {
+  <div class="order-status-history__empty">
+    <strong>Записей нет.</strong>
+    <p>Измените фильтры или нажмите «Сбросить демо-данные».</p>
+  </div>
+  }
+</section>

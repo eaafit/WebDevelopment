@@ -1,7 +1,7 @@
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ChangeDetectorRef, Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore, WebLoggerService } from '@notary-portal/ui';
 import {
   formatPrice,
   resolveSubscriptionPlan,
@@ -74,11 +74,15 @@ export class Checkout implements OnDestroy {
   private readonly tokenStore = inject(TokenStore);
   private readonly checkoutApi = inject(SubscriptionCheckoutApiService);
   private readonly widgetService = inject(YooKassaWidgetService);
+  private readonly logger = inject(WebLoggerService);
 
   private widgetSession: YooKassaWidgetSession | null = null;
   private widgetResultHandled = false;
 
   constructor() {
+    this.logInfo('payment.checkout.notary.page_opened', {
+      routePath: this.route.snapshot.routeConfig?.path ?? '',
+    });
     this.resumeFromFallbackRoute();
   }
 
@@ -87,6 +91,10 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logInfo('payment.checkout.notary.plan_selected', {
+      previousPlanCode: this.selectedPlanCode(),
+      nextPlanCode: code,
+    });
     this.selectedPlanCode.set(code);
     this.confirmedAmount.set(null);
     this.notice.set('');
@@ -104,6 +112,9 @@ export class Checkout implements OnDestroy {
     this.errorMessage.set('');
 
     if (normalizePromoCode(value) !== normalizePromoCode(this.appliedPromoCode())) {
+      if (this.appliedPromoCode()) {
+        this.logInfo('payment.checkout.notary.promo_changed_after_apply');
+      }
       this.clearAppliedPromoState();
     }
 
@@ -118,12 +129,17 @@ export class Checkout implements OnDestroy {
     if (!promoCode) {
       this.clearAppliedPromoState();
       this.setPromoFeedback('success', 'Промокод очищен. Итоговая сумма снова без скидки.');
+      this.logInfo('payment.checkout.notary.promo_cleared');
       return;
     }
 
     this.promoLoading.set(true);
 
     try {
+      this.logInfo('payment.checkout.notary.promo_validation_started', {
+        planCode: this.selectedPlanCode(),
+        promoCodeLength: promoCode.length,
+      });
       const validation = await this.checkoutApi.validateSubscriptionPromo({
         planCode: this.selectedPlanCode(),
         promoCode,
@@ -132,6 +148,10 @@ export class Checkout implements OnDestroy {
       if (validation.status !== 'valid') {
         this.clearAppliedPromoState();
         this.setPromoFeedback('error', promoValidationMessage(validation.status));
+        this.logWarn('payment.checkout.notary.promo_validation_rejected', {
+          validationStatus: validation.status,
+          planCode: this.selectedPlanCode(),
+        });
         return;
       }
 
@@ -143,8 +163,18 @@ export class Checkout implements OnDestroy {
       );
       this.confirmedAmount.set(null);
       this.setPromoFeedback('success', 'Промокод применён.');
+      this.logInfo('payment.checkout.notary.promo_applied', {
+        planCode: this.selectedPlanCode(),
+        baseAmount: validation.baseAmount,
+        finalAmount: validation.finalAmount,
+        discountAmount: validation.discountAmount,
+        discountPercent: validation.discountPercent,
+      });
     } catch (error) {
-      console.error('[Checkout] Failed to validate promo code', error);
+      this.logError('payment.checkout.notary.promo_validation_failed', error, {
+        planCode: this.selectedPlanCode(),
+        promoCodeLength: promoCode.length,
+      });
       this.clearAppliedPromoState();
       this.setPromoFeedback('error', 'Не удалось проверить промокод. Попробуйте ещё раз.');
     } finally {
@@ -153,11 +183,15 @@ export class Checkout implements OnDestroy {
   }
 
   protected async startPayment(): Promise<void> {
+    this.logInfo('payment.checkout.notary.start_requested');
     if (this.hasPendingPromoChanges()) {
       this.setPromoFeedback(
         'error',
         'Промокод ещё не применён. Нажмите «Применить» или очистите поле.',
       );
+      this.logWarn('payment.checkout.notary.start_blocked_pending_promo', {
+        promoCodeLength: this.promoInput().trim().length,
+      });
       return;
     }
 
@@ -177,16 +211,43 @@ export class Checkout implements OnDestroy {
     this.widgetResultHandled = false;
 
     try {
+      this.logInfo('payment.checkout.notary.subscription_draft_requested', {
+        actorUserId: userId,
+        planCode: this.selectedPlanCode(),
+      });
       const subscriptionId = await this.checkoutApi.createSubscriptionDraft({
         userId,
         planCode: this.selectedPlanCode(),
       });
+      this.logInfo('payment.checkout.notary.subscription_draft_created', {
+        actorUserId: userId,
+        subscriptionId,
+        planCode: this.selectedPlanCode(),
+      });
 
+      this.logInfo('payment.checkout.notary.create_payment_requested', {
+        actorUserId: userId,
+        subscriptionId,
+        requestedAmount: this.selectedPlan().price,
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
+      });
       const response = await this.checkoutApi.createPayment({
         userId,
         amount: this.selectedPlan().price,
         subscriptionId,
         promoCode: this.appliedPromoCode().trim(),
+        paymentProvider: 'yookassa',
+      });
+
+      this.paymentId.set(response.paymentId);
+      this.confirmedAmount.set(response.amount?.amount?.trim() || this.selectedPlan().price);
+      this.logInfo('payment.checkout.notary.create_payment_succeeded', {
+        actorUserId: userId,
+        subscriptionId,
+        paymentId: response.paymentId,
+        confirmedAmount: this.confirmedAmount(),
+        currency: response.amount?.currency ?? 'RUB',
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
       });
 
       const confirmationToken = response.widget?.confirmationToken?.trim();
@@ -194,11 +255,13 @@ export class Checkout implements OnDestroy {
         throw new Error('Backend did not return a YooKassa confirmation token');
       }
 
-      this.paymentId.set(response.paymentId);
-      this.confirmedAmount.set(response.amount?.amount?.trim() || this.selectedPlan().price);
       this.state.set('widget');
       this.cdr.detectChanges();
 
+      this.logInfo('payment.checkout.notary.widget_mount_requested', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+      });
       this.widgetSession = await this.widgetService.mount(
         'yookassa-widget-host',
         confirmationToken,
@@ -210,18 +273,129 @@ export class Checkout implements OnDestroy {
           onError: (error) => this.handleWidgetError(error),
         },
       );
+      this.logInfo('payment.checkout.notary.widget_mounted', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+      });
     } catch (error) {
       const promoErrorMessage = readPromoErrorMessage(error);
       if (promoErrorMessage) {
         this.clearAppliedPromoState();
         this.setPromoFeedback('error', promoErrorMessage);
+        this.logWarn('payment.checkout.notary.start_rejected_by_promo', {
+          promoErrorMessage,
+        });
         return;
       }
 
       this.showErrorState(
         'Не получилось открыть оплату',
         'Мы не смогли подготовить платёж. Попробуйте ещё раз через несколько секунд.',
-        'Failed to start checkout payment',
+        'payment.checkout.notary.start_failed',
+        error,
+      );
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected async startRobokassaPayment(): Promise<void> {
+    this.logInfo('payment.checkout.notary.robokassa_start_requested');
+    if (this.hasPendingPromoChanges()) {
+      this.setPromoFeedback(
+        'error',
+        'Промокод ещё не применён. Нажмите «Применить» или очистите поле.',
+      );
+      this.logWarn('payment.checkout.notary.robokassa_start_blocked_pending_promo', {
+        promoCodeLength: this.promoInput().trim().length,
+      });
+      return;
+    }
+
+    const userId = this.requireUserId();
+    if (!userId) {
+      return;
+    }
+
+    this.loading.set(true);
+    this.errorMessage.set('');
+    this.errorTitle.set('Не получилось продолжить оплату');
+    this.notice.set('');
+    this.clearPromoFeedback();
+    this.confirmedAmount.set(null);
+    this.state.set('ready');
+    this.destroyWidget();
+    this.widgetResultHandled = false;
+
+    try {
+      this.logInfo('payment.checkout.notary.robokassa_subscription_draft_requested', {
+        actorUserId: userId,
+        planCode: this.selectedPlanCode(),
+      });
+      const subscriptionId = await this.checkoutApi.createSubscriptionDraft({
+        userId,
+        planCode: this.selectedPlanCode(),
+      });
+      this.logInfo('payment.checkout.notary.robokassa_subscription_draft_created', {
+        actorUserId: userId,
+        subscriptionId,
+        planCode: this.selectedPlanCode(),
+      });
+
+      this.logInfo('payment.checkout.notary.robokassa_create_payment_requested', {
+        actorUserId: userId,
+        subscriptionId,
+        requestedAmount: this.selectedPlan().price,
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
+      });
+      const response = await this.checkoutApi.createPayment({
+        userId,
+        amount: this.selectedPlan().price,
+        subscriptionId,
+        promoCode: this.appliedPromoCode().trim(),
+        paymentProvider: 'robokassa',
+      });
+
+      this.paymentId.set(response.paymentId);
+      this.confirmedAmount.set(response.amount?.amount?.trim() || this.selectedPlan().price);
+      this.logInfo('payment.checkout.notary.robokassa_create_payment_succeeded', {
+        actorUserId: userId,
+        subscriptionId,
+        paymentId: response.paymentId,
+        confirmedAmount: this.confirmedAmount(),
+        currency: response.amount?.currency ?? 'RUB',
+        promoApplied: Boolean(this.appliedPromoCode().trim()),
+      });
+
+      const paymentUrl = response.paymentUrl?.trim();
+      if (!paymentUrl) {
+        throw new Error('Backend did not return a Robokassa payment URL');
+      }
+
+      this.logInfo('payment.checkout.notary.robokassa_redirect', {
+        actorUserId: userId,
+        paymentId: response.paymentId,
+        paymentUrl,
+      });
+      console.log('[Robokassa] Redirecting to:', paymentUrl);
+      this.state.set('processing');
+      this.cdr.detectChanges();
+      window.location.href = paymentUrl;
+    } catch (error) {
+      const promoErrorMessage = readPromoErrorMessage(error);
+      if (promoErrorMessage) {
+        this.clearAppliedPromoState();
+        this.setPromoFeedback('error', promoErrorMessage);
+        this.logWarn('payment.checkout.notary.robokassa_start_rejected_by_promo', {
+          promoErrorMessage,
+        });
+        return;
+      }
+
+      this.showErrorState(
+        'Не получилось открыть оплату',
+        'Мы не смогли подготовить платёж через Robokassa. Попробуйте ещё раз через несколько секунд.',
+        'payment.checkout.notary.robokassa_start_failed',
         error,
       );
     } finally {
@@ -236,6 +410,10 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logInfo('payment.checkout.notary.status_retry_requested', {
+      actorUserId: userId,
+      paymentId,
+    });
     await this.confirmPayment(userId, paymentId);
   }
 
@@ -244,6 +422,7 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logInfo('payment.checkout.notary.reset');
     this.state.set('ready');
     this.notice.set('');
     this.errorTitle.set('Не получилось продолжить оплату');
@@ -271,6 +450,10 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logInfo('payment.checkout.notary.widget_success', {
+      actorUserId: userId,
+      paymentId,
+    });
     this.notice.set('');
     this.state.set('processing');
     await this.confirmPayment(userId, paymentId);
@@ -281,6 +464,9 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logWarn('payment.checkout.notary.widget_cancelled', {
+      reason: message,
+    });
     this.state.set('cancelled');
     this.notice.set('');
     this.errorMessage.set(message);
@@ -294,7 +480,7 @@ export class Checkout implements OnDestroy {
     this.showErrorState(
       'Не получилось продолжить оплату',
       'Мы не смогли завершить оплату через ЮKassa. Попробуйте открыть виджет ещё раз.',
-      'YooKassa widget error',
+      'payment.checkout.notary.widget_error',
       error,
     );
   }
@@ -302,16 +488,25 @@ export class Checkout implements OnDestroy {
   private async confirmPayment(userId: string, paymentId: string): Promise<void> {
     this.loading.set(true);
     try {
+      this.logInfo('payment.checkout.notary.status_check_started', {
+        actorUserId: userId,
+        paymentId,
+      });
       const status = await this.checkoutApi.waitForPaymentStatus({
         userId,
         paymentId,
+      });
+      this.logInfo('payment.checkout.notary.status_check_finished', {
+        actorUserId: userId,
+        paymentId,
+        status,
       });
       this.applyPaymentStatus(status);
     } catch (error) {
       this.showErrorState(
         'Не получилось подтвердить платёж',
         'Мы не смогли получить актуальный статус платежа. Попробуйте запросить проверку ещё раз.',
-        'Failed to confirm payment status',
+        'payment.checkout.notary.status_check_failed',
         error,
       );
     } finally {
@@ -325,6 +520,10 @@ export class Checkout implements OnDestroy {
         this.state.set('success');
         this.notice.set('');
         this.errorMessage.set('');
+        this.logInfo('payment.checkout.notary.status_applied', {
+          status,
+          nextState: 'success',
+        });
         return;
 
       case 'failed':
@@ -332,6 +531,10 @@ export class Checkout implements OnDestroy {
         this.state.set('cancelled');
         this.notice.set('');
         this.errorMessage.set('Платёж не был завершён. Можно попробовать ещё раз.');
+        this.logWarn('payment.checkout.notary.status_applied', {
+          status,
+          nextState: 'cancelled',
+        });
         return;
 
       case 'pending':
@@ -340,12 +543,17 @@ export class Checkout implements OnDestroy {
         this.state.set('processing');
         this.errorMessage.set('');
         this.notice.set('');
+        this.logInfo('payment.checkout.notary.status_applied', {
+          status,
+          nextState: 'processing',
+        });
         return;
     }
   }
 
   private beginWidgetTerminalTransition(): boolean {
     if (this.widgetResultHandled) {
+      this.logWarn('payment.checkout.notary.widget_terminal_event_ignored');
       return false;
     }
 
@@ -359,6 +567,10 @@ export class Checkout implements OnDestroy {
     const paymentId = this.route.snapshot.queryParamMap.get('paymentId')?.trim();
 
     if (routePath.endsWith('cancel')) {
+      this.logWarn('payment.checkout.notary.fallback_cancelled', {
+        routePath,
+        paymentId,
+      });
       this.state.set('cancelled');
       this.errorMessage.set('Оплата была отменена во внешнем сценарии. Попробуйте снова.');
       return;
@@ -373,6 +585,11 @@ export class Checkout implements OnDestroy {
       return;
     }
 
+    this.logInfo('payment.checkout.notary.fallback_success', {
+      actorUserId: userId,
+      routePath,
+      paymentId,
+    });
     this.paymentId.set(paymentId);
     this.state.set('processing');
     this.notice.set('');
@@ -385,6 +602,7 @@ export class Checkout implements OnDestroy {
       return userId;
     }
 
+    this.logWarn('payment.checkout.notary.session_missing');
     this.showErrorState(
       'Нужно войти заново',
       'Сессия истекла. Авторизуйтесь снова и повторите оплату.',
@@ -400,7 +618,7 @@ export class Checkout implements OnDestroy {
     error?: unknown,
   ): void {
     if (logMessage) {
-      console.error(`[Checkout] ${logMessage}`, error);
+      this.logError(logMessage, error);
     }
 
     this.state.set('error');
@@ -427,8 +645,39 @@ export class Checkout implements OnDestroy {
   }
 
   private destroyWidget(): void {
+    if (this.widgetSession) {
+      this.logInfo('payment.checkout.notary.widget_destroyed');
+    }
     this.widgetSession?.destroy();
     this.widgetSession = null;
+  }
+
+  private logInfo(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.info(event, this.buildLogContext(context));
+  }
+
+  private logWarn(event: string, context: Record<string, unknown> = {}): void {
+    this.logger.warn(event, this.buildLogContext(context));
+  }
+
+  private logError(event: string, error: unknown, context: Record<string, unknown> = {}): void {
+    this.logger.error(event, this.buildLogContext({ ...context, error }));
+  }
+
+  private buildLogContext(extra: Record<string, unknown> = {}): Record<string, unknown> {
+    const plan = this.selectedPlan();
+
+    return {
+      area: 'notary_subscription_checkout',
+      route: '/notary/subscription/checkout',
+      planCode: plan.code,
+      paymentType: 'subscription',
+      paymentId: this.paymentId(),
+      state: this.state(),
+      amount: this.displayAmount(),
+      promoApplied: Boolean(this.appliedPromoCode().trim()),
+      ...extra,
+    };
   }
 }
 
