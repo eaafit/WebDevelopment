@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AssessmentHistoryComponent } from './assessment-history';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { TokenStore } from '@notary-portal/ui';
 import { OrderApiService } from '../order-api.service';
 
@@ -46,22 +46,43 @@ describe('AssessmentHistoryComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  // it('should filter orders by search query', () => {
-  //   component.searchQuery.set('Тверская');
-  //   fixture.detectChanges();
-  //   expect(component.filteredOrders.length).toBe(1);
-  //   expect(component.filteredOrders[0].objectAddress).toContain('Тверская');
-  // });
+  it('should navigate to the new assessment form with repeated order data', async () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
 
-  // it('should filter by status', () => {
-  //   component.statusFilter.set('completed');
-  //   fixture.detectChanges();
-  //   expect(component.filteredOrders.every((o) => o.status === 'completed')).toBe(true);
-  // });
+    component.orders.set([
+      {
+        id: 'ORD-001',
+        objectAddress: 'Main street, 10',
+        realEstateObject: {
+          area: 42,
+          objectType: 1,
+          roomsCount: 2,
+          floor: 3,
+        },
+      },
+    ]);
 
-  it('should emit repeat order action', () => {
-    const spy = jest.spyOn(console, 'log');
-    component.repeatOrder('ORD-001');
-    expect(spy).toHaveBeenCalledWith('Повтор заказа ORD-001 для роли applicant');
+    await component.repeatOrder('ORD-001');
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/applicant/assessment/new/params'], {
+      state: {
+        repeatOrderData: expect.objectContaining({
+          address: 'Main street, 10',
+          area: '42',
+          objectType: '1',
+          rooms: '2',
+          floor: '3',
+        }),
+      },
+    });
+  });
+
+  it('should report a missing order when repeat is requested for an unknown id', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+    await component.repeatOrder('missing-order');
+
+    expect(consoleSpy).toHaveBeenCalledWith('Order not found');
   });
 });
