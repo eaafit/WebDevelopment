@@ -9,6 +9,7 @@ import { OrderApiService } from '../order-api.service';
 // import { NotificationService } from '@internal/notification';
 import { TokenStore } from '@notary-portal/ui';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'lib-assessment-history',
@@ -26,6 +27,7 @@ export class AssessmentHistoryComponent implements OnInit {
   // private notificationService = inject(NotificationService);
 
   private tokenStore = inject(TokenStore);
+  private router = inject(Router);
 
   public getCurrentUserId(): string {
     // ID пользователя из токена
@@ -56,12 +58,12 @@ export class AssessmentHistoryComponent implements OnInit {
   isModalOpen = signal<boolean>(false);
 
 
-  notifications = signal<any[]>([]);
-  // notifications = signal([
-  //   { id: 1, message: 'Заявка #ORD-003 перешла в статус "Отклонена"', timeAgo: '2 часа назад', icon: '⚡' },
-  //   { id: 2, message: 'Заявка #ORD-001 завершена — результат готов', timeAgo: 'вчера', icon: '⚡' },
-  //   { id: 3, message: 'Заявка #ORD-002 перешла в статус "Принята"', timeAgo: '5 часов назад', icon: '⚡' },
-  // ]);
+
+  notifications = signal([
+    { id: 1, message: 'Заявка заказа №27730eb4-5bde-49b2-a681-c026ac8c85c7 перешла в статус "Принята"', timeAgo: '2 часа назад', icon: '⚡' },
+    { id: 2, message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Принята"', timeAgo: '5 часов назад', icon: '⚡' },
+    { id: 3, message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Создана"', timeAgo: '8 часов назад', icon: '⚡' },
+  ]);
 
   statusOptions: { value: OrderStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'Все статусы' },
@@ -172,8 +174,42 @@ export class AssessmentHistoryComponent implements OnInit {
     };
   }
 
-  repeatOrder(orderId: string): void {
-    console.log(`Повтор заказа ${orderId} для роли ${this.role}`);
+  async repeatOrder(orderId: string): Promise<void> {
+    // Найти заказ в текущем списке
+    const order = this.orders().find(o => o.id === orderId);
+    if (!order) {
+      console.error('Order not found');
+      return;
+    }
+
+    // Собрать данные для формы из полей заказа
+    const formData = {
+      fiasObjectId: '',
+      fiasObjectGuid: '',
+      cityId: '',
+      districtId: '',
+      address: order.objectAddress,
+      cadastralNumber: '',
+      area: order.realEstateObject?.area?.toString() || '',
+      objectType: order.realEstateObject?.objectType ? String(order.realEstateObject.objectType) : '',
+      rooms: order.realEstateObject?.roomsCount?.toString() || '',
+      floorsTotal: '',
+      floor: order.realEstateObject?.floor?.toString() || '',
+      condition: '',
+      yearBuilt: '',
+      wallMaterial: '',
+      elevatorType: '',
+      hasBalconyOrLoggia: false,
+      landCategory: '',
+      permittedUse: '',
+      utilities: '',
+      description: '',
+    };
+
+    // Перейти на страницу новой заявки и передать данные
+    this.router.navigate(['/applicant/assessment/new/params'], {
+      state: { repeatOrderData: formData }
+    });
   }
 
   viewOrder(orderId: string): void {

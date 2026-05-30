@@ -216,6 +216,7 @@ export class OrderService {
 
       const order = {
         id: lead.id,
+        assessmentId: lead.assessmentId,
         objectAddress: lead.assessment?.address || '',
         orderDate: lead.startDate,
         status: mappedStatus,
