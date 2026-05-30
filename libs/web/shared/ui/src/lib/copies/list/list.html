@@ -1,0 +1,89 @@
+<main class="dashboard-container">
+  <header class="dashboard-header">
+    <div class="header-text">
+      <h1 class="page-title">Мои копии документов</h1>
+      <p class="page-subtitle">Управляйте запросами на создание копий нотариальных документов</p>
+    </div>
+
+    @if (role === 'notary') {
+      <button class="btn-create-action" (click)="navigateToNew()">
+        <span class="icon-plus">+</span> Заказать новую копию
+      </button>
+    }
+    
+  </header>
+
+  <article class="filters-card">
+    <div class="filters-grid">
+      <label class="filter-field">
+        <span class="field-label">Название файла</span>
+        <input
+          class="input-control"
+          type="text"
+          placeholder="Например: Паспорт"
+          [value]="draftFilters().fileName"
+          (input)="updateFilter('fileName', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Номер заявки (ID)</span>
+        <input
+          class="input-control"
+          type="text"
+          placeholder="UUID заявки"
+          [value]="draftFilters().assessmentId"
+          (input)="updateFilter('assessmentId', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Загружено от</span>
+        <input
+          class="input-control"
+          type="date"
+          [value]="draftFilters().dateFrom"
+          (change)="updateFilter('dateFrom', $any($event.target).value)" 
+        />
+      </label>
+
+      <label class="filter-field">
+        <span class="field-label">Загружено до</span>
+        <input
+          class="input-control"
+          type="date"
+          [value]="draftFilters().dateTo"
+          (change)="updateFilter('dateTo', $any($event.target).value)" 
+        />
+      </label>
+    </div>
+  </article>
+
+  <div class="copies-grid">
+    @for (item of documents(); track item.id) {
+      <document-row 
+      [document]="item" 
+      [status]="assessmentStatuses()[item.assessmentId]"
+      />
+    } @empty {
+      <div class="empty-dashboard-state">
+        <div class="empty-icon">📂</div>
+        <h3>У вас пока нет заказов</h3>
+        @if (role === 'notary') {
+          <p>Нажмите кнопку выше, чтобы заказать копию первого документа.</p>
+        }
+      </div>
+    }
+  </div>
+
+  <pagination 
+    [hasPrev]="hasPrev()" 
+    [hasNext]="hasNext()" 
+    [current]="page()" 
+    [totalPages]="totalPages()" 
+    [goToPrev]="goToPrev" 
+    [goToNext]="goToNext" 
+    [pageSize]="limit()"
+    (pageSizeChange)="changeLimit($event)"
+  />
+</main>

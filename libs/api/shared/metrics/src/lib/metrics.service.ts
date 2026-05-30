@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Counter,
+  Histogram,
   collectDefaultMetrics,
   register as defaultRegister,
   type Registry,
@@ -24,14 +25,52 @@ export type PromoValidationFlow = 'preview' | 'payment_create';
 export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
+export type AuthMetricOutcome = 'success' | 'failed';
+export type AuthPasswordResetStage = 'request' | 'submit';
+export type AuthBrowserValidationForm =
+  | 'login'
+  | 'register'
+  | 'password_reset_request'
+  | 'password_reset_submit';
+export type HttpRequestMetricPathGroup =
+  | 'auth_login'
+  | 'auth_register'
+  | 'auth_password_reset_request'
+  | 'auth_password_reset_submit'
+  | 'health'
+  | 'metrics'
+  | 'other';
+export type FailedAccessMetricReason =
+  | 'auth_denied'
+  | 'failed_login'
+  | 'scan_miss'
+  | 'rate_limited'
+  | 'client_error';
+export type FailedAccessMetricPathGroup =
+  | 'auth_login'
+  | 'payment_receipt'
+  | 'document_content'
+  | 'connect_rpc'
+  | 'api'
+  | 'other';
 
 export type NewsletterCampaignMetricStatus = 'sending' | 'sent' | 'partial_failed' | 'failed';
 export type NewsletterDeliveryOutcome = 'sent' | 'failed';
 export type NewsletterAudienceMetricType = 'all' | 'role' | 'selected';
 
+export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
+export type NotificationErrorType = 'send_failed' | 'delivery_timeout' | 'invalid_recipient' | 'unknown';
+
 export interface BillingPaymentMetricContext {
   actor: BillingPaymentActor;
   scenario: BillingPaymentScenario;
+}
+
+export interface FailedAccessMetricLabels {
+  method: string;
+  statusCode: string;
+  reason: FailedAccessMetricReason;
+  pathGroup: FailedAccessMetricPathGroup;
 }
 
 @Injectable()
@@ -47,12 +86,26 @@ export class MetricsService {
   private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
   private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
+  private readonly authLoginTotal: Counter<'outcome' | 'reason'>;
+  private readonly authRegistrationTotal: Counter<'outcome' | 'role' | 'reason'>;
+  private readonly authPasswordResetTotal: Counter<'stage' | 'outcome' | 'reason'>;
+  private readonly authBrowserValidationFailedTotal: Counter<'form' | 'reason'>;
+  private readonly httpRequestDurationSeconds: Histogram<
+    'method' | 'path_group' | 'status_code'
+  >;
+  private readonly failedAccessTotal: Counter<
+    'method' | 'status_code' | 'reason' | 'path_group'
+  >;
   private readonly usersRegistered: Counter<string>;
   private readonly auditEventsTotal: Counter<string>;
   private readonly reportsGenerated: Counter<string>;
   private readonly newsletterCampaignsTotal: Counter<'status' | 'audience_type'>;
   private readonly newsletterDeliveriesTotal: Counter<'outcome'>;
   private readonly newsletterRecipientsTotal: Counter<'audience_type'>;
+
+  private readonly notificationsSentTotal: Counter<'channel' | 'type'>;
+  private readonly notificationsUnreadTotal: Counter<'user_role'>;
+  private readonly notificationErrorsTotal: Counter<'channel' | 'error_type'>;
 
   constructor() {
     collectDefaultMetrics({ register: this.register, prefix: PREFIX });
@@ -119,6 +172,50 @@ export class MetricsService {
       registers: [this.register],
     });
 
+    this.authLoginTotal = new Counter({
+      name: `${PREFIX}auth_login_total`,
+      help: 'Total number of auth login attempts by outcome and reason',
+      labelNames: ['outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authRegistrationTotal = new Counter({
+      name: `${PREFIX}auth_registration_total`,
+      help: 'Total number of auth registration attempts by outcome, role, and reason',
+      labelNames: ['outcome', 'role', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authPasswordResetTotal = new Counter({
+      name: `${PREFIX}auth_password_reset_total`,
+      help: 'Total number of password reset events by stage, outcome, and reason',
+      labelNames: ['stage', 'outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authBrowserValidationFailedTotal = new Counter({
+      name: `${PREFIX}auth_browser_validation_failed_total`,
+      help: 'Total number of client-side auth validation failures by form and reason',
+      labelNames: ['form', 'reason'],
+      registers: [this.register],
+    });
+
+    this.httpRequestDurationSeconds = new Histogram({
+      name: `${PREFIX}http_request_duration_seconds`,
+      help: 'HTTP request duration in seconds by method, low-cardinality path group, and status code',
+      labelNames: ['method', 'path_group', 'status_code'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10],
+      registers: [this.register],
+    });
+
+    this.failedAccessTotal = new Counter({
+      name: `${PREFIX}failed_access_total`,
+      help:
+        'Total number of failed HTTP access attempts by method, status code, reason, and low-cardinality path group',
+      labelNames: ['method', 'status_code', 'reason', 'path_group'],
+      registers: [this.register],
+    });
+
     this.usersRegistered = new Counter({
       name: `${PREFIX}users_registered_total`,
       help: 'Total number of user registrations',
@@ -156,6 +253,27 @@ export class MetricsService {
       name: `${PREFIX}newsletter_recipients_total`,
       help: 'Total number of newsletter recipients targeted by audience type',
       labelNames: ['audience_type'],
+      registers: [this.register],
+    });
+
+    this.notificationsSentTotal = new Counter({
+      name: `${PREFIX}notifications_sent_total`,
+      help: 'Total number of notifications sent by channel and type',
+      labelNames: ['channel', 'type'],
+      registers: [this.register],
+    });
+
+    this.notificationsUnreadTotal = new Counter({
+      name: `${PREFIX}notifications_unread_total`,
+      help: 'Total number of unread notifications by user role',
+      labelNames: ['user_role'],
+      registers: [this.register],
+    });
+
+    this.notificationErrorsTotal = new Counter({
+      name: `${PREFIX}notification_errors_total`,
+      help: 'Total number of notification delivery errors by channel and error type',
+      labelNames: ['channel', 'error_type'],
       registers: [this.register],
     });
   }
@@ -223,6 +341,54 @@ export class MetricsService {
     this.paymentHistoryRequestsTotal.inc({ scope, result });
   }
 
+  recordAuthLogin(outcome: AuthMetricOutcome, reason = 'none'): void {
+    this.authLoginTotal.inc({ outcome, reason });
+  }
+
+  recordAuthRegistration(outcome: AuthMetricOutcome, role = 'unspecified', reason = 'none'): void {
+    this.authRegistrationTotal.inc({ outcome, role, reason });
+  }
+
+  recordAuthPasswordReset(
+    stage: AuthPasswordResetStage,
+    outcome: AuthMetricOutcome,
+    reason = 'none',
+  ): void {
+    this.authPasswordResetTotal.inc({ stage, outcome, reason });
+  }
+
+  recordAuthBrowserValidationFailed(
+    form: AuthBrowserValidationForm,
+    reason = 'unknown',
+  ): void {
+    this.authBrowserValidationFailedTotal.inc({ form, reason });
+  }
+
+  recordHttpRequestDuration(
+    method: string,
+    pathGroup: HttpRequestMetricPathGroup,
+    statusCode: string,
+    durationSeconds: number,
+  ): void {
+    this.httpRequestDurationSeconds.observe(
+      {
+        method,
+        path_group: pathGroup,
+        status_code: statusCode,
+      },
+      Math.max(0, durationSeconds),
+    );
+  }
+
+  recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
+    this.failedAccessTotal.inc({
+      method: labels.method,
+      status_code: labels.statusCode,
+      reason: labels.reason,
+      path_group: labels.pathGroup,
+    });
+  }
+
   recordUserRegistered(): void {
     this.usersRegistered.inc();
   }
@@ -261,6 +427,30 @@ export class MetricsService {
   ): void {
     try {
       this.newsletterCampaignsTotal.inc({ status, audience_type: audienceType });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationSent(channel: NotificationChannel, type: string): void {
+    try {
+      this.notificationsSentTotal.inc({ channel, type });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationUnread(userRole: string): void {
+    try {
+      this.notificationsUnreadTotal.inc({ user_role: userRole });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationError(channel: NotificationChannel, errorType: NotificationErrorType): void {
+    try {
+      this.notificationErrorsTotal.inc({ channel, error_type: errorType });
     } catch {
       // best-effort
     }

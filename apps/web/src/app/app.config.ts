@@ -13,7 +13,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
-    provideWebLogging(),
+    provideWebLogging({ remoteEndpoint: '/api/logs/web' }),
     provideRpcTransport(() => {
       const injector = inject(Injector);
       const tokenStore = injector.get(TokenStore);

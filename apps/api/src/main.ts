@@ -10,6 +10,8 @@ import { AppModule } from './app/app.module';
 import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
 import { registerWebLogIngestion } from './app/logging/web-log-ingest';
+import { createFailedAccessMetricsMiddleware } from './app/security/failed-access-metrics.middleware';
+import { createHttpRequestDurationMetricsMiddleware } from './app/security/http-request-duration-metrics.middleware';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -35,7 +37,10 @@ async function bootstrap() {
 
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
+  const metricsService = app.get(MetricsService);
   expressInstance.use(createHttpLoggingMiddleware());
+  expressInstance.use(createHttpRequestDurationMetricsMiddleware(metricsService));
+  expressInstance.use(createFailedAccessMetricsMiddleware(metricsService));
 
   // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
   // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
@@ -86,7 +91,6 @@ async function bootstrap() {
 
   expressInstance.get('/metrics', async (_req: express.Request, res: express.Response) => {
     try {
-      const metricsService = app.get(MetricsService);
       const content = await metricsService.getMetrics();
       const contentType = metricsService.getContentType();
       res.setHeader('Content-Type', contentType);
@@ -96,7 +100,7 @@ async function bootstrap() {
     }
   });
 
-  registerWebLogIngestion(expressInstance);
+  registerWebLogIngestion(expressInstance, undefined, metricsService);
 
   expressInstance.get(
     '/api/documents/:documentId/content',
