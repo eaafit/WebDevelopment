@@ -74,8 +74,9 @@
 
       @for (order of orders(); track order.id) {
       <div class="order-item-wrapper">
-        <lib-history-item [order]="order" [role]="role" (repeat)="repeatOrder($event)"
-          (view)="viewOrder($event)"></lib-history-item>
+        <lib-history-item [order]="order" [role]="role" [currentUserId]="getCurrentUserId()" (orderTaken)="loadOrders()"
+          (repeat)="repeatOrder($event)" (view)="viewOrder($event)">
+        </lib-history-item>
       </div>
       }
     </div>

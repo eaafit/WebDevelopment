@@ -27,7 +27,7 @@ export class AssessmentHistoryComponent implements OnInit {
 
   private tokenStore = inject(TokenStore);
 
-  private getCurrentUserId(): string {
+  public getCurrentUserId(): string {
     // ID пользователя из токена
     return this.tokenStore.user()?.id ?? '';
   }

@@ -118,6 +118,45 @@ export class OrderService {
     return this.mapLeadToOrder(lead);
   }
 
+  async takeOrder(orderId: string, notaryId: string): Promise<any> {
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Найти lead вместе с assessment
+      const lead = await tx.lead.findUnique({
+        where: { id: orderId },
+        include: { assessment: true },
+      });
+      if (!lead) throw new Error('Order not found');
+      if (lead.executorId) throw new Error('Order already taken by another notary');
+
+      // 2. Обновить lead
+      const updatedLead = await tx.lead.update({
+        where: { id: orderId },
+        data: {
+          executorId: notaryId,
+          plannedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 дней 
+        },
+        include: {
+          applicant: { select: { id: true, fullName: true } },
+          executor: { select: { id: true, fullName: true } },
+          assessment: {
+            include: { realEstateObject: true },
+          },
+        },
+      });
+
+      // 3. Если статус заявки 'New' → меняем на 'Verified'
+      if (updatedLead.assessment.status === 'New') {
+        await tx.assessment.update({
+          where: { id: updatedLead.assessmentId },
+          data: { status: 'Verified' },
+        });
+        updatedLead.assessment.status = 'Verified';
+      }
+
+      return this.mapLeadToOrder(updatedLead);
+    });
+  }
+
   private mapAssessmentStatusToOrderStatus(assessmentStatus: any): string {
     const statusStr = assessmentStatus?.toString() ?? '';
     console.log('[OrderService] mapAssessmentStatusToOrderStatus input:', statusStr, typeof statusStr);

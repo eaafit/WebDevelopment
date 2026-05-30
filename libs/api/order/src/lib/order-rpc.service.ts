@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { ListOrdersRequest, GetOrderRequest } from '@notary-portal/api-contracts';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { TakeOrderRequest, TakeOrderResponse, Order as OrderProto } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class OrderRpcService {
@@ -66,6 +67,16 @@ export class OrderRpcService {
       return this.toOrderProto(order);
     } catch (error) {
       console.error('[OrderRpcService] Error in getOrder:', error);
+      throw error;
+    }
+  }
+
+  async takeOrder(request: TakeOrderRequest): Promise<any> {
+    try {
+      const order = await this.orderService.takeOrder(request.orderId, request.notaryId);
+      return { order: this.toOrderProto(order) };   // важно: обёртка { order: ... }
+    } catch (error) {
+      console.error('[OrderRpcService] Error in takeOrder:', error);
       throw error;
     }
   }

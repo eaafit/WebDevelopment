@@ -56,7 +56,8 @@
         }
       </div>
 
-      <div class="detail-section">
+       <!--т.к. логика изменения статусов (кроме изменения с Создана на Принята при нажатии Взять в работу Нотариусом) еще не реализована (не моя часть)  -->
+      <!-- <div class="detail-section">
         <h3>История статусов</h3>
         @for (entry of order.statusHistory; track entry.date) {
         <div class="history-item-mini">
@@ -67,7 +68,7 @@
           }
         </div>
         }
-      </div>
+      </div> -->
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" type="button" (click)="closeModal()">Закрыть</button>

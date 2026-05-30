@@ -79,38 +79,23 @@ CREATE UNIQUE INDEX "client_sync_user_id_key" ON "client_sync"("user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "leads_assessment_id_key" ON "leads"("assessment_id");
-SELECT * FROM leads;
-SELECT * FROM assessments WHERE id = '88187d29-e7d5-4562-a87d-687d96f4e89c';
-SELECT * FROM assessments ;
 
-SELECT l.id, a.id, a.status, a.address
-FROM leads l
-JOIN assessments a ON l.assessment_id = a.id
-WHERE l.applicant_id = 'b3b8fde7-28ee-4e36-ac8a-4c265db55b43';
-INSERT INTO leads (
-    id,
-    applicant_id,
-    assessment_id,
-    start_date,
-    created_at,
-    updated_at,
-    executor_id,
-    planned_completion_date,
-    actual_completion_date,
-    transaction_id
-)
-VALUES (
+--добавляем в leads записи на основе уже имеющихся заявок
+INSERT INTO leads (id, applicant_id, executor_id, assessment_id, start_date, planned_completion_date, created_at, updated_at)
+SELECT 
     gen_random_uuid()::text,
-    (SELECT id FROM users LIMIT 1)::uuid,
-    (SELECT id FROM assessments LIMIT 1)::uuid,
-    NOW(),
-    NOW(),
-    NOW(),
-    NULL,                          -- executor_id пока неизвестен
-    NOW() + INTERVAL '7 days',     -- планируемая дата завершения
-    NULL,                          -- actual_completion_date
-    NULL                           -- transaction_id
-);
+    a.user_id,
+    a.notary_id,               
+    a.id,
+    a.created_at,
+    a.created_at + INTERVAL '7 days',  -- пример
+    a.created_at,
+    a.updated_at
+FROM assessments a
+LEFT JOIN leads l ON l.assessment_id = a.id
+WHERE l.id IS NULL;
+
+
 -- CreateIndex
 CREATE INDEX "leads_applicant_id_idx" ON "leads"("applicant_id");
 

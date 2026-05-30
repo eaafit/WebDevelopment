@@ -10,6 +10,8 @@ service OrderService {
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
   // Получить детали одного заказа по его ID
   rpc GetOrder(GetOrderRequest) returns (Order);
+
+  rpc TakeOrder(TakeOrderRequest) returns (TakeOrderResponse);
 }
 
 // Запрос на получение списка заказов
@@ -70,4 +72,13 @@ message RealEstateObjectInfo {
   optional string object_type = 5;
   optional int32 rooms_count = 6;
   optional int32 floor = 7;
+}
+
+message TakeOrderRequest {
+  string order_id = 1;
+  string notary_id = 2;
+}
+
+message TakeOrderResponse {
+  Order order = 1;
 }

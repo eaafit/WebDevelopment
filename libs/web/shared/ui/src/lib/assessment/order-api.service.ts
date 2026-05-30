@@ -44,4 +44,12 @@ export class OrderApiService {
   async getOrder(id: string): Promise<Order> {
     return await this.client.getOrder({ orderId: id });
   }
+
+  async takeOrder(orderId: string, notaryId: string): Promise<Order> {
+    const response = await this.client.takeOrder({ orderId, notaryId });
+    if (!response.order) {
+      throw new Error('Server did not return order data');
+    }
+    return response.order;
+  }
 }
