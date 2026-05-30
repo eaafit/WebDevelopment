@@ -1,15 +1,23 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AssessmentHistoryComponent } from './assessment-history';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
+import { TokenStore } from '@notary-portal/ui';
+import { OrderApiService } from '../order-api.service';
 
 describe('AssessmentHistoryComponent', () => {
   let component: AssessmentHistoryComponent;
   let fixture: ComponentFixture<AssessmentHistoryComponent>;
+  let orderApiService: { listOrders: jest.Mock };
 
   beforeEach(async () => {
+    orderApiService = {
+      listOrders: jest.fn().mockResolvedValue({ orders: [], totalCount: 0, totalPages: 1 }),
+    };
+
     await TestBed.configureTestingModule({
       imports: [AssessmentHistoryComponent],
       providers: [
+        provideRouter([]),
         {
           provide: ActivatedRoute,
           useValue: {
@@ -18,6 +26,14 @@ describe('AssessmentHistoryComponent', () => {
             },
           },
         },
+        {
+          provide: TokenStore,
+          useValue: {
+            user: jest.fn().mockReturnValue({ id: 'user-1' }),
+            role: jest.fn().mockReturnValue(1),
+          },
+        },
+        { provide: OrderApiService, useValue: orderApiService },
       ],
     }).compileComponents();
 

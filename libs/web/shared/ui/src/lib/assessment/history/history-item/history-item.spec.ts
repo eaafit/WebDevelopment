@@ -1,10 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HistoryItemComponent } from './history-item';
 import { AssessmentOrder } from '../models';
+import { OrderApiService } from '../../order-api.service';
 
 describe('HistoryItemComponent', () => {
   let component: HistoryItemComponent;
   let fixture: ComponentFixture<HistoryItemComponent>;
+  let orderApiService: { takeOrder: jest.Mock };
 
   const mockOrder: AssessmentOrder = {
     id: 'ORD-001',
@@ -16,8 +18,13 @@ describe('HistoryItemComponent', () => {
   };
 
   beforeEach(async () => {
+    orderApiService = {
+      takeOrder: jest.fn(),
+    };
+
     await TestBed.configureTestingModule({
       imports: [HistoryItemComponent],
+      providers: [{ provide: OrderApiService, useValue: orderApiService }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(HistoryItemComponent);
