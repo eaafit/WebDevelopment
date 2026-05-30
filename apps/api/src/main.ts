@@ -11,6 +11,7 @@ import { ConnectRouterRegistry } from './app/connect-router.registry';
 import { createHttpLoggingMiddleware } from './app/logging/logging.config';
 import { registerWebLogIngestion } from './app/logging/web-log-ingest';
 import { createFailedAccessMetricsMiddleware } from './app/security/failed-access-metrics.middleware';
+import { createHttpRequestDurationMetricsMiddleware } from './app/security/http-request-duration-metrics.middleware';
 import { AuthInterceptor, TokenService } from '@internal/auth';
 import { REQUEST_IP_CONTEXT_KEY } from '@internal/auth-shared';
 import {
@@ -38,6 +39,7 @@ async function bootstrap() {
   const expressInstance = httpAdapter.getInstance();
   const metricsService = app.get(MetricsService);
   expressInstance.use(createHttpLoggingMiddleware());
+  expressInstance.use(createHttpRequestDurationMetricsMiddleware(metricsService));
   expressInstance.use(createFailedAccessMetricsMiddleware(metricsService));
 
   // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so

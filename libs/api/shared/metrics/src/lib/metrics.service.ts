@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Counter,
+  Histogram,
   collectDefaultMetrics,
   register as defaultRegister,
   type Registry,
@@ -31,6 +32,14 @@ export type AuthBrowserValidationForm =
   | 'register'
   | 'password_reset_request'
   | 'password_reset_submit';
+export type HttpRequestMetricPathGroup =
+  | 'auth_login'
+  | 'auth_register'
+  | 'auth_password_reset_request'
+  | 'auth_password_reset_submit'
+  | 'health'
+  | 'metrics'
+  | 'other';
 export type FailedAccessMetricReason =
   | 'auth_denied'
   | 'failed_login'
@@ -78,6 +87,9 @@ export class MetricsService {
   private readonly authRegistrationTotal: Counter<'outcome' | 'role' | 'reason'>;
   private readonly authPasswordResetTotal: Counter<'stage' | 'outcome' | 'reason'>;
   private readonly authBrowserValidationFailedTotal: Counter<'form' | 'reason'>;
+  private readonly httpRequestDurationSeconds: Histogram<
+    'method' | 'path_group' | 'status_code'
+  >;
   private readonly failedAccessTotal: Counter<
     'method' | 'status_code' | 'reason' | 'path_group'
   >;
@@ -178,6 +190,14 @@ export class MetricsService {
       name: `${PREFIX}auth_browser_validation_failed_total`,
       help: 'Total number of client-side auth validation failures by form and reason',
       labelNames: ['form', 'reason'],
+      registers: [this.register],
+    });
+
+    this.httpRequestDurationSeconds = new Histogram({
+      name: `${PREFIX}http_request_duration_seconds`,
+      help: 'HTTP request duration in seconds by method, low-cardinality path group, and status code',
+      labelNames: ['method', 'path_group', 'status_code'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10],
       registers: [this.register],
     });
 
@@ -314,6 +334,22 @@ export class MetricsService {
     reason = 'unknown',
   ): void {
     this.authBrowserValidationFailedTotal.inc({ form, reason });
+  }
+
+  recordHttpRequestDuration(
+    method: string,
+    pathGroup: HttpRequestMetricPathGroup,
+    statusCode: string,
+    durationSeconds: number,
+  ): void {
+    this.httpRequestDurationSeconds.observe(
+      {
+        method,
+        path_group: pathGroup,
+        status_code: statusCode,
+      },
+      Math.max(0, durationSeconds),
+    );
   }
 
   recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {
