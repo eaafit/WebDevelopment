@@ -12,3 +12,9 @@ scrape_configs:
       - targets: ['postgres_exporter:9187']
     metrics_path: /metrics
     scrape_interval: 15s
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: /metrics
+    scrape_interval: 15s
