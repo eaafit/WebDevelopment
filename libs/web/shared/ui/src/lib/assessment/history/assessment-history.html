@@ -7,8 +7,8 @@
       </p>
     </div>
     @if (notifications().length) {
-    <div class="notifications-block card">
-      <div class="card-title">📢 Последние изменения</div>
+    <!-- <div class="notifications-block card">
+      <div class="card-title">📢 Уведомления по изменениям</div>
       <div class="notifications-list">
         @for (n of notifications(); track n.message) {
         <div class="notification-item">
@@ -18,7 +18,7 @@
         </div>
         }
       </div>
-    </div>
+    </div> -->
     }
     <!-- Блок фильтров -->
     <div class="filters-section">
@@ -26,15 +26,16 @@
         <div class="form-group">
           <label class="form-label" for="assessment-search">Поиск</label>
           <div class="input-icon-wrap">
-            <input id="assessment-search" type="text" class="form-input" placeholder="ID или адрес" [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)" />
+            <input id="assessment-search" type="text" class="form-input" placeholder="ID или адрес"
+              [ngModel]="searchQuery()" (ngModelChange)="searchQuery.set($event); onSearchChange()" />
             <span class="input-icon-right">🔍</span>
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="assessment-status">Статус</label>
-          <select id="assessment-status" class="form-input form-select" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+          <select id="assessment-status" class="form-input form-select" [ngModel]="statusFilter()"
+            (ngModelChange)="statusFilter.set($event); onStatusChange()">
             @for (opt of statusOptions; track opt.value) {
             <option [value]="opt.value">{{ opt.label }}</option>
             }
@@ -43,45 +44,53 @@
 
         <div class="form-group">
           <label class="form-label" for="assessment-date-from">Дата от</label>
-          <input id="assessment-date-from" type="date" class="form-input" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+          <input id="assessment-date-from" type="date" class="form-input" [ngModel]="dateFrom()"
+            (ngModelChange)="dateFrom.set($event); onDateFromChange()" />
         </div>
 
         <div class="form-group">
           <label class="form-label" for="assessment-date-to">Дата до</label>
-          <input id="assessment-date-to" type="date" class="form-input" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+          <input id="assessment-date-to" type="date" class="form-input" [ngModel]="dateTo()"
+            (ngModelChange)="dateTo.set($event); onDateToChange()" />
         </div>
       </div>
     </div>
 
+    <!-- Индикатор загрузки -->
+    @if (isLoading()) {
+    <div class="loading-indicator">Загрузка заказов...</div>
+    }
+
     <!-- Список заказов -->
     <div class="orders-list">
-      @if (filteredOrders.length === 0) {
+      @if (orders().length === 0 && !isLoading()) {
       <div class="empty-state">
         <div class="alert-info">
           <span>ℹ️</span>
-          <span>Заказы не найдены. Измените параметры фильтра.</span>
+          <span>Заказы не найдены.</span>
         </div>
       </div>
       }
 
-      @for (order of paginatedOrders; track order.id) {
+      @for (order of orders(); track order.id) {
       <div class="order-item-wrapper">
-        <lib-history-item [order]="order" [role]="role" (repeat)="repeatOrder($event)"
-          (view)="viewOrder($event)"></lib-history-item>
+        <lib-history-item [order]="order" [role]="role" [currentUserId]="getCurrentUserId()" (orderTaken)="loadOrders()"
+          (repeat)="repeatOrder($event)" (view)="viewOrder($event)">
+        </lib-history-item>
       </div>
       }
     </div>
     <!-- Пагинация -->
 
-    @if (totalPages >= 1) {
+    @if (totalPages() >= 1) {
     <div class="pagination-controls">
       <div class="pagination-left"></div> <!-- левая пустая колонка для симметрии -->
       <div class="pagination-buttons">
         <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() - 1)"
           [disabled]="currentPage() === 1">Предыдущая</button>
-        <span class="pagination-info">Страница {{ currentPage() }} из {{ totalPages }}</span>
+        <span class="pagination-info">Страница {{ currentPage() }} из {{ totalPages() }}</span>
         <button class="btn btn-outline btn-sm" (click)="goToPage(currentPage() + 1)"
-          [disabled]="currentPage() === totalPages">Следующая</button>
+          [disabled]="currentPage() === totalPages()">Следующая</button>
       </div>
       <div class="pagination-page-size">
         <select class="form-input form-select" [ngModel]="pageSize()" (ngModelChange)="changePageSize($event)">

@@ -58,6 +58,9 @@ export type NewsletterCampaignMetricStatus = 'sending' | 'sent' | 'partial_faile
 export type NewsletterDeliveryOutcome = 'sent' | 'failed';
 export type NewsletterAudienceMetricType = 'all' | 'role' | 'selected';
 
+export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
+export type NotificationErrorType = 'send_failed' | 'delivery_timeout' | 'invalid_recipient' | 'unknown';
+
 export interface BillingPaymentMetricContext {
   actor: BillingPaymentActor;
   scenario: BillingPaymentScenario;
@@ -99,6 +102,10 @@ export class MetricsService {
   private readonly newsletterCampaignsTotal: Counter<'status' | 'audience_type'>;
   private readonly newsletterDeliveriesTotal: Counter<'outcome'>;
   private readonly newsletterRecipientsTotal: Counter<'audience_type'>;
+
+  private readonly notificationsSentTotal: Counter<'channel' | 'type'>;
+  private readonly notificationsUnreadTotal: Counter<'user_role'>;
+  private readonly notificationErrorsTotal: Counter<'channel' | 'error_type'>;
 
   constructor() {
     collectDefaultMetrics({ register: this.register, prefix: PREFIX });
@@ -246,6 +253,27 @@ export class MetricsService {
       name: `${PREFIX}newsletter_recipients_total`,
       help: 'Total number of newsletter recipients targeted by audience type',
       labelNames: ['audience_type'],
+      registers: [this.register],
+    });
+
+    this.notificationsSentTotal = new Counter({
+      name: `${PREFIX}notifications_sent_total`,
+      help: 'Total number of notifications sent by channel and type',
+      labelNames: ['channel', 'type'],
+      registers: [this.register],
+    });
+
+    this.notificationsUnreadTotal = new Counter({
+      name: `${PREFIX}notifications_unread_total`,
+      help: 'Total number of unread notifications by user role',
+      labelNames: ['user_role'],
+      registers: [this.register],
+    });
+
+    this.notificationErrorsTotal = new Counter({
+      name: `${PREFIX}notification_errors_total`,
+      help: 'Total number of notification delivery errors by channel and error type',
+      labelNames: ['channel', 'error_type'],
       registers: [this.register],
     });
   }
@@ -399,6 +427,30 @@ export class MetricsService {
   ): void {
     try {
       this.newsletterCampaignsTotal.inc({ status, audience_type: audienceType });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationSent(channel: NotificationChannel, type: string): void {
+    try {
+      this.notificationsSentTotal.inc({ channel, type });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationUnread(userRole: string): void {
+    try {
+      this.notificationsUnreadTotal.inc({ user_role: userRole });
+    } catch {
+      // best-effort
+    }
+  }
+
+  recordNotificationError(channel: NotificationChannel, errorType: NotificationErrorType): void {
+    try {
+      this.notificationErrorsTotal.inc({ channel, error_type: errorType });
     } catch {
       // best-effort
     }

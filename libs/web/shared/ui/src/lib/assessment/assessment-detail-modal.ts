@@ -48,6 +48,13 @@ export class AssessmentDetailModalComponent {
       apartments: 'Апартаменты',
       landPlot: 'Земельный участок',
       commercialProperty: 'Коммерческая недвижимость',
+      // заглавные варианты
+      Apartment: 'Квартира',
+      House: 'Дом',
+      Room: 'Комната',
+      Apartments: 'Апартаменты',
+      LandPlot: 'Земельный участок',
+      CommercialProperty: 'Коммерческая недвижимость',
     };
     return map[type] || type;
   }

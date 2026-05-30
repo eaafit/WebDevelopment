@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { WebLoggerService } from '@notary-portal/ui';
 import {
   AdminNotificationsApiService,
@@ -37,13 +38,14 @@ const DEFAULT_FILTERS: AdminNotificationFilters = {
 @Component({
   selector: 'lib-notifications',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './notifications.html',
   styleUrl: './notifications.scss',
 })
-export class AdminNotifications implements OnInit {
+export class AdminNotifications implements OnInit, OnDestroy {
   private readonly api = inject(AdminNotificationsApiService);
   private readonly logger = inject(WebLoggerService);
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
   protected readonly notifications = signal<AdminNotification[]>([]);
@@ -79,6 +81,16 @@ export class AdminNotifications implements OnInit {
 
   ngOnInit(): void {
     void this.loadNotifications();
+    this.refreshTimer = setInterval(() => {
+      void this.loadNotifications();
+    }, 30_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   protected setFilter<K extends keyof AdminNotificationFilters>(

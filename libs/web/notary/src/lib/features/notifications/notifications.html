@@ -1,4 +1,4 @@
-<section class="role-notifications">
+﻿<section class="role-notifications">
   <header class="role-notifications__hero">
     <div>
       <p class="role-notifications__eyebrow">Кабинет нотариуса</p>
@@ -11,6 +11,15 @@
 
     <div class="role-notifications__actions">
       <div class="role-notifications__action-row">
+        <a routerLink="settings" class="role-notifications__btn role-notifications__btn--ghost" (click)="logSettingsClick()">
+          Настройки
+        </a>
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--ghost"
+          (click)="reloadNotifications()">
+          Обновить
+        </button>
         <button
           type="button"
           class="role-notifications__btn role-notifications__btn--secondary"
@@ -19,14 +28,7 @@
         </button>
         <button type="button" class="role-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
-      @if (!notifications().length) {
-      <button
-        type="button"
-        class="role-notifications__btn role-notifications__btn--ghost"
-        (click)="reloadNotifications()">
-        Обновить
-      </button>
-      } @if (inboxCount(); as c) {
+      @if (inboxCount(); as c) {
       <span class="role-notifications__badge"> Непрочитанных: {{ c }} </span>
       }
     </div>

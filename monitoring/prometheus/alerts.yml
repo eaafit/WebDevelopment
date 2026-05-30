@@ -1,0 +1,108 @@
+groups:
+  - name: notifications
+    interval: 30s
+    rules:
+      # Alert: Notifications are not being sent
+      - alert: NotificationsNotSending
+        expr: rate(notary_notifications_sent_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: notifications
+        annotations:
+          summary: "Notifications are not being sent"
+          description: "No notifications have been sent in the last 5 minutes. This may indicate a service issue."
+
+      # Alert: High notification error rate
+      - alert: HighNotificationErrorRate
+        expr: (rate(notary_notification_errors_total[5m]) / (rate(notary_notifications_sent_total[5m]) + 1)) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: notifications
+        annotations:
+          summary: "High notification error rate (> 10%)"
+          description: "The notification service is experiencing a high error rate. Current rate: {{ $value | humanizePercentage }}"
+
+      # Alert: Many unread notifications accumulating
+      - alert: ManyUnreadNotifications
+        expr: notary_notifications_unread_total > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: notifications
+        annotations:
+          summary: "High number of unread notifications (> 1000)"
+          description: "There are {{ $value }} unread notifications accumulating. This may indicate users are not receiving or reading notifications."
+
+      # Alert: Notification delivery is slow (high queue)
+      - alert: NotificationBacklog
+        expr: increase(notary_notifications_sent_total[15m]) < 10
+        for: 15m
+        labels:
+          severity: warning
+          component: notifications
+        annotations:
+          summary: "Low notification throughput detected"
+          description: "Less than 10 notifications sent in the last 15 minutes. Delivery may be delayed."
+
+      # Alert: Email channel errors
+      - alert: EmailNotificationErrors
+        expr: rate(notary_notification_errors_total{channel="email"}[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: notifications
+          channel: email
+        annotations:
+          summary: "High error rate on email notifications"
+          description: "Email notification channel is experiencing errors. Current error rate: {{ $value | humanizePercentage }}"
+
+      # Alert: SMS channel errors
+      - alert: SMSNotificationErrors
+        expr: rate(notary_notification_errors_total{channel="sms"}[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: notifications
+          channel: sms
+        annotations:
+          summary: "High error rate on SMS notifications"
+          description: "SMS notification channel is experiencing errors. Current error rate: {{ $value | humanizePercentage }}"
+
+      # Alert: Push notification errors
+      - alert: PushNotificationErrors
+        expr: rate(notary_notification_errors_total{channel="push"}[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          component: notifications
+          channel: push
+        annotations:
+          summary: "High error rate on push notifications"
+          description: "Push notification channel is experiencing errors. Current error rate: {{ $value | humanizePercentage }}"
+
+  - name: system_health
+    interval: 30s
+    rules:
+      # Alert: Notification service container is down
+      - alert: NotificationServiceDown
+        expr: up{job="api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: notifications
+        annotations:
+          summary: "Notification service is unavailable"
+          description: "The notification API service is not responding. Check service health."
+
+      # Alert: PostgreSQL down (affects notification storage)
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is unavailable"
+          description: "Database is not responding. Notifications cannot be stored or retrieved."
