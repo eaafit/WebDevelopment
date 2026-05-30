@@ -87,6 +87,32 @@ describe('NotificationService', () => {
     expect(metricsService.recordNotificationUnread).toHaveBeenCalledWith('user');
   });
 
+  it('keeps creating notifications when metrics recording fails', async () => {
+    metricsService.recordNotificationSent.mockImplementationOnce(() => {
+      throw new Error('metrics backend is unavailable');
+    });
+
+    await service.createNotification({
+      userId: USER_ID,
+      title: 'Payment update',
+      category: RpcNotificationCategory.PAYMENT,
+      type: RpcNotificationType.EMAIL,
+      message: 'Payment was accepted',
+    });
+
+    expect(metricsService.recordNotificationError).toHaveBeenCalledWith('email', 'unknown');
+    expect(repository.createNotification).toHaveBeenCalledWith({
+      userId: USER_ID,
+      title: 'Payment update',
+      category: RpcNotificationCategory.PAYMENT,
+      type: RpcNotificationType.EMAIL,
+      message: 'Payment was accepted',
+      status: undefined,
+      sentAt: undefined,
+      readAt: undefined,
+    });
+  });
+
   it('rejects invalid user ids', async () => {
     await expect(
       service.createNotification({
