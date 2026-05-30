@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { createClient } from '@connectrpc/connect';
 import { DocumentService as RPCDocumentService } from '@notary-portal/api-contracts';
-import { buildRpcBaseUrl, RPC_TRANSPORT, TokenStore } from '@notary-portal/ui';
+import { buildRpcBaseUrl, RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 
 export type Document = {
   id: string;

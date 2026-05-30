@@ -1,22 +1,22 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { RPC_TRANSPORT } from '@notary-portal/ui';
-import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
 import { AssessmentService } from '../services/assesment.service';
+import { DocumentService } from '../services/document.service';
 import { New } from './new';
 
 describe('New', () => {
   let component: New;
   let fixture: ComponentFixture<New>;
   let assessmentService: { listAssessments: jest.Mock };
-  let documentApiService: { uploadDocument: jest.Mock };
+  let documentService: { createDocument: jest.Mock };
 
   beforeEach(async () => {
     assessmentService = {
       listAssessments: jest.fn().mockResolvedValue({ assesments: [] }),
     };
-    documentApiService = {
-      uploadDocument: jest.fn(),
+    documentService = {
+      createDocument: jest.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -25,7 +25,7 @@ describe('New', () => {
         provideRouter([]),
         { provide: RPC_TRANSPORT, useValue: {} },
         { provide: AssessmentService, useValue: assessmentService },
-        { provide: DocumentApiService, useValue: documentApiService },
+        { provide: DocumentService, useValue: documentService },
       ],
     }).compileComponents();
 

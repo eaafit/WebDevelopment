@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AssessmentHistoryComponent } from './assessment-history';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore } from '../../rpc/token-store';
 import { OrderApiService } from '../order-api.service';
 
 describe('AssessmentHistoryComponent', () => {

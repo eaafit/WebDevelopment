@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal, OnDestroy } from '@angular
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
+import { Assessment, AssessmentStatus } from '@notary-portal/api-contracts';
 import { Document } from '../services/document.service';
 import { CommonModule } from '@angular/common';
 
@@ -25,17 +25,15 @@ export class Copy implements OnInit, OnDestroy {
   timer = signal<number>(0);
   
   hasError = signal<boolean>(false);
-  private timerId: any = null;
+  private timerId: ReturnType<typeof setInterval> | null = null;
 
   createDate = computed(() => {
     const currentDoc = this.doc();
     if (currentDoc === null || !currentDoc.uploadedAt?.seconds) {
-      return "";
+      return '';
     }
     return new Date(Number(currentDoc.uploadedAt.seconds) * 1000).toLocaleDateString();
   });
-
-  constructor() { }
 
   // Хелпер считает минуты, привязываясь строго к дате загрузки ДОКУМЕНТА (bigint)
   private calculateMinutesLeft(uploadedAtSeconds: bigint): number {
@@ -47,6 +45,19 @@ export class Copy implements OnInit, OnDestroy {
   // Метод для редиректа обратно в список при клике на свободную область
   goBackToList(): void {
     this.router.navigate(['../'], { relativeTo: this.route });
+  }
+
+  onOverlayClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.goBackToList();
+    }
+  }
+
+  onOverlayKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.goBackToList();
+    }
   }
 
   // Маппинг реальных статусов в mock-статусы по ТЗ
@@ -80,7 +91,7 @@ export class Copy implements OnInit, OnDestroy {
     try {
       const fetchedDoc = await this.documentService.getDocument(this.id);
       
-      if (!fetchedDoc || (fetchedDoc as any).error) {
+      if (!fetchedDoc) {
         this.hasError.set(true);
         return;
       }

@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, Input, signal, OnInit, inject } fro
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HistoryItemComponent } from './history-item/history-item';
-import { AssessmentOrder, OrderStatus } from './models';
+import { OrderStatus } from './models';
 import { ActivatedRoute } from '@angular/router';
 import { AssessmentDetailModalComponent } from '../assessment-detail-modal';
 import { OrderApiService } from '../order-api.service';
 // import { NotificationService } from '@internal/notification';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore } from '../../rpc/token-store';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Router } from '@angular/router';
 
