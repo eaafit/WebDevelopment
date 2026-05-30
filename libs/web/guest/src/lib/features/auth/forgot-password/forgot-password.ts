@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth.service';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 @Component({
   selector: 'lib-forgot-password',
   standalone: true,
@@ -16,13 +18,21 @@ export class ForgotPassword {
   readonly loading = this.authService.loading;
   readonly error = this.authService.error;
   readonly done = signal(false);
+  readonly validationError = signal<string | null>(null);
 
   email = '';
 
   async onSubmit(): Promise<void> {
-    if (!this.email.trim()) return;
+    const email = this.email.trim();
+    if (!EMAIL_RE.test(email)) {
+      this.validationError.set('Укажите корректный email.');
+      return;
+    }
+
+    this.validationError.set(null);
+
     try {
-      await this.authService.forgotPassword(this.email);
+      await this.authService.forgotPassword(email);
       this.done.set(true);
     } catch {
       /* сообщение в authService.error */

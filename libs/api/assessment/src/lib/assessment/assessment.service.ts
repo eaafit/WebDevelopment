@@ -1,5 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { context, SpanStatusCode, trace, type Span, type Tracer } from '@opentelemetry/api';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
 import { BitrixLeadPublisherService } from '@internal/bitrix-leads';
@@ -14,6 +15,7 @@ import {
   GetFiasAddressHintsResponseSchema,
   GetFiasAddressItemByGuidResponseSchema,
   GetFiasAddressItemByIdResponseSchema,
+  LogApplicantAssessmentActionResponseSchema,
   RealEstateCondition,
   RealEstateObjectType,
   SearchFiasAddressItemsResponseSchema,
@@ -41,6 +43,8 @@ import {
   type ListCitiesResponse,
   type ListDistrictsRequest,
   type ListDistrictsResponse,
+  type LogApplicantAssessmentActionRequest,
+  type LogApplicantAssessmentActionResponse,
   type RealEstateObjectInput,
   type SearchFiasAddressByPartsRequest,
   type SearchFiasAddressByPartsResponse,
@@ -80,14 +84,24 @@ const ROOMS_LIMITS = { minimum: 1, compactMaximum: 20, commonMaximum: 50 } as co
 const FLOOR_LIMITS = { minimum: 1, maximum: 100 } as const;
 const FIAS_QUERY_MIN_LENGTH = 3;
 const FIAS_LIMITS = { default: 5, maximum: 10 } as const;
+const APPLICANT_ASSESSMENT_ACTIONS = new Set([
+  'status_loaded',
+  'status_load_failed',
+  'return_to_params',
+  'create_new_assessment',
+  'open_history',
+]);
 const YEAR_BUILT_LIMITS = {
   minimum: 1700,
   maximum: new Date().getFullYear() + 1,
 } as const;
 
+type SpanAttributes = Record<string, string | number | boolean>;
+
 @Injectable()
 export class AssessmentService {
   private readonly logger = new Logger(AssessmentService.name);
+  private readonly tracer: Tracer = trace.getTracer(AssessmentService.name);
 
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
@@ -113,17 +127,34 @@ export class AssessmentService {
     request: GetFiasAddressHintsRequest,
   ): Promise<GetFiasAddressHintsResponse> {
     const query = normalizeFiasQuery(request.query);
-    if (query.length < FIAS_QUERY_MIN_LENGTH) {
-      return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+    const limit = normalizeFiasLimit(request.limit);
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address hints request queryLength=${query.length} limit=${limit}`);
+
+    try {
+      if (query.length < FIAS_QUERY_MIN_LENGTH) {
+        this.logger.log(
+          `Completed FIAS address hints request hintsCount=0 durationMs=${Date.now() - startedAt}`,
+        );
+        return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+      }
+
+      const hints = await this.fiasProvider.getAddressHint({
+        query,
+        limit,
+        addressType: normalizeFiasAddressType(request.addressType),
+      });
+
+      this.logger.log(
+        `Completed FIAS address hints request hintsCount=${hints.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return create(GetFiasAddressHintsResponseSchema, { hints });
+    } catch (error) {
+      this.logFiasOperationFailure('address hints request', error, {
+        queryLength: query.length,
+      });
+      throw error;
     }
-
-    const hints = await this.fiasProvider.getAddressHint({
-      query,
-      limit: normalizeFiasLimit(request.limit),
-      addressType: normalizeFiasAddressType(request.addressType),
-    });
-
-    return create(GetFiasAddressHintsResponseSchema, { hints });
   }
 
   async searchFiasAddressItems(
@@ -146,12 +177,27 @@ export class AssessmentService {
   async getFiasAddressItemById(
     request: GetFiasAddressItemByIdRequest,
   ): Promise<GetFiasAddressItemByIdResponse> {
-    const item = await this.resolveFiasItemGeography(
-      await this.fiasProvider.getAddressItemById(
-        normalizeRequiredText(request.objectId, 'object_id'),
-      ),
-    );
-    return create(GetFiasAddressItemByIdResponseSchema, { item });
+    const objectId = normalizeRequiredText(request.objectId, 'object_id');
+    const startedAt = Date.now();
+    this.logger.log(`Starting FIAS address item lookup objectId=${objectId}`);
+
+    try {
+      const item = await this.resolveFiasItemGeography(
+        await this.fiasProvider.getAddressItemById(objectId),
+      );
+      this.logger.log(
+        `Completed FIAS address item lookup objectId=${objectId}` +
+          ` durationMs=${Date.now() - startedAt}` +
+          formatLogFields({
+            cityId: item.cityId,
+            districtId: item.districtId,
+          }),
+      );
+      return create(GetFiasAddressItemByIdResponseSchema, { item });
+    } catch (error) {
+      this.logFiasOperationFailure('address item lookup', error, { objectId });
+      throw error;
+    }
   }
 
   async getFiasAddressItemByGuid(
@@ -198,6 +244,30 @@ export class AssessmentService {
     return create(SearchFiasAddressByPartsResponseSchema, { items });
   }
 
+  logApplicantAssessmentAction(
+    request: LogApplicantAssessmentActionRequest,
+  ): LogApplicantAssessmentActionResponse {
+    const action = normalizeRequiredText(request.action, 'action');
+    if (!APPLICANT_ASSESSMENT_ACTIONS.has(action)) {
+      this.logger.warn(`Unsupported applicant assessment UI action action=${action}`);
+      throw new ConnectError(
+        'action must be a supported applicant assessment UI action',
+        Code.InvalidArgument,
+      );
+    }
+
+    this.logger.log(
+      `Applicant assessment UI action action=${action}` +
+        formatLogFields({
+          assessmentId: normalizeOptionalText(request.assessmentId),
+          status: normalizeOptionalText(request.status),
+          targetRoute: normalizeOptionalText(request.targetRoute),
+        }),
+    );
+
+    return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
+  }
+
   async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
     const query = this.normalizeListRequest(request);
     this.logger.log(
@@ -241,77 +311,140 @@ export class AssessmentService {
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    this.logger.log(
-      `Starting assessment creation userId=${request.userId}` +
-        formatLogFields({
-          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-          cityId: request.realEstateObject?.cityId,
-          districtId: request.realEstateObject?.districtId,
-        }),
-    );
-
-    try {
-      validateUuid(request.userId, 'user_id');
-
-      const realEstateObject = await this.normalizeRealEstateObjectGeography(
-        normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
-      );
-      const address =
-        realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
-
-      const assessment = await this.assessmentRepository.createAssessment({
-        userId: request.userId,
-        address,
-        description: normalizeOptionalText(request.description),
-        realEstateObject,
-      });
-      const snapshot = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-
-      this.metrics.recordAssessmentCreated('new');
-      await this.auditService.record({
-        actorUserId: getCurrentUser()?.sub ?? request.userId,
-        eventType: 'assessment.created',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Создана заявка',
-        actionContext: 'Создание новой заявки на оценку',
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: snapshot.address,
-        after: toAuditSnapshot(snapshot),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Создана новая заявка на оценку',
-        message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
-          assessment.id,
-        )}: ${formatAssessmentAddress(snapshot.address)}.`,
-      });
-
-      // Публикация заявки как лида в Bitrix24 — fire-and-forget,
-      // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
-      this.bitrixLeadPublisher.publishLead(assessment.id).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        this.logger.warn(
-          `Bitrix lead publish failed for assessment=${assessment.id}: ${message}`,
+    return this.runInSpan(
+      'AssessmentService.createAssessment',
+      {
+        'app.operation': 'assessment.create',
+        'app.entity': 'Assessment',
+        'assessment.has_real_estate_object': hasRealEstateObjectInputData(request.realEstateObject),
+      },
+      async () => {
+        this.logger.log(
+          `Starting assessment creation userId=${request.userId}` +
+            formatLogFields({
+              hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
+              cityId: request.realEstateObject?.cityId,
+              districtId: request.realEstateObject?.districtId,
+            }),
         );
-      });
 
-      this.logger.log(
-        `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
-          formatLogFields({
-            status: assessment.status,
-            realEstateObjectId: assessment.realEstateObjectId,
-          }),
-      );
+        try {
+          const normalized = await this.runInSpan(
+            'AssessmentService.createAssessment.normalizeAndValidate',
+            {
+              'app.operation': 'assessment.create.normalize_and_validate',
+              'app.entity': 'Assessment',
+              'assessment.has_real_estate_object': hasRealEstateObjectInputData(
+                request.realEstateObject,
+              ),
+            },
+            async () => {
+              validateUuid(request.userId, 'user_id');
 
-      return create(CreateAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('createAssessment', error, {
-        userId: request.userId,
-        cityId: request.realEstateObject?.cityId,
-        districtId: request.realEstateObject?.districtId,
-      });
-      throw error;
-    }
+              const realEstateObject = await this.normalizeRealEstateObjectGeography(
+                normalizeRealEstateObjectInput(request.realEstateObject, 'create'),
+              );
+              const address =
+                realEstateObject?.address ?? normalizeRequiredText(request.address, 'address');
+
+              return {
+                address,
+                description: normalizeOptionalText(request.description),
+                realEstateObject,
+              };
+            },
+          );
+
+          const assessment = await this.runInSpan(
+            'AssessmentRepository.createAssessment',
+            {
+              'app.operation': 'assessment.repository.create',
+              'app.entity': 'Assessment',
+              'db.operation': 'insert',
+            },
+            () =>
+              this.assessmentRepository.createAssessment({
+                userId: request.userId,
+                address: normalized.address,
+                description: normalized.description,
+                realEstateObject: normalized.realEstateObject,
+              }),
+          );
+          const snapshot = await this.runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot',
+            {
+              'app.operation': 'assessment.repository.snapshot',
+              'app.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+
+          this.metrics.recordAssessmentCreated('new');
+          await this.runInSpan(
+            'AuditService.record assessment.created',
+            {
+              'app.operation': 'audit.record',
+              'app.entity': 'Assessment',
+              'audit.event_type': 'assessment.created',
+            },
+            () =>
+              this.auditService.record({
+                actorUserId: getCurrentUser()?.sub ?? request.userId,
+                eventType: 'assessment.created',
+                targetType: 'Assessment',
+                targetId: assessment.id,
+                actionTitle: 'Создана заявка',
+                actionContext: 'Создание новой заявки на оценку',
+                targetTitle: `Заявка ${shortId(assessment.id)}`,
+                targetContext: snapshot.address,
+                after: toAuditSnapshot(snapshot),
+              }),
+          );
+          await this.runInSpan(
+            'NotificationService.createAdminAssessmentNotificationBestEffort',
+            {
+              'app.operation': 'notification.create_admin_assessment',
+              'app.entity': 'Assessment',
+              'notification.recipient_role': PrismaRole.Admin,
+            },
+            async () =>
+              this.createAdminAssessmentNotificationBestEffort({
+                title: 'Создана новая заявка на оценку',
+                message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+                  assessment.id,
+                )}: ${formatAssessmentAddress(snapshot.address)}.`,
+              }),
+          );
+
+          // Публикация заявки как лида в Bitrix24 — fire-and-forget,
+          // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
+          this.bitrixLeadPublisher.publishLead(assessment.id).catch((error: unknown) => {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.warn(
+              `Bitrix lead publish failed for assessment=${assessment.id}: ${message}`,
+            );
+          });
+
+          this.logger.log(
+            `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
+              formatLogFields({
+                status: assessment.status,
+                realEstateObjectId: assessment.realEstateObjectId,
+              }),
+          );
+
+          return create(CreateAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('createAssessment', error, {
+            userId: request.userId,
+            cityId: request.realEstateObject?.cityId,
+            districtId: request.realEstateObject?.districtId,
+          });
+          throw error;
+        }
+      },
+    );
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
@@ -574,6 +707,25 @@ export class AssessmentService {
     );
   }
 
+  private logFiasOperationFailure(
+    operation: string,
+    error: unknown,
+    context: Record<string, unknown>,
+  ): void {
+    const contextFields = formatLogFields(context);
+    if (isExpectedOperationError(error)) {
+      this.logger.warn(
+        `FIAS ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+      );
+      return;
+    }
+
+    this.logger.error(
+      `FIAS ${operation} failed${contextFields}: ${errorMessage(error)}`,
+      errorStack(error),
+    );
+  }
+
   private async getActorDisplayName(
     userId: string | undefined,
     fallback?: string,
@@ -613,6 +765,27 @@ export class AssessmentService {
       cityId: resolvedIds.cityId,
       districtId: resolvedIds.districtId,
     };
+  }
+
+  private async runInSpan<T>(
+    name: string,
+    attributes: SpanAttributes,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const span = this.tracer.startSpan(name, { attributes });
+
+    return context.with(trace.setSpan(context.active(), span), async () => {
+      try {
+        const result = await action();
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (error) {
+        recordSpanFailure(span, error);
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
   }
 
   private async normalizeRealEstateObjectGeography(
@@ -669,6 +842,31 @@ export class AssessmentService {
 
     return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
   }
+}
+
+function recordSpanFailure(span: Span, error: unknown): void {
+  if (error instanceof Error) {
+    span.recordException(error);
+  } else {
+    span.recordException(String(error));
+  }
+
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: spanErrorStatusMessage(error),
+  });
+}
+
+function spanErrorStatusMessage(error: unknown): string {
+  if (error instanceof ConnectError) {
+    return `ConnectError:${error.code}`;
+  }
+
+  if (error instanceof Error) {
+    return error.name;
+  }
+
+  return 'UnknownError';
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {

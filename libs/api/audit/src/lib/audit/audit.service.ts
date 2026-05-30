@@ -8,7 +8,7 @@ import type {
   ListAuditEventsRequest,
   ListAuditEventsResponse,
 } from '@notary-portal/api-contracts';
-import { Prisma } from '@internal/prisma-client';
+import { Prisma, Role as PrismaRole } from '@internal/prisma-client';
 import { AuditRepository } from './audit.repository';
 import type { AuditExportQuery, AuditFiltersQuery, AuditListQuery } from './audit.query';
 
@@ -20,9 +20,13 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 export interface RecordAuditEventInput {
   actorUserId?: string | null;
+  actorEmail?: string | null;
+  actorName?: string | null;
+  actorRole?: PrismaRole | string | number | null;
+  allowAnonymous?: boolean;
   eventType: string;
   targetType: string;
-  targetId: string;
+  targetId?: string | null;
   actionTitle: string;
   actionContext?: string;
   targetTitle?: string;
@@ -93,8 +97,11 @@ export class AuditService {
     const currentUser = getCurrentUser();
     const metadata = getRequestMetadata();
     const actorUserId = input.actorUserId ?? currentUser?.sub ?? null;
+    const actorEmail = normalizeOptionalString(input.actorEmail ?? currentUser?.email);
+    const actorName = normalizeOptionalString(input.actorName);
+    const actorRole = normalizeAuditRole(input.actorRole ?? currentUser?.role);
 
-    if (!actorUserId) {
+    if (!actorUserId && !input.allowAnonymous) {
       return;
     }
 
@@ -112,15 +119,20 @@ export class AuditService {
     try {
       await this.auditRepository.createAuditLog({
         userId: actorUserId,
+        actorEmail,
+        actorName,
+        actorRole,
         actionType: input.eventType,
         entityName: input.targetType,
-        entityId: input.targetId,
+        entityId: input.targetId ?? null,
         details,
         timestamp: input.timestamp,
       });
     } catch (error) {
       this.logger.warn(
-        `Failed to record audit event ${input.eventType} for ${input.targetType}:${input.targetId}: ${
+        `Failed to record audit event ${input.eventType} for ${input.targetType}:${
+          input.targetId ?? 'none'
+        }: ${
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
@@ -128,21 +140,14 @@ export class AuditService {
   }
 
   private normalizeListRequest(request: ListAuditEventsRequest): AuditListQuery {
-    const user = requireRole(Role.Admin, Role.Notary);
+    const user = requireRole(Role.Admin, Role.Notary, Role.Applicant);
     const filters = this.normalizeFilters(request.filters);
 
     return {
       page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE),
       limit: normalizePageLimit(request.pagination?.limit),
       filters,
-      scope: isNotaryRole(user.role)
-        ? {
-            kind: 'notary',
-            notaryId: user.sub,
-          }
-        : {
-            kind: 'admin',
-          },
+      scope: resolveAuditScope(user.role, user.sub),
     };
   }
 
@@ -222,9 +227,30 @@ function normalizePositiveInt(value: number | undefined, fallback: number): numb
   return value;
 }
 
-function normalizeOptionalString(value: string | undefined): string | undefined {
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
+}
+
+function normalizeAuditRole(
+  value: PrismaRole | string | number | null | undefined,
+): PrismaRole | undefined {
+  switch (String(value ?? '')) {
+    case '1':
+    case 'USER_ROLE_APPLICANT':
+    case PrismaRole.Applicant:
+      return PrismaRole.Applicant;
+    case '2':
+    case 'USER_ROLE_NOTARY':
+    case PrismaRole.Notary:
+      return PrismaRole.Notary;
+    case '3':
+    case 'USER_ROLE_ADMIN':
+    case PrismaRole.Admin:
+      return PrismaRole.Admin;
+    default:
+      return undefined;
+  }
 }
 
 function normalizeOptionalUuid(value: string | undefined, field: string): string | undefined {
@@ -241,6 +267,25 @@ function normalizeOptionalUuid(value: string | undefined, field: string): string
 
 function isNotaryRole(role: string): boolean {
   return role === '2' || role === Role.Notary;
+}
+
+function isApplicantRole(role: string): boolean {
+  return role === '1' || role === Role.Applicant;
+}
+
+function resolveAuditScope(
+  role: string,
+  userId: string,
+): AuditListQuery['scope'] {
+  if (isApplicantRole(role)) {
+    return { kind: 'applicant', applicantId: userId };
+  }
+
+  if (isNotaryRole(role)) {
+    return { kind: 'notary', notaryId: userId };
+  }
+
+  return { kind: 'admin' };
 }
 
 function compactJson(

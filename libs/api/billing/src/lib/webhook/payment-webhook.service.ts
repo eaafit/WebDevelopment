@@ -5,6 +5,7 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
+import { NotificationService } from '@internal/notification';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService } from '@internal/metrics';
 import {
@@ -444,6 +445,20 @@ export class PaymentWebhookService {
         ...providerDetails,
       }),
     });
+
+    const shortPaymentId = payment.id.length > 8 ? `#${payment.id.slice(0, 8)}` : `#${payment.id}`;
+    const title =
+      status === PrismaPaymentStatus.Completed ? 'Платёж успешно завершён' : 'Платёж не прошёл';
+
+    try {
+      await this.paymentNotificationService.notifyPaymentCompleted({
+        ...payment,
+        status: PrismaPaymentStatus.Completed,
+        paymentMethod: payment.paymentMethod,
+      });
+    } catch {
+      // notification failure must not break webhook processing
+    }
   }
 
   private async findPaymentById(paymentId: string): Promise<PaymentRecord | null> {

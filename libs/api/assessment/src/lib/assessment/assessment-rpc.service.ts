@@ -24,6 +24,8 @@ import type {
   ListAssessmentsResponse,
   ListDistrictsRequest,
   ListDistrictsResponse,
+  LogApplicantAssessmentActionRequest,
+  LogApplicantAssessmentActionResponse,
   SearchFiasAddressByPartsRequest,
   SearchFiasAddressByPartsResponse,
   SearchFiasAddressItemsRequest,
@@ -86,6 +88,13 @@ export class AssessmentRpcService {
   ): Promise<SearchFiasAddressByPartsResponse> =>
     this.handleRpcCall('searchFiasAddressByParts', () =>
       this.assessmentService.searchFiasAddressByParts(r),
+    );
+
+  readonly logApplicantAssessmentAction = (
+    r: LogApplicantAssessmentActionRequest,
+  ): Promise<LogApplicantAssessmentActionResponse> =>
+    this.handleRpcCall('logApplicantAssessmentAction', async () =>
+      this.assessmentService.logApplicantAssessmentAction(r),
     );
 
   readonly listAssessments = (r: ListAssessmentsRequest): Promise<ListAssessmentsResponse> =>

@@ -217,6 +217,23 @@
     color: #6b7280;
     text-align: center;
   }
+
+  &__popup-backdrop {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(17 24 39 / 45%);
+  }
+
+  &__popup {
+    width: min(560px, 92vw);
+    padding: 1rem 1.2rem;
+    border-radius: 0.8rem;
+    background: #fff;
+  }
 }
 
 .chip {

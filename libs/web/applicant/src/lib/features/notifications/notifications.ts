@@ -86,6 +86,36 @@ export class ApplicantNotifications {
     return l === 'sent' ? 'Отправлено' : 'Прочитано';
   }
 
+  protected typeLabel(type: NotificationType): string {
+    switch (type) {
+      case 'application':
+        return 'Заявка';
+      case 'document':
+        return 'Документы';
+      case 'payment':
+        return 'Платёж';
+      case 'assessment':
+        return 'Оценка';
+      case 'system':
+      default:
+        return 'Система';
+    }
+  }
+
+  protected channelLabel(channel: NotificationChannel): string {
+    switch (channel) {
+      case 'email':
+        return 'Email';
+      case 'sms':
+        return 'SMS';
+      case 'in-app':
+        return 'In-app';
+      case 'push':
+      default:
+        return 'Push';
+    }
+  }
+
   protected markAllAsRead(): void {
     const userId = this.currentUserId();
     if (!userId) return;

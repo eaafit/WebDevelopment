@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { context, trace } from '@opentelemetry/api';
 import type { Params } from 'nestjs-pino';
 import { Store as PinoLoggerStore, storage as pinoLoggerStorage } from 'nestjs-pino/storage';
 import type { Logger as PinoLoggerInstance, LoggerOptions, LevelWithSilent } from 'pino';
@@ -93,6 +94,7 @@ export function createPinoLoggerOptions(env: RuntimeEnv = process.env): LoggerOp
     formatters: {
       level: (label) => ({ level: label }),
     },
+    mixin: () => getActiveTraceLogFields(),
     redact: {
       paths: [...REDACTED_LOG_PATHS],
       censor: '[REDACTED]',
@@ -192,10 +194,23 @@ function buildRequestLogObject(
   value: { durationMs?: number; responseTime?: number },
 ): Record<string, unknown> {
   return {
+    ...getActiveTraceLogFields(),
     method: req.method,
     path: sanitizeRequestPath(req.url),
     statusCode: res.statusCode,
     durationMs: value.durationMs ?? value.responseTime,
+  };
+}
+
+function getActiveTraceLogFields(): Record<string, string> {
+  const spanContext = trace.getSpanContext(context.active());
+  if (!spanContext) {
+    return {};
+  }
+
+  return {
+    traceId: spanContext.traceId,
+    spanId: spanContext.spanId,
   };
 }
 
