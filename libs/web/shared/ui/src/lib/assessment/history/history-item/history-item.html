@@ -7,7 +7,9 @@
       </div>
       <div class="item-address text-secondary">{{ order.objectAddress }}</div>
     </div>
-    <div class="item-amount text-bold">{{ order.totalAmount }} ₽</div>
+    <div class="item-amount text-bold">
+      {{ order.totalAmount > 0 ? (order.totalAmount + ' ₽') : 'Цена ещё не назначена' }}
+    </div>
   </div>
 
   <div class="item-body">
@@ -24,18 +26,22 @@
     </div>
 
     <!-- Действия -->
-    <div class="item-actions flex justify-end gap-2">
-      <button class="btn btn-outline btn-sm" (click)="onView()">Подробнее</button>
-      @if (role === 'applicant' && order.status === 'completed') {
-      <button class="btn btn-primary btn-sm" (click)="onRepeat()">
-        Повторить заказ
-      </button>
-      }
-      @if (role === 'notary' && order.status === 'created') {
-      <button class="btn btn-primary btn-sm">
-        Взять в работу
-      </button>
-      }
+    <div class="item-footer">
+      <div class="footer-left">
+        @if (isTakenByCurrentNotary) {
+        <span class="badge badge-success">Ваш заказ</span>
+        <button class="btn btn-outline btn-sm" routerLink="/notary/orders">Перейти в заказы</button>
+        }
+      </div>
+      <div class="footer-right">
+        <button class="btn btn-outline btn-sm" (click)="onView()">Подробнее</button>
+        @if (role === 'applicant' && order.status === 'completed') {
+        <button class="btn btn-primary btn-sm" (click)="onRepeat()">Повторить заказ</button>
+        }
+        @if (canTakeOrder) {
+        <button class="btn btn-primary btn-sm" (click)="onTakeWork()">Взять в работу</button>
+        }
+      </div>
     </div>
   </div>
 </div>

@@ -33,7 +33,7 @@ describe('Admin', () => {
         {
           provide: InAppNotificationsApiService,
           useValue: {
-            listRecent: jest.fn().mockResolvedValue({ notifications: [], unreadCount: 0 }),
+            listRecent: () => Promise.resolve({ notifications: [], unreadCount: 0 }),
           },
         },
       ],

@@ -10,6 +10,8 @@ import {
   VerifyAssessmentRequestSchema,
 } from '@notary-portal/api-contracts';
 import { AssessmentService } from './assessment.service';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { BitrixLeadPublisherService } from '@internal/bitrix-leads';
 
 describe('AssessmentService audit events', () => {
   const assessmentRepository = {
@@ -38,6 +40,9 @@ describe('AssessmentService audit events', () => {
   const notificationService = {
     createInternalNotificationsForRole: jest.fn(),
   };
+  const bitrixLeadPublisher = {
+    publishLead: jest.fn(),
+  };
 
   const service = new AssessmentService(
     assessmentRepository as never,
@@ -45,6 +50,7 @@ describe('AssessmentService audit events', () => {
     metrics as never,
     fiasProvider as never,
     notificationService as never,
+    bitrixLeadPublisher as never,
   );
 
   beforeEach(() => {
@@ -53,6 +59,7 @@ describe('AssessmentService audit events', () => {
     assessmentRepository.resolveGeographyIds.mockResolvedValue({});
     fiasProvider.searchAddressItems.mockResolvedValue([]);
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
+    bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
   });
 
   it('creates an admin notification after assessment creation', async () => {
@@ -418,6 +425,70 @@ describe('AssessmentService audit events', () => {
         message: 'Заявка #11111111 была отменена. Причина: неполные данные.',
       }),
     );
+  });
+
+  it('publishes assessment to bitrix as lead after successful create', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+
+    await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+  });
+
+  it('does not propagate bitrix publish failure to caller', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+    bitrixLeadPublisher.publishLead.mockRejectedValueOnce(new Error('Bitrix down'));
+
+    const response = await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    // Основная заявка вернулась успешно, несмотря на падение Bitrix
+    expect(response).toBeDefined();
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+
+    // Даём микрозадаче .catch отработать, чтобы не было unhandled rejection
+    await new Promise<void>((resolve) => setImmediate(resolve));
   });
 });
 

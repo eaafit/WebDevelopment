@@ -5,6 +5,7 @@ import { TokenStore } from '../rpc/token-store';
 /**
  * Общий счётчик непрочитанных для колокольчика и страницы уведомлений.
  * Обновляется по polling и сразу после действий пользователя (прочитать / удалить).
+ * Синхронизируется между вкладками браузера через BroadcastChannel API.
  */
 @Injectable({ providedIn: 'root' })
 export class NotificationCounterService {
@@ -13,6 +14,7 @@ export class NotificationCounterService {
 
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private pollingSubscribers = 0;
+  private broadcastChannel: BroadcastChannel | null = null;
 
   readonly unreadCount = signal(0);
 
@@ -21,6 +23,9 @@ export class NotificationCounterService {
     if (this.refreshTimer) {
       return;
     }
+
+    // Initialize BroadcastChannel for cross-tab synchronization
+    this.initializeBroadcastChannel();
 
     void this.refresh();
     this.refreshTimer = setInterval(() => {
@@ -36,6 +41,9 @@ export class NotificationCounterService {
 
     clearInterval(this.refreshTimer);
     this.refreshTimer = null;
+
+    // Close BroadcastChannel when polling stops
+    this.closeBroadcastChannel();
   }
 
   async refresh(): Promise<void> {
@@ -62,5 +70,43 @@ export class NotificationCounterService {
 
   markAllAsRead(): void {
     this.unreadCount.set(0);
+    this.broadcastCounterUpdate();
+  }
+
+  private initializeBroadcastChannel(): void {
+    if (this.broadcastChannel) {
+      return;
+    }
+
+    try {
+      this.broadcastChannel = new BroadcastChannel('notification-counter');
+      this.broadcastChannel.onmessage = (event) => {
+        if (event.data.type === 'unread-count-updated') {
+          this.unreadCount.set(event.data.count);
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported in this browser
+    }
+  }
+
+  private closeBroadcastChannel(): void {
+    if (this.broadcastChannel) {
+      this.broadcastChannel.close();
+      this.broadcastChannel = null;
+    }
+  }
+
+  private broadcastCounterUpdate(): void {
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'unread-count-updated',
+          count: this.unreadCount(),
+        });
+      } catch {
+        // best-effort
+      }
+    }
   }
 }

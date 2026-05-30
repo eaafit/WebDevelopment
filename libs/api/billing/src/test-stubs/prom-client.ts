@@ -9,6 +9,17 @@ export class Counter<TLabel extends string = string> {
   }
 }
 
+export class Histogram<TLabel extends string = string> {
+  constructor(_config: unknown) {
+    void _config;
+  }
+
+  observe(_labelsOrValue?: Record<TLabel, string> | number, _value?: number): void {
+    void _labelsOrValue;
+    void _value;
+  }
+}
+
 export interface Registry {
   contentType: string;
   metrics: () => Promise<string>;

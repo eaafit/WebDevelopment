@@ -1,6 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { requestContextStorage } from '@internal/auth-shared';
 import {
   ListNotificationsRequestSchema,
   NotificationCategory as RpcNotificationCategory,
@@ -10,12 +11,26 @@ import {
 } from '@notary-portal/api-contracts';
 import { NotificationService } from './notification.service';
 
-jest.mock('@internal/auth-shared', () => ({
-  getCurrentUser: jest.fn(),
-  requireAuth: jest.fn(),
-}));
+const USER_ID = '11111111-1111-4111-a111-111111111111';
 
-import { requireAuth } from '@internal/auth-shared';
+function runAsCurrentUser<T>(callback: () => T): T {
+  return requestContextStorage.run(
+    {
+      user: {
+        sub: USER_ID,
+        email: 'applicant@example.com',
+        role: 'USER_ROLE_APPLICANT',
+        iat: 0,
+        exp: 0,
+      },
+      metadata: {
+        ip: null,
+        userAgent: null,
+      },
+    },
+    callback,
+  );
+}
 
 describe('NotificationService', () => {
   const repository = {
@@ -30,13 +45,10 @@ describe('NotificationService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (requireAuth as jest.Mock).mockReturnValue({
-      sub: '11111111-1111-4111-a111-111111111111',
-    });
     repository.createNotification.mockResolvedValue(
       create(NotificationSchema, {
         id: 'notification-1',
-        userId: '11111111-1111-4111-a111-111111111111',
+        userId: USER_ID,
         title: 'Рассылка завершена',
         category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
@@ -50,7 +62,7 @@ describe('NotificationService', () => {
 
   it('normalizes internal notification payloads before creating them', async () => {
     await service.createNotification({
-      userId: '11111111-1111-4111-a111-111111111111',
+      userId: USER_ID,
       title: '  Рассылка завершена  ',
       category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
@@ -58,7 +70,7 @@ describe('NotificationService', () => {
     });
 
     expect(repository.createNotification).toHaveBeenCalledWith({
-      userId: '11111111-1111-4111-a111-111111111111',
+      userId: USER_ID,
       title: 'Рассылка завершена',
       category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
@@ -86,7 +98,7 @@ describe('NotificationService', () => {
   it('rejects blank notification messages', async () => {
     await expect(
       service.createNotification({
-        userId: '11111111-1111-4111-a111-111111111111',
+        userId: USER_ID,
         title: 'Рассылка завершена',
         category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
@@ -96,33 +108,35 @@ describe('NotificationService', () => {
   });
 
   it('normalizes list pagination and compact enum filters', async () => {
-    await service.listNotifications(
-      create(ListNotificationsRequestSchema, {
-        userId: '11111111-1111-4111-a111-111111111111',
-        pagination: {
-          page: 2,
-          limit: 100,
-        },
-        filters: {
-          types: [
-            RpcNotificationType.PUSH,
-            RpcNotificationType.UNSPECIFIED,
-            RpcNotificationType.PUSH,
-          ],
-          statuses: [
-            RpcNotificationStatus.SENT,
-            RpcNotificationStatus.UNSPECIFIED,
-            RpcNotificationStatus.SENT,
-          ],
-          unreadOnly: true,
-        },
-      }),
+    await runAsCurrentUser(() =>
+      service.listNotifications(
+        create(ListNotificationsRequestSchema, {
+          userId: USER_ID,
+          pagination: {
+            page: 2,
+            limit: 100,
+          },
+          filters: {
+            types: [
+              RpcNotificationType.PUSH,
+              RpcNotificationType.UNSPECIFIED,
+              RpcNotificationType.PUSH,
+            ],
+            statuses: [
+              RpcNotificationStatus.SENT,
+              RpcNotificationStatus.UNSPECIFIED,
+              RpcNotificationStatus.SENT,
+            ],
+            unreadOnly: true,
+          },
+        }),
+      ),
     );
 
     expect(repository.listNotifications).toHaveBeenCalledWith({
       page: 2,
       limit: 100,
-      userId: '11111111-1111-4111-a111-111111111111',
+      userId: USER_ID,
       types: [RpcNotificationType.PUSH],
       statuses: [RpcNotificationStatus.SENT],
       unreadOnly: true,
@@ -130,16 +144,18 @@ describe('NotificationService', () => {
   });
 
   it('uses stable list defaults when pagination fields are omitted', async () => {
-    await service.listNotifications(
-      create(ListNotificationsRequestSchema, {
-        userId: '11111111-1111-4111-a111-111111111111',
-      }),
+    await runAsCurrentUser(() =>
+      service.listNotifications(
+        create(ListNotificationsRequestSchema, {
+          userId: USER_ID,
+        }),
+      ),
     );
 
     expect(repository.listNotifications).toHaveBeenCalledWith({
       page: 1,
       limit: 10,
-      userId: '11111111-1111-4111-a111-111111111111',
+      userId: USER_ID,
       types: undefined,
       statuses: undefined,
       unreadOnly: false,
@@ -148,26 +164,30 @@ describe('NotificationService', () => {
 
   it('rejects unsafe pagination values', async () => {
     expect(() =>
-      service.listNotifications(
-        create(ListNotificationsRequestSchema, {
-          userId: '11111111-1111-4111-a111-111111111111',
-          pagination: {
-            page: -1,
-            limit: 10,
-          },
-        }),
+      runAsCurrentUser(() =>
+        service.listNotifications(
+          create(ListNotificationsRequestSchema, {
+            userId: USER_ID,
+            pagination: {
+              page: -1,
+              limit: 10,
+            },
+          }),
+        ),
       ),
     ).toThrow(ConnectError);
 
     expect(() =>
-      service.listNotifications(
-        create(ListNotificationsRequestSchema, {
-          userId: '11111111-1111-4111-a111-111111111111',
-          pagination: {
-            page: 1,
-            limit: 101,
-          },
-        }),
+      runAsCurrentUser(() =>
+        service.listNotifications(
+          create(ListNotificationsRequestSchema, {
+            userId: USER_ID,
+            pagination: {
+              page: 1,
+              limit: 101,
+            },
+          }),
+        ),
       ),
     ).toThrow(ConnectError);
   });
