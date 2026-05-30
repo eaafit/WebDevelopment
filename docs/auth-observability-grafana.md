@@ -132,6 +132,47 @@ notary_auth_browser_validation_failed_total
 
 Prometheus отвечает на вопрос **“сколько раз произошло”**, а Loki отвечает на вопрос **“что именно произошло и почему”**.
 
+## Как проверить нагрузку, а не только активность
+
+Регистрации показывают активность пользователей, но не доказывают, что серверу тяжело. Для проверки “потянет / не потянет” смотрите технические панели:
+
+- `Auth API p95 latency` — показывает, начинает ли backend медленно отвечать на auth-запросы.
+- `Auth API latency by operation` — показывает, какая auth-операция тормозит: вход, регистрация или восстановление пароля.
+- `Failed auth attempts` — показывает проблемы auth-флоу и ошибки пользователей.
+- `System metrics` -> `API container CPU` — показывает нагрузку CPU API-контейнера.
+- `System metrics` -> `API container memory` — показывает память API-контейнера.
+- `PostgreSQL` — показывает состояние базы: подключения, размер, cache hit ratio и транзакции.
+
+Проверка в Prometheus:
+
+```promql
+notary_http_request_duration_seconds_bucket
+```
+
+Если эта метрика есть, backend пишет Histogram времени ответа.
+
+Для p95 latency auth API используется запрос:
+
+```promql
+histogram_quantile(0.95, sum(rate(notary_http_request_duration_seconds_bucket{path_group=~"auth_.*"}[5m])) by (le))
+```
+
+Цвета в панели `Auth API p95 latency`:
+
+- зелёный — быстрее `0.5s`, всё нормально;
+- жёлтый — от `0.5s`, backend уже заметно медленнее;
+- красный — от `1.5s`, auth-запросы отвечают слишком долго.
+
+Контейнерные метрики собирает `cAdvisor`. В Prometheus на странице `Status -> Targets` должны быть `UP`:
+
+```text
+api
+postgres
+cadvisor
+```
+
+Если `cadvisor` не `UP`, панели CPU/memory контейнера будут пустыми. Если `api` не `UP`, пустыми будут панели `/metrics`, включая регистрации и latency.
+
 ## Важный Docker-нюанс
 
 Prometheus должен видеть API endpoint:
