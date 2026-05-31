@@ -62,7 +62,7 @@ export class DocumentService {
     return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
   }
 
-async listDocumentsByAssessment(
+  async listDocumentsByAssessment(
     assessmentId?: string, 
     params?: { 
       page: number; 
@@ -76,16 +76,16 @@ async listDocumentsByAssessment(
     meta?: PageInfo
   }> {
     const pagination = params ? { page: params.page, limit: params.limit } : undefined;
-    const res = await this.client.listDocumentsByAssessment({ 
-      assessmentId, 
+    const res = await this.client.listDocumentsByAssessment({
+      assessmentId: assessmentId ?? '',
       pagination,
-      fileName: params?.fileName,
-      dateFrom: params?.dateFrom,
-      dateTo: params?.dateTo
-    } as any);
+    });
 
     return {
-      documents: res.documents.map((v: any) => ({ ...v, downloadUrl: resolveStoredDocumentUrl(v.downloadUrl) })),
+      documents: res.documents.map((document) => ({
+        ...document,
+        downloadUrl: resolveStoredDocumentUrl(document.downloadUrl),
+      })),
       meta: res.meta
     }
   }

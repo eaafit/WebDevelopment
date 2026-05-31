@@ -6,7 +6,6 @@ import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DocumentService, Document, PageInfo } from '../services/document.service';
 import { AssessmentService } from '../services/assesment.service';
-import { AssessmentStatus } from '@notary-portal/api-contracts';
 import { DocumentRow } from './document-row/document-row';
 import { Pagination } from './pagination/pagination';
 
@@ -169,7 +168,7 @@ export class List implements OnInit {
             if (assessment) {
               statuses[id] = assessment.status;
             }
-          } catch (e) {
+          } catch {
             console.warn(`Не удалось загрузить статус для заявки ${id}`);
           }
         }));
