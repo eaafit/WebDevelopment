@@ -1,7 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { createClient } from '@connectrpc/connect';
-import { DocumentService as RPCDocumentService } from '@notary-portal/api-contracts';
-import { buildRpcBaseUrl, RPC_TRANSPORT, TokenStore } from '@notary-portal/ui';
+import {
+  DocumentService as RPCDocumentService,
+  DocumentType,
+} from '@notary-portal/api-contracts';
+import { buildRpcBaseUrl, RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 
 export type Document = {
   id: string;
@@ -20,6 +24,16 @@ export type PageInfo = {
   currentPage: number,
   perPage: number,
 }
+
+export interface CreateDocumentInput {
+  assessmentId: string;
+  fileName: string;
+  fileType: string;
+  uploadedById: string;
+  fileContent: Uint8Array<ArrayBuffer>;
+  documentType?: DocumentType;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private readonly tokenStore = inject(TokenStore);
@@ -29,8 +43,15 @@ export class DocumentService {
 
   readonly role = this.tokenStore.role;
 
-  async createDocument(assessmentId: string, fileName: string, fileType: string, uploadedById: string, fileContent: Uint8Array<ArrayBuffer>): Promise<Document> {
-    const res = await this.client.createDocument({ assessmentId, fileName, fileType, uploadedById, fileContent });
+  async createDocument(input: CreateDocumentInput): Promise<Document> {
+    const res = await this.client.createDocument({
+      assessmentId: input.assessmentId,
+      fileName: input.fileName,
+      fileType: input.fileType,
+      uploadedById: input.uploadedById,
+      documentType: input.documentType ?? DocumentType.OTHER,
+      fileContent: input.fileContent,
+    });
     if (!res.document) throw new Error('Не удалось создать документ');
     return res.document
   }

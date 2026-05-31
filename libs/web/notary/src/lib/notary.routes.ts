@@ -1,7 +1,12 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
-import { PlaceholderPageRoute } from '@notary-portal/ui';
-import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import {
+  AssessmentHistoryComponent,
+  Copy,
+  List,
+  New,
+  PlaceholderPageRoute,
+} from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -62,18 +67,16 @@ export const notaryRoutes: Route[] = [
           {
             path: '',
             pathMatch: 'full',
-            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            component: List,
             data: { role: 'notary' },
           },
           {
             path: 'new',
-            loadComponent: () =>
-              import('../../../shared/ui/src/lib/copies/new/new').then((m) => m.New),
+            component: New,
           },
           {
             path: ':id',
-            loadComponent: () =>
-              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+            component: Copy,
           },
         ],
       },

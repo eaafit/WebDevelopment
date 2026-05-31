@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal, OnDestroy } from '@angular
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
+import { Assessment, AssessmentStatus } from '@notary-portal/api-contracts';
 import { Document } from '../services/document.service';
 import { CommonModule } from '@angular/common';
 

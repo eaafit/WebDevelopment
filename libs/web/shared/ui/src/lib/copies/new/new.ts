@@ -3,10 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
-import { DocumentApiService } from '../../../../../../applicant/src/lib/features/estimation-form/document-api.service';
-import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts'; 
+import { DocumentService } from '../services/document.service';
+import {
+  AssessmentStatus,
+  DocumentType,
+  PaymentService,
+  PaymentType,
+} from '@notary-portal/api-contracts';
 import { createClient } from '@connectrpc/connect';
-import { RPC_TRANSPORT } from '@notary-portal/ui'; 
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
 
 @Component({
   selector: 'lib-new',
@@ -17,7 +22,7 @@ import { RPC_TRANSPORT } from '@notary-portal/ui';
 })
 export class New implements OnInit {
   private readonly assessmentService = inject(AssessmentService);
-  private readonly documentApiService = inject(DocumentApiService);
+  private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   
@@ -96,13 +101,14 @@ export class New implements OnInit {
       this.isSubmitting.set(true);
       
       // 1. Сначала загружаем документ
-      await this.documentApiService.uploadDocument({
+      await this.documentService.createDocument({
         assessmentId: this.selectedAssesmentID(),
-        file: this.selectedFile,
-        group: 'documents',
-        documentType: this.selectedDocType(),
-        metadata: { comment: this.comment() }  
-      } as any);
+        fileName: this.selectedFile.name,
+        fileType: this.selectedFile.type || 'application/octet-stream',
+        uploadedById: this.getCurrentUserId(),
+        documentType: DocumentType.OTHER,
+        fileContent: new Uint8Array(await this.selectedFile.arrayBuffer()),
+      });
 
       // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
       const paymentResponse = await this.paymentClient.createPayment({
