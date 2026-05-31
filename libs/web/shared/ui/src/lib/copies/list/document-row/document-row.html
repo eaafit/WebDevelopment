@@ -50,7 +50,14 @@
     </span>
   </div>
 
-  <div class="card-footer" (click)="navigateToDocumentPage()">
+  <div
+    class="card-footer"
+    role="button"
+    tabindex="0"
+    (click)="navigateToDocumentPage()"
+    (keydown.enter)="navigateToDocumentPage()"
+    (keydown.space)="navigateToDocumentPage()"
+  >
     <span class="action-text">Открыть детали</span>
   </div>
 </div>

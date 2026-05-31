@@ -25,7 +25,7 @@ export class Copy implements OnInit, OnDestroy {
   timer = signal<number>(0);
   
   hasError = signal<boolean>(false);
-  private timerId: any = null;
+  private timerId: ReturnType<typeof setInterval> | null = null;
 
   createDate = computed(() => {
     const currentDoc = this.doc();
@@ -34,8 +34,6 @@ export class Copy implements OnInit, OnDestroy {
     }
     return new Date(Number(currentDoc.uploadedAt.seconds) * 1000).toLocaleDateString();
   });
-
-  constructor() { }
 
   // Хелпер считает минуты, привязываясь строго к дате загрузки ДОКУМЕНТА (bigint)
   private calculateMinutesLeft(uploadedAtSeconds: bigint): number {
