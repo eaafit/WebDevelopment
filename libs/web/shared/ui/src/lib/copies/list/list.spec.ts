@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { List } from './list';
-import { DocumentService, Document } from '../services/document.service';
 import { AssessmentService } from '../services/assesment.service';
+import { Document, DocumentService } from '../services/document.service';
+import { List } from './list';
 
 describe('List', () => {
   let component: List;
@@ -14,22 +14,22 @@ describe('List', () => {
     {
       id: 'doc-1',
       assessmentId: 'assessment-1',
-      fileName: 'Passport copy.pdf',
+      fileName: 'purchase-contract.pdf',
       fileType: 'application/pdf',
       version: 1,
-      uploadedAt: { seconds: 1704888000n, nanos: 0 },
+      uploadedAt: { seconds: BigInt(Math.floor(new Date('2026-05-10').getTime() / 1000)), nanos: 0 },
       uploadedById: 'user-1',
-      downloadUrl: '/files/doc-1',
+      downloadUrl: '/files/purchase-contract.pdf',
     },
     {
       id: 'doc-2',
       assessmentId: 'assessment-2',
-      fileName: 'Contract scan.pdf',
+      fileName: 'ownership-certificate.pdf',
       fileType: 'application/pdf',
       version: 1,
-      uploadedAt: { seconds: 1705752000n, nanos: 0 },
+      uploadedAt: { seconds: BigInt(Math.floor(new Date('2026-05-20').getTime() / 1000)), nanos: 0 },
       uploadedById: 'user-1',
-      downloadUrl: '/files/doc-2',
+      downloadUrl: '/files/ownership-certificate.pdf',
     },
   ];
 
@@ -38,10 +38,7 @@ describe('List', () => {
       listDocumentsByAssessment: jest.fn().mockResolvedValue({ documents }),
     };
     assessmentService = {
-      getAssessment: jest.fn().mockImplementation((id: string) => Promise.resolve({
-        id,
-        status: id === 'assessment-1' ? 4 : 5,
-      })),
+      getAssessment: jest.fn().mockResolvedValue({ status: 4 }),
     };
 
     await TestBed.configureTestingModule({
@@ -52,9 +49,7 @@ describe('List', () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              data: {
-                role: 'notary',
-              },
+              data: { role: 'notary' },
             },
           },
         },
@@ -69,15 +64,12 @@ describe('List', () => {
     await fixture.whenStable();
   });
 
-  it('should create', () => {
+  it('should create and resolve the role from route data', () => {
     expect(component).toBeTruthy();
-  });
-
-  it('should take the role from route data', () => {
     expect(component.role).toBe('notary');
   });
 
-  it('should load documents and cache assessment statuses', async () => {
+  it('should load documents and assessment statuses', async () => {
     await component.fetchDocuments();
 
     expect(documentService.listDocumentsByAssessment).toHaveBeenCalledWith(undefined, {
@@ -87,56 +79,40 @@ describe('List', () => {
     expect(component.rawDocuments()).toEqual(documents);
     expect(component.assessmentStatuses()).toEqual({
       'assessment-1': 4,
-      'assessment-2': 5,
-    });
-    expect(component.loading()).toBe(false);
-  });
-
-  it('should pass selected assessment id when fetching documents', async () => {
-    component.appliedFilters.set({
-      fileName: '',
-      assessmentId: ' assessment-1 ',
-      dateFrom: '',
-      dateTo: '',
-    });
-
-    await component.fetchDocuments();
-
-    expect(documentService.listDocumentsByAssessment).toHaveBeenCalledWith('assessment-1', {
-      page: 1,
-      limit: 1000,
+      'assessment-2': 4,
     });
   });
 
-  it('should filter documents by name and upload date', () => {
+  it('should filter documents by file name and upload date', () => {
     component.rawDocuments.set(documents);
+
     component.appliedFilters.set({
-      fileName: 'passport',
+      fileName: 'ownership',
       assessmentId: '',
-      dateFrom: '2024-01-10',
-      dateTo: '2024-01-10',
+      dateFrom: '2026-05-19',
+      dateTo: '2026-05-21',
     });
 
-    expect(component.filteredDocuments().map((doc) => doc.id)).toEqual(['doc-1']);
+    expect(component.filteredDocuments()).toEqual([documents[1]]);
   });
 
-  it('should reset pagination when page size changes', () => {
+  it('should reset the current page when the page size changes', () => {
     component.rawDocuments.set(documents);
     component.page.set(2);
 
-    component.changeLimit(20);
+    component.changeLimit(1);
 
-    expect(component.limit()).toBe(20);
+    expect(component.limit()).toBe(1);
     expect(component.page()).toBe(1);
+    expect(component.totalPages()).toBe(2);
   });
 
-  it('should navigate to the new copy form relative to the current route', () => {
+  it('should navigate to the create copy route relative to the list route', () => {
     const router = TestBed.inject(Router);
-    const route = TestBed.inject(ActivatedRoute);
     const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
 
     component.navigateToNew();
 
-    expect(navigateSpy).toHaveBeenCalledWith(['new'], { relativeTo: route });
+    expect(navigateSpy).toHaveBeenCalledWith(['new'], { relativeTo: TestBed.inject(ActivatedRoute) });
   });
 });

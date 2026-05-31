@@ -1,8 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { AssessmentHistoryComponent } from './assessment-history';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { TokenStore } from '../../rpc/token-store';
+import { AssessmentHistoryComponent } from './assessment-history';
 import { OrderApiService } from '../order-api.service';
+import { TokenStore } from '../../rpc/token-store';
 
 describe('AssessmentHistoryComponent', () => {
   let component: AssessmentHistoryComponent;
@@ -11,7 +11,7 @@ describe('AssessmentHistoryComponent', () => {
 
   beforeEach(async () => {
     orderApiService = {
-      listOrders: jest.fn().mockResolvedValue({ orders: [], totalCount: 0, totalPages: 1 }),
+      listOrders: jest.fn().mockResolvedValue({ orders: [], totalPages: 1 }),
     };
 
     await TestBed.configureTestingModule({
@@ -40,10 +40,21 @@ describe('AssessmentHistoryComponent', () => {
     fixture = TestBed.createComponent(AssessmentHistoryComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    await fixture.whenStable();
   });
 
-  it('should create', () => {
+  it('should create and request applicant orders for the current user', () => {
     expect(component).toBeTruthy();
+    expect(orderApiService.listOrders).toHaveBeenCalledWith({
+      userId: 'user-1',
+      role: 'applicant',
+      status: undefined,
+      search: undefined,
+      dateFrom: undefined,
+      dateTo: undefined,
+      page: 1,
+      pageSize: 5,
+    });
   });
 
   it('should navigate to the new assessment form with repeated order data', async () => {
@@ -78,11 +89,16 @@ describe('AssessmentHistoryComponent', () => {
     });
   });
 
-  it('should report a missing order when repeat is requested for an unknown id', async () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+  it('should report a missing order without navigation', async () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation();
 
-    await component.repeatOrder('missing-order');
+    await component.repeatOrder('ORD-404');
 
-    expect(consoleSpy).toHaveBeenCalledWith('Order not found');
+    expect(errorSpy).toHaveBeenCalledWith('Order not found');
+    expect(navigateSpy).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 });

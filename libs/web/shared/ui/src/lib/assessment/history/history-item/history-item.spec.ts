@@ -10,16 +10,24 @@ describe('HistoryItemComponent', () => {
 
   const mockOrder: AssessmentOrder = {
     id: 'ORD-001',
-    objectAddress: 'ул. Тестовая, д.1',
+    assessmentId: 'assessment-1',
+    objectAddress: 'Test street, 1',
     orderDate: new Date(),
     status: 'created',
     totalAmount: 5000,
     statusHistory: [],
+    applicantId: 'applicant-1',
+    applicantName: 'Applicant',
+    plannedCompletionDate: new Date(),
+    realEstateObject: {
+      id: 'object-1',
+      address: 'Test street, 1',
+    },
   };
 
   beforeEach(async () => {
     orderApiService = {
-      takeOrder: jest.fn(),
+      takeOrder: jest.fn().mockResolvedValue(mockOrder),
     };
 
     await TestBed.configureTestingModule({
@@ -41,5 +49,16 @@ describe('HistoryItemComponent', () => {
     jest.spyOn(component.repeat, 'emit');
     component.onRepeat();
     expect(component.repeat.emit).toHaveBeenCalledWith('ORD-001');
+  });
+
+  it('should take available notary order and emit the update', async () => {
+    component.role = 'notary';
+    component.currentUserId = 'notary-1';
+    jest.spyOn(component.orderTaken, 'emit');
+
+    await component.onTakeWork();
+
+    expect(orderApiService.takeOrder).toHaveBeenCalledWith('ORD-001', 'notary-1');
+    expect(component.orderTaken.emit).toHaveBeenCalledWith('ORD-001');
   });
 });
