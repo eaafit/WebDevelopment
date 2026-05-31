@@ -14,11 +14,27 @@ export const RPC_TRANSPORT = new InjectionToken<Transport>('RPC_TRANSPORT');
 
 // ─── Base URL ────────────────────────────────────────────────────────────────
 
+type RpcBaseUrlLocation = Pick<Location, 'protocol' | 'hostname' | 'port' | 'origin'>;
+
+export function resolveRpcBaseUrl(location: RpcBaseUrlLocation | undefined): string {
+  if (!location) {
+    return 'http://localhost:3000';
+  }
+
+  const { protocol, hostname, port, origin } = location;
+  const isLocalHost = hostname === 'localhost' || hostname === '127.0.0.1';
+
+  // Local dev: Angular dev-server (e.g. :4200) → Nest API on :3000.
+  // In Docker/nginx the same origin already proxies /notary.* to the API.
+  if (isLocalHost && port !== '3000') {
+    return `${protocol}//${hostname}:3000`;
+  }
+
+  return origin;
+}
+
 export function buildRpcBaseUrl(): string {
-  if (typeof window === 'undefined') return 'http://localhost:3000';
-  const { hostname, port, origin } = window.location;
-  const isLocal = ['localhost', '127.0.0.1'].includes(hostname);
-  return isLocal && port !== '3000' ? `http://${hostname}:3000` : origin;
+  return resolveRpcBaseUrl(typeof window === 'undefined' ? undefined : window.location);
 }
 
 const PUBLIC_AUTH_METHODS = [
