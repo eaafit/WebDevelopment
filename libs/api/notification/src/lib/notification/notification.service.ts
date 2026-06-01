@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import {
   NotificationStatus as PrismaNotificationStatus,
@@ -7,6 +8,7 @@ import {
 } from '@internal/prisma-client';
 import { getCurrentUser, requireAuth } from '@internal/auth-shared';
 import { MetricsService } from '@internal/metrics';
+import { AuditService } from '@internal/audit';
 import {
   DeleteNotificationResponseSchema,
   GetNotificationSettingsResponseSchema,
@@ -60,6 +62,7 @@ export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly metricsService: MetricsService,
+    private readonly auditService: AuditService,
   ) {}
 
   async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
@@ -97,7 +100,7 @@ export class NotificationService {
       }
     }
 
-    return this.notificationRepository.createNotification({
+    const notification = await this.notificationRepository.createNotification({
       userId: request.userId,
       title: normalizeOptionalTitle(request.title),
       type: request.type,
@@ -106,6 +109,42 @@ export class NotificationService {
       status: request.status,
       sentAt: request.sentAt,
       readAt: request.readAt,
+    });
+
+    await this.recordNotificationAuditEvent(notification, false);
+    return notification;
+  }
+
+  private async recordNotificationAuditEvent(
+    notification: RpcNotification,
+    isRead: boolean,
+  ): Promise<void> {
+    const readAt = isRead
+      ? notification.readAt
+        ? timestampDate(notification.readAt).toISOString()
+        : new Date().toISOString()
+      : null;
+
+    await this.auditService.record({
+      eventType: isRead ? 'notification.read' : 'notification.created',
+      targetType: 'notification',
+      targetId: notification.id,
+      actionTitle: isRead ? 'Уведомление прочитано' : 'Уведомление создано',
+      actionContext: isRead
+        ? 'Уведомление помечено как прочитанное'
+        : 'Создано новое уведомление',
+      targetTitle: notification.title,
+      targetContext: String(notification.category),
+      after: {
+        status: isRead ? 'read' : 'unread',
+        type: notification.type,
+        category: notification.category,
+        title: notification.title,
+        readAt,
+        sentAt: notification.sentAt
+          ? timestampDate(notification.sentAt).toISOString()
+          : undefined,
+      },
     });
   }
 
@@ -156,7 +195,7 @@ export class NotificationService {
       }
     }
 
-    await this.notificationRepository.createNotification({
+    const notification = await this.notificationRepository.createNotification({
       userId: params.userId,
       title: normalizeOptionalTitle(params.title),
       category: params.category ?? RpcNotificationCategory.SYSTEM,
@@ -164,6 +203,8 @@ export class NotificationService {
       type: notificationType,
       status: params.status ?? RpcNotificationStatus.SENT,
     });
+
+    await this.recordNotificationAuditEvent(notification, false);
   }
 
   async createInternalNotificationsForRoles(params: {
@@ -193,14 +234,55 @@ export class NotificationService {
   ): Promise<void> {
     const userIds = await this.notificationRepository.listActiveUserIdsByRoles([role]);
 
-    await Promise.all(
-      userIds.map((userId) =>
-        this.createInternalNotification({
-          userId,
-          ...params,
-        }),
-      ),
+    const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
+      userIds,
+      this.rpcCategoryToPreference(params.category) ?? 'assessment',
     );
+
+    if (!enabledUserIds.length) {
+      return;
+    }
+
+    await this.notificationRepository.createManyNotifications({
+      userIds: enabledUserIds,
+      message: params.message,
+      type: toPrismaType(params.type),
+      status: toPrismaStatus(params.status),
+    });
+
+    // Record a single aggregated audit event for bulk notification creation
+    await this.auditService.record({
+      eventType: 'notification.created',
+      targetType: 'notification',
+      actionTitle: 'Уведомления созданы',
+      actionContext: 'Массовая отправка уведомлений для роли',
+      targetTitle: params.title,
+      targetContext: String(params.category ?? 'assessment'),
+      after: {
+        createdCount: enabledUserIds.length,
+        type: params.type,
+        category: params.category,
+      },
+    });
+  }
+
+  private rpcCategoryToPreference(
+    category?: RpcNotificationCategory | NotificationPreferenceCategory,
+  ): NotificationPreferenceCategory | undefined {
+    switch (category) {
+      case RpcNotificationCategory.ASSESSMENT:
+        return 'assessment';
+      case RpcNotificationCategory.PAYMENT:
+        return 'payment';
+      case RpcNotificationCategory.SYSTEM:
+        return 'system';
+      default:
+        // If already a preference category string, return as-is
+        if (category === 'assessment' || category === 'payment' || category === 'system') {
+          return category as NotificationPreferenceCategory;
+        }
+        return undefined;
+    }
   }
 
   listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
@@ -228,7 +310,11 @@ export class NotificationService {
 
   async markAsRead(request: MarkAsReadRequest): Promise<MarkAsReadResponse> {
     validateUuid(request.id, 'id');
-    const notification = await this.notificationRepository.markAsRead(request.id);
+    const { notification, updated } = await this.notificationRepository.markAsRead(request.id);
+
+    if (updated) {
+      await this.recordNotificationAuditEvent(notification, true);
+    }
 
     return create(MarkAsReadResponseSchema, { notification });
   }
@@ -240,8 +326,13 @@ export class NotificationService {
       throw new ConnectError('access denied: can only mark own notifications', Code.PermissionDenied);
     }
 
-    const updatedCount = await this.notificationRepository.markAllAsRead(request.userId);
-    return create(MarkAllAsReadResponseSchema, { updatedCount });
+    const notifications = await this.notificationRepository.markAllAsRead(request.userId);
+
+    await Promise.all(
+      notifications.map((notification) => this.recordNotificationAuditEvent(notification, true)),
+    );
+
+    return create(MarkAllAsReadResponseSchema, { updatedCount: notifications.length });
   }
 
   async deleteNotification(request: DeleteNotificationRequest): Promise<DeleteNotificationResponse> {

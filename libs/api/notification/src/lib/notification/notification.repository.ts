@@ -230,7 +230,7 @@ export class NotificationRepository {
     });
   }
 
-  async markAsRead(id: string): Promise<RpcNotification> {
+  async markAsRead(id: string): Promise<{ notification: RpcNotification; updated: boolean }> {
     const existing = await this.prisma.notification.findUnique({
       where: { id },
     });
@@ -240,23 +240,37 @@ export class NotificationRepository {
     }
 
     if (existing.readAt) {
-      return this.toMessage(existing);
+      return { notification: this.toMessage(existing), updated: false };
     }
 
+    const readAt = new Date();
     const notification = await this.prisma.notification.update({
       where: { id },
-      data: { readAt: new Date() },
+      data: { readAt },
     });
 
-    return this.toMessage(notification);
+    return { notification: this.toMessage({ ...notification, readAt }), updated: true };
   }
 
-  async markAllAsRead(userId: string): Promise<number> {
-    const result = await this.prisma.notification.updateMany({
+  async markAllAsRead(userId: string): Promise<RpcNotification[]> {
+    const unreadNotifications = await this.prisma.notification.findMany({
       where: { userId, readAt: null },
-      data: { readAt: new Date() },
+      orderBy: { sentAt: 'desc' },
     });
-    return result.count;
+
+    if (!unreadNotifications.length) {
+      return [];
+    }
+
+    const readAt = new Date();
+    await this.prisma.notification.updateMany({
+      where: { userId, readAt: null },
+      data: { readAt },
+    });
+
+    return unreadNotifications.map((notification) =>
+      this.toMessage({ ...notification, readAt }),
+    );
   }
 
   async deleteNotification(id: string): Promise<boolean> {
