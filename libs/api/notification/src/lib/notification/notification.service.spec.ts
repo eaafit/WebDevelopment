@@ -40,8 +40,13 @@ describe('NotificationService', () => {
     markAllAsRead: jest.fn(),
     deleteNotification: jest.fn(),
   };
+  const metricsService = {
+    recordNotificationSent: jest.fn(),
+    recordNotificationUnread: jest.fn(),
+    recordNotificationError: jest.fn(),
+  };
 
-  const service = new NotificationService(repository as never);
+  const service = new NotificationService(repository as never, metricsService as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
