@@ -42,6 +42,15 @@ export class Copy implements OnInit, OnDestroy {
     return secDiff > 0 ? Math.floor(secDiff / 60) : 0;
   }
 
+  private stopTimer(): void {
+    if (this.timerId === null) {
+      return;
+    }
+
+    clearInterval(this.timerId);
+    this.timerId = null;
+  }
+
   // Метод для редиректа обратно в список при клике на свободную область
   goBackToList(): void {
     this.router.navigate(['../'], { relativeTo: this.route });
@@ -99,14 +108,17 @@ export class Copy implements OnInit, OnDestroy {
         // Интервал для проверки статуса на бэкенде и синхронизации времени
         this.timerId = setInterval(async () => {
           const currentDoc = this.doc();
-          if (!currentDoc) return clearInterval(this.timerId);
+          if (!currentDoc) {
+            this.stopTimer();
+            return;
+          }
 
           try {
             const updatedAssessment = await this.assessmentService.getAssessment(currentDoc.assessmentId);
             this.assesment.set(updatedAssessment);
             
             if (updatedAssessment.status === AssessmentStatus.COMPLETED) {
-              clearInterval(this.timerId);
+              this.stopTimer();
               return;
             }
 
@@ -127,8 +139,6 @@ export class Copy implements OnInit, OnDestroy {
 
   // Вычищаем интервал из памяти при уходе со страницы
   ngOnDestroy() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-    }
+    this.stopTimer();
   }
 }
