@@ -106,7 +106,7 @@ describe('AdminDashboard', () => {
     expect(apiMock.listAssessments).toHaveBeenCalledTimes(2);
   });
 
-  it('shows a dashboard warning and clears assessments when the api throws', async () => {
+  it('hides raw internal dashboard errors and clears assessments when the api throws', async () => {
     apiMock.listAssessments.mockRejectedValueOnce(new Error('internal error'));
 
     component.refresh();
@@ -118,7 +118,7 @@ describe('AdminDashboard', () => {
       component as unknown as { userLookupWarning: () => string | null }
     ).userLookupWarning();
     expect(loadError).toBeNull();
-    expect(warning).toBe('Dashboard metrics are temporarily unavailable. Try refreshing the page.');
+    expect(warning).toBeNull();
     const total = (component as unknown as { total: () => number }).total();
     expect(total).toBe(0);
     const loading = (component as unknown as { loading: () => boolean }).loading();

@@ -145,12 +145,12 @@ export class AdminDashboard implements OnInit {
     }
   }
 
-  private toDashboardWarning(error: unknown): string {
+  private toDashboardWarning(error: unknown): string | null {
     const message = error instanceof Error ? error.message : String(error || '');
     if (!message || message.toLowerCase().includes('internal error')) {
-      return 'Dashboard metrics are temporarily unavailable. Try refreshing the page.';
+      return null;
     }
-    return message;
+    return `Не удалось обновить метрики заявок: ${message}`;
   }
 
   private toAssessmentItem(row: AdminAssessmentRow): AssessmentItem {

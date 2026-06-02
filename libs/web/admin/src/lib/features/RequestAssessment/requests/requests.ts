@@ -241,11 +241,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
       // Параллельно: пользователи нужны для applicantName/нотариусов,
       // заявки — основной список. Без users список покажется, но имена
       // заявителей будут стабами короткого id.
-      await Promise.all([this.userApi.loadUsers(), this.loadAssessments()]);
+      await this.userApi.loadUsers().catch(() => undefined);
+      await this.loadAssessments();
       this.loadNotaries();
       this.applyFilters();
     } catch (error) {
-      this.loadError = (error as Error).message || 'Не удалось загрузить заявки';
+      this.loadError = this.toOrdersLoadError(error);
       this.assessments = [];
       this.applyFilters();
     } finally {
@@ -266,6 +267,14 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.assessments = page.items.map((row) =>
       this.toAssessmentItem(row, overrides, assignments),
     );
+  }
+
+  private toOrdersLoadError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return 'Не удалось загрузить заявки. Попробуйте обновить страницу.';
+    }
+    return message;
   }
 
   private toAssessmentItem(

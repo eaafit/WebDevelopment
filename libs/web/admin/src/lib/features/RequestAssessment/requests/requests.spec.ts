@@ -60,6 +60,32 @@ describe('RequestsComponent', () => {
     expect(component.notaryOptions.every((opt) => opt.id !== NOTARY_INACTIVE_ID)).toBe(true);
   });
 
+  it('keeps orders visible when user lookup fails during reload', async () => {
+    userMock.loadUsers.mockRejectedValueOnce(new Error('internal error'));
+
+    component.reload();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.loadError).toBeNull();
+    expect(apiMock.listAssessments).toHaveBeenCalledTimes(2);
+    expect(component.assessments).toHaveLength(3);
+    expect(component.filteredAssessments).toHaveLength(3);
+  });
+
+  it('normalizes raw internal assessment list errors for the orders page', async () => {
+    apiMock.listAssessments.mockRejectedValueOnce(new Error('internal error'));
+
+    component.reload();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.loadError).toBe('Не удалось загрузить заявки. Попробуйте обновить страницу.');
+    expect(component.assessments).toHaveLength(0);
+    expect(component.filteredAssessments).toHaveLength(0);
+    expect(fixture.nativeElement.textContent).not.toContain('internal error');
+  });
+
   it('overlays notaryId from the localStorage workaround onto loaded rows', async () => {
     localStorage.setItem(
       ADMIN_NOTARY_ASSIGNMENTS_KEY,
