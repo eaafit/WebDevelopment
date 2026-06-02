@@ -37,6 +37,7 @@ import {
 } from '@internal/prisma-client';
 import type { AssessmentQuery } from './assessment.query';
 import { randomUUID } from 'crypto';
+import type { Lead } from '@internal/prisma-client';
 
 export interface AssessmentRealEstateObjectData {
   cityId?: string;
@@ -818,23 +819,23 @@ export class AssessmentRepository {
     return map[type] ?? RpcElevatorType.UNSPECIFIED;
   }
 
-  async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<void> {
-    const startDate = new Date();
-    const plannedCompletionDate = new Date(startDate);
-    plannedCompletionDate.setDate(startDate.getDate() + 7);
+  async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<Lead> {
+  const startDate = new Date();
+  const plannedCompletionDate = new Date(startDate);
+  plannedCompletionDate.setDate(startDate.getDate() + 7);
 
-    await this.prisma.lead.create({
-      data: {
-        id: randomUUID(),
-        applicantId,
-        assessmentId,
-        startDate,
-        plannedCompletionDate,
-        createdAt: startDate,
-        updatedAt: startDate,
-      },
-    });
-  }
+  return this.prisma.lead.create({
+    data: {
+      id: randomUUID(),
+      applicantId,
+      assessmentId,
+      startDate,
+      plannedCompletionDate,
+      createdAt: startDate,
+      updatedAt: startDate,
+    },
+  });
+}
 
 }
 

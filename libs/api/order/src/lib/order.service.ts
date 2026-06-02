@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
+import { BitrixOrderPublisherService } from '@notary-portal/bitrix-orders';
 
 @Injectable()
 export class OrderService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService, private bitrixOrderPublisher: BitrixOrderPublisherService,) { }
 
   // Получение списка заказов с фильтрацией и пагинацией
   async findMany(params: {
@@ -236,6 +237,10 @@ export class OrderService {
       console.error('[OrderService] Error in mapLeadToOrder for lead id:', lead?.id, error);
       throw error;
     }
+  }
+
+  async publishOrderToBitrix(orderId: string): Promise<void> {
+    await this.bitrixOrderPublisher.publishOrder(orderId);
   }
 
   // из формата фронта в формат БД

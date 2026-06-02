@@ -73,6 +73,7 @@ import {
 } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
 import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
+import { OrderService } from '@notary-portal/order';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -110,7 +111,8 @@ export class AssessmentService {
     @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
     private readonly bitrixLeadPublisher: BitrixLeadPublisherService,
-  ) {}
+    private readonly orderService: OrderService,
+  ) { }
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
     void request;
@@ -371,11 +373,21 @@ export class AssessmentService {
               }),
           );
 
+          let leadId: string | undefined;
           try {
-            await this.assessmentRepository.createLeadFromAssessment(assessment.id, assessment.userId);
+            const lead = await this.assessmentRepository.createLeadFromAssessment(assessment.id, assessment.userId);
+            leadId = lead.id;
             this.logger.log(`Created lead for assessment ${assessment.id}`);
           } catch (error) {
             this.logger.warn(`Failed to create lead for assessment ${assessment.id}: ${errorMessage(error)}`);
+          }
+
+          // Публикация заказа в Bitrix (только если lead успешно создан)
+          if (leadId) {
+            this.orderService.publishOrderToBitrix(leadId).catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : String(error);
+              this.logger.warn(`Bitrix order publish failed for order=${leadId}: ${message}`);
+            });
           }
 
           const snapshot = await this.runInSpan(

@@ -7,9 +7,10 @@ import { AssessmentRepository } from './assessment.repository';
 import { AssessmentService } from './assessment.service';
 import { AssessmentRpcService } from './assessment-rpc.service';
 import { fiasProviderFactory } from '../fias/fias-provider.factory';
+import { OrderModule } from '@notary-portal/order';
 
 @Module({
-  imports: [PrismaModule, AuditModule, NotificationModule, BitrixLeadsModule],
+  imports: [PrismaModule, AuditModule, NotificationModule, BitrixLeadsModule, OrderModule],
   providers: [AssessmentRepository, AssessmentService, AssessmentRpcService, fiasProviderFactory],
   exports: [AssessmentRpcService],
 })
