@@ -26,6 +26,16 @@
     <button type="button" class="admin-btn admin-btn--ghost" (click)="refresh()">Повторить</button>
   </section>
   }
+  @if (userLookupWarning() && !loadError()) {
+  <section class="admin-toolbar dashboard-warning">
+    <div class="admin-toolbar__copy">
+      <p>{{ userLookupWarning() }}</p>
+      <small class="admin-toolbar__status">
+        Metrics and applications are loaded; applicant names can fall back to short IDs.
+      </small>
+    </div>
+  </section>
+  }
 
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">

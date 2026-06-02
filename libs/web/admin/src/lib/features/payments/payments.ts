@@ -61,6 +61,7 @@ export class Payments implements OnInit, OnDestroy {
   loading = true;
   exporting = false;
   loadError: string | null = null;
+  exportError: string | null = null;
 
   searchTerm = '';
   statusFilter: '' | PaymentStatus = '';
@@ -462,15 +463,18 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   exportToCsv(): void {
+    const exportPayments = this.filteredPayments;
     this.logInfo('payment.admin.export_csv_started', {
-      rows: this.filteredPayments.length,
+      rows: exportPayments.length,
       page: this.currentPage,
     });
     this.loadError = null;
+    this.exportError = null;
 
-    const exportPayments = this.filteredPayments;
     if (!exportPayments.length) {
       this.logWarn('payment.admin.export_csv_skipped_empty');
+      this.exportError = 'No payments in current selection for CSV export';
+      this.requestViewRefresh();
       return;
     }
 
@@ -482,14 +486,12 @@ export class Payments implements OnInit, OnDestroy {
       });
     } catch (err) {
       this.logError('payment.admin.export_csv_failed', err);
-      this.loadError =
-        err instanceof Error ? err.message : 'Не удалось экспортировать платежи в CSV';
+      this.exportError = err instanceof Error ? err.message : 'Failed to export payments as CSV';
     } finally {
       this.exporting = false;
       this.requestViewRefresh();
     }
   }
-
   goToApplication(assessmentId: string): void {
     this.logInfo('payment.admin.navigate_application', { assessmentId });
     this.router.navigate(['/admin', 'applications'], {
@@ -920,6 +922,10 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   private downloadCsv(csvContent: string): void {
+    if (!csvContent.trim()) {
+      throw new Error('CSV file is empty');
+    }
+
     const blob = new Blob([`\uFEFF${csvContent}`], {
       type: 'text/csv;charset=utf-8',
     });
@@ -927,12 +933,22 @@ export class Payments implements OnInit, OnDestroy {
     const link = document.createElement('a');
 
     link.href = url;
-    link.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = this.buildCsvFileName();
+    link.rel = 'noopener';
     link.style.display = 'none';
     document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+    try {
+      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    } finally {
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+  }
+
+  private buildCsvFileName(): string {
+    const stamp = new Date().toISOString().replaceAll(':', '-').slice(0, 19);
+    return `payments-${stamp}.csv`;
   }
 }
 

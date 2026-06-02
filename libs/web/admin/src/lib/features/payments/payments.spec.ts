@@ -24,6 +24,7 @@ describe('Payments', () => {
   let listPaymentsMock: jest.Mock;
   let getAllPaymentsMock: jest.Mock;
   let anchorClickSpy: jest.SpyInstance;
+  let anchorDispatchSpy: jest.SpyInstance;
 
   function createMockProviders(
     paymentsStream: BehaviorSubject<Payment[] | null>,
@@ -104,6 +105,9 @@ describe('Payments', () => {
     urlCtor.createObjectURL = jest.fn(() => 'blob:http://localhost/fake-url');
     urlCtor.revokeObjectURL = jest.fn();
     anchorClickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+    anchorDispatchSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, 'dispatchEvent')
+      .mockImplementation(() => true);
 
     await TestBed.configureTestingModule({
       imports: [Payments],
@@ -125,6 +129,7 @@ describe('Payments', () => {
 
   afterEach(() => {
     anchorClickSpy.mockRestore();
+    anchorDispatchSpy.mockRestore();
     paymentsSubject.complete();
   });
 
@@ -356,7 +361,7 @@ describe('Payments', () => {
 
     expect(getAllPaymentsMock).not.toHaveBeenCalled();
     expect(URL.createObjectURL).toHaveBeenCalled();
-    expect(anchorClickSpy).toHaveBeenCalled();
+    expect(anchorDispatchSpy).toHaveBeenCalledWith(expect.any(MouseEvent));
     expect(logger.info).toHaveBeenCalledWith(
       'payment.admin.export_csv_started',
       expect.objectContaining({
@@ -369,6 +374,41 @@ describe('Payments', () => {
       expect.objectContaining({
         area: 'admin_payments_list',
         rows: MOCK_PAYMENTS.length,
+      }),
+    );
+  });
+
+  it('should show csv export error when current selection is empty', () => {
+    component.payments = [];
+
+    component.exportToCsv();
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(anchorDispatchSpy).not.toHaveBeenCalled();
+    expect(component.exportError).toBe('No payments in current selection for CSV export');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.admin.export_csv_skipped_empty',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should keep the page interactive when csv download fails', () => {
+    const urlCtor = globalThis.URL as typeof URL & {
+      createObjectURL?: jest.Mock;
+    };
+    urlCtor.createObjectURL?.mockImplementationOnce(() => {
+      throw new Error('Blob URL blocked');
+    });
+
+    component.exportToCsv();
+
+    expect(component.exporting).toBe(false);
+    expect(component.exportError).toBe('Blob URL blocked');
+    expect(logger.error).toHaveBeenCalledWith(
+      'payment.admin.export_csv_failed',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        error: expect.any(Error),
       }),
     );
   });

@@ -18,7 +18,7 @@
         type="button"
         class="admin-btn admin-btn--primary"
         (click)="exportToCsv()"
-        [disabled]="loading || exporting || !filteredPayments.length">
+        [disabled]="loading || exporting">
         Экспорт CSV
       </button>
       <button type="button" class="admin-btn admin-btn--secondary" (click)="goToCreateForm()">+ Создать платёж</button>
@@ -37,6 +37,9 @@
       </small>
       @if (loadError) {
       <small class="admin-toolbar__status">{{ loadError }}</small>
+      }
+      @if (exportError) {
+      <small class="admin-toolbar__status payments-export-error">{{ exportError }}</small>
       }
     </div>
     <span class="admin-toolbar__meta">Всего платежей: {{ payments.length }}</span>
