@@ -26,30 +26,8 @@
     </div>
   </header>
 
-  <section class="payments-export-strip" aria-label="CSV export status">
-    <div class="payments-export-strip__item payments-export-strip__item--ready">
-      <span class="payments-export-strip__dot"></span>
-      <strong>{{ filteredPayments.length }}</strong>
-      <small>rows ready</small>
-    </div>
-    <div class="payments-export-strip__item payments-export-strip__item--page">
-      <span class="payments-export-strip__dot"></span>
-      <strong>{{ currentPage }}</strong>
-      <small>active page</small>
-    </div>
-    <div class="payments-export-strip__item payments-export-strip__item--state">
-      <span class="payments-export-strip__dot"></span>
-      <strong>{{ exporting ? 'Exporting' : 'Idle' }}</strong>
-      <small>csv state</small>
-    </div>
-  </section>
-
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
-      <p>
-        Экспорт выгружает только текущую отфильтрованную выборку. Пагинация, фильтры по колонкам и действия в таблице
-        работают как прежде.
-      </p>
       <small class="admin-toolbar__status">
         Найдено: {{ filteredPayments.length }} · Страница {{ currentPage }} из {{ totalPages }}
       </small>

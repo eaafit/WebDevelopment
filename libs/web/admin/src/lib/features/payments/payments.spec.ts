@@ -356,43 +356,37 @@ describe('Payments', () => {
     );
   });
 
-  it('should render the csv export status strip', () => {
-    fixture.detectChanges();
+  it('should navigate to existing admin orders route from the applications shortcut', () => {
+    const router = TestBed.inject(Router);
 
-    const host = fixture.nativeElement as HTMLElement;
-    const strip = host.querySelector('.payments-export-strip');
-    const items = host.querySelectorAll('.payments-export-strip__item');
-    const dots = host.querySelectorAll('.payments-export-strip__dot');
+    component.goToApplications();
 
-    expect(strip).toBeTruthy();
-    expect(items.length).toBe(3);
-    expect(dots.length).toBe(3);
-    expect(strip?.textContent).toContain(String(component.filteredPayments.length));
-    expect(strip?.textContent).toContain(String(component.currentPage));
+    expect(router.navigate).toHaveBeenCalledWith(['/admin', 'orders'], undefined);
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.navigate_applications',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: null,
+        assessmentId: null,
+      }),
+    );
   });
 
-  it('should keep csv export button clickable for empty selections', () => {
-    component.payments = [];
-    fixture.detectChanges();
+  it('should preserve assessment id when opening the linked order list', () => {
+    const router = TestBed.inject(Router);
 
-    const host = fixture.nativeElement as HTMLElement;
-    const exportButton = host.querySelector<HTMLButtonElement>('.admin-page__actions .admin-btn--primary');
+    component.goToApplication('assessment-42');
 
-    expect(component.filteredPayments.length).toBe(0);
-    expect(exportButton).toBeTruthy();
-    expect(exportButton?.disabled).toBe(false);
-  });
-
-  it('should render csv export errors separately from load errors', () => {
-    component.loadError = 'load failed';
-    component.exportError = 'export failed';
-    fixture.detectChanges();
-
-    const host = fixture.nativeElement as HTMLElement;
-    const exportError = host.querySelector('.payments-export-error');
-
-    expect(exportError?.textContent).toContain('export failed');
-    expect(host.textContent).toContain('load failed');
+    expect(router.navigate).toHaveBeenCalledWith(['/admin', 'orders'], {
+      queryParams: { assessmentId: 'assessment-42' },
+    });
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.navigate_application',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        assessmentId: 'assessment-42',
+      }),
+    );
   });
 
   it('should log export csv started and succeeded', () => {

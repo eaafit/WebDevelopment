@@ -114,20 +114,18 @@ export class AdminDashboard implements OnInit {
     this.loading.set(true);
     this.loadError.set(null);
     this.userLookupWarning.set(null);
+    await this.loadUsersForDisplay();
+
     try {
-      // userApi.loadUsers() обязателен до маппинга, чтобы applicantName
-      // в виджете «Последние заявки» был именем, а не UUID-стабом.
-      await this.loadUsersForDisplay();
       await this.loadAssessments();
       this.updatedAt.set(new Date());
     } catch (error) {
-      this.loadError.set((error as Error).message || 'Не удалось загрузить данные дашборда');
+      this.userLookupWarning.set(this.toDashboardWarning(error));
       this.assessments.set([]);
     } finally {
       this.loading.set(false);
     }
   }
-
   private async loadAssessments(): Promise<void> {
     const page = await this.assessmentApi.listAssessments({
       page: 1,
@@ -145,6 +143,14 @@ export class AdminDashboard implements OnInit {
           'Applicant names are temporarily unavailable',
       );
     }
+  }
+
+  private toDashboardWarning(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return 'Dashboard metrics are temporarily unavailable. Try refreshing the page.';
+    }
+    return message;
   }
 
   private toAssessmentItem(row: AdminAssessmentRow): AssessmentItem {

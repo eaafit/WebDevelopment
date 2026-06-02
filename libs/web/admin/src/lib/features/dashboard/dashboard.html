@@ -12,20 +12,6 @@
         Обновить данные
       </button>
     </div>
-    <div class="dashboard-hero-visual" aria-hidden="true">
-      <span class="dashboard-hero-visual__grid"></span>
-      <span class="dashboard-hero-visual__ring dashboard-hero-visual__ring--primary"></span>
-      <span class="dashboard-hero-visual__ring dashboard-hero-visual__ring--secondary"></span>
-      <span class="dashboard-hero-visual__line dashboard-hero-visual__line--top"></span>
-      <span class="dashboard-hero-visual__line dashboard-hero-visual__line--middle"></span>
-      <span class="dashboard-hero-visual__line dashboard-hero-visual__line--bottom"></span>
-      <span class="dashboard-hero-visual__node dashboard-hero-visual__node--one"></span>
-      <span class="dashboard-hero-visual__node dashboard-hero-visual__node--two"></span>
-      <span class="dashboard-hero-visual__node dashboard-hero-visual__node--three"></span>
-      <span class="dashboard-hero-visual__node dashboard-hero-visual__node--four"></span>
-      <span class="dashboard-hero-visual__pulse dashboard-hero-visual__pulse--one"></span>
-      <span class="dashboard-hero-visual__pulse dashboard-hero-visual__pulse--two"></span>
-    </div>
   </header>
 
   @if (loading()) {
@@ -64,10 +50,7 @@
     <article class="admin-card">
       <div class="admin-card__body">
         <p class="admin-page__eyebrow">{{ m.label }}</p>
-        <strong class="dashboard-stat__value" [attr.data-metric]="m.key">{{ m.value }}</strong>
-        <span class="dashboard-stat__rail" aria-hidden="true">
-          <span class="dashboard-stat__rail-fill"></span>
-        </span>
+        <strong class="dashboard-stat__value">{{ m.value }}</strong>
         <p>{{ m.hint }}</p>
       </div>
     </article>

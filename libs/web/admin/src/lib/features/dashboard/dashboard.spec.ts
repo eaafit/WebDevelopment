@@ -78,36 +78,6 @@ describe('AdminDashboard', () => {
     expect(userMock.getUserName).toHaveBeenCalledWith(APPLICANT_ID);
   });
 
-  it('renders the animated dashboard hero layer', () => {
-    const host = fixture.nativeElement as HTMLElement;
-    const visual = host.querySelector('.dashboard-hero-visual');
-    const rings = host.querySelectorAll('.dashboard-hero-visual__ring');
-    const nodes = host.querySelectorAll('.dashboard-hero-visual__node');
-    const pulses = host.querySelectorAll('.dashboard-hero-visual__pulse');
-
-    expect(visual).toBeTruthy();
-    expect(rings.length).toBe(2);
-    expect(nodes.length).toBe(4);
-    expect(pulses.length).toBe(2);
-  });
-
-  it('renders metric rails for all summary cards', () => {
-    const host = fixture.nativeElement as HTMLElement;
-    const metricValues = host.querySelectorAll('.dashboard-stat__value');
-    const rails = host.querySelectorAll('.dashboard-stat__rail');
-    const fills = host.querySelectorAll('.dashboard-stat__rail-fill');
-
-    expect(metricValues.length).toBe(4);
-    expect(rails.length).toBe(4);
-    expect(fills.length).toBe(4);
-    expect(Array.from(metricValues).map((node) => node.getAttribute('data-metric'))).toEqual([
-      'total',
-      'inProgress',
-      'completed',
-      'cancelled',
-    ]);
-  });
-
   it('refresh re-fetches assessments and reloads users', async () => {
     component.refresh();
     await fixture.whenStable();
@@ -136,15 +106,19 @@ describe('AdminDashboard', () => {
     expect(apiMock.listAssessments).toHaveBeenCalledTimes(2);
   });
 
-  it('populates loadError and clears assessments when the api throws', async () => {
-    apiMock.listAssessments.mockRejectedValueOnce(new Error('Бэкенд недоступен'));
+  it('shows a dashboard warning and clears assessments when the api throws', async () => {
+    apiMock.listAssessments.mockRejectedValueOnce(new Error('internal error'));
 
     component.refresh();
     await fixture.whenStable();
     fixture.detectChanges();
 
     const loadError = (component as unknown as { loadError: () => string | null }).loadError();
-    expect(loadError).toBe('Бэкенд недоступен');
+    const warning = (
+      component as unknown as { userLookupWarning: () => string | null }
+    ).userLookupWarning();
+    expect(loadError).toBeNull();
+    expect(warning).toBe('Dashboard metrics are temporarily unavailable. Try refreshing the page.');
     const total = (component as unknown as { total: () => number }).total();
     expect(total).toBe(0);
     const loading = (component as unknown as { loading: () => boolean }).loading();

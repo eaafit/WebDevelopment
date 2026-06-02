@@ -459,7 +459,7 @@ export class Payments implements OnInit, OnDestroy {
       paymentId: payment ? String(payment.id) : null,
       assessmentId: payment?.assessmentId ?? null,
     });
-    this.router.navigate(['/admin', 'applications'], extras);
+    this.router.navigate(['/admin', 'orders'], extras);
   }
 
   exportToCsv(): void {
@@ -494,7 +494,7 @@ export class Payments implements OnInit, OnDestroy {
   }
   goToApplication(assessmentId: string): void {
     this.logInfo('payment.admin.navigate_application', { assessmentId });
-    this.router.navigate(['/admin', 'applications'], {
+    this.router.navigate(['/admin', 'orders'], {
       queryParams: { assessmentId },
     });
   }
@@ -925,6 +925,9 @@ export class Payments implements OnInit, OnDestroy {
     if (!csvContent.trim()) {
       throw new Error('CSV file is empty');
     }
+    if (typeof URL.createObjectURL !== 'function') {
+      throw new Error('CSV download is not supported in this browser');
+    }
 
     const blob = new Blob([`\uFEFF${csvContent}`], {
       type: 'text/csv;charset=utf-8',
@@ -936,10 +939,14 @@ export class Payments implements OnInit, OnDestroy {
     link.download = this.buildCsvFileName();
     link.rel = 'noopener';
     link.style.display = 'none';
-    document.body.append(link);
+    document.body.appendChild(link);
 
     try {
-      link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+      const dispatched = link.dispatchEvent(event);
+      if (!dispatched) {
+        link.click();
+      }
     } finally {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
