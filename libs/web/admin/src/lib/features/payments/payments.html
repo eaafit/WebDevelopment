@@ -88,16 +88,27 @@
     <div class="payments-table-shell">
       <div class="table-responsive">
         <table class="payments-table">
+          <colgroup>
+            @for (column of headerColumns; track column.key) {
+            <col [style.width.px]="getColumnWidth(column.key)" />
+            }
+          </colgroup>
           <thead>
             <tr>
               @for (column of headerColumns; track column.key) {
-              <th class="filterable no-wrap-col">
+              <th class="filterable no-wrap-col" [style.width.px]="getColumnWidth(column.key)">
                 <div class="header-cell">
                   <span>{{ column.label }}</span>
                   <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
                     ▼
                   </button>
                 </div>
+                <button
+                  type="button"
+                  class="column-resize-handle"
+                  (mousedown)="startColumnResize(column.key, $event)"
+                  (click)="$event.stopPropagation()"
+                  aria-label="Изменить ширину столбца"></button>
                 @if (activeFilterColumn === column.key) {
                 <div
                   class="column-filter-menu"
@@ -233,7 +244,7 @@
             </tr>
             } } @else {
             <tr>
-              <td class="payments-table__empty" colspan="12">
+              <td class="payments-table__empty" [attr.colspan]="headerColumns.length">
                 @if (loadError) { {{ loadError }} } @else { По текущим фильтрам платежи не найдены. Попробуйте изменить
                 параметры поиска. }
               </td>

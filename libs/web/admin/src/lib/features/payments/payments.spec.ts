@@ -164,6 +164,25 @@ describe('Payments', () => {
     expect(component.loading).toBe(false);
   });
 
+  it('uses compact default table widths and lets admins resize columns', () => {
+    expect(component.getColumnWidth('id')).toBe(68);
+
+    component.startColumnResize(
+      'id',
+      new MouseEvent('mousedown', {
+        clientX: 100,
+      }),
+    );
+    component.onDocumentMouseMove(
+      new MouseEvent('mousemove', {
+        clientX: 132,
+      }),
+    );
+    component.onDocumentMouseUp();
+
+    expect(component.getColumnWidth('id')).toBe(100);
+  });
+
   it('should log error when payments stream fails', async () => {
     const failLogger = {
       info: jest.fn(),

@@ -40,6 +40,11 @@ type FilterColumn =
   | 'actions';
 
 type PaginationItem = number | 'ellipsis';
+type ColumnResizeState = {
+  column: FilterColumn;
+  startX: number;
+  startWidth: number;
+};
 
 @Component({
   selector: 'lib-payments',
@@ -79,6 +84,36 @@ export class Payments implements OnInit, OnDestroy {
     { key: 'status', label: 'Статус' },
     { key: 'actions', label: 'Действия' },
   ];
+  columnWidths: Record<FilterColumn, number> = {
+    id: 68,
+    paymentDate: 92,
+    payer: 136,
+    type: 96,
+    amount: 96,
+    fee: 84,
+    paymentMethod: 96,
+    transactionId: 128,
+    attachment: 70,
+    application: 96,
+    status: 108,
+    actions: 126,
+  };
+  private readonly minColumnWidths: Partial<Record<FilterColumn, number>> = {
+    id: 52,
+    paymentDate: 78,
+    payer: 110,
+    type: 82,
+    amount: 82,
+    fee: 70,
+    paymentMethod: 82,
+    transactionId: 104,
+    attachment: 58,
+    application: 78,
+    status: 94,
+    actions: 108,
+  };
+  private readonly maxColumnWidth = 320;
+  private columnResizeState: ColumnResizeState | null = null;
 
   activeFilterColumn: FilterColumn | null = null;
   columnSelectedValues: Record<FilterColumn, string[]> = {
@@ -307,6 +342,41 @@ export class Payments implements OnInit, OnDestroy {
   onFiltersChanged(): void {
     this.currentPage = 1;
     this.schedulePaymentsLoad();
+  }
+
+  getColumnWidth(column: FilterColumn): number {
+    return this.columnWidths[column];
+  }
+
+  startColumnResize(column: FilterColumn, event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.closeColumnFilter();
+    this.columnResizeState = {
+      column,
+      startX: event.clientX,
+      startWidth: this.getColumnWidth(column),
+    };
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  onDocumentMouseMove(event: MouseEvent): void {
+    if (!this.columnResizeState) {
+      return;
+    }
+
+    const { column, startX, startWidth } = this.columnResizeState;
+    const nextWidth = startWidth + event.clientX - startX;
+    this.columnWidths = {
+      ...this.columnWidths,
+      [column]: this.clampColumnWidth(column, nextWidth),
+    };
+    this.requestViewRefresh();
+  }
+
+  @HostListener('document:mouseup')
+  onDocumentMouseUp(): void {
+    this.columnResizeState = null;
   }
 
   private resetPayment(): Payment {
@@ -923,6 +993,11 @@ export class Payments implements OnInit, OnDestroy {
 
   private downloadCsv(csvContent: string): void {
     downloadCsvFile(this.buildCsvFileName(), csvContent);
+  }
+
+  private clampColumnWidth(column: FilterColumn, width: number): number {
+    const minWidth = this.minColumnWidths[column] ?? 80;
+    return Math.min(this.maxColumnWidth, Math.max(minWidth, Math.round(width)));
   }
 
   private buildCsvFileName(): string {
