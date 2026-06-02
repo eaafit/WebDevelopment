@@ -78,6 +78,36 @@ describe('AdminDashboard', () => {
     expect(userMock.getUserName).toHaveBeenCalledWith(APPLICANT_ID);
   });
 
+  it('renders the animated dashboard hero layer', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    const visual = host.querySelector('.dashboard-hero-visual');
+    const rings = host.querySelectorAll('.dashboard-hero-visual__ring');
+    const nodes = host.querySelectorAll('.dashboard-hero-visual__node');
+    const pulses = host.querySelectorAll('.dashboard-hero-visual__pulse');
+
+    expect(visual).toBeTruthy();
+    expect(rings.length).toBe(2);
+    expect(nodes.length).toBe(4);
+    expect(pulses.length).toBe(2);
+  });
+
+  it('renders metric rails for all summary cards', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    const metricValues = host.querySelectorAll('.dashboard-stat__value');
+    const rails = host.querySelectorAll('.dashboard-stat__rail');
+    const fills = host.querySelectorAll('.dashboard-stat__rail-fill');
+
+    expect(metricValues.length).toBe(4);
+    expect(rails.length).toBe(4);
+    expect(fills.length).toBe(4);
+    expect(Array.from(metricValues).map((node) => node.getAttribute('data-metric'))).toEqual([
+      'total',
+      'inProgress',
+      'completed',
+      'cancelled',
+    ]);
+  });
+
   it('refresh re-fetches assessments and reloads users', async () => {
     component.refresh();
     await fixture.whenStable();

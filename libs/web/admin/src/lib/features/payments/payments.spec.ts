@@ -356,6 +356,45 @@ describe('Payments', () => {
     );
   });
 
+  it('should render the csv export status strip', () => {
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const strip = host.querySelector('.payments-export-strip');
+    const items = host.querySelectorAll('.payments-export-strip__item');
+    const dots = host.querySelectorAll('.payments-export-strip__dot');
+
+    expect(strip).toBeTruthy();
+    expect(items.length).toBe(3);
+    expect(dots.length).toBe(3);
+    expect(strip?.textContent).toContain(String(component.filteredPayments.length));
+    expect(strip?.textContent).toContain(String(component.currentPage));
+  });
+
+  it('should keep csv export button clickable for empty selections', () => {
+    component.payments = [];
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const exportButton = host.querySelector<HTMLButtonElement>('.admin-page__actions .admin-btn--primary');
+
+    expect(component.filteredPayments.length).toBe(0);
+    expect(exportButton).toBeTruthy();
+    expect(exportButton?.disabled).toBe(false);
+  });
+
+  it('should render csv export errors separately from load errors', () => {
+    component.loadError = 'load failed';
+    component.exportError = 'export failed';
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const exportError = host.querySelector('.payments-export-error');
+
+    expect(exportError?.textContent).toContain('export failed');
+    expect(host.textContent).toContain('load failed');
+  });
+
   it('should log export csv started and succeeded', () => {
     component.exportToCsv();
 
