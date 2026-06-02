@@ -7,7 +7,7 @@ import {
   PaymentStatus as RpcPaymentStatus,
   PaymentType as RpcPaymentType,
 } from '@notary-portal/api-contracts';
-import { buildRpcBaseUrl, TokenStore, WebLoggerService } from '@notary-portal/ui';
+import { buildRpcBaseUrl, downloadCsvFile, TokenStore, WebLoggerService } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
 import {
   PAYMENT_METHOD_LABELS,
@@ -922,35 +922,7 @@ export class Payments implements OnInit, OnDestroy {
   }
 
   private downloadCsv(csvContent: string): void {
-    if (!csvContent.trim()) {
-      throw new Error('CSV file is empty');
-    }
-    if (typeof URL.createObjectURL !== 'function') {
-      throw new Error('CSV download is not supported in this browser');
-    }
-
-    const blob = new Blob([`\uFEFF${csvContent}`], {
-      type: 'text/csv;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-
-    link.href = url;
-    link.download = this.buildCsvFileName();
-    link.rel = 'noopener';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-
-    try {
-      const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-      const dispatched = link.dispatchEvent(event);
-      if (!dispatched) {
-        link.click();
-      }
-    } finally {
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    }
+    downloadCsvFile(this.buildCsvFileName(), csvContent);
   }
 
   private buildCsvFileName(): string {

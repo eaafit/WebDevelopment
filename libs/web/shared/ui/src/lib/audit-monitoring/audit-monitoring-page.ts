@@ -11,6 +11,7 @@ import type {
   AuditMonitoringMode,
 } from './audit-monitoring.models';
 import { WebLoggerService } from '../logging/web-logger.service';
+import { downloadCsvFile } from '../download/text-download';
 
 const PAGE_SIZE = 20;
 const CSV_BATCH_SIZE = 200;
@@ -229,7 +230,7 @@ export class AuditMonitoringPage {
     try {
       const events = await firstValueFrom(this.api.exportAuditEvents(this.appliedFilters()));
       const csv = await buildCsv(events);
-      downloadCsv(csv, `audit-events-${new Date().toISOString().slice(0, 10)}.csv`);
+      downloadCsvFile(`audit-events-${new Date().toISOString().slice(0, 10)}.csv`, csv);
       this.logger.info('Audit CSV export completed', {
         event: 'audit_csv_export_completed',
         exportedRows: events.length,
@@ -263,35 +264,6 @@ export class AuditMonitoringPage {
 
   trackEvent(index: number, event: AuditMonitoringEvent): string {
     return event.id || `${index}`;
-  }
-}
-
-function downloadCsv(csv: string, fileName: string): void {
-  if (!csv.trim()) {
-    throw new Error('CSV file is empty');
-  }
-  if (typeof URL.createObjectURL !== 'function') {
-    throw new Error('CSV download is not supported in this browser');
-  }
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.rel = 'noopener';
-  link.style.display = 'none';
-  document.body.appendChild(link);
-
-  try {
-    const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
-    const dispatched = link.dispatchEvent(event);
-    if (!dispatched) {
-      link.click();
-    }
-  } finally {
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 }
 
