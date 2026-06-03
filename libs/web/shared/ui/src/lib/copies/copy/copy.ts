@@ -27,6 +27,28 @@ export class Copy implements OnInit, OnDestroy {
   hasError = signal<boolean>(false);
   private timerId: any = null;
 
+  // Имя файла без встроенного комментария
+  displayFileName = computed(() => {
+    const rawName = this.doc()?.fileName || '';
+    if (!rawName.includes('__skip__')) return rawName;
+    
+    const parts = rawName.split('__skip__');
+    const extIndex = parts[1].lastIndexOf('.');
+    const ext = extIndex !== -1 ? parts[1].substring(extIndex) : '';
+    return parts[0] + ext;
+  });
+
+  // Вырезанный комментарий
+  extractedComment = computed(() => {
+    const rawName = this.doc()?.fileName || '';
+    if (!rawName.includes('__skip__')) return '';
+    
+    const parts = rawName.split('__skip__');
+    const commentWithExt = parts[1];
+    const extIndex = commentWithExt.lastIndexOf('.');
+    return extIndex !== -1 ? commentWithExt.substring(0, extIndex) : commentWithExt;
+  });
+  
   createDate = computed(() => {
     const currentDoc = this.doc();
     if (currentDoc === null || !currentDoc.uploadedAt?.seconds) {

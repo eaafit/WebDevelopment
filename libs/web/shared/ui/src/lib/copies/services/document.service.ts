@@ -12,7 +12,6 @@ export type Document = {
   uploadedAt?: { seconds: bigint, nanos: number };
   uploadedById: string;
   downloadUrl: string;
-  comment?: string;
 };
 export type PageInfo = {
   totalItems: number,

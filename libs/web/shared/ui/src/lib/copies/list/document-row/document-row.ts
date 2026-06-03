@@ -17,6 +17,26 @@ export class DocumentRow {
 
   document = input.required<Document>()
   status = input<number | undefined>();
+  displayFileName = computed(() => {
+    const rawName = this.document().fileName || '';
+    if (!rawName.includes('__skip__')) return rawName;
+    
+    const parts = rawName.split('__skip__');
+    const extIndex = parts[1].lastIndexOf('.');
+    const ext = extIndex !== -1 ? parts[1].substring(extIndex) : '';
+    return parts[0] + ext;
+  });
+
+  // 2. Извлеченный комментарий
+  extractedComment = computed(() => {
+    const rawName = this.document().fileName || '';
+    if (!rawName.includes('__skip__')) return '';
+    
+    const parts = rawName.split('__skip__');
+    const commentWithExt = parts[1];
+    const extIndex = commentWithExt.lastIndexOf('.');
+    return extIndex !== -1 ? commentWithExt.substring(0, extIndex) : commentWithExt;
+  });
 
   private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',

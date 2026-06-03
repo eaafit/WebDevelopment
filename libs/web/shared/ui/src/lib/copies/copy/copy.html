@@ -13,29 +13,28 @@
     <div class="info-list">
       <div class="info-item">
         <span class="info-label">Имя файла</span>
-        <span class="info-value">{{ doc()?.fileName || '—' }}</span>
+        <span class="info-value">{{ displayFileName() || '—' }}</span>
       </div>
+      
       <div class="info-item">
         <span class="info-label">Тип документа</span>
         <span class="info-value">{{ doc()?.fileType || '—' }}</span>
       </div>
+      
       <div class="info-item">
         <span class="info-label">Версия файла</span>
         <span class="info-value">v{{ doc()?.version || '1' }}</span>
       </div>
+      
       <div class="info-item">
         <span class="info-label">Связанная заявка (ID)</span>
         <span class="info-value">{{ doc()?.assessmentId || '—' }}</span>
       </div>
-      <div class="info-item">
-        <span class="info-label">Дата создания</span>
-        <span class="info-value">{{ createDate() }}</span>
-      </div>
 
       <div class="info-item comment-item">
         <span class="info-label">Комментарий к запросу</span>
-        @if ($any(doc())?.comment) {
-          <p class="comment-text">{{ $any(doc())?.comment }}</p>
+        @if (extractedComment()) {
+          <p class="comment-text">{{ extractedComment() }}</p>
         } @else {
           <span class="no-comment">—</span>
         }

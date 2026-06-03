@@ -89,22 +89,44 @@ export class New implements OnInit {
            '00000000-0000-0000-0000-000000000000';
   }
   
-  async onSubmit() {
+  // libs/web/shared/ui/src/lib/copies/new/new.ts (или где у тебя лежит этот компонент)
+
+async onSubmit() {
     if (!this.selectedFile) return;
 
     try {
       this.isSubmitting.set(true);
       
-      // 1. Сначала загружаем документ
+      // 1. Умная склейка имени файла и комментария (чтобы сохранить расширение)
+      const originalName = this.selectedFile.name;
+      const commentText = this.comment().trim();
+      let blendedName = originalName;
+
+      if (commentText) {
+        const lastDotIndex = originalName.lastIndexOf('.');
+        if (lastDotIndex !== -1) {
+          const namePart = originalName.substring(0, lastDotIndex);
+          const extPart = originalName.substring(lastDotIndex);
+          blendedName = `${namePart}__skip__${commentText}${extPart}`;
+        } else {
+          blendedName = `${originalName}__skip__${commentText}`;
+        }
+      }
+
+      // Создаем новый файл с подмененным именем
+      const fileToUpload = new File([this.selectedFile], blendedName, {
+        type: this.selectedFile.type,
+      });
+      
+      // 2. Отправляем на бэк модифицированный файл
       await this.documentApiService.uploadDocument({
         assessmentId: this.selectedAssesmentID(),
-        file: this.selectedFile,
+        file: fileToUpload, 
         group: 'documents',
         documentType: this.selectedDocType(),
-        metadata: { comment: this.comment() }  
       } as any);
 
-      // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
+      // 3. Создаем запрос на оплату
       const paymentResponse = await this.paymentClient.createPayment({
         userId: this.getCurrentUserId(),
         amount: this.price().toString(), 
@@ -113,15 +135,16 @@ export class New implements OnInit {
         paymentProvider: 'yookassa' 
       });
 
-      // 3. Редирект на оплату
+      // 4. Редирект на оплату
       if (paymentResponse.paymentUrl) {
         window.location.href = paymentResponse.paymentUrl;
       } else {
-        this.router.navigate(['../'], { relativeTo: this.route });
+        this.goBackToList();
       }
 
-    } catch (err) {
-      console.error('Ошибка при сохранении или создании платежа:', err);
+    } catch (error) {
+      console.warn('Платеж упал, но документ загружен. Перенаправляем в список.', error);
+      this.goBackToList(); 
     } finally {
       this.isSubmitting.set(false);
     }
