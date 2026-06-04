@@ -1,10 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { BitrixOrderPublisherService } from '@notary-portal/bitrix-orders';
+import { AuditService } from '@internal/audit';
+import { NotificationService } from '@internal/notification';
+import { Role as PrismaRole } from '@internal/prisma-client';
+import type { Lead } from '@internal/prisma-client';
+import { NotificationCategory as RpcNotificationCategory, NotificationType as RpcNotificationType } from '@notary-portal/api-contracts';
+import { getCurrentUser } from '@internal/auth-shared';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class OrderService {
-  constructor(private prisma: PrismaService, private bitrixOrderPublisher: BitrixOrderPublisherService,) { }
+  constructor(
+    private prisma: PrismaService,
+    private bitrixOrderPublisher: BitrixOrderPublisherService,
+    private auditService: AuditService,
+    private notificationService: NotificationService,
+  ) { }
 
   // Получение списка заказов с фильтрацией и пагинацией
   async findMany(params: {
@@ -154,6 +166,8 @@ export class OrderService {
         updatedLead.assessment.status = 'Verified';
       }
 
+      await this.recordOrderTaken(updatedLead, notaryId);
+
       return this.mapLeadToOrder(updatedLead);
     });
   }
@@ -241,6 +255,189 @@ export class OrderService {
 
   async publishOrderToBitrix(orderId: string): Promise<void> {
     await this.bitrixOrderPublisher.publishOrder(orderId);
+  }
+
+  private async recordOrderCreated(lead: Lead): Promise<void> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: lead.assessmentId },
+      select: { address: true },
+    });
+    const shortId = lead.id.length > 8 ? `#${lead.id.slice(0, 8)}` : `#${lead.id}`;
+    const address = assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: lead.applicantId, // или текущий пользователь (getCurrentUser)
+      eventType: 'order.created',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Создан заказ',
+      actionContext: `Заказ ${shortId} создан на основе заявки`,
+      targetTitle: `Заказ ${shortId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        assessmentId: lead.assessmentId,
+        startDate: lead.startDate.toISOString(),
+        plannedCompletionDate: lead.plannedCompletionDate.toISOString(),
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Создан новый заказ',
+      message: `Заказ ${shortId} создан на объект: ${address}.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  private async recordOrderTaken(lead: Lead, notaryId: string): Promise<void> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: lead.assessmentId },
+      select: { address: true },
+    });
+    const shortId = lead.id.length > 8 ? `#${lead.id.slice(0, 8)}` : `#${lead.id}`;
+    const address = assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: notaryId,
+      eventType: 'order.taken',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Заказ взят в работу',
+      actionContext: `Нотариус взял заказ ${shortId}`,
+      targetTitle: `Заказ ${shortId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        notaryId,
+        takenAt: new Date().toISOString(),
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Заказ взят в работу',
+      message: `Заказ ${shortId} (${address}) взят в работу нотариусом.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  async createOrder(assessmentId: string, applicantId: string): Promise<Lead> {
+    const startDate = new Date();
+    const plannedCompletionDate = new Date(startDate);
+    plannedCompletionDate.setDate(startDate.getDate() + 7);
+
+    const lead = await this.prisma.lead.create({
+      data: {
+        id: randomUUID(),
+        applicantId,
+        assessmentId,
+        startDate,
+        plannedCompletionDate,
+        createdAt: startDate,
+        updatedAt: startDate,
+      },
+    });
+
+    // Аудит и уведомление
+    await this.recordOrderCreated(lead);
+    return lead;
+  }
+
+  async completeOrder(orderId: string, finalEstimatedValue?: string): Promise<void> {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id: orderId },
+      include: { assessment: true },
+    });
+    if (!lead) throw new Error(`Order ${orderId} not found`);
+
+    await this.prisma.lead.update({
+      where: { id: orderId },
+      data: { actualCompletionDate: new Date() },
+    });
+
+    await this.recordOrderCompleted(lead, finalEstimatedValue);
+  }
+
+  private async recordOrderCompleted(lead: any, finalEstimatedValue?: string): Promise<void> {
+    const shortId = lead.id.length > 8 ? `#${lead.id.slice(0, 8)}` : `#${lead.id}`;
+    const address = lead.assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub,
+      eventType: 'order.completed',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Заказ завершён',
+      actionContext: `Заказ ${shortId} завершён`,
+      targetTitle: `Заказ ${shortId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        completionDate: new Date().toISOString(),
+        finalEstimatedValue,
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Заказ завершён',
+      message: `Заказ ${shortId} (${address}) завершён.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  async getRecentOrderEvents(userId: string, role: string, limit: number): Promise<any[]> {
+    const where: any = {
+      actionType: { in: ['order.created', 'order.taken', 'order.completed'] },
+    };
+    // Получаем ID заказов, связанных с пользователем
+    let orderIds: string[] = [];
+    if (role === 'applicant') {
+      const leads = await this.prisma.lead.findMany({
+        where: { applicantId: userId },
+        select: { id: true },
+      });
+      orderIds = leads.map(l => l.id);
+    } else if (role === 'notary') {
+      const orderIds = await this.prisma.lead.findMany({
+        where: {
+          OR: [
+            { executorId: userId },           // уже взятые текущим нотариусом заказы
+            { executorId: null },             // новые заказы, ещё не взятые
+          ],
+        },
+        select: { id: true },
+      });
+      if (orderIds.length === 0) return [];
+      where.entityId = { in: orderIds.map(o => o.id) };
+    }
+
+    const logs = await this.prisma.auditLog.findMany({
+      where,
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+      include: { user: true },
+    });
+
+    const events: any[] = [];
+    for (const log of logs) {
+      if (!log.entityId) continue;
+      const lead = await this.prisma.lead.findUnique({
+        where: { id: log.entityId },
+        include: { assessment: { select: { address: true } } },
+      }) as any;
+      if (!lead) continue;
+      events.push({
+        eventId: log.id,
+        orderId: lead.id,
+        orderAddress: lead.assessment?.address?.trim() || 'адрес не указан',
+        eventType: log.actionType,
+        eventDate: log.timestamp,
+        actorName: log.user?.fullName || log.actorName || 'Система',
+      });
+    }
+    return events;
   }
 
   // из формата фронта в формат БД

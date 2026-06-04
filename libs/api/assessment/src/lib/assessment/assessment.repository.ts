@@ -819,23 +819,23 @@ export class AssessmentRepository {
     return map[type] ?? RpcElevatorType.UNSPECIFIED;
   }
 
-  async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<Lead> {
-  const startDate = new Date();
-  const plannedCompletionDate = new Date(startDate);
-  plannedCompletionDate.setDate(startDate.getDate() + 7);
+  // async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<Lead> {
+  //   const startDate = new Date();
+  //   const plannedCompletionDate = new Date(startDate);
+  //   plannedCompletionDate.setDate(startDate.getDate() + 7);
 
-  return this.prisma.lead.create({
-    data: {
-      id: randomUUID(),
-      applicantId,
-      assessmentId,
-      startDate,
-      plannedCompletionDate,
-      createdAt: startDate,
-      updatedAt: startDate,
-    },
-  });
-}
+  //   return this.prisma.lead.create({
+  //     data: {
+  //       id: randomUUID(),
+  //       applicantId,
+  //       assessmentId,
+  //       startDate,
+  //       plannedCompletionDate,
+  //       createdAt: startDate,
+  //       updatedAt: startDate,
+  //     },
+  //   });
+  // }
 
 }
 

@@ -74,6 +74,7 @@ import {
 import type { AssessmentQuery } from './assessment.query';
 import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
 import { OrderService } from '@notary-portal/order';
+import { PrismaService } from '@internal/prisma';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -112,6 +113,7 @@ export class AssessmentService {
     private readonly notificationService: NotificationService,
     private readonly bitrixLeadPublisher: BitrixLeadPublisherService,
     private readonly orderService: OrderService,
+    private readonly prisma: PrismaService,
   ) { }
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -373,24 +375,9 @@ export class AssessmentService {
               }),
           );
 
-          let leadId: string | undefined;
-          try {
-            const lead = await this.assessmentRepository.createLeadFromAssessment(assessment.id, assessment.userId);
-            leadId = lead.id;
-            this.logger.log(`Created lead for assessment ${assessment.id}`);
-          } catch (error) {
-            this.logger.warn(`Failed to create lead for assessment ${assessment.id}: ${errorMessage(error)}`);
-          }
 
-          // Публикация заказа в Bitrix (только если lead успешно создан)
-          if (leadId) {
-            this.orderService.publishOrderToBitrix(leadId).catch((error: unknown) => {
-              const message = error instanceof Error ? error.message : String(error);
-              this.logger.warn(`Bitrix order publish failed for order=${leadId}: ${message}`);
-            });
-          }
 
-          const snapshot = await this.runInSpan(
+          const snapshot = await this.runInSpan(//отсюда
             'AssessmentRepository.getAssessmentSnapshot',
             {
               'app.operation': 'assessment.repository.snapshot',
@@ -435,7 +422,24 @@ export class AssessmentService {
                   assessment.id,
                 )}: ${formatAssessmentAddress(snapshot.address)}.`,
               }),
-          );
+          );//досюда
+
+          let leadId: string | undefined;
+          try {
+            const lead = await this.orderService.createOrder(assessment.id, assessment.userId);
+            leadId = lead.id;
+            this.logger.log(`Created lead for assessment ${assessment.id}`);
+          } catch (error) {
+            this.logger.warn(`Failed to create order for assessment ${assessment.id}: ${errorMessage(error)}`);
+          }
+
+          // Публикация заказа в Bitrix (только если lead успешно создан)
+          if (leadId) {
+            this.orderService.publishOrderToBitrix(leadId).catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : String(error);
+              this.logger.warn(`Bitrix order publish failed for order=${leadId}: ${message}`);
+            });
+          }
 
           // Публикация заявки как лида в Bitrix24 — fire-and-forget,
           // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
@@ -641,6 +645,15 @@ export class AssessmentService {
         title: 'Оценка заявки завершена',
         message: buildCompletedMessage(assessment.id, after.estimatedValue),
       });
+
+      const lead = await this.prisma.lead.findUnique({
+        where: { assessmentId: assessment.id },
+      });
+      if (lead) {
+        await this.orderService.completeOrder(lead.id, request.finalEstimatedValue).catch((err) => {
+          this.logger.warn(`Failed to complete order for assessment ${assessment.id}: ${err.message}`);
+        });
+      }
 
       this.logger.log(
         `Completed assessment assessmentId=${assessment.id}` +

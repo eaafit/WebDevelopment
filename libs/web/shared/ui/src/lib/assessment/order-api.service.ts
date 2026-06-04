@@ -52,4 +52,9 @@ export class OrderApiService {
     }
     return response.order;
   }
+
+  async getRecentEvents(userId: string, role: string, limit = 3): Promise<any[]> {
+    const response = await this.client.getRecentOrderEvents({ userId, role, limit });
+    return response.events;
+  }
 }

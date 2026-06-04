@@ -3,6 +3,7 @@ import { OrderService } from './order.service';
 import { ListOrdersRequest, GetOrderRequest } from '@notary-portal/api-contracts';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { TakeOrderRequest, TakeOrderResponse, Order as OrderProto } from '@notary-portal/api-contracts';
+import { GetRecentOrderEventsRequest } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class OrderRpcService {
@@ -79,6 +80,20 @@ export class OrderRpcService {
       console.error('[OrderRpcService] Error in takeOrder:', error);
       throw error;
     }
+  }
+
+  async getRecentOrderEvents(request: GetRecentOrderEventsRequest): Promise<any> {
+    const events = await this.orderService.getRecentOrderEvents(
+      request.userId,
+      request.role,
+      request.limit || 3,
+    );
+    // Преобразуем Date в Timestamp для каждого события для корретного отображения даты
+    const mappedEvents = events.map(event => ({
+      ...event,
+      eventDate: event.eventDate ? timestampFromDate(event.eventDate) : undefined,
+    }));
+    return { events: mappedEvents };
   }
 
   private toOrderProto(order: any): any {

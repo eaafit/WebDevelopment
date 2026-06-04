@@ -65,6 +65,8 @@ export class AssessmentHistoryComponent implements OnInit {
     { id: 3, message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Создана"', timeAgo: '8 часов назад', icon: '⚡' },
   ]);
 
+  recentEvents = signal<any[]>([]);
+
   statusOptions: { value: OrderStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'Все статусы' },
     { value: 'created', label: 'Создана' },
@@ -92,6 +94,7 @@ export class AssessmentHistoryComponent implements OnInit {
       this.role = this.getCurrentUserRole();
     }
     this.loadOrders();
+    this.loadRecentEvents();
     // this.loadNotifications();
   }
 
@@ -121,6 +124,48 @@ export class AssessmentHistoryComponent implements OnInit {
     }
   }
 
+  async loadRecentEvents(): Promise<void> {
+    const userId = this.getCurrentUserId();
+    const role = this.role;
+    try {
+      const events = await this.orderApi.getRecentEvents(userId, role, 3);
+      this.recentEvents.set(events);
+    } catch (err) {
+      console.error('Failed to load recent events', err);
+    }
+  }
+
+  eventIcon(type: string): string {
+    if (type === 'order.created') return '📄';
+    if (type === 'order.taken') return '👨‍⚖️';
+    if (type === 'order.completed') return '✅';
+    return '📌';
+  }
+
+  formatEventText(event: any): string {
+    const shortId = event.orderId ? event.orderId.slice(0, 8) : '';
+    const address = event.orderAddress ? event.orderAddress.slice(0, 40) : '';
+    const prefix = shortId ? `Заказ №${shortId}: ` : '';
+    if (event.eventType === 'order.created') {
+      return `${prefix}Создан заказ: ${address}`;
+    }
+    if (event.eventType === 'order.taken') {
+      return `${prefix}Заказ взят в работу: ${address}`;
+    }
+    if (event.eventType === 'order.completed') {
+      return `${prefix}Заказ завершён: ${address}`;
+    }
+    return `${prefix}Изменение заказа: ${address}`;
+  }
+
+  formatEventDate(date: any): Date | null {
+    if (!date) return null;
+    if (date instanceof Date) return date;
+    if (typeof date === 'object' && 'seconds' in date) {
+      return new Date(Number(date.seconds) * 1000);
+    }
+    return null;
+  }
   // private async loadNotifications(): Promise<void> {
   //   const userId = 'current-user-id'; // замените на реальный ID
   //   try {
