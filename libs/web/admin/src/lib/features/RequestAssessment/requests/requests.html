@@ -1,22 +1,45 @@
-<div class="admin-page admin-crud-page requests-container">
-  <h1 class="page-title">Заявки на оценку</h1>
+<section class="admin-page admin-crud-page requests-container">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Заявки</p>
+      <h2>Заявки на оценку</h2>
+      <p class="admin-page__lead">
+        Контролируйте поступающие заявки, назначайте нотариусов и ведите статусы оценки в одном рабочем списке.
+      </p>
+    </div>
 
-  @if (loading) {
-  <div class="admin-toolbar">
-    <p>Загрузка заявок…</p>
-  </div>
-  } @if (loadError) {
-  <div class="admin-toolbar admin-toolbar--error">
-    <p>{{ loadError }}</p>
-    <button type="button" class="btn btn-secondary" (click)="reload()">Повторить</button>
-  </div>
-  }
+    <div class="admin-page__actions">
+      <button type="button" class="admin-btn admin-btn--secondary" (click)="reload()" [disabled]="loading">
+        Обновить данные
+      </button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar requests-toolbar" [class.admin-toolbar--error]="loadError">
+    <div class="admin-toolbar__copy">
+      <small class="admin-toolbar__status">
+        Найдено: {{ filteredAssessments.length }} · Страница {{ currentPage }} из {{ totalPages || 1 }}
+      </small>
+      @if (loading) {
+      <small class="admin-toolbar__status">Загрузка заявок…</small>
+      } @if (loadError) {
+      <small class="admin-toolbar__status">{{ loadError }}</small>
+      }
+    </div>
+    @if (loadError) {
+    <button type="button" class="admin-btn admin-btn--secondary" (click)="reload()">Повторить</button>
+    }
+  </section>
 
   <!-- СПИСОК ЗАЯВОК -->
   @if (!showView) {
-  <div class="list-container">
-    <div class="list-header">
-      <h2>Список заявок</h2>
+  <article class="admin-card list-container">
+    <div class="admin-card__header list-header">
+      <div>
+        <h3>Список заявок</h3>
+        <p>Фильтры, сортировка по колонкам и быстрые действия доступны прямо из таблицы.</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">На странице: {{ paginatedAssessments.length }}</span>
     </div>
 
     <!-- ФИЛЬТРЫ -->
@@ -179,7 +202,7 @@
       <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">›</button>
     </div>
     }
-  </div>
+  </article>
   }
 
   <!-- ДЕТАЛИ ЗАЯВКИ -->
@@ -383,4 +406,4 @@
     </div>
   </div>
   }
-</div>
+</section>

@@ -164,6 +164,42 @@ describe('Payments', () => {
     expect(component.loading).toBe(false);
   });
 
+  it('should reload the first page when admin changes page size', () => {
+    component.currentPage = 3;
+
+    component.onPageSizeChanged(50);
+
+    expect(component.pageSize).toBe(50);
+    expect(component.currentPage).toBe(1);
+    expect(listPaymentsMock).toHaveBeenLastCalledWith({
+      page: 1,
+      limit: 50,
+      statuses: [],
+      types: [],
+      searchQuery: undefined,
+    });
+  });
+
+  it('should show total payments from server metadata instead of current page length', () => {
+    listPaymentsMock.mockReturnValueOnce(
+      of({
+        payments: MOCK_PAYMENTS.slice(0, 1).map((p) => ({ ...p })),
+        meta: {
+          currentPage: 1,
+          totalItems: 42,
+          totalPages: 5,
+          limit: 20,
+        },
+      }),
+    );
+
+    component.onPageSizeChanged(20);
+
+    expect(component.payments).toHaveLength(1);
+    expect(component.totalItems).toBe(42);
+    expect(component.totalPages).toBe(5);
+  });
+
   it('uses compact default table widths and lets admins resize columns', () => {
     expect(component.getColumnWidth('id')).toBe(68);
 

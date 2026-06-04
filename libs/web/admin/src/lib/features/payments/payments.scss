@@ -32,6 +32,66 @@ td.actions {
   box-shadow: none;
 }
 
+.admin-toolbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.page-size-control {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  padding: 0.38rem 0.45rem 0.38rem 0.8rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--admin-text-soft);
+
+  background: #fff;
+
+  select {
+    cursor: pointer;
+
+    min-width: 70px;
+    padding: 0.42rem 1.9rem 0.42rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+
+    font: inherit;
+    color: var(--admin-text);
+
+    background:
+      linear-gradient(45deg, transparent 50%, var(--admin-text-muted) 50%) calc(100% - 14px)
+        50% / 6px 6px no-repeat,
+      linear-gradient(135deg, var(--admin-text-muted) 50%, transparent 50%) calc(100% - 10px)
+        50% / 6px 6px no-repeat,
+      var(--admin-bg);
+    appearance: none;
+
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+
+    &:focus {
+      border-color: rgb(220 38 38 / 34%);
+      outline: none;
+      box-shadow: 0 0 0 4px rgb(220 38 38 / 9%);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+    }
+  }
+}
+
 .payments-filters {
   display: grid;
   grid-template-columns: minmax(0, 3.8fr) minmax(220px, 1.2fr) auto;

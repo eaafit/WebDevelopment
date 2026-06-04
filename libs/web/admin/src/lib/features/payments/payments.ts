@@ -142,6 +142,7 @@ export class Payments implements OnInit, OnDestroy {
   readonly today: string = new Date().toISOString().split('T')[0];
 
   pageSize = 10;
+  readonly pageSizeOptions = [10, 20, 30, 50];
   currentPage = 1;
   readonly skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
@@ -337,6 +338,17 @@ export class Payments implements OnInit, OnDestroy {
 
   nextPage(): void {
     this.setPage(this.currentPage + 1);
+  }
+
+  onPageSizeChanged(size: number | string): void {
+    const nextPageSize = Number(size);
+    if (!this.pageSizeOptions.includes(nextPageSize) || nextPageSize === this.pageSize) {
+      return;
+    }
+
+    this.pageSize = nextPageSize;
+    this.currentPage = 1;
+    this.loadPayments();
   }
 
   onFiltersChanged(): void {
@@ -743,7 +755,7 @@ export class Payments implements OnInit, OnDestroy {
     return {
       area: 'admin_payments_list',
       route: '/admin/payments',
-      totalPayments: this.payments.length,
+      totalPayments: this.totalItems,
       filteredPayments: this.filteredPayments.length,
       currentPage: this.currentPage,
       pageSize: this.pageSize,

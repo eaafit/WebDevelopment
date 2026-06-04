@@ -38,7 +38,17 @@
       <small class="admin-toolbar__status payments-export-error">{{ exportError }}</small>
       }
     </div>
-    <span class="admin-toolbar__meta">Всего платежей: {{ payments.length }}</span>
+    <div class="admin-toolbar__controls">
+      <label class="page-size-control">
+        <span>На странице:</span>
+        <select [ngModel]="pageSize" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
+          @for (size of pageSizeOptions; track size) {
+          <option [ngValue]="size">{{ size }}</option>
+          }
+        </select>
+      </label>
+      <span class="admin-toolbar__meta">Всего платежей: {{ totalItems }}</span>
+    </div>
   </section>
 
   <article class="admin-card">
