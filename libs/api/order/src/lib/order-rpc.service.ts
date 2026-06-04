@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { ListOrdersRequest, GetOrderRequest } from '@notary-portal/api-contracts';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
@@ -8,6 +8,8 @@ import { GetRecentOrderEventsRequest } from '@notary-portal/api-contracts';
 @Injectable()
 export class OrderRpcService {
   constructor(private readonly orderService: OrderService) { }
+
+  private readonly logger = new Logger(OrderRpcService.name);
 
   async listOrders(request: ListOrdersRequest): Promise<any> {
     try {
@@ -23,32 +25,19 @@ export class OrderRpcService {
         page: request.page,
         pageSize: request.pageSize,
       };
-      console.log('[OrderRpcService] findManyParams:', findManyParams);
 
       const result = await this.orderService.findMany(findManyParams);
-      console.log('[OrderRpcService] findMany result:', {
-        ordersCount: result.orders?.length,
-        total: result.total,
-        totalPages: result.totalPages,
-      });
+      this.logger.log(`Found ${result.orders?.length || 0} orders out of ${result.total} total`);
 
       const orders = result.orders.map((order: any) => {
         try {
           return this.toOrderProto(order);
         } catch (err) {
-          console.error('[OrderRpcService] Error mapping order:', order?.id, err);
+          this.logger.error(`Error mapping order ${order?.id}: ${err}`);
           throw err;
         }
       });
 
-      console.log('[OrderRpcService] response orders count:', orders.length);
-      if (orders.length > 0) {
-        // Логируем первый заказ для проверки
-        console.log('[OrderRpcService] First order sample:', JSON.stringify(orders[0], (key, value) => {
-          if (typeof value === 'bigint') return value.toString();
-          return value;
-        }, 2));
-      }
 
       const response = {
         orders: orders,
@@ -57,7 +46,7 @@ export class OrderRpcService {
       };
       return response;
     } catch (error) {
-      console.error('[OrderRpcService] Error in listOrders:', error);
+      this.logger.error(`Error in listOrders: ${error}`);
       throw error;
     }
   }
@@ -67,7 +56,7 @@ export class OrderRpcService {
       const order = await this.orderService.findOne(request.orderId);
       return this.toOrderProto(order);
     } catch (error) {
-      console.error('[OrderRpcService] Error in getOrder:', error);
+      this.logger.error(`Error in getOrder: ${error}`);
       throw error;
     }
   }
@@ -77,7 +66,7 @@ export class OrderRpcService {
       const order = await this.orderService.takeOrder(request.orderId, request.notaryId);
       return { order: this.toOrderProto(order) };   // важно: обёртка { order: ... }
     } catch (error) {
-      console.error('[OrderRpcService] Error in takeOrder:', error);
+      this.logger.error(`Error in takeOrder: ${error}`);
       throw error;
     }
   }

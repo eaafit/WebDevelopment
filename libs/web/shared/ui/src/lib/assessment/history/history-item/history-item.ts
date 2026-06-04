@@ -4,6 +4,7 @@ import { StatusTimelineComponent } from '../status-timeline/status-timeline';
 import { AssessmentOrder } from '../models';
 import { OrderApiService } from '../../order-api.service';
 import { RouterModule } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 
 @Component({
   selector: 'lib-history-item',
@@ -22,6 +23,7 @@ export class HistoryItemComponent {
   @Output() orderTaken = new EventEmitter<string>();
 
   private orderApi = inject(OrderApiService);
+  private logger = inject(WebLoggerService);
 
   get statusBadgeClass(): string {
     switch (this.order.status) {
@@ -89,11 +91,13 @@ export class HistoryItemComponent {
   }
 
   async onTakeWork(): Promise<void> {
+    this.logger.info('order.item.take_work_started', { orderId: this.order.id });
     try {
       await this.orderApi.takeOrder(this.order.id, this.currentUserId);
+      this.logger.info('order.item.take_work_succeeded', { orderId: this.order.id });
       this.orderTaken.emit(this.order.id);
     } catch (err) {
-      console.error('Failed to take order', err);
+      this.logger.error('order.item.take_work_failed', { orderId: this.order.id, error: err });
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { BitrixOrderPublisherService } from '@notary-portal/bitrix-orders';
 import { AuditService } from '@internal/audit';
@@ -9,6 +9,7 @@ import { NotificationCategory as RpcNotificationCategory, NotificationType as Rp
 import { getCurrentUser } from '@internal/auth-shared';
 import { randomUUID } from 'crypto';
 
+
 @Injectable()
 export class OrderService {
   constructor(
@@ -17,6 +18,8 @@ export class OrderService {
     private auditService: AuditService,
     private notificationService: NotificationService,
   ) { }
+
+  private readonly logger = new Logger(OrderService.name);
 
   // Получение списка заказов с фильтрацией и пагинацией
   async findMany(params: {
@@ -29,9 +32,7 @@ export class OrderService {
     page: number;
     pageSize: number;
   }) {
-    console.log('[OrderService] findMany params:', JSON.stringify(params, null, 2));
-    // проверка что сервер работает с обновленным файлом
-    // console.log('🔥🔥🔥 USING UPDATED ORDER.SERVICE.TS WITH SWITCH 🔥🔥🔥');
+
     const { userId, role, status, searchQuery, dateFrom, dateTo, page, pageSize } = params;
     const where: any = {};
 
@@ -42,7 +43,7 @@ export class OrderService {
     //   where.executorId = userId;
     // }
 
-    console.log('[OrderService] status filter raw value:', status, 'type:', typeof status);
+
 
     if (status && status !== 'all') {
       let dbStatus: string;
@@ -65,7 +66,7 @@ export class OrderService {
         default:
           dbStatus = status;
       }
-      console.log('[OrderService] Filter status:', status, '-> DB status:', dbStatus);
+
       where.assessment = { status: dbStatus };
     }
     if (dateFrom || dateTo) {
@@ -80,11 +81,11 @@ export class OrderService {
       ];
     }
 
-    console.log('[OrderService] where clause:', JSON.stringify(where, null, 2));
+    this.logger.debug(`Finding orders with params: ${JSON.stringify(params)}`);
 
     try {
       const total = await this.prisma.lead.count({ where });
-      console.log('[OrderService] total count:', total);
+
 
       const leads = await this.prisma.lead.findMany({
         where,
@@ -101,14 +102,19 @@ export class OrderService {
         },
         orderBy: { startDate: 'desc' },
       });
-      console.log('[OrderService] leads found:', leads.length);
-      console.log('[OrderService] First lead assessment status:', leads[0]?.assessment?.status, typeof leads[0]?.assessment?.status);
+
 
       const orders = leads.map((lead) => this.mapLeadToOrder(lead));
-      console.log('[OrderService] orders mapped:', orders.length);
+
+      if (orders.length === 0) {
+        this.logger.warn('No orders found for the given filters');
+      } else {
+        this.logger.debug(`Found ${orders.length} orders, total ${total}`);
+      }
       return { orders, total, totalPages: Math.ceil(total / pageSize) };
     } catch (error) {
-      console.error('[OrderService] Error in findMany:', error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Error in findMany: ${err.message}`, err.stack);
       throw error;
     }
   }
@@ -132,6 +138,7 @@ export class OrderService {
   }
 
   async takeOrder(orderId: string, notaryId: string): Promise<any> {
+    this.logger.log(`Take order started: orderId=${orderId}, notaryId=${notaryId}`);
     return this.prisma.$transaction(async (tx) => {
       // 1. Найти lead вместе с assessment
       const lead = await tx.lead.findUnique({
@@ -168,13 +175,16 @@ export class OrderService {
 
       await this.recordOrderTaken(updatedLead, notaryId);
 
+      this.logger.log(`Take order succeeded: orderId=${orderId}, executorId=${notaryId}`);
+
       return this.mapLeadToOrder(updatedLead);
     });
+
   }
 
   private mapAssessmentStatusToOrderStatus(assessmentStatus: any): string {
     const statusStr = assessmentStatus?.toString() ?? '';
-    console.log('[OrderService] mapAssessmentStatusToOrderStatus input:', statusStr, typeof statusStr);
+
 
     const mapping: Record<string, string> = {
       'new': 'created',
@@ -194,7 +204,7 @@ export class OrderService {
       '5': 'rejected',
     };
     const result = mapping[statusStr] || 'created';
-    console.log('[OrderService] mapAssessmentStatusToOrderStatus result:', result);
+
     return result;
   }
 
@@ -207,7 +217,6 @@ export class OrderService {
       // Логируем исходный статус и результат маппинга
       const rawStatus = lead.assessment?.status;
       const mappedStatus = this.mapAssessmentStatusToOrderStatus(rawStatus);
-      console.log(`[OrderService] Lead ${lead.id}: rawStatus=${rawStatus} (${typeof rawStatus}), mappedStatus=${mappedStatus}`);
 
       const realEstateObjectMapped = realEstateObject
         ? {
@@ -323,6 +332,7 @@ export class OrderService {
   }
 
   async createOrder(assessmentId: string, applicantId: string): Promise<Lead> {
+    this.logger.log(`Creating order for assessment ${assessmentId}, applicant ${applicantId}`);
     const startDate = new Date();
     const plannedCompletionDate = new Date(startDate);
     plannedCompletionDate.setDate(startDate.getDate() + 7);
@@ -341,10 +351,12 @@ export class OrderService {
 
     // Аудит и уведомление
     await this.recordOrderCreated(lead);
+    this.logger.log(`Order created successfully: ${lead.id}`);
     return lead;
   }
 
   async completeOrder(orderId: string, finalEstimatedValue?: string): Promise<void> {
+    this.logger.log(`Completing order ${orderId}, final value: ${finalEstimatedValue}`);
     const lead = await this.prisma.lead.findUnique({
       where: { id: orderId },
       include: { assessment: true },
@@ -357,6 +369,7 @@ export class OrderService {
     });
 
     await this.recordOrderCompleted(lead, finalEstimatedValue);
+    this.logger.log(`Order ${orderId} completed successfully`);
   }
 
   private async recordOrderCompleted(lead: any, finalEstimatedValue?: string): Promise<void> {

@@ -10,6 +10,7 @@ import { OrderApiService } from '../order-api.service';
 import { TokenStore } from '@notary-portal/ui';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Router } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 
 @Component({
   selector: 'lib-assessment-history',
@@ -28,6 +29,7 @@ export class AssessmentHistoryComponent implements OnInit {
 
   private tokenStore = inject(TokenStore);
   private router = inject(Router);
+  private logger = inject(WebLoggerService);
 
   public getCurrentUserId(): string {
     // ID пользователя из токена
@@ -100,8 +102,9 @@ export class AssessmentHistoryComponent implements OnInit {
 
   async loadOrders(): Promise<void> {
     const userId = this.getCurrentUserId();
-    console.log('Current user ID:', this.getCurrentUserId());
-    console.log('Sending status filter:', this.statusFilter());
+    // console.log('Current user ID:', this.getCurrentUserId());
+    this.logger.info('order.history.load_started', { role: this.role, filters: { status: this.statusFilter(), dateFrom: this.dateFrom(), dateTo: this.dateTo(), search: this.searchQuery() } });
+
     this.isLoading.set(true);
     try {
       const response = await this.orderApi.listOrders({
@@ -114,11 +117,12 @@ export class AssessmentHistoryComponent implements OnInit {
         page: this.currentPage(),
         pageSize: this.pageSize(),
       });
-      console.log('Loaded orders sample:', response.orders[0]);
+
       this.orders.set(response.orders);
       this.totalPages.set(response.totalPages);
+      this.logger.info('order.history.load_succeeded', { ordersCount: response.orders.length, total: response.totalCount });
     } catch (err) {
-      console.error('Ошибка загрузки заказов:', err);
+      this.logger.error('order.history.load_failed', { error: err });
     } finally {
       this.isLoading.set(false);
     }
@@ -131,7 +135,7 @@ export class AssessmentHistoryComponent implements OnInit {
       const events = await this.orderApi.getRecentEvents(userId, role, 3);
       this.recentEvents.set(events);
     } catch (err) {
-      console.error('Failed to load recent events', err);
+      this.logger.error('Failed to load recent events: ', { error: err });
     }
   }
 
@@ -185,14 +189,15 @@ export class AssessmentHistoryComponent implements OnInit {
 
 
 
-  onSearchChange(): void { this.currentPage.set(1); this.loadOrders(); }
-  onStatusChange(): void { this.currentPage.set(1); this.loadOrders(); }
-  onDateFromChange(): void { this.currentPage.set(1); this.loadOrders(); }
-  onDateToChange(): void { this.currentPage.set(1); this.loadOrders(); }
+  onSearchChange(): void { this.logger.info('order.history.filter.search_changed', { search: this.searchQuery() }); this.currentPage.set(1); this.loadOrders(); }
+  onStatusChange(): void { this.logger.info('order.history.filter.status_changed', { status: this.statusFilter() }); this.currentPage.set(1); this.loadOrders(); }
+  onDateFromChange(): void { this.logger.info('order.history.filter.date_from_changed', { dateFrom: this.dateFrom() }); this.currentPage.set(1); this.loadOrders(); }
+  onDateToChange(): void { this.logger.info('order.history.filter.date_to_changed', { dateTo: this.dateTo() }); this.currentPage.set(1); this.loadOrders(); }
 
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages()) {
       this.currentPage.set(page);
+      this.logger.info('order.history.pagination.page_changed', { page });
       this.loadOrders();
     }
   }
@@ -201,6 +206,7 @@ export class AssessmentHistoryComponent implements OnInit {
     const size = typeof newSize === 'string' ? parseInt(newSize, 10) : newSize;
     this.pageSize.set(size);
     this.currentPage.set(1);
+    this.logger.info('order.history.pagination.page_size_changed', { newSize: size });
     this.loadOrders();
   }
 
@@ -222,8 +228,9 @@ export class AssessmentHistoryComponent implements OnInit {
   async repeatOrder(orderId: string): Promise<void> {
     // Найти заказ в текущем списке
     const order = this.orders().find(o => o.id === orderId);
+    this.logger.info('order.history.repeat_order', { orderId });
     if (!order) {
-      console.error('Order not found');
+      this.logger.error('order.history.repeat_order_failed', { orderId, reason: 'Order not found' });
       return;
     }
 
@@ -263,6 +270,7 @@ export class AssessmentHistoryComponent implements OnInit {
 
   openModal(orderId: string): void {
     this.selectedOrderId.set(orderId);
+    this.logger.info('order.history.modal.opened', { orderId });
     this.isModalOpen.set(true);
   }
 
