@@ -38,17 +38,6 @@
       <small class="admin-toolbar__status payments-export-error">{{ exportError }}</small>
       }
     </div>
-    <div class="admin-toolbar__controls">
-      <label class="page-size-control">
-        <span>На странице:</span>
-        <select [ngModel]="pageSize" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
-          @for (size of pageSizeOptions; track size) {
-          <option [ngValue]="size">{{ size }}</option>
-          }
-        </select>
-      </label>
-      <span class="admin-toolbar__meta">Всего платежей: {{ totalItems }}</span>
-    </div>
   </section>
 
   <article class="admin-card">
@@ -92,7 +81,17 @@
         <h3>Список платежей</h3>
         <p>Просмотр, редактирование, удаление и переход к связанной заявке доступны прямо из строки таблицы.</p>
       </div>
-      <span class="admin-badge admin-badge--neutral">На странице: {{ paginatedPayments.length }}</span>
+      <div class="admin-card__controls">
+        <label class="page-size-control">
+          <span>На странице:</span>
+          <select [ngModel]="pageSize" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
+            @for (size of pageSizeOptions; track size) {
+            <option [ngValue]="size">{{ size }}</option>
+            }
+          </select>
+        </label>
+        <span class="admin-badge admin-badge--neutral">Всего платежей: {{ totalItems }}</span>
+      </div>
     </div>
 
     <div class="payments-table-shell">

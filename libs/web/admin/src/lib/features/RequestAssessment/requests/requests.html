@@ -39,7 +39,17 @@
         <h3>Список заявок</h3>
         <p>Фильтры, сортировка по колонкам и быстрые действия доступны прямо из таблицы.</p>
       </div>
-      <span class="admin-badge admin-badge--neutral">На странице: {{ paginatedAssessments.length }}</span>
+      <div class="admin-card__controls">
+        <label class="page-size-control">
+          <span>На странице:</span>
+          <select [ngModel]="itemsPerPage" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
+            @for (size of pageSizeOptions; track size) {
+            <option [ngValue]="size">{{ size }}</option>
+            }
+          </select>
+        </label>
+        <span class="admin-badge admin-badge--neutral">Всего заявок: {{ filteredAssessments.length }}</span>
+      </div>
     </div>
 
     <!-- ФИЛЬТРЫ -->

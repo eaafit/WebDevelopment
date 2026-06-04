@@ -166,6 +166,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   currentPage = 1;
   itemsPerPage = 10;
+  readonly pageSizeOptions = [10, 20, 30, 50];
   totalPages = 0;
   pages: number[] = [];
 
@@ -608,6 +609,17 @@ export class RequestsComponent implements OnInit, OnDestroy {
   changePage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
+    this.updatePagination();
+  }
+
+  onPageSizeChanged(size: number | string): void {
+    const nextPageSize = Number(size);
+    if (!this.pageSizeOptions.includes(nextPageSize) || nextPageSize === this.itemsPerPage) {
+      return;
+    }
+
+    this.itemsPerPage = nextPageSize;
+    this.currentPage = 1;
     this.updatePagination();
   }
 

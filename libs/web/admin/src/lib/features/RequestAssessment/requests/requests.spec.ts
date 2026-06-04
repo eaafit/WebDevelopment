@@ -248,6 +248,18 @@ describe('RequestsComponent', () => {
     expect(component.filteredAssessments.length).toBe(component.assessments.length);
   });
 
+  it('rebuilds local pagination when admin changes page size', () => {
+    component.itemsPerPage = 1;
+    component.applyFilters();
+    component.changePage(2);
+
+    component.onPageSizeChanged(20);
+
+    expect(component.itemsPerPage).toBe(20);
+    expect(component.currentPage).toBe(1);
+    expect(component.paginatedAssessments).toHaveLength(component.filteredAssessments.length);
+  });
+
   it('anchors the column filter dropdown to the trigger rect when opened', () => {
     const trigger = document.createElement('button');
     trigger.getBoundingClientRect = () =>
