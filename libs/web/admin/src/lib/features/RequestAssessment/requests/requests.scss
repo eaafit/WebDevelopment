@@ -488,19 +488,40 @@
   .filter-trigger {
     cursor: pointer;
 
-    min-width: 22px;
-    height: 22px;
-    border: 1px solid var(--admin-accent);
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--admin-border);
+    border-radius: 10px;
 
     font-size: 0.7rem;
     line-height: 1;
-    color: #fff;
+    color: var(--admin-text-soft);
 
-    background: var(--admin-accent);
+    background: #fff;
 
-    &:hover {
-      background: var(--admin-accent-hover, var(--admin-accent));
+    transition:
+      transform 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease;
+
+    &:hover,
+    &:focus-visible {
+      transform: translateY(-1px);
+      border-color: rgb(220 38 38 / 18%);
+      color: var(--admin-accent);
+      background: var(--admin-accent-soft);
+      box-shadow: 0 8px 18px rgb(220 38 38 / 10%);
+    }
+
+    &:focus-visible {
+      outline: none;
     }
   }
 
