@@ -278,6 +278,14 @@ export class RequestsComponent implements OnInit, OnDestroy {
     return message;
   }
 
+  private toMutationError(error: unknown, fallback: string): string {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return fallback;
+    }
+    return message;
+  }
+
   private toAssessmentItem(
     row: AdminAssessmentRow,
     overrides: Record<string, 'InProgress'>,
@@ -816,10 +824,13 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.closeCompleteModal();
       await this.refreshAfterMutation(id);
     } catch (error) {
-      this.finalEstimatedValueError =
-        (error as Error).message || 'Не удалось завершить заявку';
+      this.finalEstimatedValueError = this.toMutationError(
+        error,
+        'Не удалось завершить заявку. Проверьте статус заявки и попробуйте ещё раз.',
+      );
     } finally {
       this.mutationInFlight = false;
+      this.cdr.detectChanges();
     }
   }
 }

@@ -189,6 +189,26 @@ describe('RequestsComponent', () => {
     expect(stored['a-2']).toBeUndefined();
   });
 
+  it('keeps complete modal usable after an API failure', async () => {
+    const verified = component.assessments.find((a) => a.status === 'Verified');
+    if (!verified) {
+      throw new Error('Expected at least one Verified assessment from the api mock');
+    }
+    apiMock.completeAssessment.mockRejectedValueOnce(new Error('internal error'));
+    component.openCompleteModal(verified);
+    component.finalEstimatedValue = '4500000';
+
+    await component.confirmComplete();
+    fixture.detectChanges();
+
+    expect(component.showCompleteModal).toBe(true);
+    expect(component.mutationInFlight).toBe(false);
+    expect(component.finalEstimatedValueError).toBe(
+      'Не удалось завершить заявку. Проверьте статус заявки и попробуйте ещё раз.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('internal error');
+  });
+
   it('only applies the InProgress override when the server still reports Verified', async () => {
     // Сервер ушёл вперёд (Completed), но локальный override от прежней сессии остался.
     localStorage.setItem(
