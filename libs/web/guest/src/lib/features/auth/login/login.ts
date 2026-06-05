@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../auth.service';
+import { AuthService, OAUTH_PROVIDERS } from '../auth.service';
 import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -55,10 +55,12 @@ export class Login {
     await this.authService.login(email, this.password);
   }
 
-  async onGoogleLogin(): Promise<void> {
+  async onOAuthLogin(providerKey: string): Promise<void> {
     this.validationError.set(null);
+    const config = OAUTH_PROVIDERS[providerKey];
+    if (!config) return;
     try {
-      const url = await this.authService.getGoogleAuthorizeUrl();
+      const url = await this.authService.getAuthorizeUrl(config);
       this.redirectToProvider(url);
     } catch {
       // Сообщение об ошибке уже выставлено в authService.error().

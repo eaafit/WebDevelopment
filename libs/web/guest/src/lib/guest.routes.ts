@@ -39,7 +39,7 @@ export const guestRoutes: Route[] = [
               import('./features/auth/reset-password/reset-password').then((m) => m.ResetPassword),
           },
           {
-            path: 'oauth/google/callback',
+            path: 'oauth/:provider/callback',
             loadComponent: () =>
               import('./features/auth/oauth-callback/oauth-callback').then((m) => m.OAuthCallback),
           },

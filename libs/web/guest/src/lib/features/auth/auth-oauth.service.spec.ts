@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RPC_TRANSPORT, TokenStore, WebLoggerService } from '@notary-portal/ui';
-import { AuthService } from './auth.service';
+import { AuthService, OAUTH_PROVIDERS } from './auth.service';
 
 function makeJwt(payload: object): string {
   const b64url = (obj: object) =>
@@ -12,7 +12,7 @@ function makeJwt(payload: object): string {
 const NOW = Math.floor(Date.now() / 1000);
 const TOKEN = makeJwt({ sub: 'u1', email: 'a@b.com', role: '1', iat: NOW, exp: NOW + 900 });
 
-describe('AuthService — OAuth (Google)', () => {
+describe('AuthService — OAuth (Google / Яндекс)', () => {
   const client = { getOAuthAuthorizeUrl: jest.fn(), oAuthLogin: jest.fn() };
   const router = { navigateByUrl: jest.fn() };
   const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
@@ -36,11 +36,11 @@ describe('AuthService — OAuth (Google)', () => {
     (service as unknown as { client: typeof client }).client = client;
   });
 
-  describe('getGoogleAuthorizeUrl', () => {
-    it('persists state in sessionStorage and returns the authorize URL', async () => {
+  describe('getAuthorizeUrl', () => {
+    it('persists state in sessionStorage and returns the Google authorize URL', async () => {
       client.getOAuthAuthorizeUrl.mockResolvedValue({ url: 'https://google/auth?x=1', state: 'st-123' });
 
-      const url = await service.getGoogleAuthorizeUrl();
+      const url = await service.getAuthorizeUrl(OAUTH_PROVIDERS['google']);
 
       expect(url).toBe('https://google/auth?x=1');
       expect(sessionStorage.getItem('oauth_state')).toBe('st-123');
@@ -50,15 +50,30 @@ describe('AuthService — OAuth (Google)', () => {
       );
     });
 
+    it('uses the Yandex provider and logs a yandex-scoped event', async () => {
+      client.getOAuthAuthorizeUrl.mockResolvedValue({ url: 'https://ya/auth?x=1', state: 'st-ya' });
+
+      const url = await service.getAuthorizeUrl(OAUTH_PROVIDERS['yandex']);
+
+      expect(url).toBe('https://ya/auth?x=1');
+      expect(client.getOAuthAuthorizeUrl).toHaveBeenCalledWith({
+        provider: OAUTH_PROVIDERS['yandex'].provider,
+      });
+      expect(logger.info).toHaveBeenCalledWith(
+        'oauth.yandex.authorize_requested',
+        { provider: 'yandex' },
+      );
+    });
+
     it('sets an error and rethrows when the RPC fails', async () => {
       client.getOAuthAuthorizeUrl.mockRejectedValue(new Error('rpc down'));
-      await expect(service.getGoogleAuthorizeUrl()).rejects.toThrow('rpc down');
+      await expect(service.getAuthorizeUrl(OAUTH_PROVIDERS['google'])).rejects.toThrow('rpc down');
       expect(service.error()).toBe('rpc down');
       expect(logger.warn).toHaveBeenCalledWith('oauth.google.authorize_failed', { provider: 'google' });
     });
   });
 
-  describe('completeGoogleLogin', () => {
+  describe('completeOAuthLogin', () => {
     it('logs in and redirects by role when state matches', async () => {
       sessionStorage.setItem('oauth_state', 'st-xyz');
       client.oAuthLogin.mockResolvedValue({
@@ -69,11 +84,11 @@ describe('AuthService — OAuth (Google)', () => {
         },
       });
 
-      const ok = await service.completeGoogleLogin('auth-code', 'st-xyz');
+      const ok = await service.completeOAuthLogin(OAUTH_PROVIDERS['google'], 'auth-code', 'st-xyz');
 
       expect(ok).toBe(true);
       expect(client.oAuthLogin).toHaveBeenCalledWith({
-        provider: expect.anything(),
+        provider: OAUTH_PROVIDERS['google'].provider,
         code: 'auth-code',
         state: 'st-xyz',
       });
@@ -85,7 +100,7 @@ describe('AuthService — OAuth (Google)', () => {
     it('rejects a mismatched state without calling the backend', async () => {
       sessionStorage.setItem('oauth_state', 'expected');
 
-      const ok = await service.completeGoogleLogin('auth-code', 'tampered');
+      const ok = await service.completeOAuthLogin(OAUTH_PROVIDERS['yandex'], 'auth-code', 'tampered');
 
       expect(ok).toBe(false);
       expect(client.oAuthLogin).not.toHaveBeenCalled();

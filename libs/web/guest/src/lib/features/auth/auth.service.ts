@@ -7,6 +7,25 @@ import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME, WebLoggerService } from '@no
 /** Ключ sessionStorage для сверки OAuth state на callback (defense-in-depth против CSRF). */
 const OAUTH_STATE_KEY = 'oauth_state';
 
+/** Конфигурация внешнего OAuth-провайдера на фронте. */
+export interface OAuthProviderConfig {
+  provider: OauthProvider;
+  /** Ключ маршрута /auth/oauth/:provider/callback и префикс лог-событий oauth.<key>.* */
+  key: string;
+}
+
+/** Реестр провайдеров по ключу маршрута. Новый провайдер = новая запись. */
+export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
+  google: { provider: OauthProvider.GOOGLE, key: 'google' },
+  yandex: { provider: OauthProvider.YANDEX, key: 'yandex' },
+};
+
+/** Конфигурация провайдера по ключу маршрута, либо null для неизвестного. */
+export function resolveOAuthProvider(key: string | null | undefined): OAuthProviderConfig | null {
+  if (!key) return null;
+  return OAUTH_PROVIDERS[key] ?? null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly tokenStore = inject(TokenStore);
@@ -66,24 +85,24 @@ export class AuthService {
     }
   }
 
-  // ─── OAuth (Google) ───────────────────────────────────────────────────────
+  // ─── OAuth (Google / Яндекс / ВК) ─────────────────────────────────────────
 
   /**
-   * Старт входа через Google: получает authorize URL с подписанным state,
-   * сохраняет state в sessionStorage и возвращает URL для редиректа браузера.
+   * Старт входа через внешний провайдер: получает authorize URL с подписанным
+   * state, сохраняет state в sessionStorage и возвращает URL для редиректа браузера.
    */
-  async getGoogleAuthorizeUrl(): Promise<string> {
+  async getAuthorizeUrl(config: OAuthProviderConfig): Promise<string> {
     this._loading.set(true);
     this._error.set(null);
     try {
-      const res = await this.client.getOAuthAuthorizeUrl({ provider: OauthProvider.GOOGLE });
+      const res = await this.client.getOAuthAuthorizeUrl({ provider: config.provider });
       if (!res.url || !res.state) throw new Error('Пустой ответ сервера');
       this.persistOAuthState(res.state);
-      this.logger.info('oauth.google.authorize_requested', { provider: 'google' });
+      this.logger.info(`oauth.${config.key}.authorize_requested`, { provider: config.key });
       return res.url;
     } catch (err) {
       this._error.set(extractMessage(err));
-      this.logger.warn('oauth.google.authorize_failed', { provider: 'google' });
+      this.logger.warn(`oauth.${config.key}.authorize_failed`, { provider: config.key });
       throw err;
     } finally {
       this._loading.set(false);
@@ -91,11 +110,15 @@ export class AuthService {
   }
 
   /**
-   * Завершение Google-входа на callback: сверяет state с сохранённым, отправляет
+   * Завершение входа на callback: сверяет state с сохранённым, отправляет
    * code/state на бэкенд, на успехе сохраняет токены и редиректит по роли.
    * Возвращает true при успешном входе.
    */
-  async completeGoogleLogin(code: string, state: string): Promise<boolean> {
+  async completeOAuthLogin(
+    config: OAuthProviderConfig,
+    code: string,
+    state: string,
+  ): Promise<boolean> {
     this._loading.set(true);
     this._error.set(null);
     try {
@@ -104,15 +127,15 @@ export class AuthService {
       if (!code || !state || !expected || state !== expected) {
         throw new Error('Некорректный ответ авторизации.');
       }
-      const res = await this.client.oAuthLogin({ provider: OauthProvider.GOOGLE, code, state });
+      const res = await this.client.oAuthLogin({ provider: config.provider, code, state });
       if (!res.result) throw new Error('Пустой ответ сервера');
       this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
-      this.logger.info('oauth.google.login_succeeded', { provider: 'google' });
+      this.logger.info(`oauth.${config.key}.login_succeeded`, { provider: config.key });
       await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
       return true;
     } catch (err) {
       this._error.set(extractMessage(err));
-      this.logger.warn('oauth.google.login_failed', { provider: 'google' });
+      this.logger.warn(`oauth.${config.key}.login_failed`, { provider: config.key });
       return false;
     } finally {
       this._loading.set(false);

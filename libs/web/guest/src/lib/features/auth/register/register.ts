@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { UserRole } from '@notary-portal/ui';
-import { AuthService } from '../auth.service';
+import { AuthService, OAUTH_PROVIDERS } from '../auth.service';
 
 const FULL_NAME_RE = /^[A-Za-zА-Яа-яЁё]{2,}(?:[ -][A-Za-zА-Яа-яЁё]{2,}){1,3}$/u;
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -56,9 +56,11 @@ export class Register {
     this.phoneNumber = formatRussianPhone(value);
   }
 
-  async onGoogleLogin(): Promise<void> {
+  async onOAuthLogin(providerKey: string): Promise<void> {
+    const config = OAUTH_PROVIDERS[providerKey];
+    if (!config) return;
     try {
-      const url = await this.authService.getGoogleAuthorizeUrl();
+      const url = await this.authService.getAuthorizeUrl(config);
       this.redirectToProvider(url);
     } catch {
       // Сообщение об ошибке уже выставлено в authService.error().
