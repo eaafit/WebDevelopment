@@ -128,19 +128,22 @@
     <!-- Section: Связанные объекты -->
     <div class="form-section">
       <h3 class="form-section__title">Связанные объекты</h3>
+      <p class="form-section__hint">
+        Выберите, к какой заявке или подписке относится платёж. Внешнюю транзакцию можно оставить пустой, если шлюз ещё не вернул номер.
+      </p>
       <div class="form-grid">
         <div class="form-group">
-          <label for="pf-subscriptionId">ID подписки</label>
+          <label for="pf-subscriptionId">Связанная подписка</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.subscriptionId) {
               <select id="pf-subscriptionId" formControlName="subscriptionId">
-                <option value="">Не выбрано</option>
+                <option value="">Без подписки</option>
                 @for (id of subscriptionIdOptions; track id) {
-                  <option [value]="id">{{ id }}</option>
+                  <option [value]="id">{{ formatSubscriptionOption(id) }}</option>
                 }
               </select>
             } @else {
-              <input type="text" id="pf-subscriptionId" formControlName="subscriptionId" placeholder="Введите ID подписки" />
+              <input type="text" id="pf-subscriptionId" formControlName="subscriptionId" placeholder="Например: sub_..." />
             }
             <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('subscriptionId')"
               [title]="idInputMode.subscriptionId ? 'Выбрать из списка' : 'Ввести вручную'">
@@ -151,23 +154,24 @@
               }
             </button>
           </div>
+          <span class="field-hint">Используется для платежей типа «Подписка».</span>
           @if (form.get('subscriptionId')?.invalid && form.get('subscriptionId')?.touched) {
             <span class="field-error">Обязательное поле для типа «Подписка»</span>
           }
         </div>
 
         <div class="form-group">
-          <label for="pf-assessmentId">ID заявки</label>
+          <label for="pf-assessmentId">Связанная заявка</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.assessmentId) {
               <select id="pf-assessmentId" formControlName="assessmentId">
-                <option value="">Не выбрано</option>
+                <option value="">Без заявки</option>
                 @for (id of assessmentIdOptions; track id) {
-                  <option [value]="id">{{ id }}</option>
+                  <option [value]="id">{{ formatAssessmentOption(id) }}</option>
                 }
               </select>
             } @else {
-              <input type="text" id="pf-assessmentId" formControlName="assessmentId" placeholder="Введите ID заявки" />
+              <input type="text" id="pf-assessmentId" formControlName="assessmentId" placeholder="Например: assessment-..." />
             }
             <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('assessmentId')"
               [title]="idInputMode.assessmentId ? 'Выбрать из списка' : 'Ввести вручную'">
@@ -178,23 +182,24 @@
               }
             </button>
           </div>
+          <span class="field-hint">Используется для оценки и копии документа.</span>
           @if (form.get('assessmentId')?.invalid && form.get('assessmentId')?.touched) {
             <span class="field-error">Обязательное поле для типа «Оценка»</span>
           }
         </div>
 
         <div class="form-group">
-          <label for="pf-transactionId">ID транзакции</label>
+          <label for="pf-transactionId">Транзакция платёжного шлюза</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.transactionId) {
               <select id="pf-transactionId" formControlName="transactionId">
-                <option value="">Не выбрано</option>
+                <option value="">Будет создана позже</option>
                 @for (id of transactionIdOptions; track id) {
-                  <option [value]="id">{{ id }}</option>
+                  <option [value]="id">{{ formatTransactionOption(id) }}</option>
                 }
               </select>
             } @else {
-              <input type="text" id="pf-transactionId" formControlName="transactionId" placeholder="Введите ID транзакции" />
+              <input type="text" id="pf-transactionId" formControlName="transactionId" placeholder="Например: inv_ или txn_..." />
             }
             <button type="button" class="id-mode-toggle" (click)="toggleIdInputMode('transactionId')"
               [title]="idInputMode.transactionId ? 'Выбрать из списка' : 'Ввести вручную'">
@@ -205,6 +210,7 @@
               }
             </button>
           </div>
+          <span class="field-hint">Номер от Робокассы или другого платёжного провайдера.</span>
         </div>
       </div>
     </div>

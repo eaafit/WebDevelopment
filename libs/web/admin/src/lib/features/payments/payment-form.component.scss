@@ -73,10 +73,17 @@
 
 /* ── Sections ── */
 .form-section {
+  animation: form-section-enter 0.28s ease both;
   padding: 1.35rem 1.5rem;
 
   & + .form-section {
     border-top: 1px solid var(--admin-border);
+  }
+
+  @for $index from 1 through 5 {
+    &:nth-child(#{$index}) {
+      animation-delay: #{($index - 1) * 0.035}s;
+    }
   }
 
   &__title {
@@ -86,6 +93,15 @@
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--admin-accent);
+  }
+
+  &__hint {
+    max-width: 760px;
+    margin: -0.35rem 0 1rem;
+
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--admin-text-muted);
   }
 }
 
@@ -154,7 +170,37 @@
   }
 
   select {
+    appearance: none;
     cursor: pointer;
+    padding-right: 2.55rem;
+
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--admin-text-muted) 50%),
+      linear-gradient(135deg, var(--admin-text-muted) 50%, transparent 50%),
+      linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+    background-position:
+      calc(100% - 1.22rem) calc(50% - 0.12rem),
+      calc(100% - 0.92rem) calc(50% - 0.12rem),
+      0 0;
+    background-repeat: no-repeat;
+    background-size:
+      0.32rem 0.32rem,
+      0.32rem 0.32rem,
+      100% 100%;
+
+    &:hover:not(:focus) {
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--admin-accent) 50%),
+        linear-gradient(135deg, var(--admin-accent) 50%, transparent 50%),
+        linear-gradient(180deg, #fff 0%, rgb(254 242 242 / 72%) 100%);
+    }
+
+    &:focus {
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--admin-accent) 50%),
+        linear-gradient(135deg, var(--admin-accent) 50%, transparent 50%),
+        linear-gradient(180deg, #fff 0%, #fff 100%);
+    }
   }
 
   textarea {
@@ -250,6 +296,14 @@
   }
 }
 
+.field-hint {
+  margin-top: -0.12rem;
+
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--admin-text-muted);
+}
+
 .id-mode-toggle {
   cursor: pointer;
 
@@ -285,10 +339,18 @@
     color: var(--admin-accent);
     background: rgb(220 38 38 / 5%);
     transform: translateY(-1px);
+
+    i {
+      transform: rotate(-6deg) scale(1.04);
+    }
   }
 
   &:active {
     transform: translateY(0);
+  }
+
+  i {
+    transition: transform 0.18s ease;
   }
 }
 
@@ -392,5 +454,17 @@
 
   .btn {
     width: 100%;
+  }
+}
+
+@keyframes form-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -386,6 +386,18 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     return PAYMENT_STATUS_LABELS[status];
   }
 
+  formatSubscriptionOption(id: string): string {
+    return `Подписка ${this.compactIdentifier(id)}`;
+  }
+
+  formatAssessmentOption(id: string): string {
+    return `Заявка ${this.compactIdentifier(id)}`;
+  }
+
+  formatTransactionOption(id: string): string {
+    return `Транзакция ${this.compactIdentifier(id)}`;
+  }
+
   private getTargetIdErrorMessage(type: PaymentType): string {
     switch (type) {
       case 'Subscription':
@@ -434,6 +446,15 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       default:
         return RpcPaymentType.ASSESSMENT;
     }
+  }
+
+  private compactIdentifier(id: string): string {
+    const normalized = id.trim();
+    if (normalized.length <= 18) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 8)}...${normalized.slice(-6)}`;
   }
 }
 
