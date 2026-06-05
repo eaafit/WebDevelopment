@@ -43,7 +43,7 @@
     </div>
   </section>
 
-  <article class="admin-card">
+  <article class="admin-card payments-filter-card">
     <div class="admin-card__header">
       <div>
         <h3>Фильтры и поиск</h3>
@@ -61,7 +61,7 @@
           (ngModelChange)="onFiltersChanged()" />
       </label>
 
-      <label class="admin-field payments-field payments-field--status">
+      <div class="admin-field payments-field payments-field--status">
         <span>Статус</span>
         <div class="admin-select">
           <button
@@ -81,6 +81,7 @@
             id="payments-status-filter-list"
             class="admin-select__menu"
             role="listbox"
+            tabindex="-1"
             (keydown)="onUiSelectMenuKeydown($event)">
             <button
               type="button"
@@ -105,7 +106,7 @@
           </div>
           }
         </div>
-      </label>
+      </div>
 
       <div class="payments-filters__actions">
         <button type="button" class="admin-btn admin-btn--secondary">Применить</button>
@@ -120,7 +121,7 @@
         <p>Просмотр, редактирование, удаление и переход к связанной заявке доступны прямо из строки таблицы.</p>
       </div>
       <div class="admin-card__controls">
-        <label class="page-size-control">
+        <div class="page-size-control">
           <span>На странице:</span>
           <div class="admin-select admin-select--compact">
             <button
@@ -141,6 +142,7 @@
               id="payments-page-size-list"
               class="admin-select__menu"
               role="listbox"
+              tabindex="-1"
               (keydown)="onUiSelectMenuKeydown($event)">
               @for (size of pageSizeOptions; track size) {
               <button
@@ -156,7 +158,7 @@
             </div>
             }
           </div>
-        </label>
+        </div>
         <span class="admin-badge admin-badge--neutral">Всего платежей: {{ totalItems }}</span>
       </div>
     </div>

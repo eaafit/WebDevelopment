@@ -42,7 +42,7 @@
         <p>Фильтры, сортировка по колонкам и быстрые действия доступны прямо из таблицы.</p>
       </div>
       <div class="admin-card__controls">
-        <label class="page-size-control" (click)="$event.stopPropagation()">
+        <div class="page-size-control">
           <span>На странице:</span>
           <div class="admin-select admin-select--compact" [class.is-open]="isUiSelectOpen('pageSize')">
             <button
@@ -62,6 +62,7 @@
               id="orders-page-size-list"
               class="admin-select__menu"
               role="listbox"
+              tabindex="-1"
               (keydown)="onUiSelectMenuKeydown($event)">
             @for (size of pageSizeOptions; track size) {
               <button
@@ -77,7 +78,7 @@
             </div>
             }
           </div>
-        </label>
+        </div>
         <span class="admin-badge admin-badge--neutral">Всего заявок: {{ filteredAssessments.length }}</span>
       </div>
     </div>
@@ -104,7 +105,7 @@
         <input id="orders-date-to" type="date" [(ngModel)]="dateTo" [min]="dateFrom || null" />
       </div>
       <div class="top-filters__field">
-        <label for="orders-notary">Нотариус</label>
+        <span class="top-filters__label">Нотариус</span>
         <div id="orders-notary" class="admin-select" [class.is-open]="isUiSelectOpen('notaryFilter')">
           <button
             type="button"
@@ -122,6 +123,7 @@
             id="orders-notary-filter-list"
             class="admin-select__menu"
             role="listbox"
+            tabindex="-1"
             (keydown)="onUiSelectMenuKeydown($event)">
             <button
               type="button"

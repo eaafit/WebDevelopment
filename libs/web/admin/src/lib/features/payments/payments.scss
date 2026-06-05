@@ -26,13 +26,19 @@ td.actions {
 }
 
 .payments-page > .admin-card {
+  overflow: visible;
   position: relative;
   z-index: 1;
 
   &:has(.admin-select__trigger.is-open),
   &:has(.column-filter-menu) {
-    z-index: 80;
+    z-index: 3000;
   }
+}
+
+.payments-filter-card {
+  overflow: visible;
+  isolation: isolate;
 }
 
 .payments-page .admin-btn:disabled {
@@ -226,7 +232,8 @@ td.actions {
 
 .payments-filters {
   position: relative;
-  z-index: 20;
+  z-index: 2000;
+  overflow: visible;
 
   display: grid;
   grid-template-columns: minmax(0, 3.8fr) minmax(220px, 1.2fr) auto;
@@ -257,6 +264,8 @@ td.actions {
 }
 
 .payments-table-shell {
+  position: relative;
+  z-index: 1;
   padding: 0;
 }
 
