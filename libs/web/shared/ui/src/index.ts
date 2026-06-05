@@ -32,3 +32,5 @@ export * from './lib/assessment/assessment-detail-modal';
 export * from './lib/copies/list/list';
 export * from './lib/copies/copy/copy';
 export * from './lib/copies/new/new';
+export * from './lib/support-ai-chat/support-ai-chat.models';
+export * from './lib/support-ai-chat/support-ai-chat-widget';

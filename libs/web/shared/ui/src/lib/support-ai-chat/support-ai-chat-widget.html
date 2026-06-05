@@ -1,0 +1,89 @@
+<!-- Корневой контейнер: модификатор --inline убирает FAB и фиксирует панель в потоке -->
+<div
+  class="support-ai-chat"
+  [class.support-ai-chat--inline]="layout() === 'inline'"
+  [class.support-ai-chat--open]="panelOpen() || layout() === 'inline'">
+  <!-- FAB только в режиме floating -->
+  @if (layout() === 'floating') {
+    <button
+      type="button"
+      class="support-ai-chat__fab"
+      (click)="togglePanel()"
+      [attr.aria-expanded]="panelOpen()"
+      aria-controls="support-ai-chat-panel"
+      [disabled]="disabled()"
+      aria-label="Открыть чат техподдержки">
+      <span class="support-ai-chat__fab-icon" aria-hidden="true">💬</span>
+    </button>
+  }
+
+  <!-- Панель чата: видна при open или в inline -->
+  @if (panelOpen() || layout() === 'inline') {
+    <section
+      id="support-ai-chat-panel"
+      class="support-ai-chat__panel"
+      role="dialog"
+      [attr.aria-labelledby]="'support-ai-chat-title'">
+      <header class="support-ai-chat__header">
+        <div class="support-ai-chat__titles">
+          <h2 id="support-ai-chat-title" class="support-ai-chat__title">{{ title() }}</h2>
+          <p class="support-ai-chat__subtitle">{{ subtitle() }}</p>
+        </div>
+        @if (layout() === 'floating') {
+          <button
+            type="button"
+            class="support-ai-chat__close"
+            (click)="closePanel()"
+            aria-label="Закрыть чат">
+            ×
+          </button>
+        }
+      </header>
+
+      <!-- Лента сообщений; aria-live для озвучивания новых ответов -->
+      <div class="support-ai-chat__transcript" aria-live="polite">
+        @if (!transcript().length) {
+          <p class="support-ai-chat__hint">Задайте вопрос по нотариату, оценке или работе портала.</p>
+        }
+        @for (message of transcript(); track message.id) {
+          <article
+            class="support-ai-chat__message"
+            [class.support-ai-chat__message--user]="message.role === 'user'"
+            [class.support-ai-chat__message--assistant]="message.role === 'assistant'">
+            <p class="support-ai-chat__message-text">{{ message.text }}</p>
+          </article>
+        }
+        @if (aiLoading()) {
+          <p class="support-ai-chat__loading" aria-live="assertive">ИИ думает…</p>
+        }
+      </div>
+
+      <!-- Форма ввода -->
+      <footer class="support-ai-chat__composer">
+        <textarea
+          class="support-ai-chat__input"
+          [(ngModel)]="draft"
+          [placeholder]="placeholder()"
+          [disabled]="disabled() || aiLoading()"
+          rows="2"
+          (keydown)="onKeydown($event)"
+          aria-label="Текст вопроса"></textarea>
+        <button
+          type="button"
+          class="support-ai-chat__send"
+          (click)="submitDraft()"
+          [disabled]="!canSend()">
+          {{ sendLabel() }}
+        </button>
+      </footer>
+    </section>
+
+    @if (layout() === 'floating' && panelOpen()) {
+      <button
+        type="button"
+        class="support-ai-chat__backdrop"
+        (click)="closePanel()"
+        aria-label="Закрыть чат"></button>
+    }
+  }
+</div>

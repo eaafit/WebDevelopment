@@ -9,6 +9,7 @@ import { MetricsModule } from '@internal/metrics';
 import { NewsletterModule } from '@internal/newsletter';
 import { NotificationModule } from '@internal/notification';
 import { ReportModule } from '@internal/report';
+import { SupportModule } from '@internal/support';
 import { UserModule } from '@internal/user';
 import { PrismaModule } from '@internal/prisma';
 import { ConnectRouterRegistry } from './connect-router.registry';
@@ -17,7 +18,6 @@ import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 import { OrderModule } from '@notary-portal/order';
-import { SupportModule } from '@notary-portal/support';
 // import { OrderController } from './order.controller';
 
 @Module({
@@ -35,9 +35,9 @@ import { SupportModule } from '@notary-portal/support';
     NewsletterModule,
     NotificationModule,
     ReportModule,
+    SupportModule,
     UserModule,
     OrderModule,
-    SupportModule,
     // OrderController,
   ],
   controllers: [PaymentAttachmentController],

@@ -45,5 +45,10 @@
         </div>
       </div>
     </footer>
+
+    <!-- Плавающий ИИ-чат техподдержки: публичный RPC без JWT -->
+    <lib-support-ai-chat-widget
+      [useBackendAi]="true"
+      (messageSubmit)="onSupportDraftSubmit($event)" />
   </div>
 </div>
