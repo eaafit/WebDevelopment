@@ -62,7 +62,7 @@
 
 /* ── Form ── */
 .payment-form {
-  overflow: hidden;
+  overflow: visible;
 
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius, 20px);
@@ -73,11 +73,18 @@
 
 /* ── Sections ── */
 .form-section {
+  position: relative;
+  z-index: 1;
+
   animation: form-section-enter 0.28s ease both;
   padding: 1.35rem 1.5rem;
 
   & + .form-section {
     border-top: 1px solid var(--admin-border);
+  }
+
+  &:has(.custom-select.is-open) {
+    z-index: 20;
   }
 
   @for $index from 1 through 5 {
@@ -306,7 +313,12 @@
 /* ── Custom selects ── */
 .custom-select-container {
   position: relative;
+  z-index: 1;
   min-width: 0;
+
+  &:has(.custom-select.is-open) {
+    z-index: 60;
+  }
 }
 
 .custom-select {
@@ -377,7 +389,7 @@
 
 .custom-select-menu {
   position: absolute;
-  z-index: 30;
+  z-index: 80;
   top: calc(100% + 0.35rem);
   left: 0;
 
