@@ -51,12 +51,18 @@
               (click)="toggleUiSelect('pageSize', $event)"
               [disabled]="loading"
               aria-haspopup="listbox"
-              [attr.aria-expanded]="isUiSelectOpen('pageSize')">
+              [attr.aria-expanded]="isUiSelectOpen('pageSize')"
+              aria-controls="orders-page-size-list"
+              (keydown)="onUiSelectTriggerKeydown('pageSize', $event)">
               <span>{{ itemsPerPage }}</span>
               <i class="las la-angle-down" aria-hidden="true"></i>
             </button>
             @if (isUiSelectOpen('pageSize')) {
-            <div class="admin-select__menu" role="listbox">
+            <div
+              id="orders-page-size-list"
+              class="admin-select__menu"
+              role="listbox"
+              (keydown)="onUiSelectMenuKeydown($event)">
             @for (size of pageSizeOptions; track size) {
               <button
                 type="button"
@@ -105,12 +111,18 @@
             class="admin-select__trigger"
             (click)="toggleUiSelect('notaryFilter', $event)"
             aria-haspopup="listbox"
-            [attr.aria-expanded]="isUiSelectOpen('notaryFilter')">
+            [attr.aria-expanded]="isUiSelectOpen('notaryFilter')"
+            aria-controls="orders-notary-filter-list"
+            (keydown)="onUiSelectTriggerKeydown('notaryFilter', $event)">
             <span>{{ getNotaryFilterLabel() }}</span>
             <i class="las la-angle-down" aria-hidden="true"></i>
           </button>
           @if (isUiSelectOpen('notaryFilter')) {
-          <div class="admin-select__menu" role="listbox">
+          <div
+            id="orders-notary-filter-list"
+            class="admin-select__menu"
+            role="listbox"
+            (keydown)="onUiSelectMenuKeydown($event)">
             <button
               type="button"
               class="admin-select__option"

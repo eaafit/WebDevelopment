@@ -68,17 +68,27 @@
             type="button"
             class="admin-select__trigger"
             [class.is-open]="isUiSelectOpen('statusFilter')"
-            (click)="toggleUiSelect('statusFilter', $event)">
+            (click)="toggleUiSelect('statusFilter', $event)"
+            (keydown)="onUiSelectTriggerKeydown('statusFilter', $event)"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="isUiSelectOpen('statusFilter')"
+            aria-controls="payments-status-filter-list">
             <span>{{ getStatusFilterLabel() }}</span>
             <i class="las la-angle-down"></i>
           </button>
           @if (isUiSelectOpen('statusFilter')) {
-          <div class="admin-select__menu">
+          <div
+            id="payments-status-filter-list"
+            class="admin-select__menu"
+            role="listbox"
+            (keydown)="onUiSelectMenuKeydown($event)">
             <button
               type="button"
               class="admin-select__option"
               [class.is-selected]="statusFilter === ''"
-              (click)="selectStatusFilter('', $event)">
+              (click)="selectStatusFilter('', $event)"
+              role="option"
+              [attr.aria-selected]="statusFilter === ''">
               Все статусы
             </button>
             @for (status of statusOptions; track status) {
@@ -86,7 +96,9 @@
               type="button"
               class="admin-select__option"
               [class.is-selected]="statusFilter === status"
-              (click)="selectStatusFilter(status, $event)">
+              (click)="selectStatusFilter(status, $event)"
+              role="option"
+              [attr.aria-selected]="statusFilter === status">
               {{ getStatusLabel(status) }}
             </button>
             }
@@ -116,18 +128,28 @@
               class="admin-select__trigger"
               [class.is-open]="isUiSelectOpen('pageSize')"
               [disabled]="loading"
-              (click)="toggleUiSelect('pageSize', $event)">
+              (click)="toggleUiSelect('pageSize', $event)"
+              (keydown)="onUiSelectTriggerKeydown('pageSize', $event)"
+              aria-haspopup="listbox"
+              [attr.aria-expanded]="isUiSelectOpen('pageSize')"
+              aria-controls="payments-page-size-list">
               <span>{{ pageSize }}</span>
               <i class="las la-angle-down"></i>
             </button>
             @if (isUiSelectOpen('pageSize')) {
-            <div class="admin-select__menu">
+            <div
+              id="payments-page-size-list"
+              class="admin-select__menu"
+              role="listbox"
+              (keydown)="onUiSelectMenuKeydown($event)">
               @for (size of pageSizeOptions; track size) {
               <button
                 type="button"
                 class="admin-select__option"
                 [class.is-selected]="pageSize === size"
-                (click)="selectPageSize(size, $event)">
+                (click)="selectPageSize(size, $event)"
+                role="option"
+                [attr.aria-selected]="pageSize === size">
                 {{ size }}
               </button>
               }

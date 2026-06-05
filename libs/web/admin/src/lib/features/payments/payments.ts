@@ -24,6 +24,7 @@ import {
 import { AdminPaymentsApiService, type PaymentQuery } from '../../api/admin-payments-api.service';
 import { PaymentDeleteModalComponent } from './payment-delete-modal.component';
 import { AdminUserApiService } from '../RequestAssessment/services/user-api.service';
+import { buildPaymentCsvContent, buildPaymentCsvFileName } from './payment-csv-export';
 
 type FilterColumn =
   | 'id'
@@ -358,6 +359,28 @@ export class Payments implements OnInit, OnDestroy {
     this.activeSelectKey = this.activeSelectKey === key ? null : key;
   }
 
+  onUiSelectTriggerKeydown(key: 'statusFilter' | 'pageSize', event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.activeSelectKey = null;
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.closeColumnFilter();
+      this.activeSelectKey = key;
+    }
+  }
+
+  onUiSelectMenuKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.activeSelectKey = null;
+    }
+  }
+
   isUiSelectOpen(key: 'statusFilter' | 'pageSize'): boolean {
     return this.activeSelectKey === key;
   }
@@ -586,7 +609,7 @@ export class Payments implements OnInit, OnDestroy {
 
     this.exporting = true;
     try {
-      this.downloadCsv(this.buildCsvContent(exportPayments));
+      downloadCsvFile(buildPaymentCsvFileName(), buildPaymentCsvContent(exportPayments));
       this.logInfo('payment.admin.export_csv_succeeded', {
         rows: exportPayments.length,
       });

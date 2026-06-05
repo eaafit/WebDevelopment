@@ -176,6 +176,23 @@ describe('Payments', () => {
     });
   });
 
+  it('opens and closes custom select controls from the keyboard', () => {
+    const openEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+    const closeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const openPreventSpy = jest.spyOn(openEvent, 'preventDefault');
+    const closePreventSpy = jest.spyOn(closeEvent, 'preventDefault');
+
+    component.onUiSelectTriggerKeydown('statusFilter', openEvent);
+
+    expect(component.activeSelectKey).toBe('statusFilter');
+    expect(openPreventSpy).toHaveBeenCalled();
+
+    component.onUiSelectMenuKeydown(closeEvent);
+
+    expect(component.activeSelectKey).toBeNull();
+    expect(closePreventSpy).toHaveBeenCalled();
+  });
+
   it('should show total payments from server metadata instead of current page length', () => {
     listPaymentsMock.mockReturnValueOnce(
       of({

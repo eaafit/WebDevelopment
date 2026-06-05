@@ -280,6 +280,23 @@ describe('RequestsComponent', () => {
     expect(component.paginatedAssessments).toHaveLength(component.filteredAssessments.length);
   });
 
+  it('opens and closes top custom filters from the keyboard', () => {
+    const openEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+    const closeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const openPreventSpy = jest.spyOn(openEvent, 'preventDefault');
+    const closePreventSpy = jest.spyOn(closeEvent, 'preventDefault');
+
+    component.onUiSelectTriggerKeydown('notaryFilter', openEvent);
+
+    expect(component.activeSelectKey).toBe('notaryFilter');
+    expect(openPreventSpy).toHaveBeenCalled();
+
+    component.onUiSelectMenuKeydown(closeEvent);
+
+    expect(component.activeSelectKey).toBeNull();
+    expect(closePreventSpy).toHaveBeenCalled();
+  });
+
   it('anchors the column filter dropdown to the trigger rect when opened', () => {
     const trigger = document.createElement('button');
     trigger.getBoundingClientRect = () =>

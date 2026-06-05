@@ -577,6 +577,28 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.activeSelectKey = this.activeSelectKey === key ? null : key;
   }
 
+  onUiSelectTriggerKeydown(key: 'pageSize' | 'notaryFilter', event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.activeSelectKey = null;
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.closeColumnFilter();
+      this.activeSelectKey = key;
+    }
+  }
+
+  onUiSelectMenuKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.activeSelectKey = null;
+    }
+  }
+
   isUiSelectOpen(key: 'pageSize' | 'notaryFilter'): boolean {
     return this.activeSelectKey === key;
   }
