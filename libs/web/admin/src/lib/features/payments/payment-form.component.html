@@ -231,7 +231,7 @@
                       (click)="selectFormValue('subscriptionId', '', $event)">
                       Без подписки
                     </button>
-                    @for (id of subscriptionIdOptions; track id) {
+                    @for (id of filteredSubscriptionIdOptions; track id) {
                       <button
                         type="button"
                         class="custom-select-option"
@@ -284,7 +284,7 @@
                       (click)="selectFormValue('assessmentId', '', $event)">
                       Без заявки
                     </button>
-                    @for (id of assessmentIdOptions; track id) {
+                    @for (id of filteredAssessmentIdOptions; track id) {
                       <button
                         type="button"
                         class="custom-select-option"

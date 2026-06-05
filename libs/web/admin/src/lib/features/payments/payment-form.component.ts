@@ -65,6 +65,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   transactionIdOptions: string[] = [];
   private readonly paymentBySubscriptionId = new Map<string, Payment>();
   private readonly paymentByTransactionId = new Map<string, Payment>();
+  private readonly subscriptionOwnerById = new Map<string, string>();
 
   idInputMode: { subscriptionId: boolean; assessmentId: boolean; transactionId: boolean } = {
     subscriptionId: false,
@@ -110,6 +111,11 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
     this.form.get('type')?.valueChanges.subscribe((type) => {
       this.updateIdFieldRequirements(type as PaymentType);
+      this.clearIncompatibleTargetSelection();
+    });
+
+    this.form.get('userId')?.valueChanges.subscribe(() => {
+      this.clearIncompatibleTargetSelection();
     });
   }
 
@@ -196,6 +202,30 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     }
   }
 
+  get filteredSubscriptionIdOptions(): string[] {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return this.subscriptionIdOptions;
+    }
+
+    return this.subscriptionIdOptions.filter((id) => {
+      const ownerId = this.subscriptionOwnerById.get(id);
+      return !ownerId || ownerId === userId;
+    });
+  }
+
+  get filteredAssessmentIdOptions(): string[] {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return this.assessmentIdOptions;
+    }
+
+    return this.assessmentIdOptions.filter((id) => {
+      const assessment = this.assessmentOptions.find((item) => item.id === id);
+      return !assessment || assessment.userId === userId;
+    });
+  }
+
   private loadIdOptions(): void {
     this.api.preload();
     this.dataSub = this.api.payments$.subscribe((payments) => {
@@ -208,6 +238,9 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   private applyPaymentLookupOptions(payments: Payment[]): void {
     for (const payment of payments) {
       if (payment.subscriptionId) {
+        if (payment.userId) {
+          this.subscriptionOwnerById.set(payment.subscriptionId, payment.userId);
+        }
         this.paymentBySubscriptionId.set(
           payment.subscriptionId,
           this.pickMostRecentPayment(this.paymentBySubscriptionId.get(payment.subscriptionId), payment),
@@ -358,6 +391,34 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     if (this.mode === 'create') {
       try {
         const targetId = this.resolveTargetId(data);
+        if (!isUuid(data.userId ?? '')) {
+          this.error = 'Выберите пользователя из списка: для создания платежа нужен внутренний UUID пользователя.';
+          this.logWarn('payment.admin.form_create_invalid_user_id', {
+            userId: data.userId,
+          });
+          this.loading = false;
+          return;
+        }
+        if (targetId && !isUuid(targetId)) {
+          this.error = 'Связанный объект должен быть выбран из списка или указан как UUID.';
+          this.logWarn('payment.admin.form_create_invalid_target_id', {
+            paymentType: data.type,
+            targetId,
+          });
+          this.loading = false;
+          return;
+        }
+        const targetError = this.getTargetCompatibilityError(data);
+        if (targetError) {
+          this.error = targetError;
+          this.logWarn('payment.admin.form_create_incompatible_target', {
+            paymentType: data.type,
+            userId: data.userId,
+            targetId,
+          });
+          this.loading = false;
+          return;
+        }
         if (!targetId) {
           this.error = this.getTargetIdErrorMessage(data.type as PaymentType);
           this.logWarn('payment.admin.form_create_no_target', {
@@ -545,6 +606,49 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     }
   }
 
+  private getTargetCompatibilityError(data: ReturnType<typeof this.form.getRawValue>): string | null {
+    const userId = data.userId ?? '';
+    if (!userId) {
+      return null;
+    }
+
+    if (data.type === 'Subscription') {
+      const subscriptionId = data.subscriptionId ?? '';
+      const ownerId = subscriptionId ? this.subscriptionOwnerById.get(subscriptionId) : undefined;
+      if (ownerId && ownerId !== userId) {
+        return 'Выбранная подписка относится к другому пользователю. Выберите подписку из списка после выбора плательщика.';
+      }
+      return null;
+    }
+
+    const assessmentId = data.assessmentId ?? '';
+    const assessment = assessmentId ? this.assessmentOptions.find((item) => item.id === assessmentId) : undefined;
+    if (assessment && assessment.userId !== userId) {
+      return 'Выбранная заявка относится к другому пользователю. Выберите заявку из списка после выбора плательщика.';
+    }
+
+    return null;
+  }
+
+  private clearIncompatibleTargetSelection(): void {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return;
+    }
+
+    const subscriptionId = this.form.get('subscriptionId')?.value ?? '';
+    const ownerId = subscriptionId ? this.subscriptionOwnerById.get(subscriptionId) : undefined;
+    if (ownerId && ownerId !== userId) {
+      this.form.get('subscriptionId')?.setValue('');
+    }
+
+    const assessmentId = this.form.get('assessmentId')?.value ?? '';
+    const assessment = assessmentId ? this.assessmentOptions.find((item) => item.id === assessmentId) : undefined;
+    if (assessment && assessment.userId !== userId) {
+      this.form.get('assessmentId')?.setValue('');
+    }
+  }
+
   private compactIdentifier(id: string): string {
     const normalized = id.trim();
     if (normalized.length <= 18) {
@@ -608,4 +712,10 @@ function toDateInputValue(value: string): string {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
 }
