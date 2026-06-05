@@ -21,6 +21,14 @@ import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 
 const CURRENCY_OPTIONS = ['RUB', 'USD', 'EUR'] as const;
 type Currency = (typeof CURRENCY_OPTIONS)[number];
+type PaymentSelectControl =
+  | 'type'
+  | 'status'
+  | 'currency'
+  | 'paymentMethod'
+  | 'subscriptionId'
+  | 'assessmentId'
+  | 'transactionId';
 
 @Component({
   selector: 'lib-payment-form',
@@ -41,6 +49,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   allUsers: AdminUserRef[] = [];
   userSearchQuery = '';
   userDropdownOpen = false;
+  activeSelectKey: PaymentSelectControl | null = null;
 
   mode: 'create' | 'edit' = 'create';
   paymentId: string | null = null;
@@ -148,6 +157,9 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     if (!target.closest('.user-autocomplete')) {
       this.userDropdownOpen = false;
     }
+    if (!target.closest('.custom-select-container')) {
+      this.activeSelectKey = null;
+    }
   }
 
   private loadIdOptions(): void {
@@ -188,6 +200,24 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       ...this.idInputMode,
       [field]: !this.idInputMode[field],
     };
+    this.activeSelectKey = null;
+  }
+
+  toggleSelect(key: PaymentSelectControl, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeSelectKey = this.activeSelectKey === key ? null : key;
+  }
+
+  selectFormValue(key: PaymentSelectControl, value: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.form.get(key)?.setValue(value);
+    this.form.get(key)?.markAsDirty();
+    this.form.get(key)?.markAsTouched();
+    this.activeSelectKey = null;
+  }
+
+  isSelectOpen(key: PaymentSelectControl): boolean {
+    return this.activeSelectKey === key;
   }
 
   private async loadPayment(id: string): Promise<void> {

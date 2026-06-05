@@ -65,20 +65,58 @@
 
         <div class="form-group">
           <label for="pf-type">Тип платежа</label>
-          <select id="pf-type" formControlName="type">
-            @for (type of paymentTypes; track type) {
-              <option [value]="type">{{ getTypeLabel(type) }}</option>
+          <div class="custom-select-container">
+            <button
+              type="button"
+              id="pf-type"
+              class="custom-select"
+              [class.is-open]="isSelectOpen('type')"
+              (click)="toggleSelect('type', $event)">
+              <span>{{ getTypeLabel($any(form.get('type')?.value)) }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isSelectOpen('type')) {
+              <div class="custom-select-menu">
+                @for (type of paymentTypes; track type) {
+                  <button
+                    type="button"
+                    class="custom-select-option"
+                    [class.is-selected]="form.get('type')?.value === type"
+                    (click)="selectFormValue('type', type, $event)">
+                    {{ getTypeLabel(type) }}
+                  </button>
+                }
+              </div>
             }
-          </select>
+          </div>
         </div>
 
         <div class="form-group">
           <label for="pf-status">Статус</label>
-          <select id="pf-status" formControlName="status">
-            @for (status of statuses; track status) {
-              <option [value]="status">{{ getStatusLabel(status) }}</option>
+          <div class="custom-select-container">
+            <button
+              type="button"
+              id="pf-status"
+              class="custom-select"
+              [class.is-open]="isSelectOpen('status')"
+              (click)="toggleSelect('status', $event)">
+              <span>{{ getStatusLabel($any(form.get('status')?.value)) }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isSelectOpen('status')) {
+              <div class="custom-select-menu">
+                @for (status of statuses; track status) {
+                  <button
+                    type="button"
+                    class="custom-select-option"
+                    [class.is-selected]="form.get('status')?.value === status"
+                    (click)="selectFormValue('status', status, $event)">
+                    {{ getStatusLabel(status) }}
+                  </button>
+                }
+              </div>
             }
-          </select>
+          </div>
         </div>
       </div>
     </div>
@@ -97,11 +135,30 @@
 
         <div class="form-group">
           <label for="pf-currency">Валюта</label>
-          <select id="pf-currency" formControlName="currency">
-            @for (currency of currencies; track currency) {
-              <option [value]="currency">{{ currency }}</option>
+          <div class="custom-select-container">
+            <button
+              type="button"
+              id="pf-currency"
+              class="custom-select"
+              [class.is-open]="isSelectOpen('currency')"
+              (click)="toggleSelect('currency', $event)">
+              <span>{{ form.get('currency')?.value }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isSelectOpen('currency')) {
+              <div class="custom-select-menu">
+                @for (currency of currencies; track currency) {
+                  <button
+                    type="button"
+                    class="custom-select-option"
+                    [class.is-selected]="form.get('currency')?.value === currency"
+                    (click)="selectFormValue('currency', currency, $event)">
+                    {{ currency }}
+                  </button>
+                }
+              </div>
             }
-          </select>
+          </div>
         </div>
 
         <div class="form-group">
@@ -116,11 +173,30 @@
 
         <div class="form-group">
           <label for="pf-paymentMethod">Метод оплаты</label>
-          <select id="pf-paymentMethod" formControlName="paymentMethod">
-            @for (method of paymentMethods; track method) {
-              <option [value]="method">{{ getMethodLabel(method) }}</option>
+          <div class="custom-select-container">
+            <button
+              type="button"
+              id="pf-paymentMethod"
+              class="custom-select"
+              [class.is-open]="isSelectOpen('paymentMethod')"
+              (click)="toggleSelect('paymentMethod', $event)">
+              <span>{{ getMethodLabel($any(form.get('paymentMethod')?.value)) }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isSelectOpen('paymentMethod')) {
+              <div class="custom-select-menu">
+                @for (method of paymentMethods; track method) {
+                  <button
+                    type="button"
+                    class="custom-select-option"
+                    [class.is-selected]="form.get('paymentMethod')?.value === method"
+                    (click)="selectFormValue('paymentMethod', method, $event)">
+                    {{ getMethodLabel(method) }}
+                  </button>
+                }
+              </div>
             }
-          </select>
+          </div>
         </div>
       </div>
     </div>
@@ -136,12 +212,37 @@
           <label for="pf-subscriptionId">Связанная подписка</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.subscriptionId) {
-              <select id="pf-subscriptionId" formControlName="subscriptionId">
-                <option value="">Без подписки</option>
-                @for (id of subscriptionIdOptions; track id) {
-                  <option [value]="id">{{ formatSubscriptionOption(id) }}</option>
+              <div class="custom-select-container">
+                <button
+                  type="button"
+                  id="pf-subscriptionId"
+                  class="custom-select"
+                  [class.is-open]="isSelectOpen('subscriptionId')"
+                  (click)="toggleSelect('subscriptionId', $event)">
+                  <span>{{ form.get('subscriptionId')?.value ? formatSubscriptionOption(form.get('subscriptionId')?.value || '') : 'Без подписки' }}</span>
+                  <i class="las la-angle-down"></i>
+                </button>
+                @if (isSelectOpen('subscriptionId')) {
+                  <div class="custom-select-menu">
+                    <button
+                      type="button"
+                      class="custom-select-option"
+                      [class.is-selected]="!form.get('subscriptionId')?.value"
+                      (click)="selectFormValue('subscriptionId', '', $event)">
+                      Без подписки
+                    </button>
+                    @for (id of subscriptionIdOptions; track id) {
+                      <button
+                        type="button"
+                        class="custom-select-option"
+                        [class.is-selected]="form.get('subscriptionId')?.value === id"
+                        (click)="selectFormValue('subscriptionId', id, $event)">
+                        {{ formatSubscriptionOption(id) }}
+                      </button>
+                    }
+                  </div>
                 }
-              </select>
+              </div>
             } @else {
               <input type="text" id="pf-subscriptionId" formControlName="subscriptionId" placeholder="Например: sub_..." />
             }
@@ -164,12 +265,37 @@
           <label for="pf-assessmentId">Связанная заявка</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.assessmentId) {
-              <select id="pf-assessmentId" formControlName="assessmentId">
-                <option value="">Без заявки</option>
-                @for (id of assessmentIdOptions; track id) {
-                  <option [value]="id">{{ formatAssessmentOption(id) }}</option>
+              <div class="custom-select-container">
+                <button
+                  type="button"
+                  id="pf-assessmentId"
+                  class="custom-select"
+                  [class.is-open]="isSelectOpen('assessmentId')"
+                  (click)="toggleSelect('assessmentId', $event)">
+                  <span>{{ form.get('assessmentId')?.value ? formatAssessmentOption(form.get('assessmentId')?.value || '') : 'Без заявки' }}</span>
+                  <i class="las la-angle-down"></i>
+                </button>
+                @if (isSelectOpen('assessmentId')) {
+                  <div class="custom-select-menu">
+                    <button
+                      type="button"
+                      class="custom-select-option"
+                      [class.is-selected]="!form.get('assessmentId')?.value"
+                      (click)="selectFormValue('assessmentId', '', $event)">
+                      Без заявки
+                    </button>
+                    @for (id of assessmentIdOptions; track id) {
+                      <button
+                        type="button"
+                        class="custom-select-option"
+                        [class.is-selected]="form.get('assessmentId')?.value === id"
+                        (click)="selectFormValue('assessmentId', id, $event)">
+                        {{ formatAssessmentOption(id) }}
+                      </button>
+                    }
+                  </div>
                 }
-              </select>
+              </div>
             } @else {
               <input type="text" id="pf-assessmentId" formControlName="assessmentId" placeholder="Например: assessment-..." />
             }
@@ -192,12 +318,37 @@
           <label for="pf-transactionId">Транзакция платёжного шлюза</label>
           <div class="id-field-wrapper">
             @if (!idInputMode.transactionId) {
-              <select id="pf-transactionId" formControlName="transactionId">
-                <option value="">Будет создана позже</option>
-                @for (id of transactionIdOptions; track id) {
-                  <option [value]="id">{{ formatTransactionOption(id) }}</option>
+              <div class="custom-select-container">
+                <button
+                  type="button"
+                  id="pf-transactionId"
+                  class="custom-select"
+                  [class.is-open]="isSelectOpen('transactionId')"
+                  (click)="toggleSelect('transactionId', $event)">
+                  <span>{{ form.get('transactionId')?.value ? formatTransactionOption(form.get('transactionId')?.value || '') : 'Будет создана позже' }}</span>
+                  <i class="las la-angle-down"></i>
+                </button>
+                @if (isSelectOpen('transactionId')) {
+                  <div class="custom-select-menu">
+                    <button
+                      type="button"
+                      class="custom-select-option"
+                      [class.is-selected]="!form.get('transactionId')?.value"
+                      (click)="selectFormValue('transactionId', '', $event)">
+                      Будет создана позже
+                    </button>
+                    @for (id of transactionIdOptions; track id) {
+                      <button
+                        type="button"
+                        class="custom-select-option"
+                        [class.is-selected]="form.get('transactionId')?.value === id"
+                        (click)="selectFormValue('transactionId', id, $event)">
+                        {{ formatTransactionOption(id) }}
+                      </button>
+                    }
+                  </div>
                 }
-              </select>
+              </div>
             } @else {
               <input type="text" id="pf-transactionId" formControlName="transactionId" placeholder="Например: inv_ или txn_..." />
             }
