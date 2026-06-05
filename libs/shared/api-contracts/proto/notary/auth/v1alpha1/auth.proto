@@ -16,6 +16,11 @@ service AuthService {
   // generic-форма (поле provider) позволит добавить Yandex/VK без новых RPC.
   rpc GetOAuthAuthorizeUrl (GetOAuthAuthorizeUrlRequest) returns (GetOAuthAuthorizeUrlResponse);
   rpc OAuthLogin (OAuthLoginRequest) returns (OAuthLoginResponse);
+
+  // Подтверждение контакта после OAuth-регистрации/первой связки кодом из письма
+  // (dev: код пишется в лог api). Вызываются гостем по короткому ticket.
+  rpc ConfirmContact (ConfirmContactRequest) returns (ConfirmContactResponse);
+  rpc ResendContactCode (ResendContactCodeRequest) returns (ResendContactCodeResponse);
 }
 
 // Внешний OAuth-провайдер. UNSPECIFIED = 0 для совместимости proto3.
@@ -105,5 +110,29 @@ message OAuthLoginRequest {
 }
 
 message OAuthLoginResponse {
+  // Заполняется при повторном входе (контакт уже подтверждён) — выдаются токены.
+  AuthResult result = 1;
+  // true — новая регистрация / первая связка: вход не завершён, нужен код подтверждения.
+  bool verification_required = 2;
+  // Короткоживущий ticket для ConfirmContact/ResendContactCode (не равен коду, не хранится в БД).
+  string verification_ticket = 3;
+  // Контакт (email), на который отправлен код — для подсказки на форме.
+  string contact_to_verify = 4;
+}
+
+// Подтверждение контакта введённым кодом. На успехе возвращает токены (как обычный вход).
+message ConfirmContactRequest {
+  string ticket = 1;
+  string code = 2;
+}
+
+message ConfirmContactResponse {
   AuthResult result = 1;
 }
+
+// Повторная отправка кода (новый код инвалидирует старый). Серверный кулдаун против спама.
+message ResendContactCodeRequest {
+  string ticket = 1;
+}
+
+message ResendContactCodeResponse {}

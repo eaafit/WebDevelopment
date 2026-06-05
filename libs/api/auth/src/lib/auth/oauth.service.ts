@@ -1,17 +1,28 @@
+import { randomInt } from 'crypto';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '@internal/audit';
+import { NotificationService } from '@internal/notification';
 import { OAuthProvider as PrismaOAuthProvider, Prisma, Role as PrismaRole } from '@internal/prisma-client';
 import {
   AuthResultSchema,
+  ConfirmContactResponseSchema,
   GetOAuthAuthorizeUrlResponseSchema,
+  NotificationCategory as RpcNotificationCategory,
+  NotificationType as RpcNotificationType,
   OAuthLoginResponseSchema,
   OauthProvider,
+  ResendContactCodeResponseSchema,
+  type AuthResult,
+  type ConfirmContactRequest,
+  type ConfirmContactResponse,
   type GetOAuthAuthorizeUrlRequest,
   type GetOAuthAuthorizeUrlResponse,
   type OAuthLoginRequest,
   type OAuthLoginResponse,
+  type ResendContactCodeRequest,
+  type ResendContactCodeResponse,
 } from '@notary-portal/api-contracts';
 import { AuthRepository } from './auth.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
@@ -22,10 +33,23 @@ import { VkOAuthClient } from './vk-oauth.client';
 import type { OAuthClient, OAuthUserInfo } from './oauth-client';
 import { OAuthAccountRepository, type OAuthUserRecord } from './oauth-account.repository';
 import { OAuthStateService } from './oauth-state.service';
+import { ContactVerificationRepository } from './contact-verification.repository';
+import { CONTACT_CODE_MAILER, type ContactCodeMailer } from './contact-code-mailer.interface';
 
 const OAUTH_LOGIN_SUCCEEDED_EVENT = 'user.oauth_login_succeeded';
 const OAUTH_LOGIN_FAILED_EVENT = 'user.oauth_login_failed';
 const OAUTH_REGISTERED_EVENT = 'user.oauth_registered';
+const CONTACT_VERIFICATION_SENT_EVENT = 'user.contact_verification_sent';
+const CONTACT_CONFIRMED_EVENT = 'user.contact_confirmed';
+const CONTACT_CONFIRMATION_FAILED_EVENT = 'user.contact_confirmation_failed';
+
+/** Минимальная проекция юзера для подтверждения контакта (id+email+аудит-поля). */
+interface ContactUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: PrismaRole;
+}
 
 @Injectable()
 export class OAuthService {
@@ -44,6 +68,9 @@ export class OAuthService {
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly tokenService: TokenService,
     private readonly auditService: AuditService,
+    private readonly contactVerificationRepository: ContactVerificationRepository,
+    @Inject(CONTACT_CODE_MAILER) private readonly codeMailer: ContactCodeMailer,
+    private readonly notificationService: NotificationService,
   ) {
     this.clients = new Map<OauthProvider, OAuthClient>([
       [OauthProvider.GOOGLE, googleClient],
@@ -117,13 +144,17 @@ export class OAuthService {
       throw new ConnectError('provider did not return an email', Code.Unauthenticated);
     }
 
-    // 3a. Уже привязанный внешний аккаунт → обычный вход.
+    // 3a. Уже привязанный внешний аккаунт → обычный вход (если контакт уже подтверждён).
     const linked = await this.oauthAccountRepository.findUserByProviderAccount(
       prismaProvider,
       profile.providerUserId,
     );
     if (linked) {
       await this.assertActive(provider, linked);
+      // Юзер бросил подтверждение при регистрации/связке → снова требуем код.
+      if (await this.needsVerification(linked.id)) {
+        return this.requireVerification(linked);
+      }
       await this.recordSuccess(OAUTH_LOGIN_SUCCEEDED_EVENT, provider, linked, false);
       return this.issueTokens(linked);
     }
@@ -144,8 +175,8 @@ export class OAuthService {
         prismaProvider,
         profile.providerUserId,
       );
-      await this.recordSuccess(OAUTH_LOGIN_SUCCEEDED_EVENT, provider, byEmail, true);
-      return this.issueTokens(byEmail);
+      // Первая связка → не в кабинет, а на подтверждение контакта кодом.
+      return this.requireVerification(byEmail);
     }
 
     // 3c. Новый пользователь → создаём (роль Applicant, без пароля) + связку.
@@ -155,7 +186,119 @@ export class OAuthService {
       profile.providerUserId,
     );
     await this.recordSuccess(OAUTH_REGISTERED_EVENT, provider, created, false);
-    return this.issueTokens(created);
+    // Новая регистрация → подтверждение контакта кодом перед входом.
+    return this.requireVerification(created);
+  }
+
+  // ─── Подтверждение контакта (после OAuth-регистрации / первой связки) ─────
+
+  /** true — у юзера есть неподтверждённая запись подтверждения контакта. */
+  private async needsVerification(userId: string): Promise<boolean> {
+    const record = await this.contactVerificationRepository.findByUserId(userId);
+    return !!record && !record.confirmedAt;
+  }
+
+  /** Выпускает код, шлёт в лог, пишет аудит, отдаёт фронту verification_required + ticket. */
+  private async requireVerification(user: ContactUser): Promise<OAuthLoginResponse> {
+    const code = generateNumericCode();
+    const ttlSec = Number(process.env['CONTACT_CODE_TTL_SEC'] ?? 300);
+    const expiresAt = new Date(Date.now() + ttlSec * 1000);
+
+    await this.contactVerificationRepository.upsertCode(user.id, code, expiresAt);
+    await this.codeMailer.sendCode(user.email, code);
+    await this.recordVerificationSent(user);
+
+    const verificationTicket = this.tokenService.issueContactTicket({
+      sub: user.id,
+      email: user.email,
+    });
+    return create(OAuthLoginResponseSchema, {
+      verificationRequired: true,
+      verificationTicket,
+      contactToVerify: user.email,
+    });
+  }
+
+  /** Подтверждение кода: на успехе завершает вход (токены), иначе — учёт попытки/провала. */
+  async confirmContact(request: ConfirmContactRequest): Promise<ConfirmContactResponse> {
+    let ticket: { sub: string; email: string };
+    try {
+      ticket = this.tokenService.verifyContactTicket(request.ticket);
+    } catch {
+      await this.recordConfirmationFailed('invalid_ticket');
+      throw new ConnectError('invalid or expired ticket', Code.Unauthenticated);
+    }
+
+    const user = await this.authRepository.findById(ticket.sub);
+    const record = await this.contactVerificationRepository.findByUserId(ticket.sub);
+    if (!user || !record) {
+      await this.recordConfirmationFailed('not_found', user ?? undefined);
+      throw new ConnectError('verification not found', Code.NotFound);
+    }
+
+    // Уже подтверждён → просто завершаем вход (идемпотентно).
+    if (record.confirmedAt) {
+      return create(ConfirmContactResponseSchema, { result: await this.buildAuthResult(user) });
+    }
+
+    const maxAttempts = Number(process.env['CONTACT_CODE_MAX_ATTEMPTS'] ?? 5);
+    if (record.attempts >= maxAttempts) {
+      await this.recordConfirmationFailed('attempts_exceeded', user);
+      throw new ConnectError('too many attempts, request a new code', Code.ResourceExhausted);
+    }
+    if (record.expiresAt < new Date()) {
+      await this.recordConfirmationFailed('expired', user);
+      throw new ConnectError('code expired, request a new one', Code.DeadlineExceeded);
+    }
+    if (!this.contactVerificationRepository.matches(record, request.code)) {
+      await this.contactVerificationRepository.incrementAttempts(user.id);
+      await this.recordConfirmationFailed('invalid_code', user);
+      throw new ConnectError('invalid code', Code.InvalidArgument);
+    }
+
+    await this.contactVerificationRepository.markConfirmed(user.id);
+    await this.recordConfirmed(user);
+    await this.notifyContactConfirmed(user);
+    return create(ConfirmContactResponseSchema, { result: await this.buildAuthResult(user) });
+  }
+
+  /** Повторная отправка кода с серверным кулдауном против перебора. */
+  async resendContactCode(request: ResendContactCodeRequest): Promise<ResendContactCodeResponse> {
+    let ticket: { sub: string; email: string };
+    try {
+      ticket = this.tokenService.verifyContactTicket(request.ticket);
+    } catch {
+      await this.recordConfirmationFailed('invalid_ticket');
+      throw new ConnectError('invalid or expired ticket', Code.Unauthenticated);
+    }
+
+    const user = await this.authRepository.findById(ticket.sub);
+    const record = await this.contactVerificationRepository.findByUserId(ticket.sub);
+    if (!user || !record) {
+      await this.recordConfirmationFailed('not_found', user ?? undefined);
+      throw new ConnectError('verification not found', Code.NotFound);
+    }
+    if (record.confirmedAt) {
+      return create(ResendContactCodeResponseSchema, {});
+    }
+
+    // Серверный кулдаун: нельзя выпускать новый код чаще, чем раз в N секунд.
+    const cooldownSec = Number(process.env['CONTACT_CODE_RESEND_COOLDOWN_SEC'] ?? 60);
+    if (Date.now() - record.lastSentAt.getTime() < cooldownSec * 1000) {
+      await this.recordConfirmationFailed('resend_too_soon', user);
+      throw new ConnectError('please wait before requesting a new code', Code.ResourceExhausted);
+    }
+
+    const code = generateNumericCode();
+    const ttlSec = Number(process.env['CONTACT_CODE_TTL_SEC'] ?? 300);
+    await this.contactVerificationRepository.upsertCode(
+      user.id,
+      code,
+      new Date(Date.now() + ttlSec * 1000),
+    );
+    await this.codeMailer.sendCode(user.email, code);
+    await this.recordVerificationSent(user);
+    return create(ResendContactCodeResponseSchema, {});
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -179,6 +322,11 @@ export class OAuthService {
   }
 
   private async issueTokens(record: OAuthUserRecord): Promise<OAuthLoginResponse> {
+    return create(OAuthLoginResponseSchema, { result: await this.buildAuthResult(record) });
+  }
+
+  /** Создаёт нашу JWT-пару + сохраняет refresh; возвращает AuthResult. */
+  private async buildAuthResult(record: OAuthUserRecord): Promise<AuthResult> {
     const rpcUser = this.authRepository.toMessage(record);
     const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
       sub: rpcUser.id,
@@ -188,8 +336,68 @@ export class OAuthService {
 
     await this.refreshTokenRepository.save(rpcUser.id, refreshToken, refreshExpiresAt);
 
-    return create(OAuthLoginResponseSchema, {
-      result: create(AuthResultSchema, { accessToken, refreshToken, user: rpcUser }),
+    return create(AuthResultSchema, { accessToken, refreshToken, user: rpcUser });
+  }
+
+  private async notifyContactConfirmed(user: ContactUser): Promise<void> {
+    await this.notificationService.createInternalNotification({
+      userId: user.id,
+      title: 'Контакт подтверждён',
+      message: 'Ваш контакт подтверждён, аккаунт активирован.',
+      category: RpcNotificationCategory.SYSTEM,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  private async recordVerificationSent(user: ContactUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: user.role,
+      eventType: CONTACT_VERIFICATION_SENT_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Отправлен код подтверждения контакта',
+      actionContext: 'Код отправлен на email пользователя',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({ outcome: 'sent', email: user.email }),
+    });
+  }
+
+  private async recordConfirmed(user: ContactUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorName: user.fullName,
+      actorRole: user.role,
+      eventType: CONTACT_CONFIRMED_EVENT,
+      targetType: 'User',
+      targetId: user.id,
+      actionTitle: 'Контакт подтверждён',
+      actionContext: 'Пользователь подтвердил контакт кодом',
+      targetTitle: user.fullName || user.email,
+      targetContext: user.email,
+      after: authDetails({ outcome: 'succeeded', email: user.email }),
+    });
+  }
+
+  private async recordConfirmationFailed(reason: string, user?: ContactUser): Promise<void> {
+    await this.auditService.record({
+      actorUserId: user?.id,
+      actorEmail: user?.email,
+      actorName: user?.fullName,
+      actorRole: user?.role,
+      allowAnonymous: true,
+      eventType: CONTACT_CONFIRMATION_FAILED_EVENT,
+      targetType: user ? 'User' : 'Security',
+      targetId: user?.id ?? null,
+      actionTitle: 'Неудачное подтверждение контакта',
+      actionContext: reasonLabel(reason),
+      targetTitle: user?.fullName || user?.email || 'Contact verification attempt',
+      targetContext: user?.email,
+      after: authDetails({ outcome: 'failed', reason, email: user?.email }),
     });
   }
 
@@ -289,9 +497,26 @@ function reasonLabel(reason: string): string {
       return 'Провайдер не вернул email';
     case 'account_deactivated':
       return 'Аккаунт деактивирован';
+    case 'invalid_ticket':
+      return 'Невалидный или просроченный ticket подтверждения';
+    case 'not_found':
+      return 'Запись подтверждения не найдена';
+    case 'attempts_exceeded':
+      return 'Превышено число попыток ввода кода';
+    case 'expired':
+      return 'Код подтверждения истёк';
+    case 'invalid_code':
+      return 'Неверный код подтверждения';
+    case 'resend_too_soon':
+      return 'Слишком частый запрос нового кода';
     default:
       return reason;
   }
+}
+
+/** 6-значный код подтверждения, криптослучайный. */
+function generateNumericCode(): string {
+  return String(randomInt(0, 1_000_000)).padStart(6, '0');
 }
 
 /** Сборка JSON-деталей аудита без секретов; пустые значения отбрасываются. */

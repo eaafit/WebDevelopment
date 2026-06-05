@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { OAuthService } from './oauth.service';
 import type {
+  ConfirmContactRequest,
+  ConfirmContactResponse,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
   GetOAuthAuthorizeUrlRequest,
@@ -16,6 +18,8 @@ import type {
   RefreshTokenResponse,
   RegisterRequest,
   RegisterResponse,
+  ResendContactCodeRequest,
+  ResendContactCodeResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
 } from '@notary-portal/api-contracts';
@@ -51,4 +55,11 @@ export class AuthRpcService {
 
   readonly oAuthLogin = (r: OAuthLoginRequest): Promise<OAuthLoginResponse> =>
     this.oauthService.login(r);
+
+  readonly confirmContact = (r: ConfirmContactRequest): Promise<ConfirmContactResponse> =>
+    this.oauthService.confirmContact(r);
+
+  readonly resendContactCode = (
+    r: ResendContactCodeRequest,
+  ): Promise<ResendContactCodeResponse> => this.oauthService.resendContactCode(r);
 }

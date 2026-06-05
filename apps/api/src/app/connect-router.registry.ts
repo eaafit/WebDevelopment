@@ -59,6 +59,8 @@ export class ConnectRouterRegistry {
       resetPassword: this.authRpcService.resetPassword,
       getOAuthAuthorizeUrl: this.authRpcService.getOAuthAuthorizeUrl,
       oAuthLogin: this.authRpcService.oAuthLogin,
+      confirmContact: this.authRpcService.confirmContact,
+      resendContactCode: this.authRpcService.resendContactCode,
     });
 
     // ─── User ────────────────────────────────────────────────

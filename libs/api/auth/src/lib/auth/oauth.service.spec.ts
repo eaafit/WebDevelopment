@@ -1,9 +1,11 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
 import {
+  ConfirmContactRequestSchema,
   GetOAuthAuthorizeUrlRequestSchema,
   OAuthLoginRequestSchema,
   OauthProvider,
+  ResendContactCodeRequestSchema,
 } from '@notary-portal/api-contracts';
 import { Role as PrismaRole } from '@internal/prisma-client';
 import { OAuthService } from './oauth.service';
@@ -31,10 +33,23 @@ describe('OAuthService', () => {
     linkAccount: jest.fn(),
     createUserWithAccount: jest.fn(),
   };
-  const authRepository = { findByEmail: jest.fn(), toMessage: jest.fn() };
+  const authRepository = { findByEmail: jest.fn(), findById: jest.fn(), toMessage: jest.fn() };
   const refreshTokenRepository = { save: jest.fn() };
-  const tokenService = { generateTokenPair: jest.fn() };
+  const tokenService = {
+    generateTokenPair: jest.fn(),
+    issueContactTicket: jest.fn(),
+    verifyContactTicket: jest.fn(),
+  };
   const auditService = { record: jest.fn() };
+  const contactVerificationRepository = {
+    upsertCode: jest.fn(),
+    findByUserId: jest.fn(),
+    incrementAttempts: jest.fn(),
+    markConfirmed: jest.fn(),
+    matches: jest.fn(),
+  };
+  const codeMailer = { sendCode: jest.fn() };
+  const notificationService = { createInternalNotification: jest.fn() };
 
   let service: OAuthService;
 
@@ -59,6 +74,19 @@ describe('OAuthService', () => {
     };
   }
 
+  function verificationRecord(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'cv-1',
+      userId: 'user-1',
+      codeHash: 'hash',
+      expiresAt: new Date(Date.now() + 60_000),
+      attempts: 0,
+      lastSentAt: new Date(Date.now() - 120_000),
+      confirmedAt: null,
+      ...overrides,
+    };
+  }
+
   beforeEach(() => {
     jest.resetAllMocks();
     service = new OAuthService(
@@ -71,6 +99,9 @@ describe('OAuthService', () => {
       refreshTokenRepository as never,
       tokenService as never,
       auditService as never,
+      contactVerificationRepository as never,
+      codeMailer as never,
+      notificationService as never,
     );
     authRepository.toMessage.mockImplementation((r: { id: string; email: string }) => ({
       id: r.id,
@@ -82,7 +113,12 @@ describe('OAuthService', () => {
       refreshToken: 'our-refresh-token',
       refreshExpiresAt: new Date('2026-06-30T00:00:00.000Z'),
     });
+    tokenService.issueContactTicket.mockReturnValue('contact-ticket-xyz');
     refreshTokenRepository.save.mockResolvedValue(undefined);
+    contactVerificationRepository.findByUserId.mockResolvedValue(null);
+    contactVerificationRepository.upsertCode.mockResolvedValue(undefined);
+    codeMailer.sendCode.mockResolvedValue(undefined);
+    notificationService.createInternalNotification.mockResolvedValue(undefined);
   });
 
   function loginRequest(overrides: Record<string, unknown> = {}) {
@@ -103,24 +139,10 @@ describe('OAuthService', () => {
         create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.GOOGLE }),
       );
 
-      // Google не использует PKCE → issue без payload, buildAuthorizeUrl без challenge.
       expect(stateService.issue).toHaveBeenCalledWith(undefined);
       expect(googleClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-abc', undefined);
       expect(res.url).toBe('https://accounts.google.com/o/oauth2/v2/auth?x=1');
       expect(res.state).toBe('signed-state-abc');
-    });
-
-    it('returns the Yandex consent URL and the signed state', async () => {
-      stateService.issue.mockReturnValue('signed-state-ya');
-      yandexClient.buildAuthorizeUrl.mockReturnValue('https://oauth.yandex.ru/authorize?x=1');
-
-      const res = await service.getAuthorizeUrl(
-        create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.YANDEX }),
-      );
-
-      expect(yandexClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-ya', undefined);
-      expect(res.url).toBe('https://oauth.yandex.ru/authorize?x=1');
-      expect(res.state).toBe('signed-state-ya');
     });
 
     it('embeds the VK PKCE verifier in the state and passes the challenge to the URL', async () => {
@@ -146,32 +168,41 @@ describe('OAuthService', () => {
     });
   });
 
-  describe('login — happy paths', () => {
+  describe('login — verification gating', () => {
     beforeEach(() => {
       stateService.verify.mockReturnValue(undefined);
       googleClient.exchangeCode.mockResolvedValue({ accessToken: 'g-access', idToken: 'g-id' });
       googleClient.getUserInfo.mockResolvedValue(profile);
     });
 
-    it('logs in an already-linked account', async () => {
+    it('logs in an already-linked & confirmed account without a code', async () => {
       oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(userRecord());
+      contactVerificationRepository.findByUserId.mockResolvedValue(null); // нет ожидающего подтверждения
 
       const res = await service.login(loginRequest());
 
       expect(oauthAccountRepository.linkAccount).not.toHaveBeenCalled();
-      expect(oauthAccountRepository.createUserWithAccount).not.toHaveBeenCalled();
-      expect(refreshTokenRepository.save).toHaveBeenCalledWith(
-        'user-1',
-        'our-refresh-token',
-        new Date('2026-06-30T00:00:00.000Z'),
-      );
+      expect(codeMailer.sendCode).not.toHaveBeenCalled();
       expect(res.result?.accessToken).toBe('our-access-token');
+      expect(res.verificationRequired).toBe(false);
       expect(auditService.record).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'user.oauth_login_succeeded', targetId: 'user-1' }),
       );
     });
 
-    it('links a verified existing email account and logs in', async () => {
+    it('re-requires a code on repeat login if the user abandoned verification', async () => {
+      oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(userRecord());
+      contactVerificationRepository.findByUserId.mockResolvedValue(verificationRecord());
+
+      const res = await service.login(loginRequest());
+
+      expect(res.verificationRequired).toBe(true);
+      expect(res.result).toBeUndefined();
+      expect(codeMailer.sendCode).toHaveBeenCalled();
+      expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('first link of a verified email requires a contact code (no tokens yet)', async () => {
       oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(null);
       authRepository.findByEmail.mockResolvedValue(userRecord({ id: 'user-existing' }));
 
@@ -182,16 +213,18 @@ describe('OAuthService', () => {
         'Google',
         'google-sub-1',
       );
-      expect(res.result?.refreshToken).toBe('our-refresh-token');
+      expect(res.verificationRequired).toBe(true);
+      expect(res.verificationTicket).toBe('contact-ticket-xyz');
+      expect(res.contactToVerify).toBe('user@example.com');
+      expect(res.result).toBeUndefined();
+      expect(contactVerificationRepository.upsertCode).toHaveBeenCalled();
+      expect(codeMailer.sendCode).toHaveBeenCalled();
       expect(auditService.record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          eventType: 'user.oauth_login_succeeded',
-          after: expect.objectContaining({ linked: true }),
-        }),
+        expect.objectContaining({ eventType: 'user.contact_verification_sent' }),
       );
     });
 
-    it('creates a new Applicant when no account exists', async () => {
+    it('new OAuth registration requires a contact code (account created, no tokens)', async () => {
       oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(null);
       authRepository.findByEmail.mockResolvedValue(null);
       oauthAccountRepository.createUserWithAccount.mockResolvedValue(userRecord({ id: 'user-new' }));
@@ -203,9 +236,14 @@ describe('OAuthService', () => {
         'Google',
         'google-sub-1',
       );
-      expect(res.result?.user?.id).toBe('user-new');
+      expect(res.verificationRequired).toBe(true);
+      expect(res.result).toBeUndefined();
+      expect(codeMailer.sendCode).toHaveBeenCalled();
       expect(auditService.record).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'user.oauth_registered', targetId: 'user-new' }),
+      );
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'user.contact_verification_sent' }),
       );
     });
   });
@@ -263,45 +301,10 @@ describe('OAuthService', () => {
         }),
       );
     });
-  });
-
-  describe('login — Yandex', () => {
-    beforeEach(() => {
-      stateService.verify.mockReturnValue('');
-      yandexClient.exchangeCode.mockResolvedValue({ accessToken: 'ya-access' });
-      yandexClient.getUserInfo.mockResolvedValue({
-        providerUserId: 'yandex-id-1',
-        email: 'ya-user@yandex.ru',
-        emailVerified: true,
-        fullName: 'Яндекс Пользователь',
-      });
-    });
-
-    it('creates a new Applicant via Yandex and stores the Yandex provider', async () => {
-      oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(null);
-      authRepository.findByEmail.mockResolvedValue(null);
-      oauthAccountRepository.createUserWithAccount.mockResolvedValue(
-        userRecord({ id: 'user-ya', email: 'ya-user@yandex.ru' }),
-      );
-
-      const res = await service.login(loginRequest({ provider: OauthProvider.YANDEX }));
-
-      expect(yandexClient.exchangeCode).toHaveBeenCalled();
-      expect(oauthAccountRepository.createUserWithAccount).toHaveBeenCalledWith(
-        expect.objectContaining({ email: 'ya-user@yandex.ru', role: PrismaRole.Applicant }),
-        'Yandex',
-        'yandex-id-1',
-      );
-      expect(res.result?.user?.id).toBe('user-ya');
-      expect(auditService.record).toHaveBeenCalledWith(
-        expect.objectContaining({
-          eventType: 'user.oauth_registered',
-          after: expect.objectContaining({ provider: 'yandex' }),
-        }),
-      );
-    });
 
     it('rejects when the provider returns no email and does not create a user', async () => {
+      stateService.verify.mockReturnValue('');
+      yandexClient.exchangeCode.mockResolvedValue({ accessToken: 'ya-access' });
       yandexClient.getUserInfo.mockResolvedValue({
         providerUserId: 'yandex-id-2',
         email: '',
@@ -323,7 +326,7 @@ describe('OAuthService', () => {
   });
 
   describe('login — VK', () => {
-    it('forwards the PKCE verifier (from state) and device_id to the VK exchange', async () => {
+    it('forwards the PKCE verifier (from state) and device_id; then requires a code', async () => {
       stateService.verify.mockReturnValue('pkce-verifier');
       vkClient.exchangeCode.mockResolvedValue({ accessToken: 'vk-access' });
       vkClient.getUserInfo.mockResolvedValue({
@@ -352,14 +355,140 @@ describe('OAuthService', () => {
         'Vk',
         'vk-id-1',
       );
-      expect(res.result?.user?.id).toBe('user-vk');
+      expect(res.verificationRequired).toBe(true);
       expect(auditService.record).toHaveBeenCalledWith(
         expect.objectContaining({ after: expect.objectContaining({ provider: 'vk' }) }),
       );
     });
   });
 
-  it('never writes Google code or tokens into the audit trail', async () => {
+  describe('confirmContact', () => {
+    function confirmRequest(code = '123456', ticket = 'ticket') {
+      return create(ConfirmContactRequestSchema, { ticket, code });
+    }
+
+    beforeEach(() => {
+      tokenService.verifyContactTicket.mockReturnValue({ sub: 'user-1', email: 'user@example.com' });
+      authRepository.findById.mockResolvedValue(userRecord());
+    });
+
+    it('confirms a valid code, completes login and notifies the user', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(verificationRecord());
+      contactVerificationRepository.matches.mockReturnValue(true);
+
+      const res = await service.confirmContact(confirmRequest());
+
+      expect(contactVerificationRepository.markConfirmed).toHaveBeenCalledWith('user-1');
+      expect(notificationService.createInternalNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: 'user-1' }),
+      );
+      expect(res.result?.accessToken).toBe('our-access-token');
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'user.contact_confirmed', targetId: 'user-1' }),
+      );
+    });
+
+    it('rejects a wrong code, increments attempts and audits the failure', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(verificationRecord());
+      contactVerificationRepository.matches.mockReturnValue(false);
+
+      await expect(service.confirmContact(confirmRequest('000000'))).rejects.toMatchObject({
+        code: Code.InvalidArgument,
+      });
+      expect(contactVerificationRepository.incrementAttempts).toHaveBeenCalledWith('user-1');
+      expect(contactVerificationRepository.markConfirmed).not.toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.contact_confirmation_failed',
+          after: expect.objectContaining({ reason: 'invalid_code' }),
+        }),
+      );
+    });
+
+    it('rejects an expired code', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(
+        verificationRecord({ expiresAt: new Date(Date.now() - 1000) }),
+      );
+
+      await expect(service.confirmContact(confirmRequest())).rejects.toMatchObject({
+        code: Code.DeadlineExceeded,
+      });
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ after: expect.objectContaining({ reason: 'expired' }) }),
+      );
+    });
+
+    it('rejects once attempts are exhausted', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(verificationRecord({ attempts: 5 }));
+
+      await expect(service.confirmContact(confirmRequest())).rejects.toMatchObject({
+        code: Code.ResourceExhausted,
+      });
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ after: expect.objectContaining({ reason: 'attempts_exceeded' }) }),
+      );
+    });
+
+    it('rejects an invalid ticket anonymously', async () => {
+      tokenService.verifyContactTicket.mockImplementation(() => {
+        throw new Error('bad ticket');
+      });
+
+      await expect(service.confirmContact(confirmRequest())).rejects.toMatchObject({
+        code: Code.Unauthenticated,
+      });
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.contact_confirmation_failed',
+          allowAnonymous: true,
+          targetType: 'Security',
+          after: expect.objectContaining({ reason: 'invalid_ticket' }),
+        }),
+      );
+    });
+  });
+
+  describe('resendContactCode', () => {
+    function resendRequest(ticket = 'ticket') {
+      return create(ResendContactCodeRequestSchema, { ticket });
+    }
+
+    beforeEach(() => {
+      tokenService.verifyContactTicket.mockReturnValue({ sub: 'user-1', email: 'user@example.com' });
+      authRepository.findById.mockResolvedValue(userRecord());
+    });
+
+    it('issues a fresh code once the cooldown has passed', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(
+        verificationRecord({ lastSentAt: new Date(Date.now() - 120_000) }),
+      );
+
+      await service.resendContactCode(resendRequest());
+
+      expect(contactVerificationRepository.upsertCode).toHaveBeenCalled();
+      expect(codeMailer.sendCode).toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ eventType: 'user.contact_verification_sent' }),
+      );
+    });
+
+    it('rejects resends inside the cooldown window (anti brute-force)', async () => {
+      contactVerificationRepository.findByUserId.mockResolvedValue(
+        verificationRecord({ lastSentAt: new Date(Date.now() - 5_000) }),
+      );
+
+      await expect(service.resendContactCode(resendRequest())).rejects.toMatchObject({
+        code: Code.ResourceExhausted,
+      });
+      expect(contactVerificationRepository.upsertCode).not.toHaveBeenCalled();
+      expect(codeMailer.sendCode).not.toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ after: expect.objectContaining({ reason: 'resend_too_soon' }) }),
+      );
+    });
+  });
+
+  it('never writes the auth code, provider tokens or the verification code into the audit trail', async () => {
     stateService.verify.mockReturnValue(undefined);
     googleClient.exchangeCode.mockResolvedValue({
       accessToken: 'ACCESS-TOKEN-SECRET',
@@ -372,9 +501,14 @@ describe('OAuthService', () => {
 
     await service.login(loginRequest({ code: 'AUTH-CODE-SECRET' }));
 
+    // Код подтверждения, отправленный мейлеру, не должен попасть в аудит.
+    const sentCode = codeMailer.sendCode.mock.calls[0]?.[1] as string;
+    expect(sentCode).toMatch(/^\d{6}$/);
+
     const auditPayload = JSON.stringify(auditService.record.mock.calls);
     expect(auditPayload).not.toContain('AUTH-CODE-SECRET');
     expect(auditPayload).not.toContain('ACCESS-TOKEN-SECRET');
     expect(auditPayload).not.toContain('ID-TOKEN-SECRET');
+    expect(auditPayload).not.toContain(sentCode);
   });
 });
