@@ -56,6 +56,9 @@ describe('OAuthCallback', () => {
       '',
     );
     expect(fixture.componentInstance.failed()).toBe(false);
+    // Заголовок отражает провайдера из маршрута, а не хардкод «Google».
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('h1')?.textContent).toContain('Яндекс');
   });
 
   it('forwards the VK device_id from the callback query', async () => {

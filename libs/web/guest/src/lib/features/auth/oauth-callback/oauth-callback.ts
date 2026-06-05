@@ -19,15 +19,18 @@ export class OAuthCallback implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
 
+  private readonly config = resolveOAuthProvider(this.route.snapshot.paramMap.get('provider'));
+
+  /** Имя провайдера для заголовка/сообщений; для неизвестного — «внешний сервис». */
+  readonly providerName = this.config?.displayName ?? 'внешний сервис';
   readonly error = this.authService.error;
   readonly failed = signal(false);
 
   async ngOnInit(): Promise<void> {
-    const config = resolveOAuthProvider(this.route.snapshot.paramMap.get('provider'));
     const params = this.route.snapshot.queryParamMap;
 
     // Неизвестный провайдер или провайдер вернул ошибку (например, отказ в доступе).
-    if (!config || params.get('error')) {
+    if (!this.config || params.get('error')) {
       this.failed.set(true);
       return;
     }
@@ -36,7 +39,7 @@ export class OAuthCallback implements OnInit {
     const state = params.get('state') ?? '';
     // device_id присылает VK ID; для Google/Yandex его нет (пустая строка).
     const deviceId = params.get('device_id') ?? '';
-    const ok = await this.authService.completeOAuthLogin(config, code, state, deviceId);
+    const ok = await this.authService.completeOAuthLogin(this.config, code, state, deviceId);
     if (!ok) {
       this.failed.set(true);
     }

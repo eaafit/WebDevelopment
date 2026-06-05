@@ -12,13 +12,15 @@ export interface OAuthProviderConfig {
   provider: OauthProvider;
   /** Ключ маршрута /auth/oauth/:provider/callback и префикс лог-событий oauth.<key>.* */
   key: string;
+  /** Человекочитаемое имя провайдера для UI (заголовки, сообщения). */
+  displayName: string;
 }
 
 /** Реестр провайдеров по ключу маршрута. Новый провайдер = новая запись. */
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
-  google: { provider: OauthProvider.GOOGLE, key: 'google' },
-  yandex: { provider: OauthProvider.YANDEX, key: 'yandex' },
-  vk: { provider: OauthProvider.VK, key: 'vk' },
+  google: { provider: OauthProvider.GOOGLE, key: 'google', displayName: 'Google' },
+  yandex: { provider: OauthProvider.YANDEX, key: 'yandex', displayName: 'Яндекс' },
+  vk: { provider: OauthProvider.VK, key: 'vk', displayName: 'ВКонтакте' },
 };
 
 /** Конфигурация провайдера по ключу маршрута, либо null для неизвестного. */

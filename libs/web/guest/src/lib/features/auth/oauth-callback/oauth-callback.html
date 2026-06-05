@@ -1,8 +1,8 @@
 <main class="login">
-  <h1>Вход через Google</h1>
+  <h1>Вход через {{ providerName }}</h1>
 
   @if (failed()) {
-  <div class="login__error">{{ error() || 'Не удалось завершить вход через Google.' }}</div>
+  <div class="login__error">{{ error() || 'Не удалось завершить вход через ' + providerName + '.' }}</div>
   <p class="login__footer-link">
     <a routerLink="/auth">Вернуться ко входу</a>
   </p>
