@@ -197,7 +197,7 @@ describe('Payments', () => {
   });
 
   it('uses compact default table widths and lets admins resize columns', () => {
-    expect(component.getColumnWidth('id')).toBe(68);
+    expect(component.getColumnWidth('id')).toBe(58);
 
     component.startColumnResize(
       'id',
@@ -212,7 +212,7 @@ describe('Payments', () => {
     );
     component.onDocumentMouseUp();
 
-    expect(component.getColumnWidth('id')).toBe(100);
+    expect(component.getColumnWidth('id')).toBe(90);
   });
 
   it('should log error when paged payment loading fails', async () => {

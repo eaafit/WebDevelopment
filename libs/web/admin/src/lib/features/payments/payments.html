@@ -37,6 +37,9 @@
       @if (exportError) {
       <small class="admin-toolbar__status payments-export-error">{{ exportError }}</small>
       }
+      @if (receiptError) {
+      <small class="admin-toolbar__status payments-export-error">{{ receiptError }}</small>
+      }
     </div>
   </section>
 
@@ -60,13 +63,36 @@
 
       <label class="admin-field payments-field payments-field--status">
         <span>Статус</span>
-        <select [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
-          <option value="">Все статусы</option>
-          <option value="completed">Завершён</option>
-          <option value="pending">В обработке</option>
-          <option value="failed">Ошибка</option>
-          <option value="refunded">Возврат</option>
-        </select>
+        <div class="admin-select">
+          <button
+            type="button"
+            class="admin-select__trigger"
+            [class.is-open]="isUiSelectOpen('statusFilter')"
+            (click)="toggleUiSelect('statusFilter', $event)">
+            <span>{{ getStatusFilterLabel() }}</span>
+            <i class="las la-angle-down"></i>
+          </button>
+          @if (isUiSelectOpen('statusFilter')) {
+          <div class="admin-select__menu">
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="statusFilter === ''"
+              (click)="selectStatusFilter('', $event)">
+              Все статусы
+            </button>
+            @for (status of statusOptions; track status) {
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="statusFilter === status"
+              (click)="selectStatusFilter(status, $event)">
+              {{ getStatusLabel(status) }}
+            </button>
+            }
+          </div>
+          }
+        </div>
       </label>
 
       <div class="payments-filters__actions">
@@ -84,11 +110,30 @@
       <div class="admin-card__controls">
         <label class="page-size-control">
           <span>На странице:</span>
-          <select [ngModel]="pageSize" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
-            @for (size of pageSizeOptions; track size) {
-            <option [ngValue]="size">{{ size }}</option>
+          <div class="admin-select admin-select--compact">
+            <button
+              type="button"
+              class="admin-select__trigger"
+              [class.is-open]="isUiSelectOpen('pageSize')"
+              [disabled]="loading"
+              (click)="toggleUiSelect('pageSize', $event)">
+              <span>{{ pageSize }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isUiSelectOpen('pageSize')) {
+            <div class="admin-select__menu">
+              @for (size of pageSizeOptions; track size) {
+              <button
+                type="button"
+                class="admin-select__option"
+                [class.is-selected]="pageSize === size"
+                (click)="selectPageSize(size, $event)">
+                {{ size }}
+              </button>
+              }
+            </div>
             }
-          </select>
+          </div>
         </label>
         <span class="admin-badge admin-badge--neutral">Всего платежей: {{ totalItems }}</span>
       </div>
@@ -108,8 +153,12 @@
               <th class="filterable no-wrap-col" [style.width.px]="getColumnWidth(column.key)">
                 <div class="header-cell">
                   <span>{{ column.label }}</span>
-                  <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
-                    ▼
+                  <button
+                    type="button"
+                    class="filter-trigger"
+                    [class.is-active]="activeFilterColumn === column.key"
+                    (click)="toggleColumnFilter(column.key, $event)">
+                    <i class="las la-angle-down"></i>
                   </button>
                 </div>
                 <button

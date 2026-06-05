@@ -67,9 +67,11 @@ export class Payments implements OnInit, OnDestroy {
   exporting = false;
   loadError: string | null = null;
   exportError: string | null = null;
+  receiptError: string | null = null;
 
   searchTerm = '';
   statusFilter: '' | PaymentStatus = '';
+  activeSelectKey: 'statusFilter' | 'pageSize' | null = null;
   readonly headerColumns: { key: FilterColumn; label: string }[] = [
     { key: 'id', label: 'ID' },
     { key: 'paymentDate', label: 'Дата' },
@@ -85,32 +87,32 @@ export class Payments implements OnInit, OnDestroy {
     { key: 'actions', label: 'Действия' },
   ];
   columnWidths: Record<FilterColumn, number> = {
-    id: 68,
-    paymentDate: 92,
-    payer: 136,
-    type: 96,
-    amount: 96,
-    fee: 84,
-    paymentMethod: 96,
-    transactionId: 128,
-    attachment: 70,
-    application: 96,
-    status: 108,
-    actions: 126,
+    id: 58,
+    paymentDate: 84,
+    payer: 124,
+    type: 86,
+    amount: 86,
+    fee: 68,
+    paymentMethod: 84,
+    transactionId: 110,
+    attachment: 62,
+    application: 84,
+    status: 96,
+    actions: 112,
   };
   private readonly minColumnWidths: Partial<Record<FilterColumn, number>> = {
-    id: 52,
-    paymentDate: 78,
-    payer: 110,
-    type: 82,
-    amount: 82,
-    fee: 70,
-    paymentMethod: 82,
-    transactionId: 104,
-    attachment: 58,
-    application: 78,
-    status: 94,
-    actions: 108,
+    id: 48,
+    paymentDate: 74,
+    payer: 104,
+    type: 76,
+    amount: 76,
+    fee: 58,
+    paymentMethod: 76,
+    transactionId: 96,
+    attachment: 54,
+    application: 72,
+    status: 84,
+    actions: 96,
   };
   private readonly maxColumnWidth = 320;
   private columnResizeState: ColumnResizeState | null = null;
@@ -167,9 +169,12 @@ export class Payments implements OnInit, OnDestroy {
 
   async openReceipt(paymentId: string | number): Promise<void> {
     this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
+    this.receiptError = null;
     const token = this.tokenStore.getAccessToken();
     if (!token) {
       this.logWarn('payment.admin.receipt_open_blocked_no_token', { paymentId: String(paymentId) });
+      this.receiptError = 'Не удалось открыть чек: пользователь не авторизован.';
+      this.requestViewRefresh();
       return;
     }
 
@@ -178,10 +183,14 @@ export class Payments implements OnInit, OnDestroy {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
+        const message = await this.readReceiptErrorMessage(response);
         this.logWarn('payment.admin.receipt_open_rejected', {
           paymentId: String(paymentId),
           status: response.status,
+          message,
         });
+        this.receiptError = message;
+        this.requestViewRefresh();
         return;
       }
 
@@ -194,6 +203,8 @@ export class Payments implements OnInit, OnDestroy {
       this.logInfo('payment.admin.receipt_open_succeeded', { paymentId: String(paymentId) });
     } catch (error) {
       this.logError('payment.admin.receipt_open_failed', error, { paymentId: String(paymentId) });
+      this.receiptError = 'Не удалось открыть чек. Проверьте доступность API и хранилища файлов.';
+      this.requestViewRefresh();
     }
   }
 
@@ -202,23 +213,30 @@ export class Payments implements OnInit, OnDestroy {
       paymentId: String(paymentId),
       fileName: fileName ?? null,
     });
+    this.receiptError = null;
     const token = this.tokenStore.getAccessToken();
     if (!token) {
       this.logWarn('payment.admin.receipt_download_blocked_no_token', {
         paymentId: String(paymentId),
       });
+      this.receiptError = 'Не удалось скачать чек: пользователь не авторизован.';
+      this.requestViewRefresh();
       return;
     }
 
     try {
-      const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt`, {
+      const response = await fetch(`${buildRpcBaseUrl()}/api/payments/${paymentId}/receipt?download=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
+        const message = await this.readReceiptErrorMessage(response);
         this.logWarn('payment.admin.receipt_download_rejected', {
           paymentId: String(paymentId),
           status: response.status,
+          message,
         });
+        this.receiptError = message;
+        this.requestViewRefresh();
         return;
       }
 
@@ -238,6 +256,8 @@ export class Payments implements OnInit, OnDestroy {
       this.logError('payment.admin.receipt_download_failed', error, {
         paymentId: String(paymentId),
       });
+      this.receiptError = 'Не удалось скачать чек. Проверьте доступность API и хранилища файлов.';
+      this.requestViewRefresh();
     }
   }
 
@@ -330,6 +350,29 @@ export class Payments implements OnInit, OnDestroy {
     this.pageSize = nextPageSize;
     this.currentPage = 1;
     this.loadPayments();
+  }
+
+  toggleUiSelect(key: 'statusFilter' | 'pageSize', event: MouseEvent): void {
+    event.stopPropagation();
+    this.closeColumnFilter();
+    this.activeSelectKey = this.activeSelectKey === key ? null : key;
+  }
+
+  isUiSelectOpen(key: 'statusFilter' | 'pageSize'): boolean {
+    return this.activeSelectKey === key;
+  }
+
+  selectStatusFilter(status: '' | PaymentStatus, event: MouseEvent): void {
+    event.stopPropagation();
+    this.statusFilter = status;
+    this.activeSelectKey = null;
+    this.onFiltersChanged();
+  }
+
+  selectPageSize(size: number, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeSelectKey = null;
+    this.onPageSizeChanged(size);
   }
 
   onFiltersChanged(): void {
@@ -689,6 +732,7 @@ export class Payments implements OnInit, OnDestroy {
   @HostListener('document:click')
   onDocumentClick(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
   }
 
   get typeOptions(): PaymentType[] {
@@ -701,6 +745,10 @@ export class Payments implements OnInit, OnDestroy {
 
   get statusOptions(): PaymentStatus[] {
     return PAYMENT_STATUS_OPTIONS;
+  }
+
+  getStatusFilterLabel(): string {
+    return this.statusFilter ? this.getStatusLabel(this.statusFilter) : 'Все статусы';
   }
 
   get assessmentIdOptions(): string[] {
@@ -1000,6 +1048,52 @@ export class Payments implements OnInit, OnDestroy {
 
   private downloadCsv(csvContent: string): void {
     downloadCsvFile(this.buildCsvFileName(), csvContent);
+  }
+
+  private async readReceiptErrorMessage(response: Response): Promise<string> {
+    const fallback = this.mapReceiptHttpStatus(response.status);
+
+    try {
+      const payload = (await response.json()) as { message?: unknown };
+      if (typeof payload.message === 'string' && payload.message.trim()) {
+        return this.translateReceiptError(payload.message.trim(), response.status);
+      }
+    } catch {
+      // Response body is optional for file endpoints.
+    }
+
+    return fallback;
+  }
+
+  private mapReceiptHttpStatus(status: number): string {
+    switch (status) {
+      case 401:
+        return 'Не удалось получить чек: пользователь не авторизован.';
+      case 403:
+        return 'Не удалось получить чек: нет доступа к этому платежу.';
+      case 404:
+        return 'Чек не найден или файл чека отсутствует в хранилище.';
+      case 409:
+        return 'Чек еще формируется. Попробуйте скачать его позже.';
+      case 503:
+        return 'Хранилище чеков временно недоступно. Попробуйте позже.';
+      default:
+        return `Не удалось получить чек: сервер вернул ${status}.`;
+    }
+  }
+
+  private translateReceiptError(message: string, status: number): string {
+    const normalized = message.toLowerCase();
+    if (normalized.includes('not ready')) {
+      return 'Чек еще формируется. Попробуйте скачать его позже.';
+    }
+    if (normalized.includes('missing') || normalized.includes('not found')) {
+      return 'Чек не найден или файл чека отсутствует в хранилище.';
+    }
+    if (normalized.includes('storage')) {
+      return 'Хранилище чеков временно недоступно. Попробуйте позже.';
+    }
+    return this.mapReceiptHttpStatus(status);
   }
 
   private clampColumnWidth(column: FilterColumn, width: number): number {

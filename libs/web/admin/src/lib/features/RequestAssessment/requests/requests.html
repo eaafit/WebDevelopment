@@ -1,3 +1,5 @@
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/line-awesome@1.3.0/dist/line-awesome/css/line-awesome.min.css" />
+
 <section class="admin-page admin-crud-page requests-container">
   <header class="admin-page__hero">
     <div class="admin-page__hero-copy">
@@ -40,13 +42,35 @@
         <p>Фильтры, сортировка по колонкам и быстрые действия доступны прямо из таблицы.</p>
       </div>
       <div class="admin-card__controls">
-        <label class="page-size-control">
+        <label class="page-size-control" (click)="$event.stopPropagation()">
           <span>На странице:</span>
-          <select [ngModel]="itemsPerPage" (ngModelChange)="onPageSizeChanged($event)" [disabled]="loading">
+          <div class="admin-select admin-select--compact" [class.is-open]="isUiSelectOpen('pageSize')">
+            <button
+              type="button"
+              class="admin-select__trigger"
+              (click)="toggleUiSelect('pageSize', $event)"
+              [disabled]="loading"
+              aria-haspopup="listbox"
+              [attr.aria-expanded]="isUiSelectOpen('pageSize')">
+              <span>{{ itemsPerPage }}</span>
+              <i class="las la-angle-down" aria-hidden="true"></i>
+            </button>
+            @if (isUiSelectOpen('pageSize')) {
+            <div class="admin-select__menu" role="listbox">
             @for (size of pageSizeOptions; track size) {
-            <option [ngValue]="size">{{ size }}</option>
+              <button
+                type="button"
+                class="admin-select__option"
+                [class.is-selected]="itemsPerPage === size"
+                (click)="selectPageSize(size, $event)"
+                role="option"
+                [attr.aria-selected]="itemsPerPage === size">
+                {{ size }}
+              </button>
             }
-          </select>
+            </div>
+            }
+          </div>
         </label>
         <span class="admin-badge admin-badge--neutral">Всего заявок: {{ filteredAssessments.length }}</span>
       </div>
@@ -75,12 +99,41 @@
       </div>
       <div class="top-filters__field">
         <label for="orders-notary">Нотариус</label>
-        <select id="orders-notary" [(ngModel)]="notaryFilter">
-          <option value="">Все</option>
+        <div id="orders-notary" class="admin-select" [class.is-open]="isUiSelectOpen('notaryFilter')">
+          <button
+            type="button"
+            class="admin-select__trigger"
+            (click)="toggleUiSelect('notaryFilter', $event)"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="isUiSelectOpen('notaryFilter')">
+            <span>{{ getNotaryFilterLabel() }}</span>
+            <i class="las la-angle-down" aria-hidden="true"></i>
+          </button>
+          @if (isUiSelectOpen('notaryFilter')) {
+          <div class="admin-select__menu" role="listbox">
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="!notaryFilter"
+              (click)="selectNotaryFilter('', $event)"
+              role="option"
+              [attr.aria-selected]="!notaryFilter">
+              Все
+            </button>
           @for (n of notaryOptions; track n.id) {
-          <option [value]="n.id">{{ n.label }}</option>
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="notaryFilter === n.id"
+              (click)="selectNotaryFilter(n.id, $event)"
+              role="option"
+              [attr.aria-selected]="notaryFilter === n.id">
+              {{ n.label }}
+            </button>
           }
-        </select>
+          </div>
+          }
+        </div>
       </div>
       <div class="top-filters__actions">
         <button type="button" class="btn btn-primary" (click)="applyFilters()">Применить</button>
@@ -97,7 +150,13 @@
             <th class="filterable no-wrap-col">
               <div class="header-cell">
                 <span>{{ column.label }}</span>
-                <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">▼</button>
+                <button
+                  type="button"
+                  class="filter-trigger"
+                  [class.is-active]="activeFilterColumn === column.key"
+                  (click)="toggleColumnFilter(column.key, $event)">
+                  <i class="las la-angle-down" aria-hidden="true"></i>
+                </button>
               </div>
               @if (activeFilterColumn === column.key) {
               <div

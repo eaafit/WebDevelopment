@@ -148,6 +148,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   ];
 
   activeFilterColumn: RequestFilterColumn | null = null;
+  activeSelectKey: 'pageSize' | 'notaryFilter' | null = null;
   filterDropdownStyle: { top: number; left: number } | null = null;
   columnSelectedValues: Record<RequestFilterColumn, string[]> = {
     id: [],
@@ -423,6 +424,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.dateFrom = '';
     this.dateTo = '';
     this.notaryFilter = '';
+    this.activeSelectKey = null;
     this.applyFilters();
   }
 
@@ -555,15 +557,51 @@ export class RequestsComponent implements OnInit, OnDestroy {
   @HostListener('document:click')
   onDocumentClick(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
   }
 
   @HostListener('window:resize')
   onWindowResize(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
   }
 
   onTableScroll(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
+  }
+
+  toggleUiSelect(key: 'pageSize' | 'notaryFilter', event: MouseEvent): void {
+    event.stopPropagation();
+    this.closeColumnFilter();
+    this.activeSelectKey = this.activeSelectKey === key ? null : key;
+  }
+
+  isUiSelectOpen(key: 'pageSize' | 'notaryFilter'): boolean {
+    return this.activeSelectKey === key;
+  }
+
+  selectPageSize(size: number, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeSelectKey = null;
+    this.onPageSizeChanged(size);
+  }
+
+  selectNotaryFilter(notaryId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.notaryFilter = notaryId;
+    this.activeSelectKey = null;
+  }
+
+  getNotaryFilterLabel(): string {
+    if (!this.notaryFilter) {
+      return 'Все';
+    }
+
+    return (
+      this.notaryOptions.find((option) => option.id === this.notaryFilter)?.label ??
+      this.getShortId(this.notaryFilter)
+    );
   }
 
   private matchesColumnFilters(item: AssessmentItem): boolean {
