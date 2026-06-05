@@ -1,7 +1,11 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Document } from '../../services/document.service';
+// Добавляем импорты для gRPC платежей
+import { createClient } from '@connectrpc/connect';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { PaymentService, PaymentType } from '@notary-portal/api-contracts';
 
 @Component({
   selector: 'document-row',
@@ -10,6 +14,9 @@ import { Document } from '../../services/document.service';
   styleUrl: './document-row.scss',
 })
 export class DocumentRow {
+  // Инициализируем клиент платежей с помощью inject
+  private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
+
   constructor(
     private router: Router,
     private route: ActivatedRoute
@@ -17,6 +24,7 @@ export class DocumentRow {
 
   document = input.required<Document>()
   status = input<number | undefined>();
+  
   displayFileName = computed(() => {
     const rawName = this.document().fileName || '';
     if (!rawName.includes('__skip__')) return rawName;
@@ -27,7 +35,6 @@ export class DocumentRow {
     return parts[0] + ext;
   });
 
-  // 2. Извлеченный комментарий
   extractedComment = computed(() => {
     const rawName = this.document().fileName || '';
     if (!rawName.includes('__skip__')) return '';
@@ -85,5 +92,32 @@ export class DocumentRow {
       'delivered': 'Выдано'
     };
     return texts[mapped] || 'В обработке';
+  }
+
+  // Новый метод для обработки платежа
+  async payForDocument(event: Event) {
+    // Останавливаем всплытие события, чтобы не срабатывал переход по клику на строку
+    event.stopPropagation(); 
+    
+    const doc = this.document();
+
+    try {
+      // Приводим doc к any, чтобы TS не ругался на отсутствие поля в интерфейсе
+      const amount = (doc as any).documentType === 1 ? 150 : 300; 
+
+      const paymentResponse = await this.paymentClient.createPayment({
+        userId: doc.uploadedById,
+        amount: amount.toString(),
+        type: PaymentType.DOCUMENT_COPY,
+        targetId: doc.assessmentId,
+        paymentProvider: 'yookassa'
+      });
+
+      if (paymentResponse.paymentUrl) {
+        window.location.href = paymentResponse.paymentUrl;
+      }
+    } catch (error) {
+      console.error('Ошибка при инициации платежа из списка:', error);
+    }
   }
 }

@@ -2,9 +2,11 @@ import { Component, computed, inject, OnInit, signal, OnDestroy } from '@angular
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Assessment, AssessmentStatus } from '../../../../../../../shared/api-contracts/src';
+import { Assessment, AssessmentStatus, PaymentService, PaymentType } from '../../../../../../../shared/api-contracts/src';
 import { Document } from '../services/document.service';
 import { CommonModule } from '@angular/common';
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { createClient } from '@connectrpc/connect';
 
 @Component({
   selector: 'lib-copy',
@@ -17,6 +19,7 @@ export class Copy implements OnInit, OnDestroy {
   private readonly documentService = inject(DocumentService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   id: string | null = null;
   
@@ -27,6 +30,30 @@ export class Copy implements OnInit, OnDestroy {
   hasError = signal<boolean>(false);
   private timerId: any = null;
 
+  async payForDocument(event: Event) {
+    event.stopPropagation();
+    const currentDoc = this.doc();
+    if (!currentDoc) return;
+
+    try {
+      // Определяем сумму в зависимости от типа документа
+      const amount = (currentDoc as any).documentType === 1 ? 150 : 300;
+
+      const paymentResponse = await this.paymentClient.createPayment({
+        userId: currentDoc.uploadedById,
+        amount: amount.toString(),
+        type: PaymentType.DOCUMENT_COPY,
+        targetId: currentDoc.assessmentId,
+      });
+
+      if (paymentResponse.paymentUrl) {
+        window.location.href = paymentResponse.paymentUrl;
+      }
+    } catch (error) {
+      console.error('Ошибка при создании платежа на странице копии:', error);
+    }
+  }
+  
   // Имя файла без встроенного комментария
   displayFileName = computed(() => {
     const rawName = this.doc()?.fileName || '';
