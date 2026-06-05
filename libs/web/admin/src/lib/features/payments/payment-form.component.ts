@@ -63,6 +63,8 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   assessmentIdOptions: string[] = [];
   assessmentOptions: AdminAssessmentRow[] = [];
   transactionIdOptions: string[] = [];
+  private readonly paymentBySubscriptionId = new Map<string, Payment>();
+  private readonly paymentByTransactionId = new Map<string, Payment>();
 
   idInputMode: { subscriptionId: boolean; assessmentId: boolean; transactionId: boolean } = {
     subscriptionId: false,
@@ -98,6 +100,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     });
 
     this.loadIdOptions();
+    this.loadPaymentLookupOptions();
     this.loadUsers();
     this.loadAssessmentOptions();
 
@@ -136,6 +139,17 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
         error: err instanceof Error ? err.message : String(err),
       });
       this.assessmentOptions = [];
+    }
+  }
+
+  private async loadPaymentLookupOptions(): Promise<void> {
+    try {
+      const payments = await this.api.getAllPayments();
+      this.applyPaymentLookupOptions(payments);
+    } catch (err) {
+      this.logWarn('payment.admin.form_payment_lookup_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -186,18 +200,40 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     this.api.preload();
     this.dataSub = this.api.payments$.subscribe((payments) => {
       if (payments) {
-        this.subscriptionIdOptions = Array.from(
-          new Set(payments.map((p) => p.subscriptionId).filter(Boolean)),
-        ) as string[];
-        this.assessmentIdOptions = this.mergeIdOptions(
-          this.assessmentIdOptions,
-          payments.map((p) => p.assessmentId).filter(Boolean) as string[],
-        );
-        this.transactionIdOptions = Array.from(
-          new Set(payments.map((p) => p.transactionId).filter(Boolean)),
-        ) as string[];
+        this.applyPaymentLookupOptions(payments);
       }
     });
+  }
+
+  private applyPaymentLookupOptions(payments: Payment[]): void {
+    for (const payment of payments) {
+      if (payment.subscriptionId) {
+        this.paymentBySubscriptionId.set(
+          payment.subscriptionId,
+          this.pickMostRecentPayment(this.paymentBySubscriptionId.get(payment.subscriptionId), payment),
+        );
+      }
+
+      if (payment.transactionId) {
+        this.paymentByTransactionId.set(
+          payment.transactionId,
+          this.pickMostRecentPayment(this.paymentByTransactionId.get(payment.transactionId), payment),
+        );
+      }
+    }
+
+    this.subscriptionIdOptions = this.mergeIdOptions(
+      this.subscriptionIdOptions,
+      payments.map((payment) => payment.subscriptionId).filter(Boolean) as string[],
+    );
+    this.assessmentIdOptions = this.mergeIdOptions(
+      this.assessmentIdOptions,
+      payments.map((payment) => payment.assessmentId).filter(Boolean) as string[],
+    );
+    this.transactionIdOptions = this.mergeIdOptions(
+      this.transactionIdOptions,
+      payments.map((payment) => payment.transactionId).filter(Boolean) as string[],
+    );
   }
 
   private updateIdFieldRequirements(type: PaymentType): void {
@@ -438,7 +474,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   }
 
   formatSubscriptionOption(id: string): string {
-    return `Подписка ${this.compactIdentifier(id)}`;
+    return this.formatPaymentBackedOption('Подписка', id, this.paymentBySubscriptionId.get(id));
   }
 
   formatAssessmentOption(id: string): string {
@@ -456,7 +492,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   }
 
   formatTransactionOption(id: string): string {
-    return `Транзакция ${this.compactIdentifier(id)}`;
+    return this.formatPaymentBackedOption('Транзакция', id, this.paymentByTransactionId.get(id));
   }
 
   private getTargetIdErrorMessage(type: PaymentType): string {
@@ -520,6 +556,44 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
   private mergeIdOptions(current: string[], next: string[]): string[] {
     return Array.from(new Set([...current, ...next].filter(Boolean)));
+  }
+
+  private pickMostRecentPayment(current: Payment | undefined, next: Payment): Payment {
+    if (!current) {
+      return next;
+    }
+
+    const currentTime = Date.parse(current.paymentDate);
+    const nextTime = Date.parse(next.paymentDate);
+    if (Number.isNaN(currentTime)) {
+      return next;
+    }
+    if (Number.isNaN(nextTime)) {
+      return current;
+    }
+
+    return nextTime >= currentTime ? next : current;
+  }
+
+  private formatPaymentBackedOption(prefix: string, id: string, payment: Payment | undefined): string {
+    if (!payment) {
+      return `${prefix} ${this.compactIdentifier(id)}`;
+    }
+
+    const amount = this.formatPaymentAmount(payment);
+    const status = PAYMENT_STATUS_LABELS[payment.status] ?? payment.status;
+    const date = toDateInputValue(payment.paymentDate);
+
+    return `${prefix} ${this.compactIdentifier(id)} - ${amount} - ${status} - ${date}`;
+  }
+
+  private formatPaymentAmount(payment: Payment): string {
+    const amount = new Intl.NumberFormat('ru-RU', {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: Number.isInteger(payment.amount) ? 0 : 2,
+    }).format(payment.amount);
+
+    return `${amount} ${payment.currency || 'RUB'}`;
   }
 }
 
