@@ -13,7 +13,12 @@ const NOW = Math.floor(Date.now() / 1000);
 const TOKEN = makeJwt({ sub: 'u1', email: 'a@b.com', role: '1', iat: NOW, exp: NOW + 900 });
 
 describe('AuthService — OAuth (Google / Яндекс)', () => {
-  const client = { getOAuthAuthorizeUrl: jest.fn(), oAuthLogin: jest.fn() };
+  const client = {
+    getOAuthAuthorizeUrl: jest.fn(),
+    oAuthLogin: jest.fn(),
+    confirmContact: jest.fn(),
+    resendContactCode: jest.fn(),
+  };
   const router = { navigateByUrl: jest.fn() };
   const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() };
 
@@ -133,6 +138,71 @@ describe('AuthService — OAuth (Google / Яндекс)', () => {
       expect(client.oAuthLogin).not.toHaveBeenCalled();
       expect(service.error()).toBeTruthy();
       expect(router.navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('routes to the contact-verification form when verification is required', async () => {
+      sessionStorage.setItem('oauth_state', 'st-ver');
+      client.oAuthLogin.mockResolvedValue({
+        verificationRequired: true,
+        verificationTicket: 'ticket-abc',
+        contactToVerify: 'new@user.com',
+      });
+
+      const ok = await service.completeOAuthLogin(OAUTH_PROVIDERS['google'], 'auth-code', 'st-ver');
+
+      expect(ok).toBe(true);
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/auth/verify-contact');
+      expect(service.isLoggedIn()).toBe(false); // токены не выданы
+      expect(service.getPendingVerification()).toEqual({
+        ticket: 'ticket-abc',
+        contact: 'new@user.com',
+        providerKey: 'google',
+      });
+    });
+  });
+
+  describe('confirmContact / resendContactCode', () => {
+    function setPending(): void {
+      sessionStorage.setItem('oauth_verify_ticket', 'ticket-abc');
+      sessionStorage.setItem('oauth_verify_contact', 'new@user.com');
+      sessionStorage.setItem('oauth_verify_provider', 'google');
+    }
+
+    it('confirms the code, stores tokens, clears pending and redirects', async () => {
+      setPending();
+      client.confirmContact.mockResolvedValue({
+        result: {
+          accessToken: TOKEN,
+          refreshToken: 'rt',
+          user: { id: 'u1', email: 'new@user.com', fullName: 'N', role: 1, phoneNumber: '', isActive: true },
+        },
+      });
+
+      const ok = await service.confirmContact('123456');
+
+      expect(ok).toBe(true);
+      expect(client.confirmContact).toHaveBeenCalledWith({ ticket: 'ticket-abc', code: '123456' });
+      expect(service.isLoggedIn()).toBe(true);
+      expect(service.getPendingVerification()).toBeNull();
+      expect(router.navigateByUrl).toHaveBeenCalledWith('/applicant');
+    });
+
+    it('reports an error and stays out when there is no pending verification', async () => {
+      const ok = await service.confirmContact('123456');
+
+      expect(ok).toBe(false);
+      expect(client.confirmContact).not.toHaveBeenCalled();
+      expect(service.error()).toBeTruthy();
+    });
+
+    it('resends the code via the pending ticket', async () => {
+      setPending();
+      client.resendContactCode.mockResolvedValue({});
+
+      const ok = await service.resendContactCode();
+
+      expect(ok).toBe(true);
+      expect(client.resendContactCode).toHaveBeenCalledWith({ ticket: 'ticket-abc' });
     });
   });
 });

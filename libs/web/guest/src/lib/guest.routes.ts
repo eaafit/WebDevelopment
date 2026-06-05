@@ -43,6 +43,11 @@ export const guestRoutes: Route[] = [
             loadComponent: () =>
               import('./features/auth/oauth-callback/oauth-callback').then((m) => m.OAuthCallback),
           },
+          {
+            path: 'verify-contact',
+            loadComponent: () =>
+              import('./features/auth/verify-contact/verify-contact').then((m) => m.VerifyContact),
+          },
         ],
       },
       {

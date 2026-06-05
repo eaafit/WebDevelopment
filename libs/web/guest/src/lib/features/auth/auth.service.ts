@@ -7,6 +7,18 @@ import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME, WebLoggerService } from '@no
 /** Ключ sessionStorage для сверки OAuth state на callback (defense-in-depth против CSRF). */
 const OAUTH_STATE_KEY = 'oauth_state';
 
+/** Ключи sessionStorage для шага подтверждения контакта после OAuth. */
+const VERIFY_TICKET_KEY = 'oauth_verify_ticket';
+const VERIFY_CONTACT_KEY = 'oauth_verify_contact';
+const VERIFY_PROVIDER_KEY = 'oauth_verify_provider';
+
+/** Данные ожидающего подтверждения контакта (для формы /auth/verify-contact). */
+export interface PendingVerification {
+  ticket: string;
+  contact: string;
+  providerKey: string;
+}
+
 /** Конфигурация внешнего OAuth-провайдера на фронте. */
 export interface OAuthProviderConfig {
   provider: OauthProvider;
@@ -133,6 +145,19 @@ export class AuthService {
       }
       // device_id нужен только VK ID; Google/Yandex его не присылают (пустая строка).
       const res = await this.client.oAuthLogin({ provider: config.provider, code, state, deviceId });
+
+      // Новая регистрация / первая связка → шаг подтверждения контакта (токены не выдаются).
+      if (res.verificationRequired) {
+        this.persistPendingVerification({
+          ticket: res.verificationTicket,
+          contact: res.contactToVerify,
+          providerKey: config.key,
+        });
+        this.logger.info(`oauth.${config.key}.verification_required`, { provider: config.key });
+        await this.router.navigateByUrl('/auth/verify-contact');
+        return true;
+      }
+
       if (!res.result) throw new Error('Пустой ответ сервера');
       this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
       this.logger.info(`oauth.${config.key}.login_succeeded`, { provider: config.key });
@@ -158,6 +183,81 @@ export class AuthService {
 
   private clearOAuthState(): void {
     if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(OAUTH_STATE_KEY);
+  }
+
+  // ─── Подтверждение контакта (после OAuth-регистрации / первой связки) ─────
+
+  private persistPendingVerification(p: PendingVerification): void {
+    if (typeof sessionStorage === 'undefined') return;
+    sessionStorage.setItem(VERIFY_TICKET_KEY, p.ticket);
+    sessionStorage.setItem(VERIFY_CONTACT_KEY, p.contact);
+    sessionStorage.setItem(VERIFY_PROVIDER_KEY, p.providerKey);
+  }
+
+  /** Данные ожидающего подтверждения (или null, если шага нет) — для формы и guard'а. */
+  getPendingVerification(): PendingVerification | null {
+    if (typeof sessionStorage === 'undefined') return null;
+    const ticket = sessionStorage.getItem(VERIFY_TICKET_KEY);
+    if (!ticket) return null;
+    return {
+      ticket,
+      contact: sessionStorage.getItem(VERIFY_CONTACT_KEY) ?? '',
+      providerKey: sessionStorage.getItem(VERIFY_PROVIDER_KEY) ?? '',
+    };
+  }
+
+  private clearPendingVerification(): void {
+    if (typeof sessionStorage === 'undefined') return;
+    sessionStorage.removeItem(VERIFY_TICKET_KEY);
+    sessionStorage.removeItem(VERIFY_CONTACT_KEY);
+    sessionStorage.removeItem(VERIFY_PROVIDER_KEY);
+  }
+
+  /** Подтверждает контакт кодом. На успехе сохраняет токены и редиректит по роли. */
+  async confirmContact(code: string): Promise<boolean> {
+    const pending = this.getPendingVerification();
+    if (!pending) {
+      this._error.set('Сессия подтверждения истекла. Войдите ещё раз.');
+      return false;
+    }
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const res = await this.client.confirmContact({ ticket: pending.ticket, code });
+      if (!res.result) throw new Error('Пустой ответ сервера');
+      this.clearPendingVerification();
+      this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
+      this.logger.info('oauth.contact_confirmed', { provider: pending.providerKey });
+      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      return true;
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      this.logger.warn('oauth.contact_confirmation_failed', { provider: pending.providerKey });
+      return false;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  /** Повторная отправка кода (новый код в логе api). Серверный кулдаун защищает от спама. */
+  async resendContactCode(): Promise<boolean> {
+    const pending = this.getPendingVerification();
+    if (!pending) {
+      this._error.set('Сессия подтверждения истекла. Войдите ещё раз.');
+      return false;
+    }
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      await this.client.resendContactCode({ ticket: pending.ticket });
+      this.logger.info('oauth.contact_code_resent', { provider: pending.providerKey });
+      return true;
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      return false;
+    } finally {
+      this._loading.set(false);
+    }
   }
 
   // ─── Refresh (вызывается из RPC-интерсептора) ─────────────────────────────
