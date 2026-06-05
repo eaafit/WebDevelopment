@@ -30,6 +30,10 @@ export const guestRoutes: Route[] = [
               ),
           },
           {
+            path: 'register',
+            loadComponent: () => import('./features/auth/register/register').then((m) => m.Register),
+          },
+          {
             path: 'password-recovery',
             loadComponent: () =>
               import('./features/auth/password-recovery/password-recovery').then((m) => m.PasswordRecovery),

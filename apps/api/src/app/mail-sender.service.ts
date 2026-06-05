@@ -23,12 +23,14 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
     const port = process.env['SMTP_PORT'] ? Number(process.env['SMTP_PORT']) : undefined;
     const user = process.env['SMTP_USER'];
     const pass = process.env['SMTP_PASS'];
-    if (host && user && pass != null && pass !== '') {
+
+    if (host) {
+      const auth = user && pass ? { auth: { user, pass } } : {};
       this.transporter = nodemailer.createTransport({
         host,
         port: port ?? 587,
         secure: port === 465,
-        auth: { user, pass },
+        ...auth,
       });
     } else {
       this.transporter = null;

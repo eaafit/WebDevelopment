@@ -1,0 +1,93 @@
+<main class="login">
+  <h1>Регистрация</h1>
+
+  <form class="login__form" (ngSubmit)="onSubmit()" novalidate>
+    <div class="login__field">
+      <label for="fullName">ФИО</label>
+      <input
+        id="fullName"
+        name="fullName"
+        type="text"
+        [(ngModel)]="fullName"
+        placeholder="Иванов Иван Иванович"
+        autocomplete="name" />
+    </div>
+
+    <div class="login__field">
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        [(ngModel)]="email"
+        placeholder="you@example.com"
+        autocomplete="email" />
+    </div>
+
+    <div class="login__field">
+      <label for="phoneNumber">Телефон</label>
+      <input
+        id="phoneNumber"
+        name="phoneNumber"
+        type="tel"
+        [(ngModel)]="phoneNumber"
+        placeholder="+7 999 123-45-67"
+        autocomplete="tel" />
+    </div>
+
+    <fieldset class="login__field login__role-field">
+      <legend>Роль</legend>
+      <label class="role-option">
+        <input type="radio" name="role" [value]="UserRole.Applicant" [(ngModel)]="role" />
+        <span>Заявитель</span>
+      </label>
+      <label class="role-option">
+        <input type="radio" name="role" [value]="UserRole.Notary" [(ngModel)]="role" />
+        <span>Нотариус</span>
+      </label>
+    </fieldset>
+
+    <div class="login__field">
+      <label for="password">Пароль</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        [(ngModel)]="password"
+        placeholder="Минимум 8 символов"
+        autocomplete="new-password" />
+    </div>
+
+    <div class="login__field">
+      <label for="confirmPassword">Повторите пароль</label>
+      <input
+        id="confirmPassword"
+        name="confirmPassword"
+        type="password"
+        [(ngModel)]="confirmPassword"
+        placeholder="Повторите пароль"
+        autocomplete="new-password" />
+    </div>
+
+    <label class="login__checkbox">
+      <input type="checkbox" name="termsAccepted" [(ngModel)]="termsAccepted" />
+      <span>Я согласен с условиями использования сервиса</span>
+    </label>
+
+    @if (validationError) {
+    <div class="login__error">{{ validationError }}</div>
+    }
+
+    @if (error()) {
+    <div class="login__error">{{ error() }}</div>
+    }
+
+    <button class="btn-login" type="submit" [disabled]="loading()">
+      {{ loading() ? 'Регистрация...' : 'Зарегистрироваться' }}
+    </button>
+  </form>
+
+  <p class="login__footer-link">
+    Уже есть аккаунт? <a routerLink="/auth">Войти</a>
+  </p>
+</main>

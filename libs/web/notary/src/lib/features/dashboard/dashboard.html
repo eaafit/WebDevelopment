@@ -1,26 +1,97 @@
-<div class="dashboard">
-  <div class="welcome">
-    <h1>Добро пожаловать в Личный кабинет нотариуса!</h1>
-    <p>У вас {{ activeOrdersCount }} активных заказа и {{ notificationsCount }} новых уведомления</p>
-  </div>
-
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-title">Активных заказов</div>
-      <div class="stat-number">{{ activeOrdersCount }}</div>
-      <button class="stat-btn" [routerLink]="'/notary/orders'">Перейти к заказам</button>
+<section class="notary-page dashboard-page">
+  <header class="notary-page__hero">
+    <div class="notary-page__hero-copy">
+      <p class="notary-page__eyebrow">Обзор</p>
+      <h2>Панель нотариуса</h2>
+      <p class="notary-page__lead">
+        Ваши заявки на оценку наследства, текущие задачи и быстрый доступ к ключевым разделам.
+      </p>
     </div>
-    <div class="stat-card">
-      <div class="stat-title">Новых уведомлений</div>
-      <div class="stat-number">{{ notificationsCount }}</div>
-      <button class="stat-btn" [routerLink]="'/notary/notifications'">Перейти к уведомлениям</button>
+    <div class="notary-page__actions">
+      <button type="button" class="notary-btn notary-btn--primary" [disabled]="loading()" (click)="refresh()">
+        Обновить данные
+      </button>
     </div>
-  </div>
+  </header>
 
-  <div class="subscription-card">
-    <div class="subscription-title">Тариф: Нотариус PRO</div>
-    <div class="subscription-detail">Стоимость: 2990 ₽ / месяц</div>
-    <div class="subscription-detail">Срок действия: до 31.07.2026</div>
-    <button class="btn-outline" [routerLink]="'/notary/subscription'">Управление подпиской</button>
-  </div>
-</div>
+  @if (loading()) {
+    <section class="notary-toolbar">
+      <p>Загрузка данных дашборда…</p>
+    </section>
+  }
+
+  @if (loadError()) {
+    <section class="notary-toolbar notary-toolbar--error">
+      <div class="notary-toolbar__copy">
+        <p>{{ loadError() }}</p>
+      </div>
+      <button type="button" class="notary-btn notary-btn--ghost" (click)="refresh()">Повторить</button>
+    </section>
+  }
+
+  <section class="notary-toolbar">
+    <div class="notary-toolbar__copy">
+      <p>Источник данных: бэкенд (AssessmentService)</p>
+      <small class="notary-toolbar__status">Последнее обновление: {{ updatedAtLabel() }}</small>
+    </div>
+    <span class="notary-toolbar__meta">Всего записей: {{ total() }}</span>
+  </section>
+
+  <!-- Метрики -->
+  <section class="dashboard-stats">
+    @for (m of metrics(); track m.key) {
+      <article class="notary-card">
+        <div class="notary-card__body">
+          <p class="notary-page__eyebrow">{{ m.label }}</p>
+          <strong class="dashboard-stat__value">{{ m.value }}</strong>
+          <p>{{ m.hint }}</p>
+        </div>
+      </article>
+    }
+  </section>
+
+  <!-- Последние заявки -->
+  <article class="notary-card">
+    <div class="notary-card__header">
+      <div>
+        <h3>Последние заявки</h3>
+        <p>Пять свежих записей по дате создания.</p>
+      </div>
+      <a class="notary-btn notary-btn--ghost" routerLink="/notary/orders">К списку заявок</a>
+    </div>
+    <div class="notary-card__body">
+      @if (latestFive().length === 0) {
+        <div class="notary-empty">
+          <strong>Пока нет заявок</strong>
+          <p>Как только появятся записи — они покажутся здесь.</p>
+        </div>
+      } @else {
+        <ul class="dashboard-list">
+          @for (a of latestFive(); track a.id) {
+            <li class="dashboard-list__row">
+              <div class="dashboard-list__copy">
+                <strong>{{ a.applicantName }}</strong>
+                <small>{{ a.address }}</small>
+              </div>
+              <span [class]="'notary-badge ' + statusBadgeClass[a.status]">{{ statusLabel[a.status] }}</span>
+              <a class="notary-link" [routerLink]="['/notary/orders', a.id]">Открыть →</a>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </article>
+
+  <!-- Быстрые ссылки -->
+  <section class="dashboard-links">
+    @for (link of quickLinks; track link.route) {
+      <a class="notary-card dashboard-link" [routerLink]="['/notary', link.route]">
+        <div class="notary-card__body">
+          <p class="notary-page__eyebrow">{{ link.icon }} {{ link.eyebrow }}</p>
+          <strong class="dashboard-link__title">{{ link.title }}</strong>
+          <p>{{ link.description }}</p>
+        </div>
+      </a>
+    }
+  </section>
+</section>

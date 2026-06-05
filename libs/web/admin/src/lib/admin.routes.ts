@@ -14,12 +14,41 @@ export const adminRoutes: Route[] = [
     path: '',
     component: Admin,
     children: [
-      { path: '', ...placeholder('Главное меню', ['Обзор панели администратора']) } as Route,
       {
-        path: 'applications',
+        path: '',
+        loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.AdminDashboard),
+      } as Route,
+      {
+        path: 'users',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
-      },
+      } as Route,
+      {
+        path: 'orders',
+        loadComponent: () =>
+          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
+      } as Route,
+      {
+        path: 'orders/statuses',
+        ...placeholder('Управление статусами', [
+          'Изменение статусов заказов',
+          'Отслеживание переходов между этапами',
+        ]),
+      } as Route,
+      {
+        path: 'orders/queue',
+        ...placeholder('Очередь оценок', [
+          'Список заявок, ожидающих оценки',
+          'Распределение по нотариусам',
+        ]),
+      } as Route,
+      {
+        path: 'orders/moderation',
+        ...placeholder('Ручная модерация', [
+          'Проверка и модерация спорных заявок',
+          'Ручные корректировки',
+        ]),
+      } as Route,
       {
         path: 'order-status-history',
         loadComponent: () =>
