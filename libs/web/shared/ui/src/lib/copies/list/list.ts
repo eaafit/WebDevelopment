@@ -152,8 +152,6 @@ export class List implements OnInit {
         page: 1, 
         limit: 1000 
       });
-      
-      console.log('=== ЧТО ПРИХОДИТ С БЭКЕНДА ===', data.documents);
 
       const docs = data.documents || [];
       this.rawDocuments.set(docs);
