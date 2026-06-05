@@ -278,4 +278,10 @@ export class AssessmentHistoryComponent implements OnInit {
     this.isModalOpen.set(false);
     this.selectedOrderId.set(null);
   }
+
+  refresh(): void {
+    this.currentPage.set(1);
+    this.loadOrders();
+    this.loadRecentEvents();
+  }
 }

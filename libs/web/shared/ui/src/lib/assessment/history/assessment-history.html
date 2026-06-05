@@ -1,10 +1,15 @@
 <div class="assessment-history" [class.notary-role]="role === 'notary'">
   <div class="card">
     <div class="card-header">
-      <h1>История заказов оценки</h1>
-      <p class="card-subtitle">
-        {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
-      </p>
+      <div>
+        <h1>История заказов оценки</h1>
+        <p class="card-subtitle">
+          {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
+        </p>
+      </div>
+      <button class="btn btn-outline btn-sm refresh-btn" (click)="refresh()">
+        🔄 Обновить
+      </button>
     </div>
     @if (notifications().length) {
     <!-- <div class="notifications-block card">
