@@ -56,7 +56,7 @@ describe('GoogleOAuthClient', () => {
         json: { access_token: 'google-access', id_token: 'google-id' },
       });
 
-      const result = await client.exchangeCode('auth-code-xyz');
+      const result = await client.exchangeCode({ code: 'auth-code-xyz' });
 
       expect(result).toEqual({ accessToken: 'google-access', idToken: 'google-id' });
       const [endpoint, init] = fetchMock.mock.calls[0];
@@ -68,7 +68,7 @@ describe('GoogleOAuthClient', () => {
 
     it('throws GoogleOAuthError on non-2xx without leaking the body', async () => {
       mockFetch({ ok: false, status: 401, json: { error: 'invalid_grant' } });
-      await expect(client.exchangeCode('bad-code')).rejects.toMatchObject({
+      await expect(client.exchangeCode({ code: 'bad-code' })).rejects.toMatchObject({
         name: 'GoogleOAuthError',
         status: 401,
       });
@@ -76,7 +76,7 @@ describe('GoogleOAuthClient', () => {
 
     it('throws when access_token is absent', async () => {
       mockFetch({ ok: true, json: { id_token: 'only-id' } });
-      await expect(client.exchangeCode('code')).rejects.toBeInstanceOf(GoogleOAuthError);
+      await expect(client.exchangeCode({ code: 'code' })).rejects.toBeInstanceOf(GoogleOAuthError);
     });
   });
 

@@ -10,6 +10,7 @@ import { AuthService } from './auth.service';
 import { AuthRpcService } from './auth-rpc.service';
 import { AuthInterceptor } from './auth.interceptor';
 import { GoogleOAuthClient } from './google-oauth.client';
+import { YandexOAuthClient } from './yandex-oauth.client';
 import { OAuthStateService } from './oauth-state.service';
 import { OAuthAccountRepository } from './oauth-account.repository';
 import { OAuthService } from './oauth.service';
@@ -26,6 +27,7 @@ import { OAuthService } from './oauth.service';
     AuthRpcService,
     AuthInterceptor,
     GoogleOAuthClient,
+    YandexOAuthClient,
     OAuthStateService,
     OAuthAccountRepository,
     OAuthService,

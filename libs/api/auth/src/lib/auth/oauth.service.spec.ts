@@ -14,6 +14,11 @@ describe('OAuthService', () => {
     exchangeCode: jest.fn(),
     getUserInfo: jest.fn(),
   };
+  const yandexClient = {
+    buildAuthorizeUrl: jest.fn(),
+    exchangeCode: jest.fn(),
+    getUserInfo: jest.fn(),
+  };
   const stateService = { issue: jest.fn(), verify: jest.fn() };
   const oauthAccountRepository = {
     findUserByProviderAccount: jest.fn(),
@@ -52,6 +57,7 @@ describe('OAuthService', () => {
     jest.resetAllMocks();
     service = new OAuthService(
       googleClient as never,
+      yandexClient as never,
       stateService as never,
       oauthAccountRepository as never,
       authRepository as never,
@@ -90,15 +96,30 @@ describe('OAuthService', () => {
         create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.GOOGLE }),
       );
 
-      expect(googleClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-abc');
+      // Google не использует PKCE → issue без payload, buildAuthorizeUrl без challenge.
+      expect(stateService.issue).toHaveBeenCalledWith(undefined);
+      expect(googleClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-abc', undefined);
       expect(res.url).toBe('https://accounts.google.com/o/oauth2/v2/auth?x=1');
       expect(res.state).toBe('signed-state-abc');
     });
 
-    it('rejects non-Google providers with Unimplemented', async () => {
+    it('returns the Yandex consent URL and the signed state', async () => {
+      stateService.issue.mockReturnValue('signed-state-ya');
+      yandexClient.buildAuthorizeUrl.mockReturnValue('https://oauth.yandex.ru/authorize?x=1');
+
+      const res = await service.getAuthorizeUrl(
+        create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.YANDEX }),
+      );
+
+      expect(yandexClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-ya', undefined);
+      expect(res.url).toBe('https://oauth.yandex.ru/authorize?x=1');
+      expect(res.state).toBe('signed-state-ya');
+    });
+
+    it('rejects an unsupported provider with Unimplemented', async () => {
       await expect(
         service.getAuthorizeUrl(
-          create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.YANDEX }),
+          create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.UNSPECIFIED }),
         ),
       ).rejects.toMatchObject({ code: Code.Unimplemented });
     });
@@ -218,6 +239,63 @@ describe('OAuthService', () => {
         expect.objectContaining({
           eventType: 'user.oauth_login_failed',
           after: expect.objectContaining({ reason: 'email_not_verified' }),
+        }),
+      );
+    });
+  });
+
+  describe('login — Yandex', () => {
+    beforeEach(() => {
+      stateService.verify.mockReturnValue('');
+      yandexClient.exchangeCode.mockResolvedValue({ accessToken: 'ya-access' });
+      yandexClient.getUserInfo.mockResolvedValue({
+        providerUserId: 'yandex-id-1',
+        email: 'ya-user@yandex.ru',
+        emailVerified: true,
+        fullName: 'Яндекс Пользователь',
+      });
+    });
+
+    it('creates a new Applicant via Yandex and stores the Yandex provider', async () => {
+      oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(null);
+      authRepository.findByEmail.mockResolvedValue(null);
+      oauthAccountRepository.createUserWithAccount.mockResolvedValue(
+        userRecord({ id: 'user-ya', email: 'ya-user@yandex.ru' }),
+      );
+
+      const res = await service.login(loginRequest({ provider: OauthProvider.YANDEX }));
+
+      expect(yandexClient.exchangeCode).toHaveBeenCalled();
+      expect(oauthAccountRepository.createUserWithAccount).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'ya-user@yandex.ru', role: PrismaRole.Applicant }),
+        'Yandex',
+        'yandex-id-1',
+      );
+      expect(res.result?.user?.id).toBe('user-ya');
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.oauth_registered',
+          after: expect.objectContaining({ provider: 'yandex' }),
+        }),
+      );
+    });
+
+    it('rejects when the provider returns no email and does not create a user', async () => {
+      yandexClient.getUserInfo.mockResolvedValue({
+        providerUserId: 'yandex-id-2',
+        email: '',
+        emailVerified: false,
+        fullName: 'No Email',
+      });
+
+      await expect(
+        service.login(loginRequest({ provider: OauthProvider.YANDEX })),
+      ).rejects.toMatchObject({ code: Code.Unauthenticated });
+      expect(oauthAccountRepository.createUserWithAccount).not.toHaveBeenCalled();
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventType: 'user.oauth_login_failed',
+          after: expect.objectContaining({ reason: 'no_email' }),
         }),
       );
     });

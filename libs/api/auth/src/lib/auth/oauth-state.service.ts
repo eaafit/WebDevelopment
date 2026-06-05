@@ -21,17 +21,26 @@ export class OAuthStateService {
   private readonly logger = new Logger(OAuthStateService.name);
   private readonly ttlSec = Number(process.env['OAUTH_STATE_TTL_SEC'] ?? 600); // 10 минут
 
-  /** Выпускает подписанный state со сроком жизни. */
-  issue(): string {
+  /**
+   * Выпускает подписанный state со сроком жизни.
+   * Опциональный `payload` (например, PKCE code_verifier для VK ID) встраивается
+   * внутрь подписанного токена и возвращается из {@link verify}. Безопасность:
+   * payload защищён HMAC-подписью и TTL — менять его на стороне браузера нельзя.
+   */
+  issue(payload?: string): string {
     const nonce = randomBytes(16).toString('hex');
     const expiry = Math.floor(Date.now() / 1000) + this.ttlSec;
-    const payload = `${nonce}.${expiry}`;
-    const signature = this.sign(payload);
-    return `${Buffer.from(payload).toString('base64url')}.${signature}`;
+    const payloadB64 = payload ? Buffer.from(payload).toString('base64url') : '';
+    const signed = `${nonce}.${expiry}.${payloadB64}`;
+    const signature = this.sign(signed);
+    return `${Buffer.from(signed).toString('base64url')}.${signature}`;
   }
 
-  /** Проверяет подпись и срок. Бросает {@link OAuthStateError} при любой невалидности. */
-  verify(state: string | null | undefined): void {
+  /**
+   * Проверяет подпись и срок. Бросает {@link OAuthStateError} при любой невалидности.
+   * Возвращает встроенный payload (или пустую строку, если его не было).
+   */
+  verify(state: string | null | undefined): string {
     if (!state) {
       throw new OAuthStateError('state is required');
     }
@@ -41,17 +50,21 @@ export class OAuthStateService {
       throw new OAuthStateError('malformed state');
     }
 
-    const [payloadB64, signature] = parts;
-    const payload = Buffer.from(payloadB64, 'base64url').toString('utf8');
+    const [signedB64, signature] = parts;
+    const signed = Buffer.from(signedB64, 'base64url').toString('utf8');
 
-    if (!this.safeEqual(signature, this.sign(payload))) {
+    if (!this.safeEqual(signature, this.sign(signed))) {
       throw new OAuthStateError('invalid state signature');
     }
 
-    const expiry = Number(payload.split('.')[1]);
+    const segments = signed.split('.');
+    const expiry = Number(segments[1]);
     if (!Number.isFinite(expiry) || expiry < Math.floor(Date.now() / 1000)) {
       throw new OAuthStateError('state expired');
     }
+
+    const payloadB64 = segments[2] ?? '';
+    return payloadB64 ? Buffer.from(payloadB64, 'base64url').toString('utf8') : '';
   }
 
   private sign(payload: string): string {

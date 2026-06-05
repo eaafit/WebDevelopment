@@ -17,6 +17,8 @@ import { AuthRepository } from './auth.repository';
 import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService } from './token.service';
 import { GoogleOAuthClient } from './google-oauth.client';
+import { YandexOAuthClient } from './yandex-oauth.client';
+import type { OAuthClient, OAuthUserInfo } from './oauth-client';
 import { OAuthAccountRepository, type OAuthUserRecord } from './oauth-account.repository';
 import { OAuthStateService } from './oauth-state.service';
 
@@ -28,25 +30,36 @@ const OAUTH_REGISTERED_EVENT = 'user.oauth_registered';
 export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
 
+  /** Реестр сетевых клиентов по провайдеру. Новый провайдер = новая запись. */
+  private readonly clients: Map<OauthProvider, OAuthClient>;
+
   constructor(
-    private readonly googleClient: GoogleOAuthClient,
+    googleClient: GoogleOAuthClient,
+    yandexClient: YandexOAuthClient,
     private readonly stateService: OAuthStateService,
     private readonly oauthAccountRepository: OAuthAccountRepository,
     private readonly authRepository: AuthRepository,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly tokenService: TokenService,
     private readonly auditService: AuditService,
-  ) {}
+  ) {
+    this.clients = new Map<OauthProvider, OAuthClient>([
+      [OauthProvider.GOOGLE, googleClient],
+      [OauthProvider.YANDEX, yandexClient],
+    ]);
+  }
 
   // ─── Authorize URL ─────────────────────────────────────────────────────────
 
   async getAuthorizeUrl(
     request: GetOAuthAuthorizeUrlRequest,
   ): Promise<GetOAuthAuthorizeUrlResponse> {
-    this.assertGoogle(request.provider);
+    const client = this.resolveClient(request.provider);
 
-    const state = this.stateService.issue();
-    const url = this.googleClient.buildAuthorizeUrl(state);
+    // PKCE (VK ID): verifier прячем в подписанный state, challenge кладём в URL.
+    const pkce = client.createPkce?.();
+    const state = this.stateService.issue(pkce?.verifier);
+    const url = client.buildAuthorizeUrl(state, pkce?.challenge);
 
     return create(GetOAuthAuthorizeUrlResponseSchema, { url, state });
   }
@@ -54,25 +67,31 @@ export class OAuthService {
   // ─── Login / Register ────────────────────────────────────────────────────
 
   async login(request: OAuthLoginRequest): Promise<OAuthLoginResponse> {
-    this.assertGoogle(request.provider);
+    const client = this.resolveClient(request.provider);
 
-    // 1. CSRF state.
+    // 1. CSRF state. verify возвращает встроенный payload (PKCE code_verifier).
+    let codeVerifier: string;
     try {
-      this.stateService.verify(request.state);
+      codeVerifier = this.stateService.verify(request.state);
     } catch {
       await this.recordFailure(request.provider, 'invalid_state');
       throw new ConnectError('invalid oauth state', Code.Unauthenticated);
     }
 
-    // 2. Обмен code → токены и профиль Google (токены наружу не отдаём).
-    let profile;
+    // 2. Обмен code → токены и профиль провайдера (токены наружу не отдаём).
+    let profile: OAuthUserInfo;
     try {
-      const tokens = await this.googleClient.exchangeCode(request.code);
-      profile = await this.googleClient.getUserInfo(tokens.accessToken);
+      const tokens = await client.exchangeCode({
+        code: request.code,
+        codeVerifier: codeVerifier || undefined,
+      });
+      profile = await client.getUserInfo(tokens.accessToken);
     } catch (error) {
-      this.logger.warn(`Google OAuth exchange failed: ${describeError(error)}`);
+      this.logger.warn(
+        `OAuth exchange failed (${providerLabel(request.provider)}): ${describeError(error)}`,
+      );
       await this.recordFailure(request.provider, 'provider_exchange_failed');
-      throw new ConnectError('google authentication failed', Code.Unauthenticated);
+      throw new ConnectError('oauth authentication failed', Code.Unauthenticated);
     }
 
     // 3. find-or-create + выдача наших JWT.
@@ -81,9 +100,18 @@ export class OAuthService {
 
   private async completeLogin(
     provider: OauthProvider,
-    profile: { providerUserId: string; email: string; emailVerified: boolean; fullName: string },
+    profile: OAuthUserInfo,
   ): Promise<OAuthLoginResponse> {
-    const prismaProvider = PrismaOAuthProvider.Google;
+    const prismaProvider = PRISMA_PROVIDER[provider];
+    if (!prismaProvider) {
+      throw new ConnectError('OAuth provider is not supported', Code.Unimplemented);
+    }
+
+    // Провайдер не вернул email → не создаём пользователя без него (User.email unique).
+    if (!profile.email) {
+      await this.recordFailure(provider, 'no_email');
+      throw new ConnectError('provider did not return an email', Code.Unauthenticated);
+    }
 
     // 3a. Уже привязанный внешний аккаунт → обычный вход.
     const linked = await this.oauthAccountRepository.findUserByProviderAccount(
@@ -128,13 +156,15 @@ export class OAuthService {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  private assertGoogle(provider: OauthProvider): void {
-    if (provider !== OauthProvider.GOOGLE) {
+  private resolveClient(provider: OauthProvider): OAuthClient {
+    const client = this.clients.get(provider);
+    if (!client) {
       throw new ConnectError(
-        'only Google OAuth is implemented at this stage',
+        `OAuth provider ${providerLabel(provider)} is not implemented`,
         Code.Unimplemented,
       );
     }
+    return client;
   }
 
   private async assertActive(provider: OauthProvider, user: OAuthUserRecord): Promise<void> {
@@ -223,6 +253,13 @@ export class OAuthService {
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
+/** Маппинг proto-провайдера в Prisma-enum. Отсутствие = провайдер не поддержан. */
+const PRISMA_PROVIDER: Partial<Record<OauthProvider, PrismaOAuthProvider>> = {
+  [OauthProvider.GOOGLE]: PrismaOAuthProvider.Google,
+  [OauthProvider.YANDEX]: PrismaOAuthProvider.Yandex,
+  [OauthProvider.VK]: PrismaOAuthProvider.Vk,
+};
+
 function providerLabel(provider: OauthProvider): string {
   switch (provider) {
     case OauthProvider.GOOGLE:
@@ -244,6 +281,8 @@ function reasonLabel(reason: string): string {
       return 'Ошибка обмена с провайдером';
     case 'email_not_verified':
       return 'Email не подтверждён провайдером';
+    case 'no_email':
+      return 'Провайдер не вернул email';
     case 'account_deactivated':
       return 'Аккаунт деактивирован';
     default:

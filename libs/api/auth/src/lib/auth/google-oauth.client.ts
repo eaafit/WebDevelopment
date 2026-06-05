@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { OAuthClient, OAuthCodeExchange } from './oauth-client';
 
 /**
  * Низкоуровневый клиент Google OAuth2 / OpenID Connect.
@@ -39,7 +40,7 @@ export class GoogleOAuthError extends Error {
 }
 
 @Injectable()
-export class GoogleOAuthClient {
+export class GoogleOAuthClient implements OAuthClient {
   private readonly logger = new Logger(GoogleOAuthClient.name);
 
   /** Собирает URL согласия Google. `state` уже подписан вызывающей стороной. */
@@ -58,7 +59,7 @@ export class GoogleOAuthClient {
   }
 
   /** Меняет authorization code на токены Google (server-to-server). */
-  async exchangeCode(code: string): Promise<GoogleTokenResult> {
+  async exchangeCode({ code }: OAuthCodeExchange): Promise<GoogleTokenResult> {
     const body = new URLSearchParams({
       code,
       client_id: this.clientId,

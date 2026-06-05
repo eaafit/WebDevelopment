@@ -20,6 +20,18 @@ describe('OAuthStateService', () => {
     expect(() => service.verify(state)).not.toThrow();
   });
 
+  it('round-trips an embedded payload (PKCE code_verifier)', () => {
+    const service = withEnv({ OAUTH_STATE_SECRET: 'state-secret' });
+    const state = service.issue('pkce-code-verifier-123');
+    expect(service.verify(state)).toBe('pkce-code-verifier-123');
+  });
+
+  it('returns an empty payload when none was embedded', () => {
+    const service = withEnv({ OAUTH_STATE_SECRET: 'state-secret' });
+    const state = service.issue();
+    expect(service.verify(state)).toBe('');
+  });
+
   it('rejects a tampered signature', () => {
     const service = withEnv({ OAUTH_STATE_SECRET: 'state-secret' });
     const state = service.issue();
