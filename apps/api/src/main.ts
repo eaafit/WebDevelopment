@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import './tracing';
 import { NestFactory } from '@nestjs/core';
-import { Code, ConnectError, cors as connectCors, createContextValues } from '@connectrpc/connect';
+import { cors as connectCors, createContextValues } from '@connectrpc/connect';
 import { connectNodeAdapter } from '@connectrpc/connect-node';
 import cors from 'cors';
 import express from 'express';
@@ -19,14 +19,10 @@ import {
   PaymentWebhookError,
   PaymentWebhookService,
 } from '@internal/billing';
-import {
-  DocumentFileUrlService,
-  DocumentObjectNotFoundError,
-  DocumentService,
-  DocumentStorageUnavailableError,
-} from '@internal/document';
+import { DocumentFileUrlService, DocumentService } from '@internal/document';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
+import { handleDocumentContentRequest } from './app/document-content-route';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -105,44 +101,10 @@ async function bootstrap() {
   expressInstance.get(
     '/api/documents/:documentId/content',
     async (req: express.Request, res: express.Response) => {
-      const documentId = req.params['documentId'] ?? '';
-      const accessGrant = documentFileUrlService.validateAccess({
-        documentId,
-        mode: asString(req.query['mode']),
-        expires: asString(req.query['expires']),
-        signature: asString(req.query['signature']),
+      await handleDocumentContentRequest(req, res, {
+        documentService,
+        documentFileUrlService,
       });
-
-      if (!accessGrant) {
-        res.status(403).json({ error: 'invalid or expired document url' });
-        return;
-      }
-
-      try {
-        const file = await documentService.getDocumentFile(documentId);
-        if (!file) {
-          res.status(404).json({ error: `document ${documentId} not found` });
-          return;
-        }
-
-        res.setHeader('Content-Type', file.fileType);
-        res.setHeader('Cache-Control', 'private, max-age=3600');
-        res.setHeader(
-          'Content-Disposition',
-          buildContentDisposition(
-            accessGrant.mode === 'download' ? 'attachment' : 'inline',
-            file.fileName,
-          ),
-        );
-
-        if (file.fileSize > 0) {
-          res.setHeader('Content-Length', String(file.fileSize));
-        }
-
-        file.body.pipe(res);
-      } catch (error: unknown) {
-        writeDocumentFileError(res, error);
-      }
     },
   );
 
@@ -282,10 +244,6 @@ function resolveRequestIp(req: {
   return req.socket?.remoteAddress ?? null;
 }
 
-function asString(value: unknown): string | undefined {
-  return typeof value === 'string' ? value : undefined;
-}
-
 function isHttpError(
   error: unknown,
 ): error is { status?: number; statusCode?: number; message: string } {
@@ -297,61 +255,5 @@ function isHttpError(
   return (
     typeof (candidate.statusCode ?? candidate.status) === 'number' &&
     typeof candidate.message === 'string'
-  );
-}
-
-function writeDocumentFileError(res: express.Response, error: unknown): void {
-  if (error instanceof DocumentObjectNotFoundError) {
-    res.status(404).json({ error: 'document file not found' });
-    return;
-  }
-
-  if (error instanceof DocumentStorageUnavailableError) {
-    res.status(503).json({ error: 'document object storage unavailable' });
-    return;
-  }
-
-  if (error instanceof ConnectError) {
-    if (error.code === Code.InvalidArgument) {
-      res.status(400).json({ error: error.message });
-      return;
-    }
-
-    if (error.code === Code.NotFound) {
-      res.status(404).json({ error: error.message });
-      return;
-    }
-
-    if (error.code === Code.Unavailable) {
-      res.status(503).json({ error: error.message });
-      return;
-    }
-  }
-
-  res.status(500).json({ error: 'unexpected document file error' });
-}
-
-function buildContentDisposition(
-  dispositionType: 'inline' | 'attachment',
-  fileName: string,
-): string {
-  const safeFileName = sanitizeAsciiFileName(fileName);
-  const encodedFileName = encodeRfc5987(fileName);
-  return `${dispositionType}; filename="${safeFileName}"; filename*=UTF-8''${encodedFileName}`;
-}
-
-function sanitizeAsciiFileName(fileName: string): string {
-  const sanitized = fileName
-    .replace(/[/\\"]/g, '_')
-    .replace(/[^\x20-\x7E]+/g, '_')
-    .trim();
-
-  return sanitized || 'document';
-}
-
-function encodeRfc5987(value: string): string {
-  return encodeURIComponent(value).replace(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   );
 }
