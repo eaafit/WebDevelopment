@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
 import { WebLoggerService } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
+import { AdminAssessmentApiService, type AdminAssessmentRow } from '../RequestAssessment/services/assessment-api.service';
 import { AdminUserApiService, AdminUserRef } from '../RequestAssessment/services/user-api.service';
 import {
   PAYMENT_METHOD_LABELS,
@@ -44,6 +45,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   private api = inject(AdminPaymentsApiService);
   private readonly logger = inject(WebLoggerService);
   private userApi = inject(AdminUserApiService);
+  private assessmentApi = inject(AdminAssessmentApiService);
   private dataSub?: Subscription;
 
   allUsers: AdminUserRef[] = [];
@@ -59,6 +61,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
   subscriptionIdOptions: string[] = [];
   assessmentIdOptions: string[] = [];
+  assessmentOptions: AdminAssessmentRow[] = [];
   transactionIdOptions: string[] = [];
 
   idInputMode: { subscriptionId: boolean; assessmentId: boolean; transactionId: boolean } = {
@@ -96,6 +99,7 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
     this.loadIdOptions();
     this.loadUsers();
+    this.loadAssessmentOptions();
 
     if (this.mode === 'edit' && this.paymentId) {
       this.loadPayment(this.paymentId);
@@ -116,6 +120,22 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       this.allUsers = Array.from(this.userApi.usersById.values());
     } catch {
       this.allUsers = [];
+    }
+  }
+
+  private async loadAssessmentOptions(): Promise<void> {
+    try {
+      const page = await this.assessmentApi.listAssessments({ page: 1, limit: 200 });
+      this.assessmentOptions = page.items;
+      this.assessmentIdOptions = this.mergeIdOptions(
+        this.assessmentIdOptions,
+        page.items.map((assessment) => assessment.id),
+      );
+    } catch (err) {
+      this.logWarn('payment.admin.form_assessment_options_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      this.assessmentOptions = [];
     }
   }
 
@@ -169,9 +189,10 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
         this.subscriptionIdOptions = Array.from(
           new Set(payments.map((p) => p.subscriptionId).filter(Boolean)),
         ) as string[];
-        this.assessmentIdOptions = Array.from(
-          new Set(payments.map((p) => p.assessmentId).filter(Boolean)),
-        ) as string[];
+        this.assessmentIdOptions = this.mergeIdOptions(
+          this.assessmentIdOptions,
+          payments.map((p) => p.assessmentId).filter(Boolean) as string[],
+        );
         this.transactionIdOptions = Array.from(
           new Set(payments.map((p) => p.transactionId).filter(Boolean)),
         ) as string[];
@@ -421,7 +442,17 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   }
 
   formatAssessmentOption(id: string): string {
-    return `Заявка ${this.compactIdentifier(id)}`;
+    const assessment = this.assessmentOptions.find((item) => item.id === id);
+    if (!assessment) {
+      return `Заявка ${this.compactIdentifier(id)}`;
+    }
+
+    const label = assessment.address.trim() || assessment.description.trim();
+    if (!label) {
+      return `Заявка ${this.compactIdentifier(id)}`;
+    }
+
+    return `${this.compactIdentifier(id)} - ${label}`;
   }
 
   formatTransactionOption(id: string): string {
@@ -485,6 +516,10 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     }
 
     return `${normalized.slice(0, 8)}...${normalized.slice(-6)}`;
+  }
+
+  private mergeIdOptions(current: string[], next: string[]): string[] {
+    return Array.from(new Set([...current, ...next].filter(Boolean)));
   }
 }
 
