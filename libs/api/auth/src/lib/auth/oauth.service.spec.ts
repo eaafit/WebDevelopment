@@ -19,6 +19,12 @@ describe('OAuthService', () => {
     exchangeCode: jest.fn(),
     getUserInfo: jest.fn(),
   };
+  const vkClient = {
+    createPkce: jest.fn(),
+    buildAuthorizeUrl: jest.fn(),
+    exchangeCode: jest.fn(),
+    getUserInfo: jest.fn(),
+  };
   const stateService = { issue: jest.fn(), verify: jest.fn() };
   const oauthAccountRepository = {
     findUserByProviderAccount: jest.fn(),
@@ -58,6 +64,7 @@ describe('OAuthService', () => {
     service = new OAuthService(
       googleClient as never,
       yandexClient as never,
+      vkClient as never,
       stateService as never,
       oauthAccountRepository as never,
       authRepository as never,
@@ -114,6 +121,20 @@ describe('OAuthService', () => {
       expect(yandexClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-ya', undefined);
       expect(res.url).toBe('https://oauth.yandex.ru/authorize?x=1');
       expect(res.state).toBe('signed-state-ya');
+    });
+
+    it('embeds the VK PKCE verifier in the state and passes the challenge to the URL', async () => {
+      vkClient.createPkce.mockReturnValue({ verifier: 'pkce-verifier', challenge: 'pkce-challenge' });
+      stateService.issue.mockReturnValue('signed-state-vk');
+      vkClient.buildAuthorizeUrl.mockReturnValue('https://id.vk.ru/authorize?x=1');
+
+      const res = await service.getAuthorizeUrl(
+        create(GetOAuthAuthorizeUrlRequestSchema, { provider: OauthProvider.VK }),
+      );
+
+      expect(stateService.issue).toHaveBeenCalledWith('pkce-verifier');
+      expect(vkClient.buildAuthorizeUrl).toHaveBeenCalledWith('signed-state-vk', 'pkce-challenge');
+      expect(res.url).toBe('https://id.vk.ru/authorize?x=1');
     });
 
     it('rejects an unsupported provider with Unimplemented', async () => {
@@ -297,6 +318,43 @@ describe('OAuthService', () => {
           eventType: 'user.oauth_login_failed',
           after: expect.objectContaining({ reason: 'no_email' }),
         }),
+      );
+    });
+  });
+
+  describe('login — VK', () => {
+    it('forwards the PKCE verifier (from state) and device_id to the VK exchange', async () => {
+      stateService.verify.mockReturnValue('pkce-verifier');
+      vkClient.exchangeCode.mockResolvedValue({ accessToken: 'vk-access' });
+      vkClient.getUserInfo.mockResolvedValue({
+        providerUserId: 'vk-id-1',
+        email: 'vk-user@vk.com',
+        emailVerified: true,
+        fullName: 'ВК Пользователь',
+      });
+      oauthAccountRepository.findUserByProviderAccount.mockResolvedValue(null);
+      authRepository.findByEmail.mockResolvedValue(null);
+      oauthAccountRepository.createUserWithAccount.mockResolvedValue(
+        userRecord({ id: 'user-vk', email: 'vk-user@vk.com' }),
+      );
+
+      const res = await service.login(
+        loginRequest({ provider: OauthProvider.VK, code: 'vk-code', deviceId: 'device-xyz' }),
+      );
+
+      expect(vkClient.exchangeCode).toHaveBeenCalledWith({
+        code: 'vk-code',
+        codeVerifier: 'pkce-verifier',
+        deviceId: 'device-xyz',
+      });
+      expect(oauthAccountRepository.createUserWithAccount).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'vk-user@vk.com' }),
+        'Vk',
+        'vk-id-1',
+      );
+      expect(res.result?.user?.id).toBe('user-vk');
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ after: expect.objectContaining({ provider: 'vk' }) }),
       );
     });
   });

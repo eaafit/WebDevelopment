@@ -99,6 +99,9 @@ message OAuthLoginRequest {
   OauthProvider provider = 1;
   string code = 2;
   string state = 3;
+  // device_id выдаётся VK ID на callback и обязателен при обмене кода на токен.
+  // Для Google/Yandex пустой.
+  string device_id = 4;
 }
 
 message OAuthLoginResponse {

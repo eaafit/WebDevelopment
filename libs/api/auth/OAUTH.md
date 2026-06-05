@@ -1,8 +1,20 @@
-# OAuth-вход через внешние сервисы (Google)
+# OAuth-вход через внешние сервисы (Google / Яндекс / ВК)
 
-Вертикальный срез входа/регистрации через Google OAuth2 / OpenID Connect.
-Часть зоны авторизации (issue-02). На этом этапе реализован **только Google**;
-Яндекс и ВК добавляются по этому же шаблону (generic-поле `provider` в RPC).
+Вертикальный срез входа/регистрации через внешних OAuth-провайдеров.
+Часть зоны авторизации (issue-02). Реализованы **Google**, **Яндекс** и **ВК (VK ID)**
+поверх общего интерфейса `OAuthClient` и реестра клиентов в `OAuthService`
+(generic-поле `provider` в RPC — отдельных RPC на провайдера нет).
+
+## Провайдеры
+
+| Провайдер | Поток | Особенности |
+|---|---|---|
+| Google | authorization code | `openid email profile`, userinfo по Bearer |
+| Яндекс | authorization code | `login:email login:info`, `default_email`, userinfo по `Authorization: OAuth` |
+| ВК (VK ID) | authorization code + **PKCE (S256)** | обязателен `code_verifier` (прячем в подписанный state) и `device_id` (приходит в callback, поле `device_id` в `OAuthLoginRequest`) |
+
+Новый клиент = реализация `OAuthClient` (`buildAuthorizeUrl`/`exchangeCode`/`getUserInfo`,
+опц. `createPkce`) + запись в реестре `OAuthService` + DI в `auth.module.ts`.
 
 ## Поток данных
 
@@ -59,6 +71,11 @@
 |---|---|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth-клиент из Google Cloud Console |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:4200/auth/oauth/google/callback` (совпадает с Console) |
+| `YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET` | приложение из oauth.yandex.ru (права email + login) |
+| `YANDEX_REDIRECT_URI` | `http://localhost:4200/auth/oauth/yandex/callback` |
+| `VK_CLIENT_ID` | приложение из id.vk.ru (VK ID) |
+| `VK_REDIRECT_URI` | `http://localhost:4200/auth/oauth/vk/callback` (Trusted redirect URL в консоли) |
+| `VK_CLIENT_SECRET` | опционально — только если тип VK-приложения требует секрет (PKCE его заменяет) |
 | `OAUTH_STATE_SECRET` | секрет подписи state; в проде обязателен, вне прода fallback на `JWT_ACCESS_SECRET` (с warn) |
 | `OAUTH_STATE_TTL_SEC` | срок жизни state, по умолчанию 600 |
 

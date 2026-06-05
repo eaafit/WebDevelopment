@@ -18,6 +18,7 @@ import { RefreshTokenRepository } from './refresh-token.repository';
 import { TokenService } from './token.service';
 import { GoogleOAuthClient } from './google-oauth.client';
 import { YandexOAuthClient } from './yandex-oauth.client';
+import { VkOAuthClient } from './vk-oauth.client';
 import type { OAuthClient, OAuthUserInfo } from './oauth-client';
 import { OAuthAccountRepository, type OAuthUserRecord } from './oauth-account.repository';
 import { OAuthStateService } from './oauth-state.service';
@@ -36,6 +37,7 @@ export class OAuthService {
   constructor(
     googleClient: GoogleOAuthClient,
     yandexClient: YandexOAuthClient,
+    vkClient: VkOAuthClient,
     private readonly stateService: OAuthStateService,
     private readonly oauthAccountRepository: OAuthAccountRepository,
     private readonly authRepository: AuthRepository,
@@ -46,6 +48,7 @@ export class OAuthService {
     this.clients = new Map<OauthProvider, OAuthClient>([
       [OauthProvider.GOOGLE, googleClient],
       [OauthProvider.YANDEX, yandexClient],
+      [OauthProvider.VK, vkClient],
     ]);
   }
 
@@ -84,6 +87,7 @@ export class OAuthService {
       const tokens = await client.exchangeCode({
         code: request.code,
         codeVerifier: codeVerifier || undefined,
+        deviceId: request.deviceId || undefined,
       });
       profile = await client.getUserInfo(tokens.accessToken);
     } catch (error) {
