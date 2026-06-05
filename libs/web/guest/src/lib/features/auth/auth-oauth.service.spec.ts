@@ -91,10 +91,37 @@ describe('AuthService — OAuth (Google / Яндекс)', () => {
         provider: OAUTH_PROVIDERS['google'].provider,
         code: 'auth-code',
         state: 'st-xyz',
+        deviceId: '',
       });
       expect(router.navigateByUrl).toHaveBeenCalledWith('/applicant');
       expect(service.isLoggedIn()).toBe(true);
       expect(sessionStorage.getItem('oauth_state')).toBeNull();
+    });
+
+    it('forwards the VK device_id to the backend', async () => {
+      sessionStorage.setItem('oauth_state', 'st-vk');
+      client.oAuthLogin.mockResolvedValue({
+        result: {
+          accessToken: TOKEN,
+          refreshToken: 'rt',
+          user: { id: 'u2', email: 'v@vk.com', fullName: 'V', role: 1, phoneNumber: '', isActive: true },
+        },
+      });
+
+      const ok = await service.completeOAuthLogin(
+        OAUTH_PROVIDERS['vk'],
+        'vk-code',
+        'st-vk',
+        'device-77',
+      );
+
+      expect(ok).toBe(true);
+      expect(client.oAuthLogin).toHaveBeenCalledWith({
+        provider: OAUTH_PROVIDERS['vk'].provider,
+        code: 'vk-code',
+        state: 'st-vk',
+        deviceId: 'device-77',
+      });
     });
 
     it('rejects a mismatched state without calling the backend', async () => {

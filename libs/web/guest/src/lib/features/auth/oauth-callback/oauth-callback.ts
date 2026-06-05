@@ -34,7 +34,9 @@ export class OAuthCallback implements OnInit {
 
     const code = params.get('code') ?? '';
     const state = params.get('state') ?? '';
-    const ok = await this.authService.completeOAuthLogin(config, code, state);
+    // device_id присылает VK ID; для Google/Yandex его нет (пустая строка).
+    const deviceId = params.get('device_id') ?? '';
+    const ok = await this.authService.completeOAuthLogin(config, code, state, deviceId);
     if (!ok) {
       this.failed.set(true);
     }

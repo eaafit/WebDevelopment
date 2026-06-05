@@ -18,6 +18,7 @@ export interface OAuthProviderConfig {
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   google: { provider: OauthProvider.GOOGLE, key: 'google' },
   yandex: { provider: OauthProvider.YANDEX, key: 'yandex' },
+  vk: { provider: OauthProvider.VK, key: 'vk' },
 };
 
 /** Конфигурация провайдера по ключу маршрута, либо null для неизвестного. */
@@ -118,6 +119,7 @@ export class AuthService {
     config: OAuthProviderConfig,
     code: string,
     state: string,
+    deviceId = '',
   ): Promise<boolean> {
     this._loading.set(true);
     this._error.set(null);
@@ -127,7 +129,8 @@ export class AuthService {
       if (!code || !state || !expected || state !== expected) {
         throw new Error('Некорректный ответ авторизации.');
       }
-      const res = await this.client.oAuthLogin({ provider: config.provider, code, state });
+      // device_id нужен только VK ID; Google/Yandex его не присылают (пустая строка).
+      const res = await this.client.oAuthLogin({ provider: config.provider, code, state, deviceId });
       if (!res.result) throw new Error('Пустой ответ сервера');
       this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
       this.logger.info(`oauth.${config.key}.login_succeeded`, { provider: config.key });

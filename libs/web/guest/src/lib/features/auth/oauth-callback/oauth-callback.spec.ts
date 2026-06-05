@@ -53,6 +53,23 @@ describe('OAuthCallback', () => {
       expect.objectContaining({ key: 'yandex' }),
       'auth-code',
       'st-1',
+      '',
+    );
+    expect(fixture.componentInstance.failed()).toBe(false);
+  });
+
+  it('forwards the VK device_id from the callback query', async () => {
+    completeOAuthLogin.mockResolvedValue(true);
+    const fixture = await setup(
+      { code: 'vk-code', state: 'st-vk', device_id: 'device-9' },
+      'vk',
+    );
+
+    expect(completeOAuthLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'vk' }),
+      'vk-code',
+      'st-vk',
+      'device-9',
     );
     expect(fixture.componentInstance.failed()).toBe(false);
   });

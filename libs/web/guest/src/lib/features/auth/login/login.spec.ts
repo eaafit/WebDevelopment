@@ -60,6 +60,7 @@ describe('Login', () => {
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="google-login"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="yandex-login"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="vk-login"]')).not.toBeNull();
 
     await component.onOAuthLogin('google');
 
