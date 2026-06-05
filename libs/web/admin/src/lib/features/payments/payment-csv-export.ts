@@ -1,9 +1,12 @@
+import { PAYMENT_STATUS_LABELS, PAYMENT_TYPE_LABELS, type Payment } from './payments.shared';
 import {
-  PAYMENT_METHOD_LABELS,
-  PAYMENT_STATUS_LABELS,
-  PAYMENT_TYPE_LABELS,
-  type Payment,
-} from './payments.shared';
+  formatPaymentDateTime,
+  formatPaymentFee,
+  formatPaymentMoney,
+  getPaymentMethodLabel,
+  getPaymentReceiptSummary,
+  getPaymentRelationSummary,
+} from './payment-display';
 
 export interface PaymentCsvColumn {
   key: string;
@@ -55,23 +58,22 @@ export const PAYMENT_CSV_COLUMNS: PaymentCsvColumn[] = [
   {
     key: 'paymentMethod',
     title: 'Метод оплаты',
-    resolve: (payment) =>
-      payment.paymentMethod ? (PAYMENT_METHOD_LABELS[payment.paymentMethod] ?? payment.paymentMethod) : '—',
+    resolve: (payment) => getPaymentMethodLabel(payment),
   },
   {
     key: 'transactionId',
     title: 'ID транзакции',
-    resolve: (payment) => payment.transactionId || '—',
+    resolve: (payment) => payment.transactionId || '\u2014',
   },
   {
     key: 'attachment',
     title: 'Чек',
-    resolve: (payment) => payment.attachmentFileName || '—',
+    resolve: (payment) => getPaymentReceiptSummary(payment).csvValue,
   },
   {
     key: 'application',
     title: 'Заявка/подписка',
-    resolve: (payment) => payment.assessmentId || payment.subscriptionId || '—',
+    resolve: (payment) => getPaymentRelationSummary(payment).csvValue,
   },
   {
     key: 'status',
@@ -86,16 +88,9 @@ export function buildPaymentCsvContent(
 ): string {
   const locale = options.locale ?? DEFAULT_LOCALE;
   const separator = options.separator ?? DEFAULT_SEPARATOR;
-  const numberFormatter = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
   const header = PAYMENT_CSV_COLUMNS.map((column) => column.title);
   const rows = payments.map((payment) =>
-    PAYMENT_CSV_COLUMNS.map((column) =>
-      formatColumnValue(column, payment, locale, numberFormatter),
-    ),
+    PAYMENT_CSV_COLUMNS.map((column) => formatColumnValue(column, payment, locale)),
   );
 
   const content = [header, ...rows]
@@ -114,33 +109,17 @@ function formatColumnValue(
   column: PaymentCsvColumn,
   payment: Payment,
   locale: string,
-  numberFormatter: Intl.NumberFormat,
 ): string {
   switch (column.key) {
     case 'paymentDate':
-      return formatCsvDate(payment.paymentDate, locale);
+      return formatPaymentDateTime(payment.paymentDate, locale);
     case 'amount':
-      return `${numberFormatter.format(payment.amount)} ${payment.currency || 'RUB'}`;
+      return formatPaymentMoney(payment.amount, payment.currency, locale);
     case 'fee':
-      return numberFormatter.format(payment.fee ?? 0);
+      return formatPaymentFee(payment.fee, locale);
     default:
       return column.resolve(payment);
   }
-}
-
-function formatCsvDate(value: string, locale: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
 }
 
 function escapeCsvValue(value: string): string {

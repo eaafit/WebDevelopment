@@ -260,7 +260,7 @@
               }
             </tr>
             } } @else if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
-            <tr>
+            <tr [attr.aria-label]="getPaymentRowAriaLabel(payment)">
               <td>{{ payment.id }}</td>
               <td>{{ payment.paymentDate | date:'dd.MM.yyyy' }}</td>
               <td>{{ getPayerName(payment) }}</td>

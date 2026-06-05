@@ -25,6 +25,16 @@ td.actions {
   color: var(--admin-text);
 }
 
+.payments-page > .admin-card {
+  position: relative;
+  z-index: 1;
+
+  &:has(.admin-select__trigger.is-open),
+  &:has(.column-filter-menu) {
+    z-index: 80;
+  }
+}
+
 .payments-page .admin-btn:disabled {
   cursor: not-allowed;
   transform: none;
@@ -50,7 +60,7 @@ td.actions {
 
 .admin-select {
   position: relative;
-  z-index: 300;
+  z-index: 20;
   min-width: 0;
 
   &--compact {
@@ -58,7 +68,7 @@ td.actions {
   }
 
   &:has(.admin-select__trigger.is-open) {
-    z-index: 1200;
+    z-index: 100;
   }
 }
 
@@ -133,7 +143,7 @@ td.actions {
 
 .admin-select__menu {
   position: absolute;
-  z-index: 1200;
+  z-index: 10000;
   top: calc(100% + 0.35rem);
   left: 0;
 

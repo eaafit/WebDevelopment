@@ -25,6 +25,12 @@ import { AdminPaymentsApiService, type PaymentQuery } from '../../api/admin-paym
 import { PaymentDeleteModalComponent } from './payment-delete-modal.component';
 import { AdminUserApiService } from '../RequestAssessment/services/user-api.service';
 import { buildPaymentCsvContent, buildPaymentCsvFileName } from './payment-csv-export';
+import {
+  buildPaymentExportSummary,
+  buildPaymentRowAriaLabel,
+  getPaymentReceiptSummary,
+  getPaymentRelationSummary,
+} from './payment-display';
 
 type FilterColumn =
   | 'id'
@@ -596,6 +602,7 @@ export class Payments implements OnInit, OnDestroy {
     this.logInfo('payment.admin.export_csv_started', {
       rows: exportPayments.length,
       page: this.currentPage,
+      summary: buildPaymentExportSummary(exportPayments),
     });
     this.loadError = null;
     this.exportError = null;
@@ -612,6 +619,7 @@ export class Payments implements OnInit, OnDestroy {
       downloadCsvFile(buildPaymentCsvFileName(), buildPaymentCsvContent(exportPayments));
       this.logInfo('payment.admin.export_csv_succeeded', {
         rows: exportPayments.length,
+        summary: buildPaymentExportSummary(exportPayments),
       });
     } catch (err) {
       this.logError('payment.admin.export_csv_failed', err);
@@ -638,6 +646,10 @@ export class Payments implements OnInit, OnDestroy {
 
   getStatusLabel(status: PaymentStatus): string {
     return PAYMENT_STATUS_LABELS[status];
+  }
+
+  getPaymentRowAriaLabel(payment: Payment): string {
+    return buildPaymentRowAriaLabel(payment, this.getPayerName(payment));
   }
 
   toggleColumnFilter(column: FilterColumn, event: MouseEvent): void {
@@ -834,9 +846,9 @@ export class Payments implements OnInit, OnDestroy {
       case 'transactionId':
         return payment.transactionId || '—';
       case 'attachment':
-        return payment.attachmentFileName || '—';
+        return getPaymentReceiptSummary(payment).csvValue;
       case 'application':
-        return payment.assessmentId || payment.subscriptionId || '—';
+        return getPaymentRelationSummary(payment).filterValue;
       case 'status':
         return this.getStatusLabel(payment.status);
       case 'actions':

@@ -56,13 +56,38 @@ describe('payment csv export', () => {
       ...MOCK_PAYMENTS[0],
       transactionId: undefined,
       attachmentFileName: undefined,
+      attachmentFileUrl: undefined,
       assessmentId: undefined,
       subscriptionId: undefined,
     };
 
     const content = buildPaymentCsvContent([payment], { includeBom: false });
 
-    expect(content).toContain('"—";"—";"—"');
+    expect(content).toContain('"\u2014";"\u2014";"\u2014"');
+  });
+
+  it('keeps receipt file name when storage url is missing', () => {
+    const payment: Payment = {
+      ...MOCK_PAYMENTS[0],
+      attachmentFileName: 'receipt-offline.html',
+      attachmentFileUrl: undefined,
+    };
+
+    const content = buildPaymentCsvContent([payment], { includeBom: false });
+
+    expect(content).toContain('"receipt-offline.html"');
+  });
+
+  it('uses subscription id in relation column when assessment id is absent', () => {
+    const payment: Payment = {
+      ...MOCK_PAYMENTS[0],
+      assessmentId: undefined,
+      subscriptionId: 'subscription-42',
+    };
+
+    const content = buildPaymentCsvContent([payment], { includeBom: false });
+
+    expect(content).toContain('"subscription-42"');
   });
 
   it('builds deterministic file names from a supplied date', () => {

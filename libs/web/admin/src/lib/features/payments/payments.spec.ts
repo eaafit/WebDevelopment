@@ -232,6 +232,13 @@ describe('Payments', () => {
     expect(component.getColumnWidth('id')).toBe(90);
   });
 
+  it('builds accessible row labels for the payment table', () => {
+    const label = component.getPaymentRowAriaLabel(MOCK_PAYMENTS[0]);
+
+    expect(label).toContain('payment payment-1');
+    expect(label).toContain('receipt check_1001.pdf');
+  });
+
   it('should log error when paged payment loading fails', async () => {
     const failLogger = {
       info: jest.fn(),
@@ -454,6 +461,7 @@ describe('Payments', () => {
       expect.objectContaining({
         area: 'admin_payments_list',
         rows: component.filteredPayments.length,
+        summary: expect.stringContaining('rows=2'),
       }),
     );
     expect(logger.info).toHaveBeenCalledWith(
@@ -461,6 +469,7 @@ describe('Payments', () => {
       expect.objectContaining({
         area: 'admin_payments_list',
         rows: MOCK_PAYMENTS.length,
+        summary: expect.stringContaining('completed=1'),
       }),
     );
   });
