@@ -16,6 +16,24 @@
 Новый клиент = реализация `OAuthClient` (`buildAuthorizeUrl`/`exchangeCode`/`getUserInfo`,
 опц. `createPkce`) + запись в реестре `OAuthService` + DI в `auth.module.ts`.
 
+## VK: ограничения живого демо
+
+Код VK ID реализован полностью (`VkOAuthClient`: PKCE S256, `device_id`, `user_info`) и **покрыт
+тестами** (`vk-oauth.client.spec.ts`, VK-ветка в `oauth.service.spec.ts`). Generic-флоу доказан
+**вживую end-to-end на Google и Яндексе** (consent → callback → вход/регистрация → аудит).
+
+Живое демо именно VK ID на локальной машине **недоступно** из-за требований самого VK ID
+(не код, внешние ограничения):
+- регистрация приложения авторизации требует **VK Бизнес ID-профиль с ИНН** (бизнес-верификация);
+- Trusted Redirect URL обязан быть **`https`**, а для `localhost` — только порт **80/443**
+  (форма отклоняет и `http://localhost:4200/...`, и `https://localhost:4200/...`).
+
+Наш dev-стенд отдаёт фронт по `http://localhost:4200`, поэтому redirect `…/auth/oauth/vk/callback`
+VK не принимает. Чтобы провести живое демо VK позднее, нужен публичный **https**-адрес
+(туннель ngrok/cloudflared на `:4200` либо web по `https` на `:443`) — прописать его в
+`VK_REDIRECT_URI` и в Trusted Redirect URL приложения VK ID. Контракт и клиент к этому готовы:
+достаточно задать `VK_CLIENT_ID`/`VK_REDIRECT_URI` (и при необходимости `VK_CLIENT_SECRET`) в `.env`.
+
 ## Поток данных
 
 ```
