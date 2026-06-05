@@ -83,7 +83,8 @@
     border-top: 1px solid var(--admin-border);
   }
 
-  &:has(.custom-select.is-open) {
+  &:has(.custom-select.is-open),
+  &:has(.user-dropdown) {
     z-index: 20;
   }
 
@@ -121,9 +122,14 @@
 
 /* ── Form group ── */
 .form-group {
+  position: relative;
+
   display: grid;
   gap: 0.45rem;
+  align-content: start;
+
   min-width: 0;
+  padding-bottom: 1.25rem;
 
   &--full {
     grid-column: 1 / -1;
@@ -239,15 +245,20 @@
 /* ── User autocomplete ── */
 .user-autocomplete {
   position: relative;
+  z-index: 1;
 
   input[type='text'] {
     width: 100%;
+  }
+
+  &:has(.user-dropdown) {
+    z-index: 70;
   }
 }
 
 .user-dropdown {
   position: absolute;
-  z-index: 100;
+  z-index: 120;
   top: calc(100% + 4px);
   left: 0;
 
@@ -525,9 +536,20 @@
 
 /* ── Field error ── */
 .field-error {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+
+  display: block;
+  overflow: hidden;
+
+  max-width: 100%;
+
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--admin-critical-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Actions ── */
