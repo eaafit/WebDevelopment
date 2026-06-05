@@ -235,6 +235,7 @@ describe('Payments', () => {
         {
           provide: RPC_TRANSPORT,
           useValue: {},
+        },
         {
           provide: AdminPaymentsApiService,
           useValue: {
