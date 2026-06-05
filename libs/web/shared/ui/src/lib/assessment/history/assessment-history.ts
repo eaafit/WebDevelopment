@@ -216,12 +216,16 @@ export class AssessmentHistoryComponent implements OnInit {
     const order = this.orders().find(o => o.id === id);
     if (!order) return null;
 
-    // Преобразуем Timestamp → Date
+    // Преобразуем Timestamp → Date для основных полей и для истории статусов
     return {
       ...order,
       orderDate: order.orderDate ? timestampDate(order.orderDate) : null,
       plannedCompletionDate: order.plannedCompletionDate ? timestampDate(order.plannedCompletionDate) : null,
       actualCompletionDate: order.actualCompletionDate ? timestampDate(order.actualCompletionDate) : null,
+      statusHistory: order.statusHistory?.map((entry: any) => ({
+        ...entry,
+        date: entry.date ? timestampDate(entry.date) : null,
+      })) || [],
     };
   }
 

@@ -211,7 +211,45 @@ export class OrderService {
   // Маппинг данных из БД в формат, который будет отправлен на фронт
   private mapLeadToOrder(lead: any) {
     try {
-      const statusHistory = [] as any[];
+      // const statusHistory = [] as any[];
+      const statusHistory = [];
+
+      // 1. Статус "Создана" – всегда добавляем
+      statusHistory.push({
+        status: 'created',
+        date: lead.startDate,
+        comment: '',
+      });
+
+      // 2. Если заказ взят в работу (есть исполнитель) и статус заявки не New (уже изменён) – добавляем "Принята"
+      //    Либо проверяем наличие executorId и что статус заявки изменился (нupdatedAt)
+      if (lead.executorId) {
+        // Берём дату принятия – можно использовать lead.updatedAt (когда был взят)
+        const acceptedDate = lead.updatedAt && lead.updatedAt > lead.startDate ? lead.updatedAt : lead.startDate;
+        statusHistory.push({
+          status: 'accepted',
+          date: acceptedDate,
+          comment: 'Заказ взят в работу',
+        });
+      }
+
+      // 3. Если заказ завершён (есть actualCompletionDate) – добавляем "Завершена"
+      if (lead.actualCompletionDate) {
+        statusHistory.push({
+          status: 'completed',
+          date: lead.actualCompletionDate,
+          comment: 'Заказ завершён',
+        });
+      }
+
+      // 4. Если статус заявки 'Cancelled' – добавляем "Отклонена"
+      if (lead.assessment?.status === 'Cancelled') {
+        statusHistory.push({
+          status: 'rejected',
+          date: lead.updatedAt || lead.startDate,
+          comment: 'Заказ отклонён',
+        });
+      }
       const realEstateObject = lead.assessment?.realEstateObject;
 
       // Логируем исходный статус и результат маппинга
