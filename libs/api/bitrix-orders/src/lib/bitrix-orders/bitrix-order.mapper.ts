@@ -42,7 +42,15 @@ export function buildOrderFields(lead: LeadLike): OrderFields {
     BASKET: basket,
     CURRENCY: 'RUB',
     STATUS_ID: 'N', // новый заказ
-    COMMENTS: `${lead.assessment.address || ''}\n${lead.assessment.description || ''}`.trim() || undefined,
+    COMMENTS: (() => {
+      const address = lead.assessment.address?.trim() || '';
+      const description = lead.assessment.description?.trim();
+      let comments = address;
+      if (description) {
+        comments += comments ? `\n${description}` : description;
+      }
+      return comments || undefined;
+    })(),
   };
 
   // Если есть сумма, добавляем PRICE

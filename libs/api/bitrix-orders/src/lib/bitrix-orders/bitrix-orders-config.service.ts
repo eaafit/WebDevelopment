@@ -33,11 +33,11 @@ export class BitrixOrdersConfigService {
   private tryReadUrl(key: string): string | null {
     const raw = (process.env[key] ?? '').trim();
     if (!raw) return null;
+    if (!raw.startsWith('https://')) {
+      throw new BitrixOrdersConfigError(`${key} must use https://`);
+    }
     try {
-      const parsed = new URL(raw);
-      if (parsed.protocol !== 'https:') {
-        throw new BitrixOrdersConfigError(`${key} must use https://`);
-      }
+      new URL(raw);
       return raw;
     } catch {
       throw new BitrixOrdersConfigError(`${key} is not a valid URL`);
