@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { WebLoggerService, TokenStore } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
@@ -120,10 +120,6 @@ describe('Payments', () => {
     // Trigger ngOnInit
     fixture.detectChanges();
 
-    // Manually trigger the payments data emission
-    paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
-
-    // Detect changes to update the component with the new data
     fixture.detectChanges();
   });
 
@@ -219,13 +215,12 @@ describe('Payments', () => {
     expect(component.getColumnWidth('id')).toBe(100);
   });
 
-  it('should log error when payments stream fails', async () => {
+  it('should log error when paged payment loading fails', async () => {
     const failLogger = {
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
     };
-    const failSubject = new BehaviorSubject<Payment[] | null>(null);
 
     // Reset TestBed and create a fresh instance for this test
     TestBed.resetTestingModule();
@@ -240,23 +235,12 @@ describe('Payments', () => {
         {
           provide: RPC_TRANSPORT,
           useValue: {},
-        },
         {
           provide: AdminPaymentsApiService,
           useValue: {
             preload: jest.fn(),
-            payments$: failSubject.asObservable(),
-            listPayments: jest.fn(() =>
-              of({
-                payments: [],
-                meta: {
-                  currentPage: 1,
-                  totalItems: 0,
-                  totalPages: 1,
-                  limit: 10,
-                },
-              }),
-            ),
+            payments$: new BehaviorSubject<Payment[] | null>(null).asObservable(),
+            listPayments: jest.fn(() => throwError(() => new Error('Network failure'))),
             getAllPayments: async () => [],
             deletePayment: jest.fn().mockResolvedValue(true),
           },
@@ -272,8 +256,6 @@ describe('Payments', () => {
     const failComponent = failFixture.componentInstance;
     failFixture.detectChanges(); // Trigger ngOnInit
 
-    failSubject.error(new Error('Network failure'));
-
     expect(failLogger.error).toHaveBeenCalledWith(
       'payment.admin.list_load_failed',
       expect.objectContaining({
@@ -282,7 +264,6 @@ describe('Payments', () => {
       }),
     );
     expect(failComponent.loadError).toBeTruthy();
-    failSubject.complete();
   });
 
   it('should log list destroyed on ngOnDestroy', () => {

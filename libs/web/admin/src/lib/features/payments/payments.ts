@@ -159,11 +159,11 @@ export class Payments implements OnInit, OnDestroy {
   private readonly logger = inject(WebLoggerService);
   private readonly userApi = inject(AdminUserApiService);
   private readonly cdr = inject(ChangeDetectorRef);
-  private dataSub?: Subscription;
   private loadSub?: Subscription;
   private filterReloadTimer?: ReturnType<typeof setTimeout>;
   private destroyed = false;
   private viewRefreshQueued = false;
+  private listRequestSeq = 0;
 
   async openReceipt(paymentId: string | number): Promise<void> {
     this.logInfo('payment.admin.receipt_open_requested', { paymentId: String(paymentId) });
@@ -246,31 +246,12 @@ export class Payments implements OnInit, OnDestroy {
     this.loading = true;
     this.loadError = null;
     this.userApi.loadUsers().catch(() => undefined);
-    this.api.preload();
-    this.dataSub = this.api.payments$.subscribe({
-      next: (data) => {
-        if (data !== null) {
-          this.payments = data;
-          this.loading = false;
-          this.logInfo('payment.admin.list_loaded', { total: data.length });
-          this.requestViewRefresh();
-        }
-      },
-      error: (err) => {
-        this.logError('payment.admin.list_load_failed', err);
-        this.payments = [];
-        this.loadError = 'Не удалось загрузить данные платежей с сервера';
-        this.loading = false;
-        this.requestViewRefresh();
-      },
-    });
     this.loadPayments();
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
     this.logInfo('payment.admin.list_destroyed');
-    this.dataSub?.unsubscribe();
     this.loadSub?.unsubscribe();
     if (this.filterReloadTimer) {
       clearTimeout(this.filterReloadTimer);
@@ -802,20 +783,34 @@ export class Payments implements OnInit, OnDestroy {
       this.filterReloadTimer = undefined;
     }
 
+    const requestSeq = ++this.listRequestSeq;
     this.loadSub?.unsubscribe();
     this.loading = true;
     this.loadError = null;
 
     this.loadSub = this.api.listPayments(this.buildQuery()).subscribe({
       next: (page) => {
+        if (requestSeq !== this.listRequestSeq) {
+          return;
+        }
+
         this.payments = page.payments;
         this.totalItems = page.meta?.totalItems ?? page.payments.length;
         this.serverTotalPages = page.meta?.totalPages ?? 1;
         this.currentPage = page.meta?.currentPage ?? this.currentPage;
         this.loading = false;
+        this.logInfo('payment.admin.list_loaded', {
+          rows: page.payments.length,
+          total: this.totalItems,
+        });
         this.requestViewRefresh();
       },
       error: (err) => {
+        if (requestSeq !== this.listRequestSeq) {
+          return;
+        }
+
+        this.logError('payment.admin.list_load_failed', err);
         this.payments = [];
         this.totalItems = 0;
         this.serverTotalPages = 1;

@@ -255,14 +255,34 @@ export class AssessmentRepository {
   }
 
   async getAssessment(id: string): Promise<GetAssessmentResponse> {
-    const assessment = await this.runDatabaseOperation('getAssessment', { assessmentId: id }, () =>
-      this.prisma.assessment.findUniqueOrThrow({
-        where: { id },
-        include: assessmentInclude,
-      }),
-    );
+    const context = { assessmentId: id };
 
-    return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
+    try {
+      const assessment = await this.runDatabaseOperation('getAssessment', context, () =>
+        this.prisma.assessment.findUniqueOrThrow({
+          where: { id },
+          include: assessmentInclude,
+        }),
+      );
+
+      return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
+    } catch (error) {
+      if (!shouldUseAssessmentSummaryFallback(error)) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Assessment details falling back to summary row${formatLogFields(context)}: ${errorMessage(error)}`,
+      );
+      const assessment = await this.runDatabaseOperation('getAssessmentSummaryFallback', context, () =>
+        this.prisma.assessment.findUniqueOrThrow({
+          where: { id },
+          select: assessmentSummarySelect,
+        }),
+      );
+
+      return create(GetAssessmentResponseSchema, { assessment: this.toSummaryMessage(assessment) });
+    }
   }
 
   async getAssessmentSnapshot(id: string): Promise<AssessmentAuditSnapshot> {
@@ -490,10 +510,10 @@ export class AssessmentRepository {
             status: PrismaAssessmentStatus.InProgress,
             ...(notaryId != null && notaryId !== '' && { notaryId }),
           },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   async completeAssessment(id: string, estimatedValue: string): Promise<RpcAssessment> {
@@ -504,10 +524,10 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: { status: PrismaAssessmentStatus.Completed, estimatedValue },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   async cancelAssessment(id: string, reason?: string): Promise<RpcAssessment> {
@@ -518,10 +538,10 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: { status: PrismaAssessmentStatus.Cancelled, cancelReason: reason },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   private async runDatabaseOperation<T>(
