@@ -30,7 +30,7 @@ export class Copy implements OnInit, OnDestroy {
   createDate = computed(() => {
     const currentDoc = this.doc();
     if (currentDoc === null || !currentDoc.uploadedAt?.seconds) {
-      return "";
+      return '';
     }
     return new Date(Number(currentDoc.uploadedAt.seconds) * 1000).toLocaleDateString();
   });
@@ -42,18 +42,22 @@ export class Copy implements OnInit, OnDestroy {
     return secDiff > 0 ? Math.floor(secDiff / 60) : 0;
   }
 
-  private stopTimer(): void {
-    if (this.timerId === null) {
-      return;
-    }
-
-    clearInterval(this.timerId);
-    this.timerId = null;
-  }
-
   // Метод для редиректа обратно в список при клике на свободную область
   goBackToList(): void {
     this.router.navigate(['../'], { relativeTo: this.route });
+  }
+
+  onOverlayClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.goBackToList();
+    }
+  }
+
+  onOverlayKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.goBackToList();
+    }
   }
 
   // Маппинг реальных статусов в mock-статусы по ТЗ
@@ -87,7 +91,7 @@ export class Copy implements OnInit, OnDestroy {
     try {
       const fetchedDoc = await this.documentService.getDocument(this.id);
       
-      if (!fetchedDoc || (fetchedDoc as any).error) {
+      if (!fetchedDoc) {
         this.hasError.set(true);
         return;
       }
@@ -109,7 +113,7 @@ export class Copy implements OnInit, OnDestroy {
         this.timerId = setInterval(async () => {
           const currentDoc = this.doc();
           if (!currentDoc) {
-            this.stopTimer();
+            this.clearTimer();
             return;
           }
 
@@ -118,7 +122,7 @@ export class Copy implements OnInit, OnDestroy {
             this.assesment.set(updatedAssessment);
             
             if (updatedAssessment.status === AssessmentStatus.COMPLETED) {
-              this.stopTimer();
+              this.clearTimer();
               return;
             }
 
@@ -139,6 +143,13 @@ export class Copy implements OnInit, OnDestroy {
 
   // Вычищаем интервал из памяти при уходе со страницы
   ngOnDestroy() {
-    this.stopTimer();
+    this.clearTimer();
+  }
+
+  private clearTimer(): void {
+    if (this.timerId !== null) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
   }
 }

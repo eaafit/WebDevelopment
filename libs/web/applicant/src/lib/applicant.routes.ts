@@ -1,11 +1,8 @@
 import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
-import {
-  AssessmentHistoryComponent,
-  Copy,
-  List,
-  PlaceholderPageRoute,
-} from '@notary-portal/ui';
+import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import { Copy, List } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,

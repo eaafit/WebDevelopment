@@ -5,9 +5,11 @@ import { loadProjectEnv } from './load-env';
 
 loadProjectEnv();
 
-const databaseUrl = process.env['DATABASE_URL'];
 const isGenerateCommand = process.argv.some((arg) => arg === 'generate');
-const generateOnlyDatabaseUrl = 'postgresql://postgres:postgres@localhost:5432/notary?schema=public';
+const generateOnlyDatabaseUrl = 'postgresql://prisma:prisma@localhost:5432/prisma_generate';
+const databaseUrl = process.env['DATABASE_URL'] ?? (
+  isGenerateCommand ? generateOnlyDatabaseUrl : undefined
+);
 
 if (!databaseUrl && !isGenerateCommand) {
   throw new Error('DATABASE_URL is not set');
@@ -20,6 +22,6 @@ export default defineConfig({
     seed: 'ts-node --project tsconfig.seed.json --transpile-only seed.ts',
   },
   datasource: {
-    url: databaseUrl ?? generateOnlyDatabaseUrl,
+    url: databaseUrl,
   },
 });

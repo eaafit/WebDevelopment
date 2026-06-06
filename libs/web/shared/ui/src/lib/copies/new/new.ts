@@ -4,12 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import {
-  AssessmentStatus,
-  DocumentType,
-  PaymentService,
-  PaymentType,
-} from '@notary-portal/api-contracts';
+import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts';
 import { createClient } from '@connectrpc/connect';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
 
@@ -63,6 +58,19 @@ export class New implements OnInit {
     this.router.navigate(['../'], { relativeTo: this.route });
   }
 
+  onOverlayClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.goBackToList();
+    }
+  }
+
+  onOverlayKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.goBackToList();
+    }
+  }
+
   removeDoc() {
     this.selectedFile = null;
   }
@@ -101,14 +109,13 @@ export class New implements OnInit {
       this.isSubmitting.set(true);
       
       // 1. Сначала загружаем документ
-      await this.documentService.createDocument({
-        assessmentId: this.selectedAssesmentID(),
-        fileName: this.selectedFile.name,
-        fileType: this.selectedFile.type || 'application/octet-stream',
-        uploadedById: this.getCurrentUserId(),
-        documentType: DocumentType.OTHER,
-        fileContent: new Uint8Array(await this.selectedFile.arrayBuffer()),
-      });
+      await this.documentService.createDocument(
+        this.selectedAssesmentID(),
+        this.selectedFile.name,
+        this.selectedFile.type || 'application/octet-stream',
+        this.getCurrentUserId(),
+        new Uint8Array(await this.selectedFile.arrayBuffer()),
+      );
 
       // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
       const paymentResponse = await this.paymentClient.createPayment({

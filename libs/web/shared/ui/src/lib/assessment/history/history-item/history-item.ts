@@ -15,7 +15,7 @@ import { RouterModule } from '@angular/router';
 })
 export class HistoryItemComponent {
   @Input() order!: AssessmentOrder;
-  @Input() role: 'applicant' | 'notary' = 'applicant';
+  @Input() role = 'applicant' as 'applicant' | 'notary';
   @Input() currentUserId = '';
   @Output() repeat = new EventEmitter<string>();
   @Output() view = new EventEmitter<string>();
@@ -58,7 +58,7 @@ export class HistoryItemComponent {
     return this.role === 'notary' && this.order.notaryId === this.currentUserId;
   }
 
-  formatDate(date: Date | string | { seconds: bigint | number | string } | null | undefined): string {
+  formatDate(date: any): string {
     if (!date) return '—';
 
     let dateObj: Date;

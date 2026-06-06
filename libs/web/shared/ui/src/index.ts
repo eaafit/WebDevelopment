@@ -29,6 +29,6 @@ export * from './lib/assessment/upload-step/upload-step';
 export * from './lib/assessment/photo-item/photo-item';
 export * from './lib/assessment/history/assessment-history';
 export * from './lib/assessment/assessment-detail-modal';
-export * from './lib/copies/copy/copy';
 export * from './lib/copies/list/list';
+export * from './lib/copies/copy/copy';
 export * from './lib/copies/new/new';

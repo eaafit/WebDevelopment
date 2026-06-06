@@ -2,17 +2,10 @@
   class="page-overlay"
   role="button"
   tabindex="0"
-  (click)="goBackToList()"
-  (keydown.enter)="goBackToList()"
-  (keydown.space)="goBackToList()"
+  (click)="onOverlayClick($event)"
+  (keydown)="onOverlayKeydown($event)"
 >
-  <div
-    class="status-container"
-    role="presentation"
-    tabindex="0"
-    (click)="$event.stopPropagation()"
-    (keydown)="$event.stopPropagation()"
-  >
+  <div class="status-container">
     <div class="status-header">
       <div class="header-content">
         <h3 class="status-title">Информация о заявке</h3>

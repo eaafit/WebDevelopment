@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { InAppNotificationsApiService, NotificationCounterService } from '@notary-portal/ui';
 import { Admin } from './admin';
 import { AdminPaymentsApiService } from '../features/payments/payments-api.service';
+import { RPC_TRANSPORT } from '@notary-portal/ui';
 
 describe('Admin', () => {
   let component: Admin;
@@ -14,6 +15,7 @@ describe('Admin', () => {
       imports: [Admin],
       providers: [
         provideRouter([]),
+        { provide: RPC_TRANSPORT, useValue: {} },
         {
           provide: AdminPaymentsApiService,
           useValue: {

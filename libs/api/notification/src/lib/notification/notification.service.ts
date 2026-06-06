@@ -116,7 +116,7 @@ export class NotificationService {
       async () => {
         validateUuid(params.userId, 'user_id');
 
-        const category = (params.category ?? 'system') as NotificationPreferenceCategory;
+        const category = toPreferenceCategory(params.category);
         const preferenceRows = await this.notificationRepository.getOrCreatePreferenceRows(
           params.userId,
         );
@@ -189,7 +189,7 @@ export class NotificationService {
       },
       async (span) => {
         const userIds = await this.notificationRepository.listActiveUserIdsByRoles([role]);
-        const category = (params.category ?? 'system') as NotificationPreferenceCategory;
+        const category = toPreferenceCategory(params.category);
         const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
           userIds,
           category,
@@ -477,6 +477,21 @@ function normalizeRepeatedEnumFilter<T extends number>(
 ): T[] | undefined {
   const normalized = [...new Set((values ?? []).filter((value) => value !== unspecifiedValue))];
   return normalized.length ? normalized : undefined;
+}
+
+function toPreferenceCategory(
+  category: RpcNotificationCategory | undefined,
+): NotificationPreferenceCategory {
+  switch (category) {
+    case RpcNotificationCategory.PAYMENT:
+      return 'payment';
+    case RpcNotificationCategory.ASSESSMENT:
+      return 'assessment';
+    case RpcNotificationCategory.SYSTEM:
+    case undefined:
+    default:
+      return 'system';
+  }
 }
 
 function formatNotificationCategory(
