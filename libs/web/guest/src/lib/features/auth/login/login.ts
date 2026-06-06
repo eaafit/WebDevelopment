@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { WebLoggerService } from '@notary-portal/ui';
-import { AuthService } from '../auth.service';
+import { AuthService, OAUTH_PROVIDERS } from '../auth.service';
 import { buildAuthLogContext, currentBrowserRoute, emailDomainOf } from '../auth-browser-log';
 import { isNgAppShowTestAccountsEnabled } from './ng-app-flags';
 
@@ -58,6 +58,25 @@ export class Login {
 
     this.validationError.set(null);
     await this.authService.login(email, this.password);
+  }
+
+  async onOAuthLogin(providerKey: string): Promise<void> {
+    this.validationError.set(null);
+    const config = OAUTH_PROVIDERS[providerKey];
+    if (!config) return;
+    try {
+      const url = await this.authService.getAuthorizeUrl(config);
+      this.redirectToProvider(url);
+    } catch {
+      // Сообщение об ошибке уже выставлено в authService.error().
+    }
+  }
+
+  /** Вынесено отдельно для тестируемости (jsdom не выполняет реальную навигацию). */
+  protected redirectToProvider(url: string): void {
+    if (typeof window !== 'undefined') {
+      window.location.assign(url);
+    }
   }
 
   togglePasswordVisibility(): void {
