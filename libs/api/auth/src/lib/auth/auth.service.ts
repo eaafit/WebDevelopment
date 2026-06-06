@@ -292,6 +292,13 @@ export class AuthService {
           throw new ConnectError('account is deactivated', Code.PermissionDenied);
         }
 
+        // OAuth-only аккаунт (вход через внешний сервис) — пароля нет, парольный вход невозможен.
+        if (!record.passwordHash) {
+          await this.recordLoginFailure(email, 'oauth_only_account', record);
+          throw new ConnectError('invalid credentials', Code.Unauthenticated);
+        }
+
+        const passwordHash = record.passwordHash;
         const passwordValid = await runInSpan(
           'PasswordService.compare login',
           {
@@ -299,7 +306,7 @@ export class AuthService {
             'notary.entity': 'User',
             'notary.actor.role': normalizeSpanActorRole(record.role),
           },
-          () => this.passwordService.compare(request.password, record.passwordHash),
+          () => this.passwordService.compare(request.password, passwordHash),
         );
         if (!passwordValid) {
           await this.recordLoginFailure(email, 'invalid_password', record);
@@ -877,6 +884,8 @@ function reasonLabel(reason: string): string {
       return 'Аккаунт деактивирован';
     case 'invalid_password':
       return 'Неверный пароль';
+    case 'oauth_only_account':
+      return 'Аккаунт без пароля (вход через внешний сервис)';
     case 'user_not_found_or_inactive':
       return 'Пользователь не найден или неактивен';
     case 'token_required':

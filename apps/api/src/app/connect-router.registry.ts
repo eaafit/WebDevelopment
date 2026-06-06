@@ -60,6 +60,10 @@ export class ConnectRouterRegistry {
       logout: this.authRpcService.logout,
       forgotPassword: this.authRpcService.forgotPassword,
       resetPassword: this.authRpcService.resetPassword,
+      getOAuthAuthorizeUrl: this.authRpcService.getOAuthAuthorizeUrl,
+      oAuthLogin: this.authRpcService.oAuthLogin,
+      confirmContact: this.authRpcService.confirmContact,
+      resendContactCode: this.authRpcService.resendContactCode,
     });
 
     // ─── User ────────────────────────────────────────────────

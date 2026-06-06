@@ -387,6 +387,47 @@ describe('AuthService', () => {
     );
   });
 
+  it('rejects password login for an OAuth-only account (null password hash)', async () => {
+    authRepository.findByEmail.mockResolvedValue({
+      id: 'user-9',
+      email: 'oauth-user@example.com',
+      fullName: 'OAuth User',
+      role: 'Applicant',
+      passwordHash: null,
+      isActive: true,
+    });
+
+    await expect(
+      service.login(
+        create(LoginRequestSchema, {
+          email: 'oauth-user@example.com',
+          password: 'whatever-password',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: Code.Unauthenticated,
+      message: '[unauthenticated] invalid credentials',
+    });
+
+    // Парольная проверка не должна запускаться без хэша.
+    expect(passwordService.compare).not.toHaveBeenCalled();
+    expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'oauth-user@example.com',
+        allowAnonymous: true,
+        eventType: 'user.login_failed',
+        targetType: 'User',
+        targetId: 'user-9',
+        actionContext: 'Аккаунт без пароля (вход через внешний сервис)',
+        after: expect.objectContaining({
+          reason: 'oauth_only_account',
+          email: 'oauth-user@example.com',
+        }),
+      }),
+    );
+  });
+
   it('records a registration failure without storing the password', async () => {
     authRepository.findByEmail.mockResolvedValue({
       id: 'user-1',
