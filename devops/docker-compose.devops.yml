@@ -1,0 +1,57 @@
+name: notary-devops
+
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: notary-sonarqube
+    ports:
+      - '${SONARQUBE_PORT:-9000}:9000'
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: 'true'
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    restart: unless-stopped
+
+  gitea:
+    image: gitea/gitea:latest-rootless
+    container_name: notary-gitea
+    ports:
+      - '${GITEA_HTTP_PORT:-3002}:3000'
+      - '${GITEA_SSH_PORT:-2222}:2222'
+    environment:
+      GITEA__server__ROOT_URL: http://localhost:${GITEA_HTTP_PORT:-3002}/
+      GITEA__server__SSH_DOMAIN: localhost
+      GITEA__server__SSH_PORT: '${GITEA_SSH_PORT:-2222}'
+      GITEA__service__DISABLE_REGISTRATION: 'false'
+      GITEA__actions__ENABLED: 'true'
+    volumes:
+      - gitea_data:/var/lib/gitea
+      - gitea_config:/etc/gitea
+    restart: unless-stopped
+
+  gitea-mcp:
+    build:
+      context: ..
+      dockerfile: devops/gitea-mcp/Dockerfile
+    container_name: notary-gitea-mcp
+    depends_on:
+      - gitea
+    command:
+      - -t
+      - sse
+      - --host
+      - http://gitea:3000
+      - --token
+      - ${GITEA_MCP_TOKEN:-replace-me}
+    ports:
+      - '${GITEA_MCP_PORT:-8080}:8080'
+    restart: unless-stopped
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  gitea_data:
+  gitea_config:

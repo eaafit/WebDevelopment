@@ -141,9 +141,47 @@ jobs:
           path: dist/apps/api
           if-no-files-found: error
 
+  container-build:
+    name: Container Build
+    needs: [test-and-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build API Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          tags: notary-portal-api:pr-${{ github.sha }}
+          load: false
+
+      - name: Build Web Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          tags: notary-portal-web:pr-${{ github.sha }}
+          load: false
+
   self-healing-ci:
     name: Self Healing CI
-    needs: [code-quality, proto-quality, test-and-build, coverage, frontend-deploy-artifact, backend-deploy-artifact]
+    needs:
+      [
+        code-quality,
+        proto-quality,
+        test-and-build,
+        coverage,
+        frontend-deploy-artifact,
+        backend-deploy-artifact,
+        container-build,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:

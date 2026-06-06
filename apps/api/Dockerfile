@@ -28,13 +28,19 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY --from=builder /repo/dist/apps/api/ ./
+COPY libs/api/shared/prisma/schema.prisma ./prisma/schema.prisma
+COPY libs/api/shared/prisma/migrations ./prisma/migrations
+COPY libs/api/shared/prisma/prisma.config.ts ./prisma/prisma.config.ts
 
-# Prisma runtime is external in the webpack bundle; align @prisma/client with @prisma/adapter-pg.
+# Prisma runtime is external in the webpack bundle; align @prisma/client with
+# @prisma/adapter-pg and keep the Prisma CLI available for the Kubernetes
+# migration Job that reuses this production image.
 RUN node -e "\
 const fs=require('fs');\
 const p=JSON.parse(fs.readFileSync('package.json','utf8'));\
 const v=p.dependencies['@prisma/adapter-pg']||'7.4.2';\
 p.dependencies['@prisma/client']=v;\
+p.dependencies['prisma']=p.dependencies['prisma']||v;\
 fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');\
 "
 

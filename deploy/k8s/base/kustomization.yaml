@@ -1,0 +1,18 @@
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - api.yaml
+  - web.yaml
+  - ingress.yaml
+  - migrate-job.yaml
+
+namespace: notary-portal
+
+images:
+  - name: notary-portal-api
+    newName: notary-portal-api
+    newTag: local
+  - name: notary-portal-web
+    newName: notary-portal-web
+    newTag: local

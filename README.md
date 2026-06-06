@@ -28,7 +28,7 @@
 - `docker container prune` - Удаляет только остановленные контейнеры
 - `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
 - `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
-- `rm -rf node_modules` - удаление node_modules 
+- `rm -rf node_modules` - удаление node_modules
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
@@ -45,14 +45,15 @@
 
 - Полная последовательность (сборка, `.env.portal`, миграции, NPM: **Forward Hostname** `portal`, **Forward Port** `80`): [**apps/web/DOCKER.md**](apps/web/DOCKER.md).
 - **Nginx Proxy Manager** отдельным файлом: [`apps/web/docker-compose.npm.yml`](apps/web/docker-compose.npm.yml) — из каталога `apps/web`: `docker compose -f docker-compose.npm.yml up -d` (сеть `proxy` должна существовать: `docker network create proxy`).
+- CI/CD, SonarQube, Gitea MCP, container scanning и Kubernetes-деплой описаны в [docs/devops-ci-cd.md](docs/devops-ci-cd.md). Локальный smoke: `bash scripts/ci/integration-smoke.sh`.
 
 Кратко по типичным проблемам Docker:
 
-| Симптом | Что сделать |
-| ------- | ----------- |
-| **`ENOSPC` / no space left on device** при сборке | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`. |
-| **`i/o timeout`** у `docker compose` | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
-| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`. |
+| Симптом                                             | Что сделать                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ENOSPC` / no space left on device** при сборке   | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`.                                        |
+| **`i/o timeout`** у `docker compose`                | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
+| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`.                                                                                           |
 
 ---
 

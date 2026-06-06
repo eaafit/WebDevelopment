@@ -306,6 +306,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
@@ -597,6 +598,7 @@ describe('PaymentCreateService', () => {
       metrics as never,
       paymentSubscriptionService as never,
       auditService as never,
+      paymentNotificationService as never,
     );
 
     const request = create(CreatePaymentRequestSchema, {
