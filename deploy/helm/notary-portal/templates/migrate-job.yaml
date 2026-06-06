@@ -1,0 +1,31 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-{{ .Values.migrations.name }}
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "notary-portal.selectorLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "notary-portal.migrateServiceAccountName" . }}
+      containers:
+        - name: migrate
+          {{- include "notary-portal.image" (dict "root" . "image" .Values.api.image) | nindent 10 }}
+          command:
+            {{- toYaml .Values.migrations.command | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "notary-portal.fullname" . }}-config
+            - secretRef:
+                name: {{ include "notary-portal.secretName" . }}
+{{- end }}

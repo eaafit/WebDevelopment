@@ -175,6 +175,22 @@ container_scanning:
   rules:
     - if: '$CI_COMMIT_TAG'
 
+runtime_sbom:
+  extends: .node_job
+  stage: security_scan
+  script:
+    - node scripts/ci/generate-sbom.mjs runtime-sbom.cdx.json
+    - node -e "JSON.parse(require('fs').readFileSync('runtime-sbom.cdx.json','utf8'))"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - runtime-sbom.cdx.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
 cyclonedx_scan:
   image:
     name: aquasec/trivy:0.58.2

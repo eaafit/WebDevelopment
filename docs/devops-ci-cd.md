@@ -90,6 +90,46 @@ kind load docker-image notary-portal-web:local
 
 The local overlay includes a demo secret with non-production values. For real clusters, create a secret from `deploy/k8s/base/secret.example.yaml` and deploy through CI.
 
+Additional overlays are available for review:
+
+```bash
+kubectl kustomize deploy/k8s/overlays/staging
+kubectl kustomize deploy/k8s/overlays/production
+```
+
+The base manifests include service accounts, resource limits, HPA, PDB, NetworkPolicy and optional Prometheus Operator objects (`ServiceMonitor`, `PrometheusRule`).
+
+## Helm Release Path
+
+The same application can be rendered and installed through Helm:
+
+```bash
+helm template notary-portal deploy/helm/notary-portal -f deploy/helm/notary-portal/values-local.yaml
+helm upgrade --install notary-portal deploy/helm/notary-portal \
+  -n notary-portal \
+  --create-namespace \
+  -f deploy/helm/notary-portal/values-local.yaml
+```
+
+Environment values:
+
+- `deploy/helm/notary-portal/values-local.yaml`
+- `deploy/helm/notary-portal/values-staging.yaml`
+- `deploy/helm/notary-portal/values-production.yaml`
+
+See [kubernetes-helm-runbook.md](kubernetes-helm-runbook.md) for rollback, smoke checks and release evidence.
+
+## Runtime SBOM
+
+The repository includes a reproducible runtime dependency SBOM:
+
+```bash
+node scripts/ci/generate-sbom.mjs docs/security/sbom/notary-portal-pnpm.cdx.json
+jq empty docs/security/sbom/notary-portal-pnpm.cdx.json
+```
+
+This complements the GitLab `cyclonedx_scan` job, which creates image-level SBOM artifacts for release tags.
+
 Required GitLab variables for deployment:
 
 - `CI_REGISTRY`, `CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD`
@@ -97,5 +137,6 @@ Required GitLab variables for deployment:
 - `KUBE_CONFIG_B64`
 - `KUBE_NAMESPACE` (defaults to `notary-portal`)
 - `KUBE_SECRET_MANIFEST` if the cluster secret should be applied by CI
+- `KUBE_ENABLE_MONITORING_CRDS=true` if the target cluster has Prometheus Operator CRDs and should receive `ServiceMonitor`/`PrometheusRule`
 
 The deploy job decodes `KUBE_CONFIG_B64`, applies kustomize manifests, rewrites API/Web images to the release tag, and waits for both deployments.

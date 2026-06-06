@@ -1,0 +1,46 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-api
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+---
+{{- end }}
+{{- if and .Values.monitoring.enabled .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "notary-portal.fullname" . }}
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "monitoring") | nindent 4 }}
+spec:
+  groups:
+    - name: notary-portal.rules
+      rules:
+        - alert: NotaryApiDown
+          expr: up{job=~".*notary.*api.*"} == 0
+          for: {{ .Values.monitoring.prometheusRule.apiDownFor }}
+          labels:
+            severity: critical
+          annotations:
+            summary: Notary Portal API is not scraped by Prometheus
+            description: Prometheus has not scraped the API target for the configured threshold.
+        - alert: NotaryApiHighFailedAccess
+          expr: sum(increase(notary_failed_access_total[{{ .Values.monitoring.prometheusRule.failedAccessWindow }}])) > {{ .Values.monitoring.prometheusRule.failedAccessThreshold }}
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High number of failed access attempts
+            description: Failed access events exceeded the configured threshold.
+{{- end }}

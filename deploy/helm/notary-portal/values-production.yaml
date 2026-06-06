@@ -1,0 +1,65 @@
+global:
+  environment: production
+  imagePullPolicy: Always
+
+config:
+  nodeEnv: production
+  corsOrigin: https://notary.example.com
+  frontendUrl: https://notary.example.com
+  robokassaTestMode: 'false'
+
+secret:
+  create: false
+  name: notary-portal-secret
+
+api:
+  replicaCount: 3
+  image:
+    repository: registry.example.com/notary-portal/notary-portal-api
+    tag: 1.1.1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 8
+
+web:
+  replicaCount: 3
+  image:
+    repository: registry.example.com/notary-portal/notary-portal-web
+    tag: 1.1.1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    minReplicas: 3
+    maxReplicas: 6
+
+postgres:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: '1'
+      memory: 1Gi
+
+ingress:
+  host: notary.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
+  tls:
+    - hosts:
+        - notary.example.com
+      secretName: notary-production-tls

@@ -1,0 +1,122 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-default-deny
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "network") | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-web
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "notary-portal.selectorLabels" (dict "root" . "component" "api") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        {{- range .Values.networkPolicy.dnsPorts }}
+        - protocol: UDP
+          port: {{ . }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-api
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "notary-portal.selectorLabels" (dict "root" . "component" "web") | nindent 14 }}
+        {{- if .Values.networkPolicy.allowIngressFromAllNamespaces }}
+        - namespaceSelector: {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "notary-portal.selectorLabels" (dict "root" . "component" "postgres") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        {{- range .Values.networkPolicy.dnsPorts }}
+        - protocol: UDP
+          port: {{ . }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+        {{- if .Values.networkPolicy.allowExternalEgress.enabled }}
+        {{- range .Values.networkPolicy.allowExternalEgress.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+        {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-postgres
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "postgres") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "postgres") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "notary-portal.selectorLabels" (dict "root" . "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "notary-portal.selectorLabels" (dict "root" . "component" "migrate") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port }}
+{{- end }}

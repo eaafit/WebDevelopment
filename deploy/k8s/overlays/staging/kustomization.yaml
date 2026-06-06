@@ -1,0 +1,23 @@
+resources:
+  - ../../base
+
+namespace: notary-portal-staging
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: notary-portal
+      app.kubernetes.io/environment: staging
+
+images:
+  - name: notary-portal-api
+    newName: registry.example.com/notary-portal/notary-portal-api
+    newTag: staging
+  - name: notary-portal-web
+    newName: registry.example.com/notary-portal/notary-portal-web
+    newTag: staging
+
+patches:
+  - path: patch-configmap.yaml
+  - path: patch-ingress.yaml
+  - path: patch-resources.yaml
+  - path: patch-hpa.yaml

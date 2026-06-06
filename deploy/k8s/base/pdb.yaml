@@ -1,0 +1,29 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notary-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: notary-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notary-web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: notary-web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres

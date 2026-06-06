@@ -23,14 +23,24 @@ kubectl create namespace "$KUBE_NAMESPACE" --dry-run=client -o yaml | kubectl ap
 cp "$ROOT_DIR"/deploy/k8s/base/*.yaml "$TMP_DIR"/
 rm -f "$TMP_DIR/namespace.yaml" "$TMP_DIR/secret.example.yaml"
 
+MONITORING_RESOURCE=""
+if [[ "${KUBE_ENABLE_MONITORING_CRDS:-false}" == "true" ]]; then
+  MONITORING_RESOURCE="  - monitoring.yaml"
+fi
+
 cat > "$TMP_DIR/kustomization.yaml" <<EOF
 resources:
+  - serviceaccount.yaml
   - configmap.yaml
   - postgres.yaml
   - api.yaml
   - web.yaml
   - ingress.yaml
   - migrate-job.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+${MONITORING_RESOURCE}
 namespace: ${KUBE_NAMESPACE}
 images:
   - name: notary-portal-api

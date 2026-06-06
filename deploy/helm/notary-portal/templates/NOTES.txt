@@ -1,0 +1,19 @@
+Notary Portal has been installed.
+
+Release:
+  Name:      {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Chart:     {{ .Chart.Name }} {{ .Chart.Version }}
+  App:       {{ .Chart.AppVersion }}
+
+Useful commands:
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl get pods,svc,ingress -n {{ .Release.Namespace }}
+  kubectl logs deploy/{{ include "notary-portal.fullname" . }}-api -n {{ .Release.Namespace }}
+
+If ingress is enabled, open:
+  http://{{ .Values.ingress.host }}/
+
+If this is a local kind deployment, load images before install:
+  kind load docker-image {{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}
+  kind load docker-image {{ .Values.web.image.repository }}:{{ .Values.web.image.tag }}

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-config
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "config") | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
+  PORT: {{ .Values.config.port | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  FIAS_PROVIDER: {{ .Values.config.fiasProvider | quote }}
+  MAIL_TRANSPORT: {{ .Values.config.mailTransport | quote }}
+  CORS_ORIGIN: {{ .Values.config.corsOrigin | quote }}
+  FRONTEND_URL: {{ .Values.config.frontendUrl | quote }}
+  PAYMENT_PROVIDER: {{ .Values.config.paymentProvider | quote }}
+  ROBOKASSA_TEST_MODE: {{ .Values.config.robokassaTestMode | quote }}
+  S3_ENDPOINT: {{ .Values.config.s3Endpoint | quote }}
+  S3_REGION: {{ .Values.config.s3Region | quote }}
+  S3_FORCE_PATH_STYLE: {{ .Values.config.s3ForcePathStyle | quote }}
+  S3_BUCKET_PAYMENT_DOCUMENTS: {{ .Values.config.s3BucketPaymentDocuments | quote }}
+  S3_BUCKET_ASSESSMENT_FILES: {{ .Values.config.s3BucketAssessmentFiles | quote }}

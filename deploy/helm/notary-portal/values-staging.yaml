@@ -1,0 +1,42 @@
+global:
+  environment: staging
+  imagePullPolicy: Always
+
+config:
+  nodeEnv: staging
+  corsOrigin: https://notary-staging.example.com
+  frontendUrl: https://notary-staging.example.com
+  robokassaTestMode: 'true'
+
+secret:
+  create: false
+  name: notary-portal-secret
+
+api:
+  replicaCount: 2
+  image:
+    repository: registry.example.com/notary-portal/notary-portal-api
+    tag: staging
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 4
+
+web:
+  replicaCount: 2
+  image:
+    repository: registry.example.com/notary-portal/notary-portal-web
+    tag: staging
+  autoscaling:
+    minReplicas: 2
+    maxReplicas: 4
+
+ingress:
+  host: notary-staging.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '300'
+  tls:
+    - hosts:
+        - notary-staging.example.com
+      secretName: notary-staging-tls

@@ -1,0 +1,41 @@
+global:
+  environment: local
+
+config:
+  nodeEnv: production
+  corsOrigin: http://localhost:8080
+  frontendUrl: http://localhost:8080
+  robokassaTestMode: 'true'
+
+secret:
+  create: true
+  stringData:
+    DB_NAME: db
+    DB_USER: admin
+    DB_PASS: admin
+    DATABASE_URL: postgresql://admin:admin@postgres:5432/db?schema=public
+    JWT_ACCESS_SECRET: local-kubernetes-demo-secret-change-in-production
+    ROBOKASSA_MERCHANT_LOGIN: Test1999
+    ROBOKASSA_PASSWORD_1: password_1
+    ROBOKASSA_PASSWORD_2: password_2
+    S3_ACCESS_KEY: minioadmin
+    S3_SECRET_KEY: minioadmin
+
+api:
+  image:
+    repository: notary-portal-api
+    tag: local
+  replicaCount: 1
+
+web:
+  image:
+    repository: notary-portal-web
+    tag: local
+  replicaCount: 1
+
+ingress:
+  host: notary.local
+  tls: []
+
+monitoring:
+  enabled: false

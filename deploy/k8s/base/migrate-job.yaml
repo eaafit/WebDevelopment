@@ -11,6 +11,7 @@ spec:
         app: notary-prisma-migrate
     spec:
       restartPolicy: Never
+      serviceAccountName: notary-migrate
       containers:
         - name: migrate
           image: notary-portal-api:local
