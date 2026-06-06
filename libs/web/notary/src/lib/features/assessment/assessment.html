@@ -1,0 +1,84 @@
+<div class="assessment-container">
+  <div class="page-header">
+    <h1>Заказы на оценку</h1>
+    <p class="subtitle">Список заявок от заявителей</p>
+  </div>
+
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input
+      type="text"
+      class="search-input"
+      placeholder="Поиск по адресу, типу или заявителю..."
+      [ngModel]="searchQuery()"
+      (ngModelChange)="onSearch($event)" />
+  </div>
+
+  <div class="filters-section">
+    @for (status of statuses; track status.value) {
+    <button
+      class="filter-chip"
+      [class.active]="statusFilter() === status.value"
+      (click)="setStatusFilter(status.value)">
+      {{ status.label }}
+    </button>
+    }
+  </div>
+
+  <div class="table-wrapper">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Адрес</th>
+          <th>Тип объекта</th>
+          <th>Площадь</th>
+          <th>Заявитель</th>
+          <th>Статус</th>
+          <th>Дата подачи</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of filteredOrders; track order.id) {
+        <tr [class.editing-status]="editingOrderId() === order.id">
+          <td class="address-cell">
+            <strong>{{ order.address }}</strong>
+            <span class="address-hint">{{ order.addressHint }}</span>
+          </td>
+          <td>{{ order.propertyType }}</td>
+          <td class="area-cell">{{ order.area }} м²</td>
+          <td>{{ order.applicant }}</td>
+          <td class="status-cell">
+            @if (editingOrderId() === order.id) {
+            <div class="status-options">
+              @for (opt of statusOptions; track opt.value) {
+              <button
+                class="status-option-btn"
+                [class.selected]="order.status === opt.value"
+                (click)="updateStatus(order.id, opt.value)">
+                {{ opt.label }}
+              </button>
+              }
+              <button class="status-option-cancel" (click)="cancelEditing()">✖</button>
+            </div>
+            } @else {
+            <div class="status-display">
+              <span class="status-badge {{ getStatusClass(order.status) }}"> {{ getStatusText(order.status) }} </span>
+              <button class="edit-status-icon" (click)="startEditing(order.id)" title="Изменить статус">✏️</button>
+            </div>
+            }
+          </td>
+          <td>{{ order.date }}</td>
+          <td class="actions-cell">
+            <button class="action-btn view" title="Просмотр" (click)="viewOrder(order.id)">👁</button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="table-footer">
+    <span>Показано {{ filteredOrders.length }} из {{ orders().length }} заказов</span>
+  </div>
+</div>

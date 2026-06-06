@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
 
 import { BitrixLeadsApiService } from './bitrix-leads-api.service';
 import { BitrixLeadsConfigService } from './bitrix-leads-config.service';
@@ -34,63 +40,105 @@ export class BitrixLeadPublisherService {
   ) {}
 
   async publishLead(assessmentId: string): Promise<void> {
-    if (!this.config.isConfigured()) {
-      this.logger.log(
-        `Bitrix не сконфигурирован (BITRIX_WEBHOOK_URL/PORTAL_URL не заданы в env), ` +
-          `пропуск публикации для assessment=${assessmentId}`,
-      );
-      return;
-    }
-
-    const assessment = await this.prisma.assessment.findUnique({
-      where: { id: assessmentId },
-    });
-    if (!assessment) {
-      throw new Error(`Assessment ${assessmentId} not found`);
-    }
-
-    if (assessment.bitrixLeadId) {
-      this.logger.log(
-        `Assessment ${assessmentId} already published as lead ${assessment.bitrixLeadId}, skipping`,
-      );
-      return;
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: assessment.userId },
-    });
-    if (!user) {
-      throw new Error(`User ${assessment.userId} not found`);
-    }
-
-    // Prisma возвращает estimatedValue как Decimal-инстанс — приводим к строке,
-    // чтобы маппер оставался независимым от Prisma runtime типов.
-    const fields = buildLeadFields(
+    return runInSpan(
+      'BitrixLeadPublisherService.publishLead',
       {
-        ...assessment,
-        estimatedValue: assessment.estimatedValue?.toString() ?? null,
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadPublish,
+        [NotarySpanAttributes.entity]: 'BitrixLead',
       },
-      user,
-    );
+      async (span) => {
+        const configured = this.config.isConfigured();
+        setSpanAttributes(span, { 'bitrix.configured': configured });
+        if (!configured) {
+          this.logger.log(
+            'Bitrix lead publish skipped; operation=bitrix.lead.publish; result=not_configured',
+          );
+          return;
+        }
 
-    const leadId = await retryWithBackoff(() => this.api.createLead(fields), {
-      isRetriable: (error) =>
-        error instanceof BitrixUnavailableError || error instanceof BitrixRateLimitError,
-      onRetry: (attempt, error) => {
-        const code = error instanceof BitrixApiError ? error.code : 'unknown';
-        this.logger.warn(
-          `Bitrix retry ${attempt}/3 for assessment=${assessmentId}: ${code}`,
+        const assessment = await runInSpan(
+          'Prisma.assessment.findUnique bitrix lead publish',
+          {
+            [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadAssessmentLookup,
+            [NotarySpanAttributes.entity]: 'Assessment',
+            'db.operation': 'select',
+          },
+          () =>
+            this.prisma.assessment.findUnique({
+              where: { id: assessmentId },
+            }),
         );
+        if (!assessment) {
+          throw new Error(`Assessment ${assessmentId} not found`);
+        }
+
+        setSpanAttributes(span, {
+          'bitrix.lead.already_published': Boolean(assessment.bitrixLeadId),
+          'assessment.status': assessment.status,
+          'assessment.has_estimated_value': Boolean(assessment.estimatedValue),
+        });
+        if (assessment.bitrixLeadId) {
+          this.logger.log(
+            'Bitrix lead publish skipped; operation=bitrix.lead.publish; result=already_published',
+          );
+          return;
+        }
+
+        const user = await runInSpan(
+          'Prisma.user.findUnique bitrix lead publish',
+          {
+            [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadUserLookup,
+            [NotarySpanAttributes.entity]: 'User',
+            'db.operation': 'select',
+          },
+          () =>
+            this.prisma.user.findUnique({
+              where: { id: assessment.userId },
+            }),
+        );
+        if (!user) {
+          throw new Error(`User ${assessment.userId} not found`);
+        }
+
+        // Prisma возвращает estimatedValue как Decimal-инстанс — приводим к строке,
+        // чтобы маппер оставался независимым от Prisma runtime типов.
+        const fields = buildLeadFields(
+          {
+            ...assessment,
+            estimatedValue: assessment.estimatedValue?.toString() ?? null,
+          },
+          user,
+        );
+
+        const leadId = await retryWithBackoff(() => this.api.createLead(fields), {
+          isRetriable: (error) =>
+            error instanceof BitrixUnavailableError || error instanceof BitrixRateLimitError,
+          onRetry: (attempt, error) => {
+            setSpanAttributes(span, { 'bitrix.retry.attempt': attempt });
+            const code = error instanceof BitrixApiError ? error.code : 'unknown';
+            this.logger.warn(
+              `Bitrix lead publish retry; operation=bitrix.lead.publish; result=retry; attempt=${attempt}; code=${code}`,
+            );
+          },
+        });
+
+        await runInSpan(
+          'Prisma.assessment.update bitrix lead id',
+          {
+            [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadPersistExternalId,
+            [NotarySpanAttributes.entity]: 'Assessment',
+            'db.operation': 'update',
+          },
+          () =>
+            this.prisma.assessment.update({
+              where: { id: assessmentId },
+              data: { bitrixLeadId: String(leadId) },
+            }),
+        );
+
+        setSpanAttributes(span, { 'bitrix.lead.created': true });
+        this.logger.log('Bitrix lead published; operation=bitrix.lead.publish; result=success');
       },
-    });
-
-    await this.prisma.assessment.update({
-      where: { id: assessmentId },
-      data: { bitrixLeadId: String(leadId) },
-    });
-
-    this.logger.log(
-      `Bitrix lead published: assessment=${assessmentId}, leadId=${leadId}`,
     );
   }
 }

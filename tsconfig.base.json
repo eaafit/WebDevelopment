@@ -30,6 +30,7 @@
       "@internal/prisma-client": ["libs/api/shared/prisma/generated/prisma/client.ts"],
       "@internal/report": ["libs/api/report/src/index.ts"],
       "@internal/storage": ["libs/api/storage/src/index.ts"],
+      "@internal/tracing": ["libs/api/shared/tracing/src/index.ts"],
       "@internal/user": ["libs/api/user/src/index.ts"],
       "@notary-portal/prisma": ["libs/api/prisma/src/index.ts"],
       "@notary-portal/api-contracts": ["libs/shared/api-contracts/src/index.ts"],
@@ -39,7 +40,8 @@
       "@notary-portal/admin": ["libs/web/admin/src/index.ts"],
       "@notary-portal/shared": ["libs/web/shared/src/index.ts"],
       "@notary-portal/ui": ["libs/web/shared/ui/src/index.ts"],
-      "@notary-portal/billing": ["libs/api/billing/src/index.ts"]
+      "@notary-portal/billing": ["libs/api/billing/src/index.ts"],
+      "@notary-portal/order": ["libs/api/order/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

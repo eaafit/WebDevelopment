@@ -1,8 +1,14 @@
-import { Component, inject, signal } from '@angular/core';
+﻿import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { UserRole } from '@notary-portal/ui';
+import { UserRole, WebLoggerService } from '@notary-portal/ui';
 import { AuthService, OAUTH_PROVIDERS } from '../auth.service';
+import {
+  authRoleName,
+  buildAuthLogContext,
+  currentBrowserRoute,
+  emailDomainOf,
+} from '../auth-browser-log';
 
 const FULL_NAME_RE = /^[A-Za-zА-Яа-яЁё]{2,}(?:[ -][A-Za-zА-Яа-яЁё]{2,}){1,3}$/u;
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
@@ -18,6 +24,7 @@ const RUSSIAN_PHONE_DIGIT_LIMIT = 11;
 })
 export class Register {
   private readonly authService = inject(AuthService);
+  private readonly logger = inject(WebLoggerService);
 
   readonly UserRole = UserRole;
   readonly loading = this.authService.loading;
@@ -41,7 +48,11 @@ export class Register {
 
   async onSubmit(): Promise<void> {
     this.submitted.set(true);
-    if (this.getValidationError()) return;
+    const validationError = this.getValidationError();
+    if (validationError) {
+      this.logValidationFailure(this.getValidationReason());
+      return;
+    }
 
     await this.authService.register({
       fullName: this.fullName.trim(),
@@ -94,6 +105,33 @@ export class Register {
     if (this.password !== this.confirmPassword) return 'Пароли должны совпадать.';
     if (!this.termsAccepted) return 'Подтвердите согласие с условиями.';
     return null;
+  }
+
+  private getValidationReason(): string {
+    const fullName = this.fullName.trim();
+    const email = this.email.trim();
+    const phoneNumber = normalizeRussianPhone(this.phoneNumber);
+
+    if (!FULL_NAME_RE.test(fullName)) return 'invalid_full_name';
+    if (!EMAIL_RE.test(email)) return 'invalid_email';
+    if (!PHONE_RE.test(phoneNumber)) return 'invalid_phone';
+    if (this.password.length < 8) return 'weak_password';
+    if (this.password !== this.confirmPassword) return 'password_mismatch';
+    if (!this.termsAccepted) return 'terms_required';
+    return 'invalid_form';
+  }
+
+  private logValidationFailure(reason: string): void {
+    this.logger.warn(
+      'auth.register.validation_failed',
+      buildAuthLogContext({
+        emailDomain: emailDomainOf(this.email),
+        role: authRoleName(this.role),
+        reason,
+        route: currentBrowserRoute(),
+        outcome: 'failed',
+      }),
+    );
   }
 }
 

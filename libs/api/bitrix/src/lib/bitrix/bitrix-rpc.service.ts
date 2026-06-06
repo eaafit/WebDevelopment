@@ -25,6 +25,13 @@ import {
   SyncStatusSchema,
 } from '@notary-portal/api-contracts';
 import { requireRole, Role } from '@internal/auth-shared';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  runInSpan,
+} from '@internal/tracing';
 import { BitrixConfigService } from './bitrix-config.service';
 import { BitrixApiService } from './bitrix-api.service';
 import { BitrixSyncService } from './bitrix-sync.service';
@@ -40,6 +47,7 @@ export class BitrixRpcService {
   // ─── GetBitrixConfig ──────────────────────────────────────────────────────────
   // Admin-only
   async getBitrixConfig(request: GetBitrixConfigRequest): Promise<GetBitrixConfigResponse> {
+    void request;
     requireRole(Role.Admin);
 
     const config = await this.configService.getConfig();
@@ -51,16 +59,26 @@ export class BitrixRpcService {
   async updateBitrixConfig(
     request: UpdateBitrixConfigRequest,
   ): Promise<UpdateBitrixConfigResponse> {
-    requireRole(Role.Admin);
+    const actor = requireRole(Role.Admin);
 
-    const config = await this.configService.updateConfig({
-      portalUrl: request.portalUrl,
-      memberId: request.memberId,
-      accessToken: request.accessToken,
-      isActive: request.isActive,
-    });
+    return runInSpan(
+      'BitrixRpcService.updateBitrixConfig',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixConfigUpdate,
+        [NotarySpanAttributes.entity]: 'BitrixConfig',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(actor.role),
+      },
+      async () => {
+        const config = await this.configService.updateConfig({
+          portalUrl: request.portalUrl,
+          memberId: request.memberId,
+          accessToken: request.accessToken,
+          isActive: request.isActive,
+        });
 
-    return create(UpdateBitrixConfigResponseSchema, { config });
+        return create(UpdateBitrixConfigResponseSchema, { config });
+      },
+    );
   }
 
   // ─── TestBitrixConnection ─────────────────────────────────────────────────────
@@ -68,22 +86,37 @@ export class BitrixRpcService {
   async testBitrixConnection(
     request: TestBitrixConnectionRequest,
   ): Promise<TestBitrixConnectionResponse> {
-    requireRole(Role.Admin);
+    void request;
+    const actor = requireRole(Role.Admin);
 
-    try {
-      const result = await this.apiService.testConnection();
-      return create(TestBitrixConnectionResponseSchema, {
-        success: result.success,
-        message: result.message,
-        testedAt: timestampFromDate(result.testedAt),
-      });
-    } catch (error) {
-      return create(TestBitrixConnectionResponseSchema, {
-        success: false,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        testedAt: timestampFromDate(new Date()),
-      });
-    }
+    return runInSpan(
+      'BitrixRpcService.testBitrixConnection',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixConnectionTest,
+        [NotarySpanAttributes.entity]: 'BitrixConfig',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(actor.role),
+      },
+      async (span) => {
+        try {
+          const result = await this.apiService.testConnection();
+          if (!result.success) {
+            markSpanFailure(span, new Error('BitrixConnectionTestFailed'));
+          }
+          return create(TestBitrixConnectionResponseSchema, {
+            success: result.success,
+            message: result.message,
+            testedAt: timestampFromDate(result.testedAt),
+          });
+        } catch (error) {
+          markSpanFailure(span, error);
+          return create(TestBitrixConnectionResponseSchema, {
+            success: false,
+            message: error instanceof Error ? error.message : 'Unknown error',
+            testedAt: timestampFromDate(new Date()),
+          });
+        }
+      },
+    );
   }
 
   // ─── SyncUsersWithBitrix ──────────────────────────────────────────────────────
@@ -92,7 +125,6 @@ export class BitrixRpcService {
     request: SyncUsersWithBitrixRequest,
   ): Promise<SyncUsersWithBitrixResponse> {
     requireRole(Role.Admin);
-
     const result = await this.syncService.startSync(request.forceResync ?? false);
 
     return create(SyncUsersWithBitrixResponseSchema, {

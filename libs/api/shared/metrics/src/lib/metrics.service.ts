@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   Counter,
+  Histogram,
   collectDefaultMetrics,
   register as defaultRegister,
   type Registry,
@@ -24,6 +25,21 @@ export type PromoValidationFlow = 'preview' | 'payment_create';
 export type PromoDiscountType = 'percent';
 export type PaymentHistoryScope = 'user' | 'all';
 export type MetricsResult = 'success' | 'failed';
+export type AuthMetricOutcome = 'success' | 'failed';
+export type AuthPasswordResetStage = 'request' | 'submit';
+export type AuthBrowserValidationForm =
+  | 'login'
+  | 'register'
+  | 'password_reset_request'
+  | 'password_reset_submit';
+export type HttpRequestMetricPathGroup =
+  | 'auth_login'
+  | 'auth_register'
+  | 'auth_password_reset_request'
+  | 'auth_password_reset_submit'
+  | 'health'
+  | 'metrics'
+  | 'other';
 export type FailedAccessMetricReason =
   | 'auth_denied'
   | 'failed_login'
@@ -70,6 +86,13 @@ export class MetricsService {
   private readonly promoAppliedTotal: Counter<'scenario' | 'discount_type'>;
   private readonly promoDiscountAmountTotal: Counter<'scenario' | 'discount_type'>;
   private readonly paymentHistoryRequestsTotal: Counter<'scope' | 'result'>;
+  private readonly authLoginTotal: Counter<'outcome' | 'reason'>;
+  private readonly authRegistrationTotal: Counter<'outcome' | 'role' | 'reason'>;
+  private readonly authPasswordResetTotal: Counter<'stage' | 'outcome' | 'reason'>;
+  private readonly authBrowserValidationFailedTotal: Counter<'form' | 'reason'>;
+  private readonly httpRequestDurationSeconds: Histogram<
+    'method' | 'path_group' | 'status_code'
+  >;
   private readonly failedAccessTotal: Counter<
     'method' | 'status_code' | 'reason' | 'path_group'
   >;
@@ -146,6 +169,42 @@ export class MetricsService {
       name: `${PREFIX}billing_payment_history_requests_total`,
       help: 'Total number of payment history requests by scope and result',
       labelNames: ['scope', 'result'],
+      registers: [this.register],
+    });
+
+    this.authLoginTotal = new Counter({
+      name: `${PREFIX}auth_login_total`,
+      help: 'Total number of auth login attempts by outcome and reason',
+      labelNames: ['outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authRegistrationTotal = new Counter({
+      name: `${PREFIX}auth_registration_total`,
+      help: 'Total number of auth registration attempts by outcome, role, and reason',
+      labelNames: ['outcome', 'role', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authPasswordResetTotal = new Counter({
+      name: `${PREFIX}auth_password_reset_total`,
+      help: 'Total number of password reset events by stage, outcome, and reason',
+      labelNames: ['stage', 'outcome', 'reason'],
+      registers: [this.register],
+    });
+
+    this.authBrowserValidationFailedTotal = new Counter({
+      name: `${PREFIX}auth_browser_validation_failed_total`,
+      help: 'Total number of client-side auth validation failures by form and reason',
+      labelNames: ['form', 'reason'],
+      registers: [this.register],
+    });
+
+    this.httpRequestDurationSeconds = new Histogram({
+      name: `${PREFIX}http_request_duration_seconds`,
+      help: 'HTTP request duration in seconds by method, low-cardinality path group, and status code',
+      labelNames: ['method', 'path_group', 'status_code'],
+      buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10],
       registers: [this.register],
     });
 
@@ -280,6 +339,45 @@ export class MetricsService {
 
   recordPaymentHistoryRequest(scope: PaymentHistoryScope, result: MetricsResult): void {
     this.paymentHistoryRequestsTotal.inc({ scope, result });
+  }
+
+  recordAuthLogin(outcome: AuthMetricOutcome, reason = 'none'): void {
+    this.authLoginTotal.inc({ outcome, reason });
+  }
+
+  recordAuthRegistration(outcome: AuthMetricOutcome, role = 'unspecified', reason = 'none'): void {
+    this.authRegistrationTotal.inc({ outcome, role, reason });
+  }
+
+  recordAuthPasswordReset(
+    stage: AuthPasswordResetStage,
+    outcome: AuthMetricOutcome,
+    reason = 'none',
+  ): void {
+    this.authPasswordResetTotal.inc({ stage, outcome, reason });
+  }
+
+  recordAuthBrowserValidationFailed(
+    form: AuthBrowserValidationForm,
+    reason = 'unknown',
+  ): void {
+    this.authBrowserValidationFailedTotal.inc({ form, reason });
+  }
+
+  recordHttpRequestDuration(
+    method: string,
+    pathGroup: HttpRequestMetricPathGroup,
+    statusCode: string,
+    durationSeconds: number,
+  ): void {
+    this.httpRequestDurationSeconds.observe(
+      {
+        method,
+        path_group: pathGroup,
+        status_code: statusCode,
+      },
+      Math.max(0, durationSeconds),
+    );
   }
 
   recordFailedAccessAttempt(labels: FailedAccessMetricLabels): void {

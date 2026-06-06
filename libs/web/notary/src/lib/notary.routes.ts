@@ -16,13 +16,8 @@ export const notaryRoutes: Route[] = [
       { path: '', ...placeholder('Главная', ['Обзор кабинета нотариуса']) } as Route,
       {
         path: 'orders',
-        ...placeholder('Заказы', [
-          'Просмотр заказов',
-          'Фильтры и поиск',
-          '«Взять в работу»',
-          'Управление статусами',
-        ]),
-      } as Route,
+        loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
+      },
       {
         path: 'subscription',
         ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),

@@ -137,7 +137,7 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
       return;
     }
 
-    console.warn('[MailSender] Почта не настроена — ссылка сброса пароля:', resetUrl);
+    console.warn('[MailSender] Почта не настроена; ссылка сброса пароля не логируется');
   }
 
   async sendWelcomeAfterRegistration(payload: WelcomeMailPayload): Promise<void> {
