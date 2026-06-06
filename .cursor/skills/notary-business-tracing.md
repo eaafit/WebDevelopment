@@ -192,6 +192,14 @@ rg "private .*runInSpan|recordException\\(|objectKey|fileName|error\\.stack" app
 
 Совпадения допустимы только там, где они являются частью безопасного helper-а, тестов или бизнес-данных, а не span/log attributes.
 
+### Связь с дашбордом
+
+Если добавляешь новый `BusinessOperations` или новую группу бизнес-процессов, проверь, должен ли этот процесс отображаться на Grafana Tempo дашборде.
+
+Для обновления dashboard используй отдельный skill:
+
+- `.cursor/skills/grafana-tempo-business-dashboard.md`
+
 ### Готово когда
 
 - Новый или изменённый бизнес-процесс виден в Grafana Tempo через стабильный `notary.operation`.
