@@ -9,6 +9,14 @@ import type {
   ListAuditEventsResponse,
 } from '@notary-portal/api-contracts';
 import { Prisma, Role as PrismaRole } from '@internal/prisma-client';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
 import { AuditRepository } from './audit.repository';
 import type { AuditExportQuery, AuditFiltersQuery, AuditListQuery } from './audit.query';
 
@@ -43,100 +51,164 @@ export class AuditService {
   constructor(private readonly auditRepository: AuditRepository) {}
 
   listAuditEvents(request: ListAuditEventsRequest): Promise<ListAuditEventsResponse> {
-    return this.auditRepository.listAuditEvents(this.normalizeListRequest(request));
+    return runInSpan(
+      'AuditService.listAuditEvents',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.auditList,
+        [NotarySpanAttributes.entity]: 'AuditLog',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        const query = await runInSpan(
+          'AuditService.normalizeListRequest',
+          {
+            'notary.operation': 'audit.filters.normalize',
+            'notary.entity': 'AuditLog',
+          },
+          () => this.normalizeListRequest(request),
+        );
+        setSpanAttributes(span, { 'audit.event_type': query.filters.eventType });
+        return this.auditRepository.listAuditEvents(query);
+      },
+    );
   }
 
   async exportAuditEvents(request: ExportAuditEventsRequest): Promise<ExportAuditEventsResponse> {
-    const query = this.normalizeExportRequest(request);
-    const totalRows = await this.auditRepository.countAuditEvents(query);
+    return runInSpan(
+      'AuditService.exportAuditEvents',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.auditExport,
+        [NotarySpanAttributes.entity]: 'AuditLog',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        const query = await runInSpan(
+          'AuditService.normalizeExportRequest',
+          {
+            'notary.operation': 'audit.filters.normalize',
+            'notary.entity': 'AuditLog',
+          },
+          () => this.normalizeExportRequest(request),
+        );
+        setSpanAttributes(span, { 'audit.event_type': query.filters.eventType });
+        const totalRows = await runInSpan(
+          'AuditRepository.countAuditEvents',
+          {
+            'notary.operation': 'audit.export.count_rows',
+            'notary.entity': 'AuditLog',
+            'db.operation': 'count',
+          },
+          () => this.auditRepository.countAuditEvents(query),
+        );
+        setSpanAttributes(span, { 'audit.export.row_count': totalRows });
 
-    if (totalRows > MAX_EXPORT_ROWS) {
-      throw new ConnectError(
-        `Export matches ${totalRows} audit events, maximum is ${MAX_EXPORT_ROWS}. Narrow filters and try again.`,
-        Code.ResourceExhausted,
-      );
-    }
+        if (totalRows > MAX_EXPORT_ROWS) {
+          throw new ConnectError(
+            `Export matches ${totalRows} audit events, maximum is ${MAX_EXPORT_ROWS}. Narrow filters and try again.`,
+            Code.ResourceExhausted,
+          );
+        }
 
-    const response = await this.auditRepository.exportAuditEvents({
-      ...query,
-      limit: MAX_EXPORT_ROWS + 1,
-    });
+        const response = await runInSpan(
+          'AuditRepository.exportAuditEvents',
+          {
+            'notary.operation': 'audit.export.rows',
+            'notary.entity': 'AuditLog',
+            'db.operation': 'select',
+          },
+          () =>
+            this.auditRepository.exportAuditEvents({
+              ...query,
+              limit: MAX_EXPORT_ROWS + 1,
+            }),
+        );
 
-    if (response.events.length > MAX_EXPORT_ROWS) {
-      throw new ConnectError(
-        `Export returned more than ${MAX_EXPORT_ROWS} audit events. Narrow filters and try again.`,
-        Code.ResourceExhausted,
-      );
-    }
+        if (response.events.length > MAX_EXPORT_ROWS) {
+          throw new ConnectError(
+            `Export returned more than ${MAX_EXPORT_ROWS} audit events. Narrow filters and try again.`,
+            Code.ResourceExhausted,
+          );
+        }
 
-    const actorUserId = getCurrentUser()?.sub ?? null;
+        const actorUserId = getCurrentUser()?.sub ?? null;
 
-    if (actorUserId) {
-      const exportTarget = buildExportAuditTarget(query, actorUserId);
+        if (actorUserId) {
+          const exportTarget = buildExportAuditTarget(query, actorUserId);
 
-      await this.record({
-        actorUserId,
-        eventType: 'audit.exported',
-        targetType: exportTarget.targetType,
-        targetId: exportTarget.targetId,
-        actionTitle: 'Экспорт аудита',
-        actionContext: `Экспортировано строк: ${response.events.length}`,
-        targetTitle: exportTarget.targetTitle,
-        targetContext: exportTarget.targetContext,
-        after: {
-          filters: serializeFilters(query.filters),
-          exportedRows: response.events.length,
-        },
-      });
-    }
+          await this.record({
+            actorUserId,
+            eventType: 'audit.exported',
+            targetType: exportTarget.targetType,
+            targetId: exportTarget.targetId,
+            actionTitle: 'Экспорт аудита',
+            actionContext: `Экспортировано строк: ${response.events.length}`,
+            targetTitle: exportTarget.targetTitle,
+            targetContext: exportTarget.targetContext,
+            after: {
+              filters: serializeFilters(query.filters),
+              exportedRows: response.events.length,
+            },
+          });
+        }
 
-    return response;
+        return response;
+      },
+    );
   }
 
   async record(input: RecordAuditEventInput): Promise<void> {
-    const currentUser = getCurrentUser();
-    const metadata = getRequestMetadata();
-    const actorUserId = input.actorUserId ?? currentUser?.sub ?? null;
-    const actorEmail = normalizeOptionalString(input.actorEmail ?? currentUser?.email);
-    const actorName = normalizeOptionalString(input.actorName);
-    const actorRole = normalizeAuditRole(input.actorRole ?? currentUser?.role);
+    return runInSpan(
+      'AuditService.record',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.auditRecord,
+        [NotarySpanAttributes.entity]: 'AuditLog',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'audit.event_type': input.eventType,
+        'audit.target_type': input.targetType,
+      },
+      async (span) => {
+        const currentUser = getCurrentUser();
+        const metadata = getRequestMetadata();
+        const actorUserId = input.actorUserId ?? currentUser?.sub ?? null;
+        const actorEmail = normalizeOptionalString(input.actorEmail ?? currentUser?.email);
+        const actorName = normalizeOptionalString(input.actorName);
+        const actorRole = normalizeAuditRole(input.actorRole ?? currentUser?.role);
 
-    if (!actorUserId && !input.allowAnonymous) {
-      return;
-    }
+        if (!actorUserId && !input.allowAnonymous) {
+          return;
+        }
 
-    const details = compactJson({
-      actionTitle: input.actionTitle,
-      actionContext: input.actionContext,
-      targetTitle: input.targetTitle,
-      targetContext: input.targetContext,
-      before: input.before,
-      after: input.after,
-      ip: metadata.ip,
-      userAgent: metadata.userAgent,
-    });
+        const details = compactJson({
+          actionTitle: input.actionTitle,
+          actionContext: input.actionContext,
+          targetTitle: input.targetTitle,
+          targetContext: input.targetContext,
+          before: input.before,
+          after: input.after,
+          ip: metadata.ip,
+          userAgent: metadata.userAgent,
+        });
 
-    try {
-      await this.auditRepository.createAuditLog({
-        userId: actorUserId,
-        actorEmail,
-        actorName,
-        actorRole,
-        actionType: input.eventType,
-        entityName: input.targetType,
-        entityId: input.targetId ?? null,
-        details,
-        timestamp: input.timestamp,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to record audit event ${input.eventType} for ${input.targetType}:${
-          input.targetId ?? 'none'
-        }: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
-    }
+        try {
+          await this.auditRepository.createAuditLog({
+            userId: actorUserId,
+            actorEmail,
+            actorName,
+            actorRole,
+            actionType: input.eventType,
+            entityName: input.targetType,
+            entityId: input.targetId ?? null,
+            details,
+            timestamp: input.timestamp,
+          });
+        } catch (error) {
+          markSpanFailure(span, error);
+          this.logger.warn(
+            `Audit record failed; operation=audit.record; result=error; error=${safeErrorName(error)}`,
+          );
+        }
+      },
+    );
   }
 
   private normalizeListRequest(request: ListAuditEventsRequest): AuditListQuery {
@@ -197,6 +269,10 @@ export class AuditService {
       dateTo,
     };
   }
+}
+
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }
 
 function normalizePageLimit(value: number | undefined): number {
@@ -273,10 +349,7 @@ function isApplicantRole(role: string): boolean {
   return role === '1' || role === Role.Applicant;
 }
 
-function resolveAuditScope(
-  role: string,
-  userId: string,
-): AuditListQuery['scope'] {
+function resolveAuditScope(role: string, userId: string): AuditListQuery['scope'] {
   if (isApplicantRole(role)) {
     return { kind: 'applicant', applicantId: userId };
   }

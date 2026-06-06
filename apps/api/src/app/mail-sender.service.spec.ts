@@ -65,6 +65,29 @@ describe('MailSenderService auth emails', () => {
     expect(mail.html).not.toContain('token=<unsafe>');
   });
 
+  it('does not log password reset URLs when mail transport is disabled', async () => {
+    process.env = {
+      ...originalEnv,
+      APP_NAME: 'Нотариальная оценка',
+      MAIL_FROM: 'robot@notary.local',
+      MAIL_TRANSPORT: 'none',
+      PASSWORD_RESET_TTL_SEC: '3600',
+    };
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const service = new MailSenderService();
+    const resetUrl = 'https://notary.local/auth/reset-password?token=raw-reset-token';
+
+    await service.sendResetLink('user@example.com', resetUrl);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[MailSender] Почта не настроена; ссылка сброса пароля не логируется',
+    );
+    const warnPayload = JSON.stringify(warnSpy.mock.calls);
+    expect(warnPayload).not.toContain('raw-reset-token');
+    expect(warnPayload).not.toContain('/auth/reset-password');
+    warnSpy.mockRestore();
+  });
+
   it('sends a premium HTML welcome email with escaped user fields and text fallback', async () => {
     const service = new MailSenderService();
 
