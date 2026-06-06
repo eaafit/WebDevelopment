@@ -1,6 +1,6 @@
 import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService, SupportAiChatWidget } from '@notary-portal/ui';
 
 const APPLICANT_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
@@ -20,7 +20,7 @@ const APPLICANT_MENU = [
 
 @Component({
   selector: 'lib-applicant',
-  imports: [RouterModule, DashboardLayout],
+  imports: [RouterModule, DashboardLayout, SupportAiChatWidget],
   templateUrl: './applicant.html',
   styleUrl: './applicant.scss',
   encapsulation: ViewEncapsulation.None,
@@ -39,5 +39,12 @@ export class Applicant implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.notificationCounter.stopPolling();
+  }
+
+  // Аналитика вопросов ИИ-поддержки; ответ виджет получает через AskSupportAi.
+  onSupportDraftSubmit(question: string): void {
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[applicant] support question submitted', { length: question.length });
+    }
   }
 }
