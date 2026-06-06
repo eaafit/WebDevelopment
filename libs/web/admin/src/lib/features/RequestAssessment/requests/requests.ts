@@ -148,6 +148,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   ];
 
   activeFilterColumn: RequestFilterColumn | null = null;
+  activeSelectKey: 'pageSize' | 'notaryFilter' | null = null;
   filterDropdownStyle: { top: number; left: number } | null = null;
   columnSelectedValues: Record<RequestFilterColumn, string[]> = {
     id: [],
@@ -166,6 +167,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   currentPage = 1;
   itemsPerPage = 10;
+  readonly pageSizeOptions = [10, 20, 30, 50];
   totalPages = 0;
   pages: number[] = [];
 
@@ -241,11 +243,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
       // Параллельно: пользователи нужны для applicantName/нотариусов,
       // заявки — основной список. Без users список покажется, но имена
       // заявителей будут стабами короткого id.
-      await Promise.all([this.userApi.loadUsers(), this.loadAssessments()]);
+      await this.userApi.loadUsers().catch(() => undefined);
+      await this.loadAssessments();
       this.loadNotaries();
       this.applyFilters();
     } catch (error) {
-      this.loadError = (error as Error).message || 'Не удалось загрузить заявки';
+      this.loadError = this.toOrdersLoadError(error);
       this.assessments = [];
       this.applyFilters();
     } finally {
@@ -266,6 +269,22 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.assessments = page.items.map((row) =>
       this.toAssessmentItem(row, overrides, assignments),
     );
+  }
+
+  private toOrdersLoadError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return 'Не удалось загрузить заявки. Попробуйте обновить страницу.';
+    }
+    return message;
+  }
+
+  private toMutationError(error: unknown, fallback: string): string {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return fallback;
+    }
+    return message;
   }
 
   private toAssessmentItem(
@@ -405,6 +424,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.dateFrom = '';
     this.dateTo = '';
     this.notaryFilter = '';
+    this.activeSelectKey = null;
     this.applyFilters();
   }
 
@@ -537,15 +557,73 @@ export class RequestsComponent implements OnInit, OnDestroy {
   @HostListener('document:click')
   onDocumentClick(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
   }
 
   @HostListener('window:resize')
   onWindowResize(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
   }
 
   onTableScroll(): void {
     this.closeColumnFilter();
+    this.activeSelectKey = null;
+  }
+
+  toggleUiSelect(key: 'pageSize' | 'notaryFilter', event: MouseEvent): void {
+    event.stopPropagation();
+    this.closeColumnFilter();
+    this.activeSelectKey = this.activeSelectKey === key ? null : key;
+  }
+
+  onUiSelectTriggerKeydown(key: 'pageSize' | 'notaryFilter', event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.activeSelectKey = null;
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.closeColumnFilter();
+      this.activeSelectKey = key;
+    }
+  }
+
+  onUiSelectMenuKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.activeSelectKey = null;
+    }
+  }
+
+  isUiSelectOpen(key: 'pageSize' | 'notaryFilter'): boolean {
+    return this.activeSelectKey === key;
+  }
+
+  selectPageSize(size: number, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeSelectKey = null;
+    this.onPageSizeChanged(size);
+  }
+
+  selectNotaryFilter(notaryId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.notaryFilter = notaryId;
+    this.activeSelectKey = null;
+  }
+
+  getNotaryFilterLabel(): string {
+    if (!this.notaryFilter) {
+      return 'Все';
+    }
+
+    return (
+      this.notaryOptions.find((option) => option.id === this.notaryFilter)?.label ??
+      this.getShortId(this.notaryFilter)
+    );
   }
 
   private matchesColumnFilters(item: AssessmentItem): boolean {
@@ -599,6 +677,17 @@ export class RequestsComponent implements OnInit, OnDestroy {
   changePage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     this.currentPage = page;
+    this.updatePagination();
+  }
+
+  onPageSizeChanged(size: number | string): void {
+    const nextPageSize = Number(size);
+    if (!this.pageSizeOptions.includes(nextPageSize) || nextPageSize === this.itemsPerPage) {
+      return;
+    }
+
+    this.itemsPerPage = nextPageSize;
+    this.currentPage = 1;
     this.updatePagination();
   }
 
@@ -795,10 +884,13 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.closeCompleteModal();
       await this.refreshAfterMutation(id);
     } catch (error) {
-      this.finalEstimatedValueError =
-        (error as Error).message || 'Не удалось завершить заявку';
+      this.finalEstimatedValueError = this.toMutationError(
+        error,
+        'Не удалось завершить заявку. Проверьте статус заявки и попробуйте ещё раз.',
+      );
     } finally {
       this.mutationInFlight = false;
+      this.cdr.detectChanges();
     }
   }
 }

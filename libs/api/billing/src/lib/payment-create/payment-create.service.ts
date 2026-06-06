@@ -154,6 +154,17 @@ export class PaymentCreateService {
               },
             }),
         );
+        await this.paymentNotificationService.notifyPaymentCreated({
+          id: payment.id,
+          userId: request.userId,
+          type: prismaType,
+          amount: resolved.amount,
+          status: PrismaPaymentStatus.Pending,
+          transactionId: payment.id,
+          paymentMethod: 'robokassa_redirect',
+          subscriptionId: resolved.subscriptionId,
+          assessmentId: resolved.assessmentId,
+        });
 
         this.metrics.recordPayment('pending');
         this.metrics.recordBillingPayment('pending', metricContext);

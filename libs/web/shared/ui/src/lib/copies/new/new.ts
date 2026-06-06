@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts'; 
+import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts';
 import { createClient } from '@connectrpc/connect';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
 

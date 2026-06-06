@@ -56,8 +56,8 @@ async listDocumentsByAssessment(
     meta?: PageInfo
   }> {
     const pagination = params ? { page: params.page, limit: params.limit } : undefined;
-    const res = await this.client.listDocumentsByAssessment({ 
-      assessmentId, 
+    const res = await this.client.listDocumentsByAssessment({
+      assessmentId,
       pagination,
       fileName: params?.fileName,
       dateFrom: params?.dateFrom,

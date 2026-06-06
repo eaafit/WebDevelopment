@@ -87,15 +87,38 @@ describe('AdminDashboard', () => {
     expect(userMock.loadUsers).toHaveBeenCalledTimes(2);
   });
 
-  it('populates loadError and clears assessments when the api throws', async () => {
-    apiMock.listAssessments.mockRejectedValueOnce(new Error('Бэкенд недоступен'));
+  it('keeps dashboard data when user lookup fails', async () => {
+    userMock.loadUsers.mockRejectedValueOnce(new Error('User lookup failed'));
 
     component.refresh();
     await fixture.whenStable();
     fixture.detectChanges();
 
     const loadError = (component as unknown as { loadError: () => string | null }).loadError();
-    expect(loadError).toBe('Бэкенд недоступен');
+    const warning = (
+      component as unknown as { userLookupWarning: () => string | null }
+    ).userLookupWarning();
+    const total = (component as unknown as { total: () => number }).total();
+
+    expect(loadError).toBeNull();
+    expect(warning).toBe('User lookup failed');
+    expect(total).toBe(6);
+    expect(apiMock.listAssessments).toHaveBeenCalledTimes(2);
+  });
+
+  it('hides raw internal dashboard errors and clears assessments when the api throws', async () => {
+    apiMock.listAssessments.mockRejectedValueOnce(new Error('internal error'));
+
+    component.refresh();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const loadError = (component as unknown as { loadError: () => string | null }).loadError();
+    const warning = (
+      component as unknown as { userLookupWarning: () => string | null }
+    ).userLookupWarning();
+    expect(loadError).toBeNull();
+    expect(warning).toBeNull();
     const total = (component as unknown as { total: () => number }).total();
     expect(total).toBe(0);
     const loading = (component as unknown as { loading: () => boolean }).loading();
