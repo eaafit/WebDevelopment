@@ -9,10 +9,12 @@ describe('Login', () => {
   let component: Login;
   let fixture: ComponentFixture<Login>;
   let login: jest.Mock;
+  let getAuthorizeUrl: jest.Mock;
   let logger: { warn: jest.Mock };
 
   beforeEach(async () => {
     login = jest.fn();
+    getAuthorizeUrl = jest.fn();
     logger = { warn: jest.fn() };
 
     await TestBed.configureTestingModule({
@@ -25,6 +27,7 @@ describe('Login', () => {
             loading: signal(false).asReadonly(),
             error: signal<string | null>(null).asReadonly(),
             login,
+            getAuthorizeUrl,
           },
         },
         {
@@ -52,6 +55,40 @@ describe('Login', () => {
 
     expect(links.length).toBe(1);
     expect(link?.getAttribute('href')).toContain('/auth/forgot-password');
+  });
+
+  it('should render Google and Yandex login buttons and start the OAuth redirect on click', async () => {
+    getAuthorizeUrl.mockResolvedValue('https://google/auth?x=1');
+    const redirect = jest
+      .spyOn(component as unknown as { redirectToProvider: (u: string) => void }, 'redirectToProvider')
+      .mockImplementation(() => undefined);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="google-login"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="yandex-login"]')).not.toBeNull();
+    expect(root.querySelector('[data-testid="vk-login"]')).not.toBeNull();
+
+    await component.onOAuthLogin('google');
+
+    expect(getAuthorizeUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'google' }),
+    );
+    expect(redirect).toHaveBeenCalledWith('https://google/auth?x=1');
+  });
+
+  it('should start the Yandex OAuth redirect on click', async () => {
+    getAuthorizeUrl.mockResolvedValue('https://ya/auth?x=1');
+    const redirect = jest
+      .spyOn(component as unknown as { redirectToProvider: (u: string) => void }, 'redirectToProvider')
+      .mockImplementation(() => undefined);
+
+    await component.onOAuthLogin('yandex');
+
+    expect(getAuthorizeUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'yandex' }),
+    );
+    expect(redirect).toHaveBeenCalledWith('https://ya/auth?x=1');
   });
 
   it('should expose the register link', () => {

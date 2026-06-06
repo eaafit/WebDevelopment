@@ -5,7 +5,10 @@ import path from 'path'; // <- Добавили импорт
 
 loadProjectEnv();
 
-const databaseUrl = process.env['DATABASE_URL'];
+const isGenerateCommand = process.argv.some((arg) => arg === 'generate');
+const databaseUrl = process.env['DATABASE_URL'] ?? (
+  isGenerateCommand ? 'postgresql://prisma:prisma@localhost:5432/prisma_generate' : undefined
+);
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is not set');

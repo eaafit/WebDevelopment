@@ -3,6 +3,7 @@ import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Dashboard } from './features/dashboard/dashboard';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import { Copy, List, New } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -39,6 +40,25 @@ export const notaryRoutes: Route[] = [
         path: 'assessment/history',
         component: AssessmentHistoryComponent,
         data: { role: 'notary' },
+      },
+      {
+        path: 'copies',
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            component: List,
+            data: { role: 'notary' },
+          },
+          {
+            path: 'new',
+            component: New,
+          },
+          {
+            path: ':id',
+            component: Copy,
+          },
+        ],
       },
       {
         path: 'notifications',

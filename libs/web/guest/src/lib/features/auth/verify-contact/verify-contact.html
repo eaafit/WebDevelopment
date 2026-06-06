@@ -1,0 +1,54 @@
+<main class="login">
+  <h1>Подтверждение контакта</h1>
+
+  @if (!pending()) {
+  <div class="login__error">Сессия подтверждения истекла. Войдите ещё раз.</div>
+  <p class="login__footer-link"><a routerLink="/auth">Ко входу</a></p>
+  } @else {
+  <p class="login__hint">
+    Мы отправили 6-значный код на <b>{{ contact }}</b>. Введите его, чтобы завершить вход.
+  </p>
+
+  @if (error()) {
+  <div class="login__error">{{ error() }}</div>
+  }
+
+  <form class="login__form" (ngSubmit)="onSubmit()" novalidate>
+    <div class="login__field">
+      <label for="code">Код подтверждения</label>
+      <input
+        id="code"
+        name="code"
+        data-testid="contact-code"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        placeholder="6 цифр"
+        [(ngModel)]="code" />
+    </div>
+
+    <button
+      class="btn-login"
+      type="submit"
+      data-testid="confirm-contact"
+      [disabled]="loading() || code.trim().length !== 6">
+      {{ loading() ? 'Проверка…' : 'Подтвердить' }}
+    </button>
+  </form>
+
+  <button
+    class="login__footer-link"
+    type="button"
+    data-testid="resend-code"
+    [disabled]="loading() || resendCountdown() > 0"
+    (click)="onResend()">
+    @if (resendCountdown() > 0) {
+    Отправить код повторно через {{ resendCountdown() }}с
+    } @else {
+    Отправить код повторно
+    }
+  </button>
+
+  <p class="login__footer-link"><a routerLink="/auth">Отменить и вернуться ко входу</a></p>
+  }
+</main>
