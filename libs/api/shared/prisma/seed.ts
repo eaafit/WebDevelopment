@@ -9,6 +9,10 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   AssessmentStatus,
   DocumentType,
+  ElevatorType,
+  RealEstateCondition,
+  RealEstateObjectType,
+  WallMaterial,
   NewsletterAudienceType,
   NewsletterCampaignStatus,
   NewsletterDeliveryStatus,
@@ -165,6 +169,7 @@ async function main(): Promise<void> {
   const userIds = await upsertUsers(TOTAL_SEED_USERS, seedPasswordHash);
   await upsertNewsletterData(userIds);
   await upsertGeographyCatalog();
+  const demoResultIds = await upsertDemoAssessmentResults(userIds);
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
@@ -238,9 +243,255 @@ async function main(): Promise<void> {
       `Districts: ${districtCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
-    ].join(' '),
+      demoResultIds.length > 0
+        ? `Demo assessment results (${demoResultIds.length}): ${demoResultIds.join(', ')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
   );
 }
+
+function demoResultId(kind: 'assessment' | 'object' | 'report', index: number): string {
+  const h = crypto.createHash('sha256').update(`demo-assessment-result-${kind}-${index}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-a${h.slice(15, 18)}-${h.slice(18, 30)}`;
+}
+
+async function upsertDemoAssessmentResults(userIds: string[]): Promise<string[]> {
+  const applicantId = userIds[0];
+  const notaryId = userIds[SEED_USERS_PER_ROLE];
+  if (!applicantId || !notaryId) {
+    return [];
+  }
+
+  const city = await prisma.city.findFirst({ where: { name: 'Екатеринбург' } });
+  if (!city) {
+    return [];
+  }
+
+  const district = await prisma.district.findFirst({
+    where: { cityId: city.id },
+    orderBy: { name: 'asc' },
+  });
+
+  const assessedAt = new Date('2026-03-01T12:00:00.000Z');
+  const demoItems: Array<{
+    index: number;
+    address: string;
+    description: string;
+    estimatedValue: string;
+    objectType: RealEstateObjectType;
+    area: string;
+    roomsCount: number | null;
+    floorsTotal: number | null;
+    floor: number | null;
+    condition: RealEstateCondition | null;
+    yearBuilt: number | null;
+    wallMaterial: WallMaterial | null;
+    elevatorType: ElevatorType | null;
+    hasBalconyOrLoggia: boolean | null;
+    landCategory?: string;
+    permittedUse?: string;
+  }> = [
+    {
+      index: 1,
+      address: 'г. Екатеринбург, ул. Малышева, 18-45',
+      description: 'Демо: 3-комнатная квартира с отделкой.',
+      estimatedValue: '8500000.00',
+      objectType: RealEstateObjectType.Apartment,
+      area: '68.50',
+      roomsCount: 3,
+      floorsTotal: 9,
+      floor: 5,
+      condition: RealEstateCondition.Good,
+      yearBuilt: 2008,
+      wallMaterial: WallMaterial.Brick,
+      elevatorType: ElevatorType.Passenger,
+      hasBalconyOrLoggia: true,
+    },
+    {
+      index: 2,
+      address: 'Свердловская обл., п. Балтым, ул. Сосновая, 7',
+      description: 'Демо: жилой дом с участком.',
+      estimatedValue: '15200000.00',
+      objectType: RealEstateObjectType.House,
+      area: '220.00',
+      roomsCount: 5,
+      floorsTotal: 2,
+      floor: 1,
+      condition: RealEstateCondition.Good,
+      yearBuilt: 2015,
+      wallMaterial: WallMaterial.AeratedConcrete,
+      elevatorType: ElevatorType.None,
+      hasBalconyOrLoggia: false,
+    },
+    {
+      index: 3,
+      address: 'г. Екатеринбург, ул. Бориса Ельцина, 3, оф. 210',
+      description: 'Демо: коммерческое помещение в бизнес-центре.',
+      estimatedValue: '12100000.00',
+      objectType: RealEstateObjectType.CommercialProperty,
+      area: '150.00',
+      roomsCount: 1,
+      floorsTotal: 25,
+      floor: 21,
+      condition: RealEstateCondition.Excellent,
+      yearBuilt: 2019,
+      wallMaterial: WallMaterial.Monolithic,
+      elevatorType: ElevatorType.PassengerAndCargo,
+      hasBalconyOrLoggia: false,
+    },
+    {
+      index: 4,
+      address: 'г. Екатеринбург, ул. Гагарина, 33',
+      description: 'Демо: земельный участок под ИЖС.',
+      estimatedValue: '3500000.00',
+      objectType: RealEstateObjectType.LandPlot,
+      area: '1200.00',
+      roomsCount: null,
+      floorsTotal: null,
+      floor: null,
+      condition: null,
+      yearBuilt: null,
+      wallMaterial: null,
+      elevatorType: null,
+      hasBalconyOrLoggia: null,
+      landCategory: 'Земли населённых пунктов',
+      permittedUse: 'ИЖС',
+    },
+  ];
+
+  const assessmentIds: string[] = [];
+
+  for (const item of demoItems) {
+    const assessmentId = demoResultId('assessment', item.index);
+    const objectId = demoResultId('object', item.index);
+    assessmentIds.push(assessmentId);
+
+    await prisma.realEstateObject.upsert({
+      where: { id: objectId },
+      update: {
+        cityId: city.id,
+        districtId: district?.id ?? null,
+        address: item.address,
+        cadastralNumber: `66:66:1234567:${pad(item.index, 3)}`,
+        area: item.area,
+        objectType: item.objectType,
+        roomsCount: item.roomsCount,
+        floorsTotal: item.floorsTotal,
+        floor: item.floor,
+        condition: item.condition,
+        yearBuilt: item.yearBuilt,
+        wallMaterial: item.wallMaterial,
+        elevatorType: item.elevatorType,
+        hasBalconyOrLoggia: item.hasBalconyOrLoggia,
+        landCategory: item.landCategory ?? null,
+        permittedUse: item.permittedUse ?? null,
+        description: item.description,
+      },
+      create: {
+        id: objectId,
+        cityId: city.id,
+        districtId: district?.id ?? null,
+        address: item.address,
+        cadastralNumber: `66:66:1234567:${pad(item.index, 3)}`,
+        area: item.area,
+        objectType: item.objectType,
+        roomsCount: item.roomsCount,
+        floorsTotal: item.floorsTotal,
+        floor: item.floor,
+        condition: item.condition,
+        yearBuilt: item.yearBuilt,
+        wallMaterial: item.wallMaterial,
+        elevatorType: item.elevatorType,
+        hasBalconyOrLoggia: item.hasBalconyOrLoggia,
+        landCategory: item.landCategory ?? null,
+        permittedUse: item.permittedUse ?? null,
+        description: item.description,
+      },
+    });
+
+    await prisma.assessment.upsert({
+      where: { id: assessmentId },
+      update: {
+        userId: applicantId,
+        notaryId,
+        realEstateObjectId: objectId,
+        status: AssessmentStatus.Completed,
+        address: item.address,
+        description: item.description,
+        estimatedValue: item.estimatedValue,
+        updatedAt: assessedAt,
+      },
+      create: {
+        id: assessmentId,
+        userId: applicantId,
+        notaryId,
+        realEstateObjectId: objectId,
+        status: AssessmentStatus.Completed,
+        address: item.address,
+        description: item.description,
+        estimatedValue: item.estimatedValue,
+        createdAt: assessedAt,
+        updatedAt: assessedAt,
+      },
+    });
+
+    const signedReportId = demoResultId('report', item.index * 10 + 1);
+    const draftReportId = demoResultId('report', item.index * 10 + 2);
+
+    await prisma.assessmentReport.upsert({
+      where: { id: signedReportId },
+      update: {
+        assessmentId,
+        reportPath: DEMO_SIGNED_REPORT_PDF_URL,
+        signedById: notaryId,
+        signatureData: Buffer.from(`demo-signed-report-${item.index}`),
+        version: 1,
+        status: ReportStatus.Signed,
+        generatedAt: assessedAt,
+      },
+      create: {
+        id: signedReportId,
+        assessmentId,
+        reportPath: DEMO_SIGNED_REPORT_PDF_URL,
+        signedById: notaryId,
+        signatureData: Buffer.from(`demo-signed-report-${item.index}`),
+        version: 1,
+        status: ReportStatus.Signed,
+        generatedAt: assessedAt,
+      },
+    });
+
+    await prisma.assessmentReport.upsert({
+      where: { id: draftReportId },
+      update: {
+        assessmentId,
+        reportPath: `/reports/demo/draft-${pad(item.index, 3)}.pdf`,
+        signedById: notaryId,
+        signatureData: null,
+        version: 2,
+        status: ReportStatus.Draft,
+        generatedAt: assessedAt,
+      },
+      create: {
+        id: draftReportId,
+        assessmentId,
+        reportPath: `/reports/demo/draft-${pad(item.index, 3)}.pdf`,
+        signedById: notaryId,
+        signatureData: null,
+        version: 2,
+        status: ReportStatus.Draft,
+        generatedAt: assessedAt,
+      },
+    });
+  }
+
+  return assessmentIds;
+}
+
+const DEMO_SIGNED_REPORT_PDF_URL =
+  'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 
 async function upsertUsers(count: number, passwordHash: string): Promise<string[]> {
   const userIds: string[] = [];
