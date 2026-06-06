@@ -1,15 +1,38 @@
 import { create } from '@bufbuild/protobuf';
 import { AssessmentStatus } from '@internal/prisma-client';
 import { Role, requestContextStorage, type AccessTokenPayload } from '@internal/auth-shared';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import {
   AssessmentStatus as RpcAssessmentStatus,
   CancelAssessmentRequestSchema,
   CompleteAssessmentRequestSchema,
   CreateAssessmentRequestSchema,
+  LogApplicantAssessmentActionRequestSchema,
   UpdateAssessmentRequestSchema,
   VerifyAssessmentRequestSchema,
 } from '@notary-portal/api-contracts';
+import { Logger } from '@nestjs/common';
 import { AssessmentService } from './assessment.service';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { BitrixLeadPublisherService } from '@internal/bitrix-leads';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
+      action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 describe('AssessmentService audit events', () => {
   const assessmentRepository = {
@@ -19,6 +42,7 @@ describe('AssessmentService audit events', () => {
     getAssessment: jest.fn(),
     getAssessmentSnapshot: jest.fn(),
     getUserDisplayName: jest.fn(),
+    resolveGeographyIds: jest.fn(),
     createAssessment: jest.fn(),
     updateAssessment: jest.fn(),
     verifyAssessment: jest.fn(),
@@ -31,21 +55,34 @@ describe('AssessmentService audit events', () => {
   const metrics = {
     recordAssessmentCreated: jest.fn(),
   };
+  const fiasProvider = {
+    searchAddressItems: jest.fn(),
+  };
   const notificationService = {
     createInternalNotificationsForRole: jest.fn(),
+  };
+  const bitrixLeadPublisher = {
+    publishLead: jest.fn(),
   };
 
   const service = new AssessmentService(
     assessmentRepository as never,
     auditService as never,
     metrics as never,
+    fiasProvider as never,
     notificationService as never,
+    bitrixLeadPublisher as never,
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
     assessmentRepository.getUserDisplayName.mockResolvedValue(null);
+    assessmentRepository.resolveGeographyIds.mockResolvedValue({});
+    fiasProvider.searchAddressItems.mockResolvedValue([]);
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
+    bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
 
   it('creates an admin notification after assessment creation', async () => {
@@ -132,6 +169,116 @@ describe('AssessmentService audit events', () => {
       expect.objectContaining({
         title: 'Обновлена заявка на оценку',
         message: 'Заявитель 1 изменил данные заявки #11111111: г. Екатеринбург, ул. Ленина, 1.',
+      }),
+    );
+  });
+
+  it('normalizes FIAS geography ids before creating an assessment draft', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const staleCityId = 'dbbe9e82-c4ab-437c-a9e8-629ec978b64c';
+    const staleDistrictId = '54496aa9-baa2-476b-acc3-7bc1046e614a';
+    const localCityId = '58924dd4-3fac-4ce3-a99c-d8393d8da2cf';
+    const localDistrictId = '11111111-2222-4333-8444-555555555555';
+    const address = 'г Москва, ул Тверская, д 7, кв 12';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.resolveGeographyIds
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ cityId: localCityId, districtId: localDistrictId });
+    fiasProvider.searchAddressItems.mockResolvedValue([
+      {
+        fullName: address,
+        addressDetails: {
+          city: 'Москва',
+          district: 'Тверской',
+        },
+      },
+    ]);
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address,
+      description: '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+
+    await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address,
+        realEstateObject: {
+          cityId: staleCityId,
+          districtId: staleDistrictId,
+          address,
+          area: '54.6',
+          objectType: 1,
+        },
+      }),
+    );
+
+    expect(assessmentRepository.createAssessment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        realEstateObject: expect.objectContaining({
+          cityId: localCityId,
+          districtId: localDistrictId,
+        }),
+      }),
+    );
+  });
+
+  it('clears an unknown optional district id during assessment update', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const cityId = '58924dd4-3fac-4ce3-a99c-d8393d8da2cf';
+    const staleDistrictId = '54496aa9-baa2-476b-acc3-7bc1046e614a';
+    const before = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+    const after = { ...before, address: 'г Москва, ул Тверская, д 7, кв 12' };
+
+    assessmentRepository.resolveGeographyIds.mockResolvedValueOnce({ cityId });
+    assessmentRepository.getAssessmentSnapshot
+      .mockResolvedValueOnce(before)
+      .mockResolvedValueOnce(after);
+    assessmentRepository.updateAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: before.userId,
+      status: RpcAssessmentStatus.NEW,
+      address: after.address,
+      description: '',
+      estimatedValue: '',
+    });
+
+    await service.updateAssessment(
+      create(UpdateAssessmentRequestSchema, {
+        id: assessmentId,
+        address: after.address,
+        description: '',
+        realEstateObject: {
+          cityId,
+          districtId: staleDistrictId,
+          address: after.address,
+          area: '54.6',
+          objectType: 1,
+        },
+      }),
+    );
+
+    expect(assessmentRepository.updateAssessment).toHaveBeenCalledWith(
+      assessmentId,
+      expect.objectContaining({
+        realEstateObject: expect.objectContaining({
+          cityId,
+          districtId: null,
+        }),
       }),
     );
   });
@@ -301,6 +448,100 @@ describe('AssessmentService audit events', () => {
         message: 'Заявка #11111111 была отменена. Причина: неполные данные.',
       }),
     );
+  });
+
+  it('publishes assessment to bitrix as lead after successful create', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+
+    await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+  });
+
+  it('does not propagate bitrix publish failure to caller', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+    bitrixLeadPublisher.publishLead.mockRejectedValueOnce(new Error('Bitrix down'));
+
+    const response = await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    // Основная заявка вернулась успешно, несмотря на падение Bitrix
+    expect(response).toBeDefined();
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+
+    // Даём микрозадаче .catch отработать, чтобы не было unhandled rejection
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  });
+
+  it('does not put raw unsupported applicant UI action into spans or logs', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const rawAction = 'drop-table-token=secret-token-test@example.com';
+
+    await expect(
+      service.logApplicantAssessmentAction(
+        create(LogApplicantAssessmentActionRequestSchema, {
+          action: rawAction,
+          status: 'New',
+        }),
+      ),
+    ).rejects.toThrow('action must be a supported applicant assessment UI action');
+
+    expect(setSpanAttributes).toHaveBeenCalledWith(expect.anything(), {
+      'assessment.ui_action': 'unsupported',
+    });
+
+    const payload = JSON.stringify([
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+      ...warnSpy.mock.calls,
+    ]);
+    expect(payload).toContain('unsupported');
+    expect(payload).not.toContain(rawAction);
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('test@example.com');
+
+    warnSpy.mockRestore();
   });
 });
 

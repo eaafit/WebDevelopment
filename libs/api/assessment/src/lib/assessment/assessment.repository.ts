@@ -36,6 +36,7 @@ import {
   type Prisma,
 } from '@internal/prisma-client';
 import type { AssessmentQuery } from './assessment.query';
+import { randomUUID } from 'crypto';
 
 export interface AssessmentRealEstateObjectData {
   cityId?: string;
@@ -82,6 +83,18 @@ export interface AssessmentAuditSnapshot {
   cancelReason: string | null;
 }
 
+export interface AssessmentGeographyLookup {
+  cityId?: string;
+  districtId?: string;
+  cityName?: string;
+  districtName?: string;
+}
+
+export interface AssessmentGeographyIds {
+  cityId?: string;
+  districtId?: string;
+}
+
 type PrismaCityRow = {
   id: string;
   name: string;
@@ -124,7 +137,7 @@ const assessmentInclude = {
 export class AssessmentRepository {
   private readonly logger = new Logger(AssessmentRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async listCities(): Promise<ListCitiesResponse> {
     const cities = await this.runDatabaseOperation('listCities', {}, () =>
@@ -252,6 +265,66 @@ export class AssessmentRepository {
     return user?.fullName ?? null;
   }
 
+  async resolveGeographyIds(input: AssessmentGeographyLookup): Promise<AssessmentGeographyIds> {
+    return this.runDatabaseOperation(
+      'resolveGeographyIds',
+      {
+        cityId: input.cityId,
+        districtId: input.districtId,
+        cityName: input.cityName,
+        districtName: input.districtName,
+      },
+      async () => {
+        const cityById = input.cityId
+          ? await this.prisma.city.findUnique({
+            where: { id: input.cityId },
+            select: { id: true },
+          })
+          : null;
+        const city =
+          cityById ??
+          (input.cityName
+            ? await this.prisma.city.findUnique({
+              where: { name: input.cityName },
+              select: { id: true },
+            })
+            : null);
+
+        if (!city) {
+          return {};
+        }
+
+        const districtById = input.districtId
+          ? await this.prisma.district.findFirst({
+            where: {
+              id: input.districtId,
+              cityId: city.id,
+            },
+            select: { id: true },
+          })
+          : null;
+        const district =
+          districtById ??
+          (input.districtName
+            ? await this.prisma.district.findUnique({
+              where: {
+                cityId_name: {
+                  cityId: city.id,
+                  name: input.districtName,
+                },
+              },
+              select: { id: true },
+            })
+            : null);
+
+        return {
+          cityId: city.id,
+          ...(district && { districtId: district.id }),
+        };
+      },
+    );
+  }
+
   async createAssessment(data: CreateAssessmentData): Promise<RpcAssessment> {
     const assessment = await this.runDatabaseOperation(
       'createAssessment',
@@ -273,11 +346,11 @@ export class AssessmentRepository {
             realEstateObjectId = realEstateObject.id;
             this.logger.log(
               `Created real estate object for assessment draft realEstateObjectId=${realEstateObjectId}` +
-                formatLogFields({
-                  userId: data.userId,
-                  cityId: data.realEstateObject.cityId,
-                  districtId: data.realEstateObject.districtId,
-                }),
+              formatLogFields({
+                userId: data.userId,
+                cityId: data.realEstateObject.cityId,
+                districtId: data.realEstateObject.districtId,
+              }),
             );
           }
 
@@ -322,11 +395,11 @@ export class AssessmentRepository {
               });
               this.logger.log(
                 `Updated real estate object realEstateObjectId=${realEstateObjectId}` +
-                  formatLogFields({
-                    assessmentId: id,
-                    cityId: data.realEstateObject.cityId,
-                    districtId: data.realEstateObject.districtId,
-                  }),
+                formatLogFields({
+                  assessmentId: id,
+                  cityId: data.realEstateObject.cityId,
+                  districtId: data.realEstateObject.districtId,
+                }),
               );
             } else {
               const realEstateObject = await tx.realEstateObject.create({
@@ -336,11 +409,11 @@ export class AssessmentRepository {
               realEstateObjectId = realEstateObject.id;
               this.logger.log(
                 `Created real estate object during assessment update realEstateObjectId=${realEstateObjectId}` +
-                  formatLogFields({
-                    assessmentId: id,
-                    cityId: data.realEstateObject.cityId,
-                    districtId: data.realEstateObject.districtId,
-                  }),
+                formatLogFields({
+                  assessmentId: id,
+                  cityId: data.realEstateObject.cityId,
+                  districtId: data.realEstateObject.districtId,
+                }),
               );
             }
           }
@@ -352,8 +425,8 @@ export class AssessmentRepository {
               ...(data.description !== undefined && { description: data.description }),
               ...(realEstateObjectId &&
                 currentAssessment.realEstateObjectId !== realEstateObjectId && {
-                  realEstateObjectId,
-                }),
+                realEstateObjectId,
+              }),
             },
             include: assessmentInclude,
           });
@@ -744,6 +817,25 @@ export class AssessmentRepository {
     };
     return map[type] ?? RpcElevatorType.UNSPECIFIED;
   }
+
+  async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<void> {
+    const startDate = new Date();
+    const plannedCompletionDate = new Date(startDate);
+    plannedCompletionDate.setDate(startDate.getDate() + 7);
+
+    await this.prisma.lead.create({
+      data: {
+        id: randomUUID(),
+        applicantId,
+        assessmentId,
+        startDate,
+        plannedCompletionDate,
+        createdAt: startDate,
+        updatedAt: startDate,
+      },
+    });
+  }
+
 }
 
 function requireDefined<T>(value: T | undefined, fieldName: string): T {

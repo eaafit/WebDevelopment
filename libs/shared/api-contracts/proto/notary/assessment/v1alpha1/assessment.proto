@@ -14,6 +14,13 @@ service AssessmentService {
   rpc ListAssessments(ListAssessmentsRequest) returns (ListAssessmentsResponse);
   rpc ListCities(ListCitiesRequest) returns (ListCitiesResponse);
   rpc ListDistricts(ListDistrictsRequest) returns (ListDistrictsResponse);
+  rpc GetFiasAddressHints(GetFiasAddressHintsRequest) returns (GetFiasAddressHintsResponse);
+  rpc SearchFiasAddressItems(SearchFiasAddressItemsRequest) returns (SearchFiasAddressItemsResponse);
+  rpc GetFiasAddressItemById(GetFiasAddressItemByIdRequest) returns (GetFiasAddressItemByIdResponse);
+  rpc GetFiasAddressItemByGuid(GetFiasAddressItemByGuidRequest) returns (GetFiasAddressItemByGuidResponse);
+  rpc GetFiasAddressDetails(GetFiasAddressDetailsRequest) returns (GetFiasAddressDetailsResponse);
+  rpc SearchFiasAddressByParts(SearchFiasAddressByPartsRequest) returns (SearchFiasAddressByPartsResponse);
+  rpc LogApplicantAssessmentAction(LogApplicantAssessmentActionRequest) returns (LogApplicantAssessmentActionResponse);
 
   // Смена статусов (Specific operations)
   rpc VerifyAssessment(VerifyAssessmentRequest) returns (VerifyAssessmentResponse); // Нотариус берет в работу
@@ -77,6 +84,54 @@ message District {
   string id = 1;
   string city_id = 2;
   string name = 3;
+}
+
+message FiasAddressPathItem {
+  string object_id = 1;
+  string object_guid = 2;
+  string name = 3;
+  string type_name = 4;
+  string full_name = 5;
+  int32 object_level_id = 6;
+  bool is_active = 7;
+}
+
+message FiasAddressDetails {
+  optional string postal_code = 1;
+  optional string region = 2;
+  optional string area = 3;
+  optional string city = 4;
+  optional string district = 5;
+  optional string street = 6;
+  optional string house = 7;
+  optional string room = 8;
+  optional string cadastral_number = 9;
+}
+
+message FiasAddressHint {
+  string object_id = 1;
+  string object_guid = 2;
+  string full_name = 3;
+  int32 object_level_id = 4;
+  int32 address_type = 5;
+  repeated FiasAddressPathItem path = 6;
+  bool is_active = 7;
+  optional string city_id = 8;
+  optional string district_id = 9;
+}
+
+message FiasAddressItem {
+  string object_id = 1;
+  string object_guid = 2;
+  string full_name = 3;
+  int32 object_level_id = 4;
+  int32 address_type = 5;
+  repeated FiasAddressPathItem path = 6;
+  repeated FiasAddressPathItem hierarchy = 7;
+  FiasAddressDetails address_details = 8;
+  bool is_active = 9;
+  optional string city_id = 10;
+  optional string district_id = 11;
 }
 
 message RealEstateObject {
@@ -176,6 +231,74 @@ message ListDistrictsRequest {
 
 message ListDistrictsResponse {
   repeated District districts = 1;
+}
+
+message GetFiasAddressHintsRequest {
+  string query = 1;
+  optional int32 limit = 2;
+  optional int32 address_type = 3;
+}
+
+message GetFiasAddressHintsResponse {
+  repeated FiasAddressHint hints = 1;
+}
+
+message SearchFiasAddressItemsRequest {
+  string query = 1;
+  optional int32 limit = 2;
+  optional int32 address_type = 3;
+}
+
+message SearchFiasAddressItemsResponse {
+  repeated FiasAddressItem items = 1;
+}
+
+message GetFiasAddressItemByIdRequest {
+  string object_id = 1;
+}
+
+message GetFiasAddressItemByGuidRequest {
+  string object_guid = 1;
+}
+
+message GetFiasAddressItemByIdResponse {
+  FiasAddressItem item = 1;
+}
+
+message GetFiasAddressItemByGuidResponse {
+  FiasAddressItem item = 1;
+}
+
+message GetFiasAddressDetailsRequest {
+  string object_id = 1;
+}
+
+message GetFiasAddressDetailsResponse {
+  FiasAddressDetails details = 1;
+}
+
+message SearchFiasAddressByPartsRequest {
+  optional string region = 1;
+  optional string city = 2;
+  optional string street = 3;
+  optional string house = 4;
+  optional int32 limit = 5;
+  optional int32 address_type = 6;
+}
+
+message SearchFiasAddressByPartsResponse {
+  repeated FiasAddressItem items = 1;
+}
+
+message LogApplicantAssessmentActionRequest {
+  string action = 1;
+  optional string assessment_id = 2;
+  optional string status = 3;
+  optional string target_route = 4;
+}
+
+message LogApplicantAssessmentActionResponse {
+  bool ok = 1;
 }
 
 message VerifyAssessmentRequest {

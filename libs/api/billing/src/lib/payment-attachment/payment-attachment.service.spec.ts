@@ -6,7 +6,26 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import { PaymentAttachmentService } from './payment-attachment.service';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
+      action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 function pdfFile(buffer: Buffer, name = 'doc.pdf'): Express.Multer.File {
   return {
@@ -51,6 +70,8 @@ describe('PaymentAttachmentService', () => {
     putObject.mockReset();
     getObject.mockReset();
     auditService.record.mockReset();
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
 
   function createService(): PaymentAttachmentService {
@@ -147,6 +168,38 @@ describe('PaymentAttachmentService', () => {
     expect(putObject).not.toHaveBeenCalled();
   });
 
+  it('uses safe content type and size bucket span attributes for rejected receipt uploads', async () => {
+    findUnique.mockResolvedValue({ id: 'p1', userId: 'u1' });
+    const service = createService();
+    const file = {
+      ...pdfFile(Buffer.from('%PDF-1.4\n')),
+      mimetype: 'application/x-private; token=secret-token',
+      size: 2048,
+    };
+
+    await expect(
+      service.attachPdf({
+        paymentId: 'p1',
+        userId: 'u1',
+        role: UserRole.APPLICANT.toString(),
+        file,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const spanAttributes = [
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+    ];
+    const payload = JSON.stringify(spanAttributes);
+
+    expect(payload).toContain('unsupported');
+    expect(payload).toContain('1kb_100kb');
+    expect(payload).not.toContain('application/x-private');
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('document.size_bytes');
+    expect(putObject).not.toHaveBeenCalled();
+  });
+
   it('stores a generated receipt copy and marks it as available', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
@@ -172,22 +225,16 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'succeeded',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(result.fileName).toBe('receipt-yk-payment-1.html');
     expect(result.objectKey).toBe(
-      'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
+      'payment-documents/receipts/user-1/payment-1/receipt.html',
     );
     expect(putObject).toHaveBeenCalledWith(
       result.objectKey,
@@ -229,17 +276,11 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'pending',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(update).toHaveBeenCalledWith({
@@ -277,17 +318,11 @@ describe('PaymentAttachmentService', () => {
 
     const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1500.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: null,
       createdAt: '2026-04-25T05:52:31.611Z',
       capturedAt: '2026-04-25T05:53:54.785Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(update).toHaveBeenCalledWith({
@@ -295,7 +330,7 @@ describe('PaymentAttachmentService', () => {
       data: {
         attachmentFileName: 'receipt-yk-payment-1.html',
         attachmentFileUrl: result.objectKey,
-        receiptStatus: PaymentReceiptStatus.Available,
+        receiptStatus: PaymentReceiptStatus.Pending,
       },
     });
   });

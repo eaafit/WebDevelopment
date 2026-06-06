@@ -1,5 +1,7 @@
+import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { InAppNotificationsApiService, NotificationCounterService } from '@notary-portal/ui';
 import { Notary } from './notary';
 
 describe('Notary', () => {
@@ -9,7 +11,23 @@ describe('Notary', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Notary],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: NotificationCounterService,
+          useValue: {
+            unreadCount: signal(0),
+            startPolling: jest.fn(),
+            stopPolling: jest.fn(),
+          },
+        },
+        {
+          provide: InAppNotificationsApiService,
+          useValue: {
+            listRecent: () => Promise.resolve({ notifications: [], unreadCount: 0 }),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Notary);

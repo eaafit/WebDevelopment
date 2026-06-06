@@ -10,6 +10,7 @@ import type {
   AuditMonitoringMeta,
   AuditMonitoringMode,
 } from './audit-monitoring.models';
+import { WebLoggerService } from '../logging/web-logger.service';
 
 const PAGE_SIZE = 20;
 const CSV_BATCH_SIZE = 200;
@@ -45,6 +46,7 @@ export class AuditMonitoringPage {
   private readonly selectedEventId = signal<string | null>(null);
   private readonly api = inject(AuditMonitoringApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly logger = inject(WebLoggerService);
   private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: 'short',
@@ -234,7 +236,19 @@ export class AuditMonitoringPage {
       link.download = `audit-events-${new Date().toISOString().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
+      this.logger.info('Audit CSV export completed', {
+        event: 'audit_csv_export_completed',
+        exportedRows: events.length,
+        filters: this.appliedFilters(),
+        mode: this.mode,
+      });
     } catch (error) {
+      this.logger.error('Audit CSV export failed', {
+        error,
+        event: 'audit_csv_export_failed',
+        filters: this.appliedFilters(),
+        mode: this.mode,
+      });
       this.error.set(extractAuditError(error));
     } finally {
       this.exporting.set(false);

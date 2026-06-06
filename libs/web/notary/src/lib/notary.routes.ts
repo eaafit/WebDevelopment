@@ -1,7 +1,6 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
-import { Dashboard } from './features/dashboard/dashboard';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
@@ -14,19 +13,15 @@ export const notaryRoutes: Route[] = [
     path: '',
     component: Notary,
     children: [
+      { path: '', ...placeholder('Главная', ['Обзор кабинета нотариуса']) } as Route,
       {
         path: 'orders',
-        loadComponent: () => import('./features/orders/orders-list/orders-list').then((m) => m.OrdersList),
+        loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
       },
-      {
-        path: 'orders/:id',
-        loadComponent: () => import('./features/orders/order-detail/order-detail').then((m) => m.OrderDetail),
-      },
-      { path: '', component: Dashboard },
       {
         path: 'subscription',
-        loadComponent: () => import('./features/subscription-plan/subscription-plan').then((m) => m.SubscriptionPlan),
-      },
+        ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
+      } as Route,
       {
         path: 'subscription/checkout/success',
         loadComponent: () =>
@@ -63,15 +58,36 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Запрос, оплата и получение копий',
-          'Статус «в обработке/готово»',
-        ]),
-      } as Route,
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
+            data: { role: 'notary' },
+          },
+          {
+            path: 'new',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/new/new').then((m) => m.New),
+          },
+          {
+            path: ':id',
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
+          },
+        ],
+      },
       {
         path: 'notifications',
         loadComponent: () =>
           import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.NotaryNotificationSettings,
+          ),
       },
       {
         path: 'support',

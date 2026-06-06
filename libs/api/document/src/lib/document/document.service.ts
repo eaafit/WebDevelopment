@@ -13,10 +13,20 @@ import {
   type ListDocumentsByAssessmentRequest,
   type ListDocumentsByAssessmentResponse,
 } from '@notary-portal/api-contracts';
-import { requireAuth } from '@internal/auth-shared';
+import { getCurrentUser, requireAuth } from '@internal/auth-shared';
 import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
-import path from 'path';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  normalizeSpanContentType,
+  runInSpan,
+  setSpanAttributes,
+  spanSizeBucket,
+} from '@internal/tracing';
+import * as path from 'path';
 import { Readable } from 'stream';
 import { DocumentRecordNotFoundError, DocumentRepository } from './document.repository';
 import type { DocumentQuery } from './document.query';
@@ -60,90 +70,155 @@ export class DocumentService {
   }
 
   async createDocument(request: CreateDocumentRequest): Promise<CreateDocumentResponse> {
-    const currentUser = requireAuth();
-    const assessmentId = request.assessmentId.trim();
-    const fileName = normalizeDisplayFileName(request.fileName);
-    const fileContent = request.fileContent.length ? request.fileContent : undefined;
+    return runInSpan(
+      'DocumentService.createDocument',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentCreate,
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+        'document.content_type': normalizeSpanContentType(request.fileType),
+        'document.size_bucket': spanSizeBucket(request.fileContent.length),
+      },
+      async (span) => {
+        const currentUser = requireAuth();
+        const assessmentId = request.assessmentId.trim();
+        const fileName = normalizeDisplayFileName(request.fileName);
+        const fileContent = request.fileContent.length ? request.fileContent : undefined;
 
-    validateUuid(assessmentId, 'assessment_id');
-    if (!fileName) throw invalid('file_name', 'is required');
-    if (!fileContent) throw invalid('file_content', 'is required');
+        validateUuid(assessmentId, 'assessment_id');
+        if (!fileName) throw invalid('file_name', 'is required');
+        if (!fileContent) throw invalid('file_content', 'is required');
 
-    const uploadedById = resolveUploadedById(request.uploadedById, currentUser.sub);
-    const fileType = request.fileType?.trim() || 'application/octet-stream';
-    const documentType = toPrismaDocumentType(
-      request.documentType,
-      inferDocumentType(fileType, fileName),
-    );
+        const uploadedById = resolveUploadedById(request.uploadedById, currentUser.sub);
+        const fileType = request.fileType?.trim() || 'application/octet-stream';
+        const documentType = toPrismaDocumentType(
+          request.documentType,
+          inferDocumentType(fileType, fileName),
+        );
+        setSpanAttributes(span, {
+          'document.type': documentType,
+          'document.content_type': normalizeSpanContentType(fileType),
+          'document.size_bucket': spanSizeBucket(fileContent.length),
+        });
 
-    const assessmentExists = await this.documentRepository.assessmentExists(assessmentId);
-    if (!assessmentExists) {
-      throw new ConnectError(`assessment ${assessmentId} not found`, Code.NotFound);
-    }
-
-    let storedFile:
-      | {
-          bucketName: string;
-          objectKey: string;
-          fileSize: number;
+        const assessmentExists = await runInSpan(
+          'DocumentRepository.assessmentExists',
+          {
+            'notary.operation': 'document.assessment_exists_check',
+            'notary.entity': 'Assessment',
+            'db.operation': 'select',
+          },
+          () => this.documentRepository.assessmentExists(assessmentId),
+        );
+        if (!assessmentExists) {
+          throw new ConnectError(`assessment ${assessmentId} not found`, Code.NotFound);
         }
-      | undefined;
 
-    try {
-      storedFile = await this.documentStorageService.saveFile({
-        assessmentId,
-        fileName,
-        content: fileContent,
-        contentType: fileType,
-        documentType,
-      });
+        let storedFile:
+          | {
+              bucketName: string;
+              objectKey: string;
+              fileSize: number;
+            }
+          | undefined;
 
-      const document = await this.documentRepository.createDocument({
-        assessmentId,
-        fileName,
-        fileType,
-        fileSize: storedFile.fileSize,
-        documentType,
-        bucketName: storedFile.bucketName,
-        objectKey: storedFile.objectKey,
-        uploadedById,
-      });
+        try {
+          const savedFile = await this.documentStorageService.saveFile({
+            assessmentId,
+            fileName,
+            content: fileContent,
+            contentType: fileType,
+            documentType,
+          });
+          storedFile = savedFile;
 
-      return create(CreateDocumentResponseSchema, { document });
-    } catch (error: unknown) {
-      if (storedFile) {
-        await this.documentStorageService
-          .deleteFile({
-            bucketName: storedFile.bucketName,
-            objectKey: storedFile.objectKey,
-          })
-          .catch(() => undefined);
-      }
+          const document = await runInSpan(
+            'DocumentRepository.createDocument',
+            {
+              'notary.operation': 'document.repository.create',
+              'notary.entity': 'Document',
+              'db.operation': 'insert',
+              'document.type': documentType,
+              'document.content_type': normalizeSpanContentType(fileType),
+              'document.size_bucket': spanSizeBucket(savedFile.fileSize),
+            },
+            () =>
+              this.documentRepository.createDocument({
+                assessmentId,
+                fileName,
+                fileType,
+                fileSize: savedFile.fileSize,
+                documentType,
+                bucketName: savedFile.bucketName,
+                objectKey: savedFile.objectKey,
+                uploadedById,
+              }),
+          );
 
-      throw toConnectStorageError(error);
-    }
+          return create(CreateDocumentResponseSchema, { document });
+        } catch (error: unknown) {
+          if (storedFile) {
+            const rollbackFile = storedFile;
+            await runInSpan(
+              'DocumentStorageService.rollbackDeleteFile',
+              {
+                'notary.operation': 'document.storage.rollback_delete',
+                'notary.entity': 'Document',
+                'document.type': documentType,
+              },
+              async (rollbackSpan) => {
+                try {
+                  await this.documentStorageService.deleteFile({
+                    bucketName: rollbackFile.bucketName,
+                    objectKey: rollbackFile.objectKey,
+                  });
+                } catch (rollbackError) {
+                  markSpanFailure(rollbackSpan, rollbackError);
+                }
+              },
+            );
+          }
+
+          throw toConnectStorageError(error);
+        }
+      },
+    );
   }
 
   async deleteDocument(request: DeleteDocumentRequest): Promise<DeleteDocumentResponse> {
-    validateUuid(request.id, 'id');
+    return runInSpan(
+      'DocumentService.deleteDocument',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentDelete,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async (span) => {
+        validateUuid(request.id, 'id');
 
-    const document = await this.documentRepository.findDocumentRecord(request.id);
-    if (!document) {
-      throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
-    }
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+        setSpanAttributes(span, {
+          'document.type': document.documentType,
+          'document.content_type': normalizeSpanContentType(document.fileType),
+          'document.size_bucket': spanSizeBucket(document.fileSize),
+        });
 
-    try {
-      await this.documentStorageService.deleteFile({
-        bucketName: document.bucketName,
-        objectKey: document.objectKey,
-      });
-    } catch (error: unknown) {
-      throw toConnectStorageError(error);
-    }
+        try {
+          await this.documentStorageService.deleteFile({
+            bucketName: document.bucketName,
+            objectKey: document.objectKey,
+          });
+        } catch (error: unknown) {
+          throw toConnectStorageError(error);
+        }
 
-    await this.documentRepository.deleteDocument(request.id);
+        await this.documentRepository.deleteDocument(request.id);
 
-    return create(DeleteDocumentResponseSchema, { success: true });
+        return create(DeleteDocumentResponseSchema, { success: true });
+      },
+    );
   }
 
   async getDocumentFile(documentId: string): Promise<{
@@ -152,24 +227,38 @@ export class DocumentService {
     fileType: string;
     fileSize: number;
   } | null> {
-    validateUuid(documentId, 'id');
+    return runInSpan(
+      'DocumentService.getDocumentFile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentContentOpen,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async (span) => {
+        validateUuid(documentId, 'id');
 
-    const document = await this.documentRepository.findDocumentRecord(documentId);
-    if (!document) {
-      return null;
-    }
+        const document = await this.documentRepository.findDocumentRecord(documentId);
+        if (!document) {
+          return null;
+        }
+        setSpanAttributes(span, {
+          'document.type': document.documentType,
+          'document.content_type': normalizeSpanContentType(document.fileType),
+          'document.size_bucket': spanSizeBucket(document.fileSize),
+        });
 
-    const storedFile = await this.documentStorageService.getFile({
-      bucketName: document.bucketName,
-      objectKey: document.objectKey,
-    });
+        const storedFile = await this.documentStorageService.getFile({
+          bucketName: document.bucketName,
+          objectKey: document.objectKey,
+        });
 
-    return {
-      body: storedFile.body,
-      fileName: document.fileName,
-      fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
-      fileSize: storedFile.contentLength ?? document.fileSize,
-    };
+        return {
+          body: storedFile.body,
+          fileName: document.fileName,
+          fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
+          fileSize: storedFile.contentLength ?? document.fileSize,
+        };
+      },
+    );
   }
 
   private normalizeListRequest(request: ListDocumentsByAssessmentRequest): DocumentQuery {

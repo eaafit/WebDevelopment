@@ -1,6 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { Logger } from '@nestjs/common';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import {
   ExportAuditEventsRequestSchema,
   ListAuditEventsRequestSchema,
@@ -161,6 +162,9 @@ describe('AuditService', () => {
 
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith({
       userId: 'notary-1',
+      actorEmail: 'seed-user-010@seed.local',
+      actorName: undefined,
+      actorRole: 'Notary',
       actionType: 'assessment.updated',
       entityName: 'Assessment',
       entityId: '11111111-1111-4111-8111-111111111111',
@@ -176,6 +180,104 @@ describe('AuditService', () => {
       },
       timestamp: undefined,
     });
+  });
+
+  it('should record anonymous security events when explicitly allowed', async () => {
+    await requestContextStorage.run(
+      {
+        user: null,
+        metadata: {
+          ip: '10.0.0.7',
+          userAgent: 'anonymous-agent',
+        },
+      },
+      () =>
+        service.record({
+          allowAnonymous: true,
+          actorEmail: 'ghost@example.com',
+          eventType: 'user.login_failed',
+          targetType: 'Security',
+          targetId: null,
+          actionTitle: 'Неудачная попытка входа',
+          actionContext: 'Пользователь не найден',
+          after: {
+            outcome: 'failed',
+            reason: 'user_not_found',
+            email: 'ghost@example.com',
+          },
+        }),
+    );
+
+    expect(auditRepository.createAuditLog).toHaveBeenCalledWith({
+      userId: null,
+      actorEmail: 'ghost@example.com',
+      actorName: undefined,
+      actorRole: undefined,
+      actionType: 'user.login_failed',
+      entityName: 'Security',
+      entityId: null,
+      details: {
+        actionTitle: 'Неудачная попытка входа',
+        actionContext: 'Пользователь не найден',
+        after: {
+          outcome: 'failed',
+          reason: 'user_not_found',
+          email: 'ghost@example.com',
+        },
+        ip: '10.0.0.7',
+        userAgent: 'anonymous-agent',
+      },
+      timestamp: undefined,
+    });
+  });
+
+  it('marks a handled audit write failure and logs no raw details', async () => {
+    const span = {
+      end: jest.fn(),
+      recordException: jest.fn(),
+      setAttribute: jest.fn(),
+      setStatus: jest.fn(),
+    };
+    const getTracerSpy = jest
+      .spyOn(trace, 'getTracer')
+      .mockReturnValue({ startSpan: jest.fn(() => span) } as never);
+    const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    auditRepository.createAuditLog.mockRejectedValue(
+      new Error(
+        'failed for test@example.com 11111111-1111-4111-8111-111111111111 token=secret',
+      ),
+    );
+
+    await runAs(
+      {
+        sub: 'admin-1',
+        email: 'admin@example.com',
+        role: Role.Admin,
+        iat: 1,
+        exp: 2,
+      },
+      () =>
+        service.record({
+          eventType: 'assessment.updated',
+          targetType: 'Assessment',
+          targetId: '11111111-1111-4111-8111-111111111111',
+          actionTitle: 'Обновлена заявка',
+        }),
+    );
+
+    expect(span.recordException).toHaveBeenCalledWith('Error');
+    expect(span.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'Error',
+    });
+    expect(span.setAttribute).toHaveBeenCalledWith('notary.result', 'error');
+    const logged = JSON.stringify(loggerSpy.mock.calls);
+    expect(logged).not.toContain('test@example.com');
+    expect(logged).not.toContain('11111111-1111-4111-8111-111111111111');
+    expect(logged).not.toContain('secret');
+
+    getTracerSpy.mockRestore();
+    loggerSpy.mockRestore();
   });
 
   it('should normalize exact actor and target filters', async () => {
@@ -331,6 +433,9 @@ describe('AuditService', () => {
     expect(auditRepository.createAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: '33333333-3333-4333-8333-333333333333',
+        actorEmail: 'admin@example.local',
+        actorName: undefined,
+        actorRole: 'Admin',
         actionType: 'audit.exported',
         entityName: 'Assessment',
         entityId: '22222222-2222-4222-8222-222222222222',
@@ -374,7 +479,7 @@ describe('AuditService', () => {
     ).resolves.toBeUndefined();
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to record audit event assessment.updated'),
+      'Audit record failed; operation=audit.record; result=error; error=Error',
     );
     warnSpy.mockRestore();
   });

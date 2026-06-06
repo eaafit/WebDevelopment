@@ -83,6 +83,15 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum NotificationPreferenceChannel {
+  Email @map("email")
+  Sms   @map("sms")
+  Push  @map("push")
+  InApp @map("in_app")
+
+  @@map("notification_preference_channel")
+}
+
 enum NotificationCategory {
   Application @map("application")
   Document    @map("document")
@@ -91,6 +100,21 @@ enum NotificationCategory {
   Assessment  @map("assessment")
 
   @@map("notification_category")
+}
+
+enum NotificationEntityCategory {
+  Assessment @map("assessment")
+  Payment    @map("payment")
+  System     @map("system")
+
+  @@map("notification_entity_category")
+}
+
+enum NotificationPreferenceStatus {
+  Active   @map("active")
+  Inactive @map("inactive")
+
+  @@map("notification_preference_status")
 }
 
 enum NewsletterSubscriptionStatus {
@@ -217,7 +241,8 @@ model User {
   payments          Payment[]
   uploadedDocuments Document[]         @relation("UploadedBy")
   signedReports     AssessmentReport[] @relation("SignedBy")
-  notifications     Notification[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
   refreshTokens     RefreshToken[]
   passwordResets    PasswordReset[]
   auditLogs         AuditLog[]
@@ -226,6 +251,9 @@ model User {
   newsletterSubscription NewsletterSubscription?
   newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
   newsletterDeliveries   NewsletterDelivery[]
+
+  applicantLeads Lead[] @relation("ApplicantLeads")
+  executorLeads  Lead[] @relation("ExecutorLeads")
 
   @@map("users")
 }
@@ -296,6 +324,7 @@ model Assessment {
   address            String           @db.VarChar
   description        String?          @db.Text
   estimatedValue     Decimal?         @map("estimated_value") @db.Decimal(15, 2)
+  bitrixLeadId       String?          @map("bitrix_lead_id") @db.VarChar(50)
 
   user             User              @relation("ApplicantAssessments", fields: [userId], references: [id])
   notary           User?             @relation("NotaryAssessments", fields: [notaryId], references: [id])
@@ -303,6 +332,8 @@ model Assessment {
   documents        Document[]
   reports          AssessmentReport[]
   payments         Payment[]
+
+  lead Lead?
 
   @@map("assessments")
 }
@@ -385,19 +416,34 @@ model AssessmentReport {
 }
 
 model Notification {
-  id       String               @id @default(uuid()) @db.Uuid
-  userId   String               @map("user_id") @db.Uuid
+  id       String                 @id @default(uuid()) @db.Uuid
+  userId   String                 @map("user_id") @db.Uuid
   type     NotificationType
   category NotificationCategory @default(System)
-  title    String               @default("Уведомление") @db.VarChar
-  message  String               @db.Text
-  sentAt   DateTime             @default(now()) @map("sent_at") @db.Timestamp()
-  readAt   DateTime?            @map("read_at") @db.Timestamp() // [FIX] время прочтения
-  status   NotificationStatus   @default(Pending)
+  title    String                 @default("Уведомление") @db.VarChar
+  message  String                 @db.Text
+  sentAt   DateTime               @default(now()) @map("sent_at") @db.Timestamp()
+  readAt   DateTime?              @map("read_at") @db.Timestamp() // [FIX] время прочтения
+  status   NotificationStatus     @default(Pending)
 
   user User @relation(fields: [userId], references: [id])
 
   @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String                       @id @default(uuid()) @db.Uuid
+  userId         String                       @map("user_id") @db.Uuid
+  channel        NotificationPreferenceChannel @map("channel")
+  entityCategory NotificationEntityCategory   @map("entity_category")
+  status         NotificationPreferenceStatus @default(Active) @map("status")
+  updatedAt      DateTime                     @updatedAt @map("updated_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel, entityCategory])
+  @@index([userId])
+  @@map("notification_preferences")
 }
 
 model NewsletterSubscription {
@@ -490,19 +536,24 @@ model PasswordReset {
 
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  actorEmail String?  @map("actor_email") @db.VarChar
+  actorName  String?  @map("actor_name") @db.VarChar
+  actorRole  Role?    @map("actor_role")
   actionType String   @map("action_type") @db.VarChar
   entityName String   @map("entity_name") @db.VarChar
-  entityId   String   @map("entity_id") @db.Uuid
+  entityId   String?  @map("entity_id") @db.Uuid
   timestamp  DateTime @default(now()) @db.Timestamp()
   details    Json?    @db.JsonB
 
-  user User @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([timestamp(sort: Desc)])
   @@index([actionType])
   @@index([entityId])
   @@index([userId])
+  @@index([actorEmail])
+  @@index([actorName])
   @@index([entityName, entityId])
   @@index([entityName, entityId, timestamp(sort: Desc)])
   @@map("audit_logs")
@@ -602,4 +653,26 @@ model ClientSync {
   user              User     @relation(fields: [userId], references: [id])
 
   @@map("client_sync")
+}
+
+model Lead {
+  id                     String   @id @default(uuid())
+  applicantId            String   @db.Uuid @map("applicant_id")
+  executorId             String?  @db.Uuid @map("executor_id")
+  assessmentId           String   @db.Uuid @unique @map("assessment_id")
+  startDate              DateTime @map("start_date") @default(now())
+  plannedCompletionDate  DateTime @map("planned_completion_date")
+  actualCompletionDate   DateTime? @map("actual_completion_date")
+  transactionId          String?  @map("transaction_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  applicant   User   @relation("ApplicantLeads", fields: [applicantId], references: [id], onDelete: Cascade)
+  executor    User?  @relation("ExecutorLeads", fields: [executorId], references: [id])
+  assessment  Assessment @relation(fields: [assessmentId], references: [id])
+
+  @@index([applicantId])
+  @@index([executorId])
+  @@index([assessmentId])
+  @@map("leads")
 }

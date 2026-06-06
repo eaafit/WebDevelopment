@@ -33,8 +33,9 @@ describe('TransactionHistoryService', () => {
   const auditService = {
     record: jest.fn(),
   };
-  const notificationService = {
-    createInternalNotification: jest.fn(),
+  const paymentNotificationService = {
+    notifyPaymentUpdated: jest.fn(),
+    notifyPaymentDeleted: jest.fn(),
   };
 
   let service: TransactionHistoryService;
@@ -45,7 +46,7 @@ describe('TransactionHistoryService', () => {
       transactionHistoryRepository as never,
       metrics as never,
       auditService as never,
-      notificationService as never,
+      paymentNotificationService as never,
     );
   });
 
@@ -185,10 +186,15 @@ describe('TransactionHistoryService', () => {
           after: expect.objectContaining({ paymentId, status: 'Completed', amount: '100.50' }),
         }),
       );
-      expect(notificationService.createInternalNotification).toHaveBeenCalledWith({
-        userId,
-        message: `Платёж #a1b2c3d4 обновлён`,
-      });
+      expect(paymentNotificationService.notifyPaymentUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: paymentId,
+          userId,
+          status: 'Completed',
+          amount: '100.50',
+          assessmentId,
+        }),
+      );
     });
 
     it('should not record audit when update returns no payment', async () => {
@@ -203,7 +209,7 @@ describe('TransactionHistoryService', () => {
       await service.updatePayment(request);
 
       expect(auditService.record).not.toHaveBeenCalled();
-      expect(notificationService.createInternalNotification).not.toHaveBeenCalled();
+      expect(paymentNotificationService.notifyPaymentUpdated).not.toHaveBeenCalled();
     });
   });
 
@@ -264,10 +270,15 @@ describe('TransactionHistoryService', () => {
           before: expect.objectContaining({ paymentId, status: 'Pending', amount: '100.50' }),
         }),
       );
-      expect(notificationService.createInternalNotification).toHaveBeenCalledWith({
-        userId,
-        message: `Платёж #a1b2c3d4 удалён`,
-      });
+      expect(paymentNotificationService.notifyPaymentDeleted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: paymentId,
+          userId,
+          status: 'Pending',
+          amount: '100.50',
+          assessmentId,
+        }),
+      );
     });
 
     it('should not record audit when snapshot is null', async () => {
@@ -279,7 +290,7 @@ describe('TransactionHistoryService', () => {
       await service.deletePayment(request);
 
       expect(auditService.record).not.toHaveBeenCalled();
-      expect(notificationService.createInternalNotification).not.toHaveBeenCalled();
+      expect(paymentNotificationService.notifyPaymentDeleted).not.toHaveBeenCalled();
     });
   });
 });

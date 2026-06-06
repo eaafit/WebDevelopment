@@ -1,6 +1,6 @@
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, inject, signal, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 
 const NOTARY_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
@@ -8,6 +8,8 @@ const NOTARY_MENU = [
   { label: 'Подписка', route: 'subscription/checkout', icon: '👑' },
   { label: 'Транзакции', route: 'transactions', icon: '💳' },
   { label: 'Модуль оценки', route: 'assessment', icon: '📐' },
+  { label: 'История заказов', route: 'assessment/history', icon: '📋' },
+  { label: 'Мониторинг', route: 'monitoring', icon: '🖥' },
   { label: 'Копии документов', route: 'copies', icon: '📑' },
   { label: 'Уведомления', route: 'notifications', icon: '🔔' },
   { label: 'Поддержка', route: 'support', icon: '💬' },
@@ -21,8 +23,19 @@ const NOTARY_MENU = [
   styleUrl: './notary.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Notary {
+export class Notary implements OnInit, OnDestroy {
+  private readonly notificationCounter = inject(NotificationCounterService);
+
   menuItems = NOTARY_MENU;
   pageTitle = 'Личный кабинет нотариуса';
   userLabel = 'Нотариус';
+  unreadNotifications = this.notificationCounter.unreadCount;
+
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.notificationCounter.stopPolling();
+  }
 }

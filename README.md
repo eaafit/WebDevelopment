@@ -22,13 +22,13 @@
 
 ### Запуск проекта
 
-- `docker-compose up` - запустить PostgreSQL
+- `docker-compose up` - запустить PostgreSQL, MinIO, Prometheus, Loki, Promtail, Tempo и Grafana
 - `pnpm nx prune` - очистка nx
 - `docker system prune` - Глубокая чистка и освободить максимум места
 - `docker container prune` - Удаляет только остановленные контейнеры
 - `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
 - `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
-- `rm -rf node_modules` - удаление node_modules 
+- `rm -rf node_modules` - удаление node_modules
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
@@ -56,6 +56,28 @@
 
 ---
 
+### Логи и трассировки в Grafana
+
+Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki** и **Promtail** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступны datasource **Loki** и дашборды **Container logs**, **Security events (Loki)** и **Failed access attempts (Loki)**.
+
+API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует данные события и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
+
+Tempo доступен на `3200`, принимает OTLP/HTTP на `4318` и OTLP/gRPC на `4317`. Grafana получает источник данных **Tempo** через автоматическую настройку.
+
+Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём. Те же события дополнительно пишутся в Prometheus-метрику `notary_failed_access_total` с низкокардинальными label'ами `reason`, `status_code` и `path_group`.
+
+Smoke-проверка для этого dashboard описана в [`docs/failed-access-loki-smoke.md`](docs/failed-access-loki-smoke.md): там есть тестовые 401/404 запросы, LogQL-запрос и ожидаемые значения панелей.
+
+В Explore можно использовать запрос:
+
+```logql
+{job="docker", service=~"api|web"} | json | requestId="<id запроса>"
+```
+
+Если API запущен локально через `pnpm nx serve api`, его stdout не читается Promtail; для логов в Grafana запускайте API как контейнер, например через [`apps/web/docker-compose.portal.yml`](apps/web/docker-compose.portal.yml).
+
+---
+
 ### Платежи (ЮKassa)
 
 - Основной сценарий оплаты подписки для нотариуса выполняется через **embedded Checkout Widget ЮKassa** прямо на странице `/notary/subscription/checkout`, без редиректа на отдельную страницу оплаты.
@@ -68,12 +90,24 @@
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `PAYMENT_PROVIDER` - активный провайдер создания платежей (`yookassa` по умолчанию, `robokassa` для Robokassa redirect)
 - `YOOKASSA_RECEIPT_VAT_CODE` - обязательный `vat_code` для строки чека подписки, которую мы передаём в YooKassa; значение нужно задать явно по согласованию с бухгалтерией
+
+**Переменные окружения Robokassa:**
+
+- `ROBOKASSA_MERCHANT_LOGIN` - логин магазина из кабинета Robokassa
+- `ROBOKASSA_PASSWORD_1` - пароль #1 для подписи ссылок оплаты
+- `ROBOKASSA_PASSWORD_2` - пароль #2 для проверки `ResultURL` callback
+- `ROBOKASSA_TEST_MODE` - `true`/`false`, признак тестового режима генерации ссылок оплаты
 
 **Webhook URL для кабинета ЮKassa:**
 
 - `https://<api-host>/api/payments/webhook`
 - если включён `PAYMENT_WEBHOOK_SECRET`: `https://<api-host>/api/payments/webhook?secret=<PAYMENT_WEBHOOK_SECRET>`
+
+**Result URL для Robokassa (callback):**
+
+- `https://<api-host>/api/payments/robokassa/result`
 
 **Fallback routes после внешней авторизации / 3DS:**
 

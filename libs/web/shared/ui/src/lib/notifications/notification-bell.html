@@ -1,0 +1,41 @@
+<div class="notification-bell">
+  <button type="button" class="notification-bell__trigger" (click)="toggle()" aria-label="Уведомления">
+    🔔
+    @if (unreadCount(); as c) {
+      @if (c > 0) {
+        <span class="notification-bell__badge">{{ c }}</span>
+      }
+    }
+  </button>
+
+  @if (open()) {
+    <div class="notification-bell__panel">
+      <header class="notification-bell__panel-header">
+        <strong>Уведомления</strong>
+        <button type="button" class="notification-bell__close" (click)="close()">×</button>
+      </header>
+
+      @if (preview().length) {
+        <ul class="notification-bell__list">
+          @for (item of preview(); track item.id) {
+            <li [class.notification-bell__item--unread]="item.isUnread">
+              <button
+                type="button"
+                class="notification-bell__item-button"
+                (click)="markAsRead(item)"
+                [attr.aria-label]="'Отметить уведомление прочитанным: ' + item.title">
+              <span class="notification-bell__title">{{ item.title }}</span>
+              <span class="notification-bell__meta">{{ relativeTime(item.createdAt) }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="notification-bell__empty">Нет уведомлений</p>
+      }
+
+      <a [routerLink]="notificationsRoute()" class="notification-bell__all" (click)="close()">Все уведомления</a>
+    </div>
+    <button type="button" class="notification-bell__backdrop" (click)="close()" aria-label="Закрыть"></button>
+  }
+</div>
