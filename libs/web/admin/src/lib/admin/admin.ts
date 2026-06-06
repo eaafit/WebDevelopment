@@ -25,6 +25,7 @@ const ADMIN_MENU = [
   { label: 'География объектов', route: 'geography', icon: '🗺' },
   { label: 'Bitrix24', route: 'bitrix/config', icon: '🔗' },
   { label: 'Настройки', route: 'settings', icon: '⚙' },
+  { label: 'Поддержка', route:'/admin/support', icon: '👀'}
 ];
 
 @Component({

@@ -147,6 +147,10 @@ export const adminRoutes: Route[] = [
         loadComponent: () =>
           import('./features/bitrix/bitrix-sync.component').then((m) => m.BitrixSyncComponent),
       },
+      {
+        path: 'support',
+        loadComponent: () => import('./features/support/admin-support/admin-support.component').then(m => m.AdminSupportComponent)
+      },
     ],
   },
 ];
