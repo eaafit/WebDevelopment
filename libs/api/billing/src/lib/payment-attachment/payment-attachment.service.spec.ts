@@ -6,7 +6,26 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import { PaymentAttachmentService } from './payment-attachment.service';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
+      action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 function pdfFile(buffer: Buffer, name = 'doc.pdf'): Express.Multer.File {
   return {
@@ -51,6 +70,8 @@ describe('PaymentAttachmentService', () => {
     putObject.mockReset();
     getObject.mockReset();
     auditService.record.mockReset();
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
 
   function createService(): PaymentAttachmentService {
@@ -144,6 +165,38 @@ describe('PaymentAttachmentService', () => {
         file,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(putObject).not.toHaveBeenCalled();
+  });
+
+  it('uses safe content type and size bucket span attributes for rejected receipt uploads', async () => {
+    findUnique.mockResolvedValue({ id: 'p1', userId: 'u1' });
+    const service = createService();
+    const file = {
+      ...pdfFile(Buffer.from('%PDF-1.4\n')),
+      mimetype: 'application/x-private; token=secret-token',
+      size: 2048,
+    };
+
+    await expect(
+      service.attachPdf({
+        paymentId: 'p1',
+        userId: 'u1',
+        role: UserRole.APPLICANT.toString(),
+        file,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const spanAttributes = [
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+    ];
+    const payload = JSON.stringify(spanAttributes);
+
+    expect(payload).toContain('unsupported');
+    expect(payload).toContain('1kb_100kb');
+    expect(payload).not.toContain('application/x-private');
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('document.size_bytes');
     expect(putObject).not.toHaveBeenCalled();
   });
 

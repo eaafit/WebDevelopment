@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import axios, { AxiosInstance } from 'axios';
+import { BusinessOperations, NotarySpanAttributes, SpanKind, runInSpan } from '@internal/tracing';
 
 import { BitrixLeadsConfigService } from './bitrix-leads-config.service';
 import {
@@ -26,32 +27,43 @@ export class BitrixLeadsApiService {
   ) {}
 
   async createLead(fields: LeadFields): Promise<LeadCreateResult> {
-    const url = this.buildMethodUrl('crm.lead.add.json');
-    const body = {
-      fields,
-      params: { REGISTER_SONET_EVENT: 'Y' },
-    };
+    return runInSpan(
+      'BitrixLeadsApiService.createLead',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadCreate,
+        [NotarySpanAttributes.entity]: 'BitrixLead',
+        'bitrix.method': 'crm.lead.add',
+      },
+      async () => {
+        const url = this.buildMethodUrl('crm.lead.add.json');
+        const body = {
+          fields,
+          params: { REGISTER_SONET_EVENT: 'Y' },
+        };
 
-    let data: BitrixResponse<LeadCreateResult>;
-    try {
-      const response = await this.http.post<BitrixResponse<LeadCreateResult>>(url, body);
-      data = response.data;
-    } catch (error) {
-      throw this.mapAxiosError(error);
-    }
+        let data: BitrixResponse<LeadCreateResult>;
+        try {
+          const response = await this.http.post<BitrixResponse<LeadCreateResult>>(url, body);
+          data = response.data;
+        } catch (error) {
+          throw this.mapAxiosError(error);
+        }
 
-    if ('error' in data) {
-      throw this.mapBitrixError(data.error, data.error_description);
-    }
+        if ('error' in data) {
+          throw this.mapBitrixError(data.error, data.error_description);
+        }
 
-    if (typeof data.result !== 'number') {
-      throw new BitrixUnknownError(
-        `Неожиданный формат ответа от Bitrix: result не число (тип: ${typeof data.result}).`,
-        data,
-      );
-    }
+        if (typeof data.result !== 'number') {
+          throw new BitrixUnknownError(
+            `Неожиданный формат ответа от Bitrix: result не число (тип: ${typeof data.result}).`,
+            data,
+          );
+        }
 
-    return data.result;
+        return data.result;
+      },
+      { kind: SpanKind.CLIENT },
+    );
   }
 
   private buildMethodUrl(method: string): string {

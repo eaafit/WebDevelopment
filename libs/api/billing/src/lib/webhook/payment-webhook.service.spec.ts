@@ -1,6 +1,15 @@
 import { Logger } from '@nestjs/common';
 import { PaymentReceiptStatus, PaymentStatus, PaymentType } from '@internal/prisma-client';
+import { setSpanAttributes } from '@internal/tracing';
 import { PaymentWebhookError, PaymentWebhookService } from './payment-webhook.service';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  return {
+    ...actual,
+    setSpanAttributes: jest.fn(actual.setSpanAttributes),
+  };
+});
 
 describe('PaymentWebhookService', () => {
   const findPayment = jest.fn();
@@ -76,6 +85,7 @@ describe('PaymentWebhookService', () => {
     paymentNotificationService.notifyPaymentCompleted.mockReset();
     paymentNotificationService.notifyPaymentFailed.mockReset();
     paymentNotificationService.notifyPaymentProviderIssue.mockReset();
+    jest.mocked(setSpanAttributes).mockClear();
 
     findPayment.mockResolvedValue({
       id: 'payment-1',
@@ -253,6 +263,7 @@ describe('PaymentWebhookService', () => {
         paymentMethod: 'bank_card',
       }),
     );
+    expect(paymentNotificationService.notifyPaymentCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('should branch assessment payments into a placeholder post-payment hook', async () => {
@@ -315,9 +326,14 @@ describe('PaymentWebhookService', () => {
     expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
     expect(
       loggerSpy.mock.calls.some(([message]) =>
-        String(message).includes('Assessment payment payment-1 completed'),
+        String(message).includes(
+          'Payment completed hook placeholder; operation=payment.completed_hooks; payment.type=assessment; result=skipped',
+        ),
       ),
     ).toBe(true);
+    expect(
+      loggerSpy.mock.calls.some(([message]) => String(message).includes('payment-1')),
+    ).toBe(false);
     expect(metrics.recordBillingPayment).toHaveBeenCalledWith('completed', {
       actor: 'applicant',
       scenario: 'assessment_service',
@@ -400,9 +416,14 @@ describe('PaymentWebhookService', () => {
     expect(paymentSubscriptionService.activateSubscription).not.toHaveBeenCalled();
     expect(
       loggerSpy.mock.calls.some(([message]) =>
-        String(message).includes('Document copy payment payment-1 completed'),
+        String(message).includes(
+          'Payment completed hook placeholder; operation=payment.completed_hooks; payment.type=document_copy; result=skipped',
+        ),
       ),
     ).toBe(true);
+    expect(
+      loggerSpy.mock.calls.some(([message]) => String(message).includes('payment-1')),
+    ).toBe(false);
     expect(metrics.recordBillingPayment).toHaveBeenCalledWith('completed', {
       actor: 'applicant',
       scenario: 'document_copy_service',
@@ -446,6 +467,7 @@ describe('PaymentWebhookService', () => {
     expect(metrics.recordPromoApplied).not.toHaveBeenCalled();
     expect(storeGeneratedReceipt).toHaveBeenCalled();
     expect(auditService.record).not.toHaveBeenCalled();
+    expect(paymentNotificationService.notifyPaymentCompleted).not.toHaveBeenCalled();
   });
 
   it('should audit canceled payments only after a real status transition', async () => {
@@ -524,6 +546,7 @@ describe('PaymentWebhookService', () => {
         paymentMethod: 'sbp',
       }),
     );
+    expect(paymentNotificationService.notifyPaymentCompleted).not.toHaveBeenCalled();
   });
 
   it('should not audit duplicate canceled notifications', async () => {
@@ -569,6 +592,8 @@ describe('PaymentWebhookService', () => {
 
     expect(metrics.recordPayment).not.toHaveBeenCalled();
     expect(auditService.record).not.toHaveBeenCalled();
+    expect(paymentNotificationService.notifyPaymentCompleted).not.toHaveBeenCalled();
+    expect(paymentNotificationService.notifyPaymentFailed).not.toHaveBeenCalled();
   });
 
   it('should mark canceled applicant service payments as failed billing metrics', async () => {
@@ -672,6 +697,42 @@ describe('PaymentWebhookService', () => {
     ).rejects.toEqual(expect.objectContaining<Partial<PaymentWebhookError>>({ statusCode: 401 }));
   });
 
+  it('should record unknown for unexpected YooKassa webhook events without raw external value', async () => {
+    const service = new PaymentWebhookService(
+      prisma as never,
+      metrics as never,
+      yookassa as never,
+      robokassa as never,
+      paymentSubscriptionService as never,
+      paymentAttachmentService as never,
+      auditService as never,
+      paymentNotificationService as never,
+    );
+    const rawEvent = 'payment.refunded.token=secret-token-test@example.com';
+
+    await service.handleYooKassaNotification(
+      {
+        type: 'notification',
+        event: rawEvent,
+        object: {
+          id: 'yk-payment-1',
+          status: 'succeeded',
+        },
+      },
+      { signature: 'super-secret' },
+    );
+
+    expect(setSpanAttributes).toHaveBeenCalledWith(expect.anything(), {
+      'payment.provider.event': 'unknown',
+    });
+    expect(paymentNotificationService.notifyPaymentCompleted).not.toHaveBeenCalled();
+
+    const payload = JSON.stringify(jest.mocked(setSpanAttributes).mock.calls);
+    expect(payload).not.toContain(rawEvent);
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('test@example.com');
+  });
+
   it('should accept a valid Robokassa callback and complete payment once', async () => {
     const service = new PaymentWebhookService(
       prisma as never,
@@ -732,6 +793,7 @@ describe('PaymentWebhookService', () => {
         paymentMethod: 'robokassa_redirect',
       }),
     );
+    expect(paymentNotificationService.notifyPaymentCompleted).toHaveBeenCalledTimes(1);
   });
 
   it('should reject Robokassa callback with invalid signature', async () => {

@@ -6,6 +6,13 @@ import { MetricsService } from '@internal/metrics';
 import { NotificationService } from '@internal/notification';
 import { Prisma, Role as PrismaRole } from '@internal/prisma-client';
 import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
+import {
   AuthResultSchema,
   ForgotPasswordResponseSchema,
   LoginResponseSchema,
@@ -111,239 +118,505 @@ export class AuthService {
   // ─── Register ────────────────────────────────────────────────────────────
 
   async register(request: RegisterRequest): Promise<RegisterResponse> {
-    const email = (request.email ?? '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      await this.recordRegistrationFailure(email, 'invalid_email', request.role);
-      throw new ConnectError('email is invalid', Code.InvalidArgument);
-    }
-    if (request.password.length < MIN_PASSWORD_LEN) {
-      await this.recordRegistrationFailure(email, 'weak_password', request.role);
-      throw new ConnectError(
-        `password must be at least ${MIN_PASSWORD_LEN} characters`,
-        Code.InvalidArgument,
-      );
-    }
-    if (!request.fullName?.trim()) {
-      await this.recordRegistrationFailure(email, 'full_name_required', request.role);
-      throw new ConnectError('full_name is required', Code.InvalidArgument);
-    }
-    if (request.role === RpcUserRole.ADMIN) {
-      await this.recordRegistrationFailure(email, 'admin_role_denied', request.role);
-      throw new ConnectError('cannot self-register as admin', Code.PermissionDenied);
-    }
+    return runInSpan(
+      'AuthService.register',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authRegister,
+        [NotarySpanAttributes.entity]: 'User',
+      },
+      async () => {
+        const email = (request.email ?? '').trim().toLowerCase();
+        if (!EMAIL_RE.test(email)) {
+          await this.recordRegistrationFailure(email, 'invalid_email', request.role);
+          throw new ConnectError('email is invalid', Code.InvalidArgument);
+        }
+        if (request.password.length < MIN_PASSWORD_LEN) {
+          await this.recordRegistrationFailure(email, 'weak_password', request.role);
+          throw new ConnectError(
+            `password must be at least ${MIN_PASSWORD_LEN} characters`,
+            Code.InvalidArgument,
+          );
+        }
+        if (!request.fullName?.trim()) {
+          await this.recordRegistrationFailure(email, 'full_name_required', request.role);
+          throw new ConnectError('full_name is required', Code.InvalidArgument);
+        }
+        if (request.role === RpcUserRole.ADMIN) {
+          await this.recordRegistrationFailure(email, 'admin_role_denied', request.role);
+          throw new ConnectError('cannot self-register as admin', Code.PermissionDenied);
+        }
 
-    const existing = await this.authRepository.findByEmail(email);
-    if (existing) {
-      await this.recordRegistrationFailure(
-        email,
-        'email_already_registered',
-        request.role,
-        existing,
-      );
-      throw new ConnectError('email already registered', Code.AlreadyExists);
-    }
+        const existing = await runInSpan(
+          'AuthRepository.findByEmail register',
+          {
+            'notary.operation': 'auth.repository.lookup',
+            'notary.entity': 'User',
+            'db.operation': 'select',
+          },
+          () => this.authRepository.findByEmail(email),
+        );
+        if (existing) {
+          await this.recordRegistrationFailure(
+            email,
+            'email_already_registered',
+            request.role,
+            existing,
+          );
+          throw new ConnectError('email already registered', Code.AlreadyExists);
+        }
 
-    const passwordHash = await this.passwordService.hash(request.password);
-    const user = await this.authRepository.createUser({
-      email,
-      passwordHash,
-      fullName: request.fullName.trim(),
-      phoneNumber: request.phoneNumber?.trim() || undefined,
-      role: this.authRepository.toPrismaRole(request.role),
-    });
+        const passwordHash = await runInSpan(
+          'PasswordService.hash register',
+          {
+            'notary.operation': 'auth.password.hash',
+            'notary.entity': 'User',
+          },
+          () => this.passwordService.hash(request.password),
+        );
+        const user = await runInSpan(
+          'AuthRepository.createUser',
+          {
+            'notary.operation': 'auth.repository.create_user',
+            'notary.entity': 'User',
+            'db.operation': 'insert',
+          },
+          () =>
+            this.authRepository.createUser({
+              email,
+              passwordHash,
+              fullName: request.fullName.trim(),
+              phoneNumber: request.phoneNumber?.trim() || undefined,
+              role: this.authRepository.toPrismaRole(request.role),
+            }),
+        );
 
-    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
-      sub: user.id,
-      email: user.email,
-      role: user.role.toString(),
-    });
+        const { accessToken, refreshToken, refreshExpiresAt } = await runInSpan(
+          'TokenService.generateTokenPair register',
+          {
+            'notary.operation': 'auth.token_pair.generate',
+            'notary.entity': 'AuthSession',
+            'notary.actor.role': normalizeSpanActorRole(user.role),
+          },
+          () =>
+            this.tokenService.generateTokenPair({
+              sub: user.id,
+              email: user.email,
+              role: user.role.toString(),
+            }),
+        );
 
-    await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
+        await runInSpan(
+          'RefreshTokenRepository.save register',
+          {
+            'notary.operation': 'auth.refresh_token.save',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'insert',
+          },
+          () => this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt),
+        );
 
-    this.metrics.recordUserRegistered();
-    this.metrics.recordAuthRegistration('success', metricRole(user.role));
-    await this.recordRegistered(user);
-    await this.notifyAdminsAboutRegistrationBestEffort(user);
+        this.metrics.recordUserRegistered();
+        this.metrics.recordAuthRegistration('success', metricRole(user.role));
+        await this.recordRegistered(user);
+        await this.notifyAdminsAboutRegistrationBestEffort(user);
 
-    if (this.transactionalMailer) {
-      const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
-      void this.transactionalMailer
-        .sendWelcomeAfterRegistration({
-          email: user.email,
-          fullName: user.fullName,
-          roleLabel: roleLabelForRpc(user.role),
-          loginUrl: `${base}/auth`,
-        })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn('[Auth] welcome email failed:', msg);
+        const transactionalMailer = this.transactionalMailer;
+        if (transactionalMailer) {
+          const base = (process.env['FRONTEND_URL'] ?? 'http://localhost:4200').replace(/\/$/, '');
+          void runInSpan(
+            'TransactionalMailer.sendWelcomeAfterRegistration',
+            {
+              'notary.operation': 'auth.mail.send_welcome',
+              'notary.entity': 'User',
+            },
+            (mailSpan) =>
+              transactionalMailer
+                .sendWelcomeAfterRegistration({
+                  email: user.email,
+                  fullName: user.fullName,
+                  roleLabel: roleLabelForRpc(user.role),
+                  loginUrl: `${base}/auth`,
+                })
+                .catch((err: unknown) => {
+                  setSpanAttributes(mailSpan, {
+                    'auth.mail.delivery': 'failed',
+                    'notary.side_effect.result': 'error',
+                  });
+                  throw err;
+                }),
+          ).catch((err: unknown) => {
+            this.logger.warn(
+              `Auth mail delivery failed; operation=auth.mail.send_welcome; result=error; error=${safeErrorName(err)}`,
+            );
+          });
+        }
+
+        return create(RegisterResponseSchema, {
+          result: create(AuthResultSchema, { accessToken, refreshToken, user }),
         });
-    }
-
-    return create(RegisterResponseSchema, {
-      result: create(AuthResultSchema, { accessToken, refreshToken, user }),
-    });
+      },
+    );
   }
 
   // ─── Login ───────────────────────────────────────────────────────────────
 
   async login(request: LoginRequest): Promise<LoginResponse> {
-    const email = (request.email ?? '').trim().toLowerCase();
-    if (!email || !request.password) {
-      await this.recordLoginFailure(email, 'missing_credentials');
-      throw new ConnectError('email and password are required', Code.InvalidArgument);
-    }
+    return runInSpan(
+      'AuthService.login',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authLogin,
+        [NotarySpanAttributes.entity]: 'AuthSession',
+      },
+      async () => {
+        const email = (request.email ?? '').trim().toLowerCase();
+        if (!email || !request.password) {
+          await this.recordLoginFailure(email, 'missing_credentials');
+          throw new ConnectError('email and password are required', Code.InvalidArgument);
+        }
 
-    const record = await this.authRepository.findByEmail(email);
-    if (!record) {
-      await this.recordLoginFailure(email, 'user_not_found');
-      throw new ConnectError('invalid credentials', Code.Unauthenticated);
-    }
-    if (!record.isActive) {
-      await this.recordLoginFailure(email, 'account_deactivated', record);
-      throw new ConnectError('account is deactivated', Code.PermissionDenied);
-    }
+        const record = await runInSpan(
+          'AuthRepository.findByEmail login',
+          {
+            'notary.operation': 'auth.repository.lookup',
+            'notary.entity': 'User',
+            'db.operation': 'select',
+          },
+          () => this.authRepository.findByEmail(email),
+        );
+        if (!record) {
+          await this.recordLoginFailure(email, 'user_not_found');
+          throw new ConnectError('invalid credentials', Code.Unauthenticated);
+        }
+        if (!record.isActive) {
+          await this.recordLoginFailure(email, 'account_deactivated', record);
+          throw new ConnectError('account is deactivated', Code.PermissionDenied);
+        }
 
-    const passwordValid = await this.passwordService.compare(request.password, record.passwordHash);
-    if (!passwordValid) {
-      await this.recordLoginFailure(email, 'invalid_password', record);
-      throw new ConnectError('invalid credentials', Code.Unauthenticated);
-    }
+        const passwordValid = await runInSpan(
+          'PasswordService.compare login',
+          {
+            'notary.operation': 'auth.password.compare',
+            'notary.entity': 'User',
+            'notary.actor.role': normalizeSpanActorRole(record.role),
+          },
+          () => this.passwordService.compare(request.password, record.passwordHash),
+        );
+        if (!passwordValid) {
+          await this.recordLoginFailure(email, 'invalid_password', record);
+          throw new ConnectError('invalid credentials', Code.Unauthenticated);
+        }
 
-    const user = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
-      sub: user.id,
-      email: user.email,
-      role: user.role.toString(),
-    });
+        const user = this.authRepository.toMessage(record);
+        const { accessToken, refreshToken, refreshExpiresAt } = await runInSpan(
+          'TokenService.generateTokenPair login',
+          {
+            'notary.operation': 'auth.token_pair.generate',
+            'notary.entity': 'AuthSession',
+            'notary.actor.role': normalizeSpanActorRole(user.role),
+          },
+          () =>
+            this.tokenService.generateTokenPair({
+              sub: user.id,
+              email: user.email,
+              role: user.role.toString(),
+            }),
+        );
 
-    await this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt);
-    await this.recordLoginSucceeded(record);
+        await runInSpan(
+          'RefreshTokenRepository.save login',
+          {
+            'notary.operation': 'auth.refresh_token.save',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'insert',
+          },
+          () => this.refreshTokenRepository.save(user.id, refreshToken, refreshExpiresAt),
+        );
+        await this.recordLoginSucceeded(record);
 
-    return create(LoginResponseSchema, {
-      result: create(AuthResultSchema, { accessToken, refreshToken, user }),
-    });
+        return create(LoginResponseSchema, {
+          result: create(AuthResultSchema, { accessToken, refreshToken, user }),
+        });
+      },
+    );
   }
 
   // ─── RefreshToken ────────────────────────────────────────────────────────
 
   async refreshToken(request: RefreshTokenRequest): Promise<RefreshTokenResponse> {
-    if (!request.refreshToken) {
-      throw new ConnectError('refresh_token is required', Code.InvalidArgument);
-    }
+    return runInSpan(
+      'AuthService.refreshToken',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authRefreshToken,
+        [NotarySpanAttributes.entity]: 'AuthSession',
+      },
+      async () => {
+        if (!request.refreshToken) {
+          throw new ConnectError('refresh_token is required', Code.InvalidArgument);
+        }
 
-    // Ротация: старый токен отзывается атомарно, возвращается userId
-    const userId = await this.refreshTokenRepository.rotate(request.refreshToken);
-    if (!userId) {
-      throw new ConnectError('refresh token is invalid or expired', Code.Unauthenticated);
-    }
+        const userId = await runInSpan(
+          'RefreshTokenRepository.rotate',
+          {
+            'notary.operation': 'auth.refresh_token.rotate',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'update',
+          },
+          () => this.refreshTokenRepository.rotate(request.refreshToken),
+        );
+        if (!userId) {
+          throw new ConnectError('refresh token is invalid or expired', Code.Unauthenticated);
+        }
 
-    // Загружаем актуальные данные — роль/статус могли измениться
-    const record = await this.authRepository.findById(userId);
-    if (!record || !record.isActive) {
-      throw new ConnectError('user not found or deactivated', Code.Unauthenticated);
-    }
+        const record = await runInSpan(
+          'AuthRepository.findById refresh',
+          {
+            'notary.operation': 'auth.repository.lookup',
+            'notary.entity': 'User',
+            'db.operation': 'select',
+          },
+          () => this.authRepository.findById(userId),
+        );
+        if (!record || !record.isActive) {
+          throw new ConnectError('user not found or deactivated', Code.Unauthenticated);
+        }
 
-    const rpcUser = this.authRepository.toMessage(record);
-    const { accessToken, refreshToken, refreshExpiresAt } = this.tokenService.generateTokenPair({
-      sub: rpcUser.id,
-      email: rpcUser.email,
-      role: rpcUser.role.toString(),
-    });
+        const rpcUser = this.authRepository.toMessage(record);
+        const { accessToken, refreshToken, refreshExpiresAt } = await runInSpan(
+          'TokenService.generateTokenPair refresh',
+          {
+            'notary.operation': 'auth.token_pair.generate',
+            'notary.entity': 'AuthSession',
+            'notary.actor.role': normalizeSpanActorRole(rpcUser.role),
+          },
+          () =>
+            this.tokenService.generateTokenPair({
+              sub: rpcUser.id,
+              email: rpcUser.email,
+              role: rpcUser.role.toString(),
+            }),
+        );
 
-    await this.refreshTokenRepository.save(userId, refreshToken, refreshExpiresAt);
+        await runInSpan(
+          'RefreshTokenRepository.save refresh',
+          {
+            'notary.operation': 'auth.refresh_token.save',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'insert',
+          },
+          () => this.refreshTokenRepository.save(userId, refreshToken, refreshExpiresAt),
+        );
 
-    return create(RefreshTokenResponseSchema, {
-      result: create(AuthResultSchema, { accessToken, refreshToken, user: rpcUser }),
-    });
+        return create(RefreshTokenResponseSchema, {
+          result: create(AuthResultSchema, { accessToken, refreshToken, user: rpcUser }),
+        });
+      },
+    );
   }
 
   // ─── Logout ──────────────────────────────────────────────────────────────
 
   async logout(request: LogoutRequest): Promise<LogoutResponse> {
-    if (!request.refreshToken) {
-      throw new ConnectError('refresh_token is required', Code.InvalidArgument);
-    }
+    return runInSpan(
+      'AuthService.logout',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authLogout,
+        [NotarySpanAttributes.entity]: 'AuthSession',
+      },
+      async () => {
+        if (!request.refreshToken) {
+          throw new ConnectError('refresh_token is required', Code.InvalidArgument);
+        }
 
-    // Идемпотентный logout — не бросаем ошибку если токен уже отозван
-    const revoked = await this.refreshTokenRepository.revoke(request.refreshToken);
-    return create(LogoutResponseSchema, { success: revoked });
+        const revoked = await runInSpan(
+          'RefreshTokenRepository.revoke',
+          {
+            'notary.operation': 'auth.refresh_token.revoke',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'update',
+          },
+          () => this.refreshTokenRepository.revoke(request.refreshToken),
+        );
+        return create(LogoutResponseSchema, { success: revoked });
+      },
+    );
   }
 
   // ─── Forgot password (email link) ───────────────────────────────────────
 
   /** Не раскрывает, существует ли email: при отсутствии пользователя — тихий успех. */
   async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
-    const email = (request.email ?? '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) {
-      await this.recordPasswordResetFailed('request', 'invalid_email', email);
-      return create(ForgotPasswordResponseSchema, {});
-    }
+    return runInSpan(
+      'AuthService.forgotPassword',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authForgotPassword,
+        [NotarySpanAttributes.entity]: 'PasswordReset',
+      },
+      async () => {
+        const email = (request.email ?? '').trim().toLowerCase();
+        if (!EMAIL_RE.test(email)) {
+          await this.recordPasswordResetFailed('request', 'invalid_email', email);
+          return create(ForgotPasswordResponseSchema, {});
+        }
 
-    const record = await this.authRepository.findByEmail(email);
-    if (!record?.isActive) {
-      await this.recordPasswordResetFailed('request', 'user_not_found_or_inactive', email, record);
-      return create(ForgotPasswordResponseSchema, {});
-    }
+        const record = await runInSpan(
+          'AuthRepository.findByEmail password reset',
+          {
+            'notary.operation': 'auth.repository.lookup',
+            'notary.entity': 'User',
+            'db.operation': 'select',
+          },
+          () => this.authRepository.findByEmail(email),
+        );
+        if (!record?.isActive) {
+          await this.recordPasswordResetFailed(
+            'request',
+            'user_not_found_or_inactive',
+            email,
+            record,
+          );
+          return create(ForgotPasswordResponseSchema, {});
+        }
 
-    const rawToken = this.tokenService.generatePasswordResetToken();
-    const ttlSec = Number(process.env['PASSWORD_RESET_TTL_SEC'] ?? 3600);
-    const expiresAt = new Date(Date.now() + ttlSec * 1000);
-    await this.passwordResetRepository.create(record.id, rawToken, expiresAt);
-    await this.recordPasswordResetRequested(record, expiresAt);
+        const rawToken = this.tokenService.generatePasswordResetToken();
+        const ttlSec = Number(process.env['PASSWORD_RESET_TTL_SEC'] ?? 3600);
+        const expiresAt = new Date(Date.now() + ttlSec * 1000);
+        await runInSpan(
+          'PasswordResetRepository.create',
+          {
+            'notary.operation': 'auth.password_reset.create',
+            'notary.entity': 'PasswordReset',
+            'db.operation': 'insert',
+          },
+          () => this.passwordResetRepository.create(record.id, rawToken, expiresAt),
+        );
+        await this.recordPasswordResetRequested(record, expiresAt);
 
-    const base = (
-      process.env['PASSWORD_RESET_BASE_URL'] ??
-      process.env['FRONTEND_URL'] ??
-      'http://localhost:4200'
-    ).replace(/\/$/, '');
-    const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
+        const base = (
+          process.env['PASSWORD_RESET_BASE_URL'] ??
+          process.env['FRONTEND_URL'] ??
+          'http://localhost:4200'
+        ).replace(/\/$/, '');
+        const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(rawToken)}`;
 
-    if (this.passwordResetMailer) {
-      void this.passwordResetMailer.sendResetLink(record.email, resetUrl).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[Auth] password reset email failed:', msg);
-      });
-    } else {
-      console.warn('[Auth] PASSWORD_RESET_MAILER не настроен — ссылка сброса пароля:', resetUrl);
-    }
+        const passwordResetMailer = this.passwordResetMailer;
+        if (passwordResetMailer) {
+          void runInSpan(
+            'PasswordResetMailer.sendResetLink',
+            {
+              'notary.operation': 'auth.mail.send_password_reset',
+              'notary.entity': 'PasswordReset',
+            },
+            (mailSpan) =>
+              passwordResetMailer.sendResetLink(record.email, resetUrl).catch((err: unknown) => {
+                setSpanAttributes(mailSpan, {
+                  'auth.mail.delivery': 'failed',
+                  'notary.side_effect.result': 'error',
+                });
+                throw err;
+              }),
+          ).catch((err: unknown) => {
+            this.logger.warn(
+              `Auth mail delivery failed; operation=auth.mail.send_password_reset; result=error; error=${safeErrorName(err)}`,
+            );
+          });
+        } else {
+          console.warn('[Auth] PASSWORD_RESET_MAILER не настроен; ссылка сброса пароля не логируется');
+        }
 
-    return create(ForgotPasswordResponseSchema, {});
+        return create(ForgotPasswordResponseSchema, {});
+      },
+    );
   }
 
   async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
-    const token = request.token?.trim();
-    if (!token) {
-      await this.recordPasswordResetFailed('submit', 'token_required');
-      throw new ConnectError('token is required', Code.InvalidArgument);
-    }
-    if (request.newPassword.length < MIN_PASSWORD_LEN) {
-      await this.recordPasswordResetFailed('submit', 'weak_password');
-      throw new ConnectError(
-        `password must be at least ${MIN_PASSWORD_LEN} characters`,
-        Code.InvalidArgument,
-      );
-    }
+    return runInSpan(
+      'AuthService.resetPassword',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.authResetPassword,
+        [NotarySpanAttributes.entity]: 'PasswordReset',
+      },
+      async () => {
+        const token = request.token?.trim();
+        if (!token) {
+          await this.recordPasswordResetFailed('submit', 'token_required');
+          throw new ConnectError('token is required', Code.InvalidArgument);
+        }
+        if (request.newPassword.length < MIN_PASSWORD_LEN) {
+          await this.recordPasswordResetFailed('submit', 'weak_password');
+          throw new ConnectError(
+            `password must be at least ${MIN_PASSWORD_LEN} characters`,
+            Code.InvalidArgument,
+          );
+        }
 
-    const stored = await this.passwordResetRepository.findValid(token);
-    if (!stored) {
-      await this.recordPasswordResetFailed('submit', 'invalid_or_expired_token');
-      throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
-    }
+        const stored = await runInSpan(
+          'PasswordResetRepository.findValid',
+          {
+            'notary.operation': 'auth.password_reset.lookup',
+            'notary.entity': 'PasswordReset',
+            'db.operation': 'select',
+          },
+          () => this.passwordResetRepository.findValid(token),
+        );
+        if (!stored) {
+          await this.recordPasswordResetFailed('submit', 'invalid_or_expired_token');
+          throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
+        }
 
-    const record = await this.authRepository.findById(stored.userId);
-    if (!record) {
-      await this.recordPasswordResetFailed('submit', 'user_not_found');
-      throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
-    }
+        const record = await runInSpan(
+          'AuthRepository.findById reset',
+          {
+            'notary.operation': 'auth.repository.lookup',
+            'notary.entity': 'User',
+            'db.operation': 'select',
+          },
+          () => this.authRepository.findById(stored.userId),
+        );
+        if (!record) {
+          await this.recordPasswordResetFailed('submit', 'user_not_found');
+          throw new ConnectError('invalid or expired reset token', Code.InvalidArgument);
+        }
 
-    const passwordHash = await this.passwordService.hash(request.newPassword);
-    await this.authRepository.updatePasswordHash(stored.userId, passwordHash);
-    await this.passwordResetRepository.markUsed(stored.id);
-    await this.refreshTokenRepository.revokeAll(stored.userId);
-    await this.recordPasswordResetCompleted(record);
+        const passwordHash = await runInSpan(
+          'PasswordService.hash reset',
+          {
+            'notary.operation': 'auth.password.hash',
+            'notary.entity': 'User',
+          },
+          () => this.passwordService.hash(request.newPassword),
+        );
+        await runInSpan(
+          'AuthRepository.updatePasswordHash',
+          {
+            'notary.operation': 'auth.repository.update_password',
+            'notary.entity': 'User',
+            'db.operation': 'update',
+          },
+          () => this.authRepository.updatePasswordHash(stored.userId, passwordHash),
+        );
+        await runInSpan(
+          'PasswordResetRepository.markUsed',
+          {
+            'notary.operation': 'auth.password_reset.mark_used',
+            'notary.entity': 'PasswordReset',
+            'db.operation': 'update',
+          },
+          () => this.passwordResetRepository.markUsed(stored.id),
+        );
+        await runInSpan(
+          'RefreshTokenRepository.revokeAll',
+          {
+            'notary.operation': 'auth.refresh_token.revoke_all',
+            'notary.entity': 'AuthSession',
+            'db.operation': 'update',
+          },
+          () => this.refreshTokenRepository.revokeAll(stored.userId),
+        );
+        await this.recordPasswordResetCompleted(record);
 
-    return create(ResetPasswordResponseSchema, {});
+        return create(ResetPasswordResponseSchema, {});
+      },
+    );
   }
 
   private async recordRegistered(user: AuthAuditUser): Promise<void> {
@@ -376,7 +649,9 @@ export class AuthService {
         type: RpcNotificationType.IN_APP,
       });
     } catch (error) {
-      this.logger.warn(`Failed to create admin registration notification: ${errorMessage(error)}`);
+      this.logger.warn(
+        `Auth notification failed; operation=auth.registration.notify_admins; result=error; error=${safeErrorName(error)}`,
+      );
     }
   }
 
@@ -573,9 +848,7 @@ function roleDetail(
   return toAuditRole(role)?.toString();
 }
 
-function metricRole(
-  role: RpcUserRole | PrismaRole | string | number | null | undefined,
-): string {
+function metricRole(role: RpcUserRole | PrismaRole | string | number | null | undefined): string {
   const auditRole = toAuditRole(role);
   if (!auditRole) {
     return 'unspecified';
@@ -615,6 +888,6 @@ function reasonLabel(reason: string): string {
   }
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

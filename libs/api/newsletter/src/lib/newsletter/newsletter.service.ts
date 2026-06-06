@@ -10,6 +10,14 @@ import {
 } from '@internal/metrics';
 import { NotificationService } from '@internal/notification';
 import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
+import {
   EstimateNewsletterAudienceResponseSchema,
   GetNewsletterCampaignResponseSchema,
   NewsletterAudienceType,
@@ -120,273 +128,412 @@ export class NewsletterService {
   async estimateNewsletterAudience(
     request: EstimateNewsletterAudienceRequest,
   ): Promise<EstimateNewsletterAudienceResponse> {
-    requireRole(Role.Admin);
-    const audience = this.normalizeAudience(request.audience);
-    const recipients = await this.newsletterRepository.resolveAudience(audience);
+    const actor = requireRole(Role.Admin);
 
-    return create(EstimateNewsletterAudienceResponseSchema, {
-      recipientsCount: recipients.length,
-    });
+    return runInSpan(
+      'NewsletterService.estimateNewsletterAudience',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.newsletterAudienceEstimate,
+        [NotarySpanAttributes.entity]: 'NewsletterAudience',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(actor.role),
+      },
+      async (span) => {
+        const audience = this.normalizeAudience(request.audience);
+        setSpanAttributes(span, { 'newsletter.audience_type': formatAudienceType(audience.type) });
+        const recipients = await runInSpan(
+          'NewsletterRepository.resolveAudience estimate',
+          {
+            'notary.operation': 'newsletter.audience.resolve',
+            'notary.entity': 'NewsletterAudience',
+            'newsletter.audience_type': formatAudienceType(audience.type),
+          },
+          () => this.newsletterRepository.resolveAudience(audience),
+        );
+        setSpanAttributes(span, { 'newsletter.recipient_count': recipients.length });
+
+        return create(EstimateNewsletterAudienceResponseSchema, {
+          recipientsCount: recipients.length,
+        });
+      },
+    );
   }
 
   async sendNewsletterCampaign(
     request: SendNewsletterCampaignRequest,
   ): Promise<SendNewsletterCampaignResponse> {
     const actor = requireRole(Role.Admin);
-    const audience = this.normalizeAudience(request.audience);
-    const audienceMetricType = toMetricAudienceType(audience.type);
-    const subject = normalizeRequiredString(request.subject, 'subject', MAX_SUBJECT_LENGTH);
-    const bodyHtml = normalizeBodyHtml(request.bodyHtml);
-    const recipients = await this.newsletterRepository.resolveAudience(audience);
 
-    if (!recipients.length) {
-      throw new ConnectError('newsletter audience is empty', Code.FailedPrecondition);
-    }
+    return runInSpan(
+      'NewsletterService.sendNewsletterCampaign',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.newsletterCampaignSend,
+        [NotarySpanAttributes.entity]: 'NewsletterCampaign',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(actor.role),
+      },
+      async (span) => {
+        const audience = this.normalizeAudience(request.audience);
+        const audienceMetricType = toMetricAudienceType(audience.type);
+        const subject = normalizeRequiredString(request.subject, 'subject', MAX_SUBJECT_LENGTH);
+        const bodyHtml = normalizeBodyHtml(request.bodyHtml);
+        setSpanAttributes(span, { 'newsletter.audience_type': formatAudienceType(audience.type) });
+        const recipients = await runInSpan(
+          'NewsletterRepository.resolveAudience send',
+          {
+            'notary.operation': 'newsletter.audience.resolve',
+            'notary.entity': 'NewsletterAudience',
+            'newsletter.audience_type': formatAudienceType(audience.type),
+          },
+          () => this.newsletterRepository.resolveAudience(audience),
+        );
+        setSpanAttributes(span, { 'newsletter.recipient_count': recipients.length });
 
-    const campaign = await this.newsletterRepository.createCampaign({
-      createdById: isUuid(actor.sub) ? actor.sub : null,
-      subject,
-      bodyHtml,
-      audience,
-      audienceLabel: buildAudienceLabel(audience, recipients.length),
-      recipients,
-    });
-
-    this.logCampaignStart(campaign.id, subject, campaign.audienceLabel, recipients.length);
-    this.metricsService.recordNewsletterCampaignStarted(audienceMetricType, recipients.length);
-    await this.recordCampaignAuditBestEffort({
-      actor,
-      campaign,
-      eventType: 'newsletter.campaign.started',
-      sentCount: 0,
-      failedCount: 0,
-      status: PrismaNewsletterCampaignStatus.Sending,
-    });
-
-    let sentCount = 0;
-    let failedCount = 0;
-    let interruptedError: unknown = null;
-
-    try {
-      for (const recipient of recipients) {
-        try {
-          await this.newsletterMailer.sendNewsletterEmail({
-            to: recipient.email,
-            fullName: recipient.fullName,
-            subject,
-            bodyHtml,
-          });
-        } catch (error) {
-          const deliveryErrorMessage = normalizeErrorMessage(error);
-          failedCount += 1;
-          this.metricsService.recordNewsletterDelivery('failed');
-          this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
-
-          try {
-            await this.newsletterRepository.markDeliveryFailed(
-              campaign.id,
-              recipient.email,
-              deliveryErrorMessage,
-            );
-          } catch (deliveryUpdateError) {
-            interruptedError = deliveryUpdateError;
-            break;
-          }
-
-          continue;
+        if (!recipients.length) {
+          throw new ConnectError('newsletter audience is empty', Code.FailedPrecondition);
         }
 
-        sentCount += 1;
-        this.metricsService.recordNewsletterDelivery('sent');
+        const campaign = await runInSpan(
+          'NewsletterRepository.createCampaign',
+          {
+            'notary.operation': 'newsletter.campaign.create',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.audience_type': formatAudienceType(audience.type),
+            'newsletter.recipient_count': recipients.length,
+            'newsletter.status': formatCampaignStatus(PrismaNewsletterCampaignStatus.Sending),
+          },
+          () =>
+            this.newsletterRepository.createCampaign({
+              createdById: isUuid(actor.sub) ? actor.sub : null,
+              subject,
+              bodyHtml,
+              audience,
+              audienceLabel: buildAudienceLabel(audience, recipients.length),
+              recipients,
+            }),
+        );
 
-        try {
-          await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
-        } catch (deliveryUpdateError) {
-          interruptedError = deliveryUpdateError;
-          break;
+        this.logCampaignStart(recipients.length);
+        this.metricsService.recordNewsletterCampaignStarted(audienceMetricType, recipients.length);
+        await this.recordCampaignAuditBestEffort({
+          actor,
+          campaign,
+          eventType: 'newsletter.campaign.started',
+          sentCount: 0,
+          failedCount: 0,
+          status: PrismaNewsletterCampaignStatus.Sending,
+        });
+
+        const delivery = await runInSpan(
+          'NewsletterService.deliveryBatch',
+          {
+            'notary.operation': 'newsletter.delivery.batch',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.audience_type': formatAudienceType(audience.type),
+            'newsletter.recipient_count': recipients.length,
+          },
+          async (deliverySpan) => {
+            let sentCount = 0;
+            let failedCount = 0;
+            let interruptedError: unknown = null;
+
+            try {
+              for (const recipient of recipients) {
+                try {
+                  await this.newsletterMailer.sendNewsletterEmail({
+                    to: recipient.email,
+                    fullName: recipient.fullName,
+                    subject,
+                    bodyHtml,
+                  });
+                } catch (error) {
+                  const deliveryErrorMessage = normalizeErrorMessage(error);
+                  failedCount += 1;
+                  this.metricsService.recordNewsletterDelivery('failed');
+                  this.logDeliveryFailure(error);
+
+                  try {
+                    await this.newsletterRepository.markDeliveryFailed(
+                      campaign.id,
+                      recipient.email,
+                      deliveryErrorMessage,
+                    );
+                  } catch (deliveryUpdateError) {
+                    interruptedError = deliveryUpdateError;
+                    break;
+                  }
+
+                  continue;
+                }
+
+                sentCount += 1;
+                this.metricsService.recordNewsletterDelivery('sent');
+
+                try {
+                  await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
+                } catch (deliveryUpdateError) {
+                  interruptedError = deliveryUpdateError;
+                  break;
+                }
+              }
+            } catch (error) {
+              interruptedError = error;
+            }
+
+            const status = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
+            setSpanAttributes(deliverySpan, {
+              'newsletter.sent_count': sentCount,
+              'newsletter.failed_count': failedCount,
+              'newsletter.status': formatCampaignStatus(status),
+            });
+            if (interruptedError !== null || failedCount > 0) {
+              markSpanFailure(
+                deliverySpan,
+                interruptedError ?? new Error('NewsletterDeliveryFailed'),
+              );
+            }
+            return { sentCount, failedCount, interruptedError, status };
+          },
+        );
+
+        const finalStatus = delivery.status;
+
+        if (delivery.interruptedError) {
+          this.logger.error(
+            `Newsletter campaign interrupted; operation=newsletter.campaign.send; result=error; status=${formatCampaignStatus(finalStatus)}; sentCount=${delivery.sentCount}; failedCount=${delivery.failedCount}; error=${safeErrorName(delivery.interruptedError)}`,
+          );
         }
-      }
-    } catch (error) {
-      interruptedError = error;
-    }
 
-    const finalStatus = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
+        const completedCampaign = await runInSpan(
+          'NewsletterRepository.completeCampaign',
+          {
+            'notary.operation': 'newsletter.campaign.complete',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.sent_count': delivery.sentCount,
+            'newsletter.failed_count': delivery.failedCount,
+            'newsletter.status': formatCampaignStatus(finalStatus),
+          },
+          () =>
+            this.newsletterRepository.completeCampaign(campaign.id, {
+              sentCount: delivery.sentCount,
+              failedCount: delivery.failedCount,
+              status: finalStatus,
+            }),
+        );
 
-    if (interruptedError) {
-      this.logger.error(
-        `newsletter.campaign.send_flow_interrupted campaignId=${campaign.id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
-      );
-    }
+        this.logCampaignCompletion(finalStatus, delivery.sentCount, delivery.failedCount);
+        this.metricsService.recordNewsletterCampaignCompleted(
+          audienceMetricType,
+          formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
+        );
+        await this.recordCampaignAuditBestEffort({
+          actor,
+          campaign: completedCampaign,
+          eventType: 'newsletter.campaign.completed',
+          sentCount: delivery.sentCount,
+          failedCount: delivery.failedCount,
+          status: finalStatus,
+        });
+        await this.createCampaignSummaryNotificationBestEffort({
+          actor,
+          campaign: completedCampaign,
+          sentCount: delivery.sentCount,
+          failedCount: delivery.failedCount,
+          status: finalStatus,
+        });
 
-    const completedCampaign = await this.newsletterRepository.completeCampaign(campaign.id, {
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-
-    this.logCampaignCompletion(campaign.id, finalStatus, sentCount, failedCount);
-    this.metricsService.recordNewsletterCampaignCompleted(
-      audienceMetricType,
-      formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
+        return create(SendNewsletterCampaignResponseSchema, {
+          campaign: completedCampaign,
+        });
+      },
     );
-    await this.recordCampaignAuditBestEffort({
-      actor,
-      campaign: completedCampaign,
-      eventType: 'newsletter.campaign.completed',
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-    await this.createCampaignSummaryNotificationBestEffort({
-      actor,
-      campaign: completedCampaign,
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-
-    return create(SendNewsletterCampaignResponseSchema, {
-      campaign: completedCampaign,
-    });
   }
 
   async repeatNewsletterCampaign(
     request: RepeatNewsletterCampaignRequest,
   ): Promise<RepeatNewsletterCampaignResponse> {
     const actor = requireRole(Role.Admin);
-    const id = normalizeUuid(request.id, 'id');
-    const source = await this.newsletterRepository.getCampaignForRepeat(id);
 
-    if (!source) {
-      throw new ConnectError('newsletter campaign not found', Code.NotFound);
-    }
-    if (!source.recipients.length) {
-      throw new ConnectError('newsletter campaign has no recipients', Code.FailedPrecondition);
-    }
-
-    const campaign = await this.newsletterRepository.createCampaign({
-      createdById: isUuid(actor.sub) ? actor.sub : null,
-      subject: source.subject,
-      bodyHtml: source.bodyHtml,
-      audience: {
-        type: PrismaNewsletterAudienceType.Selected,
-        selectedUserIds: source.recipients
-          .map((recipient) => recipient.userId)
-          .filter((userId): userId is string => Boolean(userId)),
+    return runInSpan(
+      'NewsletterService.repeatNewsletterCampaign',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.newsletterCampaignRepeat,
+        [NotarySpanAttributes.entity]: 'NewsletterCampaign',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(actor.role),
+        'newsletter.audience_type': 'selected',
       },
-      audienceLabel: `Повторная отправка (${source.recipients.length})`,
-      recipients: source.recipients,
-    });
+      async (span) => {
+        const id = normalizeUuid(request.id, 'id');
+        const source = await this.newsletterRepository.getCampaignForRepeat(id);
 
-    this.logCampaignStart(
-      campaign.id,
-      source.subject,
-      campaign.audienceLabel,
-      source.recipients.length,
-      'newsletter.campaign.repeat_started',
-    );
-    await this.recordCampaignAuditBestEffort({
-      actor,
-      campaign,
-      eventType: 'newsletter.campaign.repeat_started',
-      sourceCampaignId: id,
-      sentCount: 0,
-      failedCount: 0,
-      status: PrismaNewsletterCampaignStatus.Sending,
-    });
+        if (!source) {
+          throw new ConnectError('newsletter campaign not found', Code.NotFound);
+        }
+        if (!source.recipients.length) {
+          throw new ConnectError('newsletter campaign has no recipients', Code.FailedPrecondition);
+        }
+        setSpanAttributes(span, { 'newsletter.recipient_count': source.recipients.length });
 
-    let sentCount = 0;
-    let failedCount = 0;
-    let interruptedError: unknown = null;
+        const campaign = await runInSpan(
+          'NewsletterRepository.createCampaign repeat',
+          {
+            'notary.operation': 'newsletter.campaign.create',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.audience_type': 'selected',
+            'newsletter.recipient_count': source.recipients.length,
+            'newsletter.status': formatCampaignStatus(PrismaNewsletterCampaignStatus.Sending),
+          },
+          () =>
+            this.newsletterRepository.createCampaign({
+              createdById: isUuid(actor.sub) ? actor.sub : null,
+              subject: source.subject,
+              bodyHtml: source.bodyHtml,
+              audience: {
+                type: PrismaNewsletterAudienceType.Selected,
+                selectedUserIds: source.recipients
+                  .map((recipient) => recipient.userId)
+                  .filter((userId): userId is string => Boolean(userId)),
+              },
+              audienceLabel: `Повторная отправка (${source.recipients.length})`,
+              recipients: source.recipients,
+            }),
+        );
 
-    try {
-      for (const recipient of source.recipients) {
-        try {
-          await this.newsletterMailer.sendNewsletterEmail({
-            to: recipient.email,
-            fullName: recipient.fullName,
-            subject: source.subject,
-            bodyHtml: source.bodyHtml,
-          });
-        } catch (error) {
-          const deliveryErrorMessage = normalizeErrorMessage(error);
-          failedCount += 1;
-          this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
+        this.logCampaignStart(source.recipients.length, 'newsletter.campaign.repeat_started');
+        await this.recordCampaignAuditBestEffort({
+          actor,
+          campaign,
+          eventType: 'newsletter.campaign.repeat_started',
+          sourceCampaignId: id,
+          sentCount: 0,
+          failedCount: 0,
+          status: PrismaNewsletterCampaignStatus.Sending,
+        });
 
-          try {
-            await this.newsletterRepository.markDeliveryFailed(
-              campaign.id,
-              recipient.email,
-              deliveryErrorMessage,
-            );
-          } catch (deliveryUpdateError) {
-            interruptedError = deliveryUpdateError;
-            break;
-          }
+        const delivery = await runInSpan(
+          'NewsletterService.repeatDeliveryBatch',
+          {
+            'notary.operation': 'newsletter.delivery.batch',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.audience_type': 'selected',
+            'newsletter.recipient_count': source.recipients.length,
+          },
+          async (deliverySpan) => {
+            let sentCount = 0;
+            let failedCount = 0;
+            let interruptedError: unknown = null;
 
-          continue;
+            try {
+              for (const recipient of source.recipients) {
+                try {
+                  await this.newsletterMailer.sendNewsletterEmail({
+                    to: recipient.email,
+                    fullName: recipient.fullName,
+                    subject: source.subject,
+                    bodyHtml: source.bodyHtml,
+                  });
+                } catch (error) {
+                  const deliveryErrorMessage = normalizeErrorMessage(error);
+                  failedCount += 1;
+                  this.logDeliveryFailure(error);
+
+                  try {
+                    await this.newsletterRepository.markDeliveryFailed(
+                      campaign.id,
+                      recipient.email,
+                      deliveryErrorMessage,
+                    );
+                  } catch (deliveryUpdateError) {
+                    interruptedError = deliveryUpdateError;
+                    break;
+                  }
+
+                  continue;
+                }
+
+                sentCount += 1;
+
+                try {
+                  await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
+                } catch (deliveryUpdateError) {
+                  interruptedError = deliveryUpdateError;
+                  break;
+                }
+              }
+            } catch (error) {
+              interruptedError = error;
+            }
+
+            const status = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
+            setSpanAttributes(deliverySpan, {
+              'newsletter.sent_count': sentCount,
+              'newsletter.failed_count': failedCount,
+              'newsletter.status': formatCampaignStatus(status),
+            });
+            if (interruptedError !== null || failedCount > 0) {
+              markSpanFailure(
+                deliverySpan,
+                interruptedError ?? new Error('NewsletterDeliveryFailed'),
+              );
+            }
+            return { sentCount, failedCount, interruptedError, status };
+          },
+        );
+
+        const finalStatus = delivery.status;
+
+        if (delivery.interruptedError) {
+          this.logger.error(
+            `Newsletter campaign interrupted; operation=newsletter.campaign.repeat; result=error; status=${formatCampaignStatus(finalStatus)}; sentCount=${delivery.sentCount}; failedCount=${delivery.failedCount}; error=${safeErrorName(delivery.interruptedError)}`,
+          );
         }
 
-        sentCount += 1;
+        const completedCampaign = await runInSpan(
+          'NewsletterRepository.completeCampaign repeat',
+          {
+            'notary.operation': 'newsletter.campaign.complete',
+            'notary.entity': 'NewsletterCampaign',
+            'newsletter.sent_count': delivery.sentCount,
+            'newsletter.failed_count': delivery.failedCount,
+            'newsletter.status': formatCampaignStatus(finalStatus),
+          },
+          () =>
+            this.newsletterRepository.completeCampaign(campaign.id, {
+              sentCount: delivery.sentCount,
+              failedCount: delivery.failedCount,
+              status: finalStatus,
+            }),
+        );
 
-        try {
-          await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
-        } catch (deliveryUpdateError) {
-          interruptedError = deliveryUpdateError;
-          break;
-        }
-      }
-    } catch (error) {
-      interruptedError = error;
-    }
+        this.logCampaignCompletion(
+          finalStatus,
+          delivery.sentCount,
+          delivery.failedCount,
+          'newsletter.campaign.repeat_completed',
+        );
+        await this.recordCampaignAuditBestEffort({
+          actor,
+          campaign: completedCampaign,
+          eventType: 'newsletter.campaign.repeat_completed',
+          sourceCampaignId: id,
+          sentCount: delivery.sentCount,
+          failedCount: delivery.failedCount,
+          status: finalStatus,
+        });
+        await this.createCampaignSummaryNotificationBestEffort({
+          actor,
+          campaign: completedCampaign,
+          sentCount: delivery.sentCount,
+          failedCount: delivery.failedCount,
+          status: finalStatus,
+        });
 
-    const finalStatus = resolveCampaignStatus(sentCount, failedCount, interruptedError !== null);
-
-    if (interruptedError) {
-      this.logger.error(
-        `newsletter.campaign.repeat_flow_interrupted campaignId=${campaign.id} sourceCampaignId=${id} status=${formatCampaignStatus(finalStatus)} sentCount=${sentCount} failedCount=${failedCount} error="${normalizeErrorMessage(interruptedError)}"`,
-      );
-    }
-
-    const completedCampaign = await this.newsletterRepository.completeCampaign(campaign.id, {
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-
-    this.logCampaignCompletion(
-      campaign.id,
-      finalStatus,
-      sentCount,
-      failedCount,
-      'newsletter.campaign.repeat_completed',
+        return create(RepeatNewsletterCampaignResponseSchema, {
+          campaign: completedCampaign,
+        });
+      },
     );
-    await this.recordCampaignAuditBestEffort({
-      actor,
-      campaign: completedCampaign,
-      eventType: 'newsletter.campaign.repeat_completed',
-      sourceCampaignId: id,
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-    await this.createCampaignSummaryNotificationBestEffort({
-      actor,
-      campaign: completedCampaign,
-      sentCount,
-      failedCount,
-      status: finalStatus,
-    });
-
-    return create(RepeatNewsletterCampaignResponseSchema, {
-      campaign: completedCampaign,
-    });
   }
 
   private logCampaignStart(
-    campaignId: string,
-    subject: string,
-    audienceLabel: string,
     recipientsCount: number,
     event:
       | 'newsletter.campaign.started'
@@ -395,31 +542,22 @@ export class NewsletterService {
     this.logger.log(
       JSON.stringify({
         event,
-        campaignId,
-        subject,
-        audienceLabel,
         recipientsCount,
       }),
     );
   }
 
-  private logDeliveryFailure(
-    campaignId: string,
-    recipientEmail: string,
-    errorMessage: string,
-  ): void {
+  private logDeliveryFailure(error: unknown): void {
     this.logger.warn(
       JSON.stringify({
         event: 'newsletter.campaign.delivery_failed',
-        campaignId,
-        recipientEmail,
-        errorMessage,
+        result: 'error',
+        error: safeErrorName(error),
       }),
     );
   }
 
   private logCampaignCompletion(
-    campaignId: string,
     status: PrismaNewsletterCampaignStatus,
     sentCount: number,
     failedCount: number,
@@ -430,7 +568,6 @@ export class NewsletterService {
     this.logger.log(
       JSON.stringify({
         event,
-        campaignId,
         status: formatCampaignStatus(status),
         sentCount,
         failedCount,
@@ -479,7 +616,7 @@ export class NewsletterService {
       });
     } catch (error) {
       this.logger.warn(
-        `Failed to record newsletter audit event ${input.eventType} for campaign ${input.campaign.id}: ${normalizeErrorMessage(error)}`,
+        `Newsletter audit failed; operation=audit.record; result=error; error=${safeErrorName(error)}`,
       );
     }
   }
@@ -505,7 +642,7 @@ export class NewsletterService {
       });
     } catch (error) {
       this.logger.warn(
-        `Failed to create newsletter summary notification for campaign ${input.campaign.id}: ${normalizeErrorMessage(error)}`,
+        `Newsletter notification failed; operation=notification.create; result=error; error=${safeErrorName(error)}`,
       );
     }
   }
@@ -681,6 +818,10 @@ function normalizeErrorMessage(error: unknown): string {
   return 'Unknown newsletter delivery error';
 }
 
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
+}
+
 function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
@@ -690,6 +831,12 @@ function formatCampaignStatus(status: PrismaNewsletterCampaignStatus): string {
   if (status === PrismaNewsletterCampaignStatus.Failed) return 'failed';
   if (status === PrismaNewsletterCampaignStatus.PartialFailed) return 'partial_failed';
   return 'sending';
+}
+
+function formatAudienceType(type: PrismaNewsletterAudienceType): string {
+  if (type === PrismaNewsletterAudienceType.All) return 'all';
+  if (type === PrismaNewsletterAudienceType.Role) return 'role';
+  return 'selected';
 }
 
 function buildCampaignSummaryNotificationMessage(

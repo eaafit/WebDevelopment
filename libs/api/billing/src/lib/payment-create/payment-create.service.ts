@@ -3,6 +3,14 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { AuditService } from '@internal/audit';
 import { getCurrentUser } from '@internal/auth-shared';
 import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  SpanKind,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
+import {
   CreatePaymentResponseSchema,
   PromoValidationStatus,
   PaymentType as RpcPaymentType,
@@ -81,66 +89,70 @@ export class PaymentCreateService {
   ) {}
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatePaymentResponse> {
-    const requestAmount = parseAmountToCents(request.amount, 'amount');
-    const prismaType = this.toPrismaType(request.type);
-    const metricContext = resolveBillingPaymentMetricContext(prismaType);
-    const resolved = await this.resolvePaymentContext(request, prismaType, requestAmount);
-    const provider = resolvePaymentProvider(request.paymentProvider);
-
-    this.assertReturnUrlConfigured();
-    if (provider === 'yookassa') {
-      resolveReceiptVatCode();
-    }
-
-    const payment = await this.prisma.payment.create({
-      data: {
-        userId: request.userId,
-        type: prismaType,
-        amount: resolved.amount,
-        discountAmount: resolved.discountAmount,
-        promoId: resolved.promo?.id ?? null,
-        status: PrismaPaymentStatus.Pending,
-        subscriptionId: resolved.subscriptionId,
-        assessmentId: resolved.assessmentId,
-        paymentMethod: provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget',
-        receiptStatus:
-          provider === 'robokassa'
-            ? PrismaPaymentReceiptStatus.Available
-            : PrismaPaymentReceiptStatus.Pending,
+    return runInSpan(
+      'PaymentCreateService.createPayment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.paymentCreate,
+        [NotarySpanAttributes.entity]: 'Payment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'payment.type': formatRpcPaymentType(request.type),
+        'payment.has_promo': Boolean(request.promoCode?.trim()),
       },
-    });
-
-    this.metrics.recordPayment('pending');
-    this.metrics.recordBillingPayment('pending', metricContext);
-
-    try {
-      if (provider === 'robokassa') {
-        const result = this.robokassa.createPayment({
-          invoiceId: payment.id,
-          amount: resolved.amount,
-          description: resolved.description,
-        });
-
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: { transactionId: payment.id },
-        });
-
-        await this.recordPaymentCreatedAudit(
-          request.userId,
+      async (span) => {
+        const requestAmount = parseAmountToCents(request.amount, 'amount');
+        const prismaType = this.toPrismaType(request.type);
+        const metricContext = resolveBillingPaymentMetricContext(prismaType);
+        const provider = resolvePaymentProvider(request.paymentProvider);
+        const resolved = await runInSpan(
+          'PaymentCreateService.resolvePaymentContext',
           {
-            id: payment.id,
-            type: prismaType,
-            amount: resolved.amount,
-            discountAmount: resolved.discountAmount,
-            status: PrismaPaymentStatus.Pending,
-            transactionId: payment.id,
-            paymentMethod: 'robokassa_redirect',
-            subscriptionId: resolved.subscriptionId,
-            assessmentId: resolved.assessmentId,
-            promoId: resolved.promo?.id ?? null,
+            'notary.operation': 'payment.resolve_context',
+            'notary.entity': 'Payment',
+            'payment.type': formatPrismaPaymentType(prismaType),
+            'payment.has_promo': Boolean(request.promoCode?.trim()),
           },
-          'Robokassa',
+          () => this.resolvePaymentContext(request, prismaType, requestAmount),
+        );
+        setSpanAttributes(span, {
+          'payment.type': formatPrismaPaymentType(prismaType),
+          'payment.provider': provider,
+          'payment.has_promo': Boolean(resolved.promo),
+        });
+
+        this.assertReturnUrlConfigured();
+        if (provider === 'yookassa') {
+          resolveReceiptVatCode();
+        }
+
+        const payment = await runInSpan(
+          'Prisma.payment.create',
+          {
+            'notary.operation': 'payment.db.create',
+            'notary.entity': 'Payment',
+            'db.operation': 'insert',
+            'payment.type': formatPrismaPaymentType(prismaType),
+            'payment.status.to': PrismaPaymentStatus.Pending,
+            'payment.provider': provider,
+            'payment.has_promo': Boolean(resolved.promo),
+          },
+          () =>
+            this.prisma.payment.create({
+              data: {
+                userId: request.userId,
+                type: prismaType,
+                amount: resolved.amount,
+                discountAmount: resolved.discountAmount,
+                promoId: resolved.promo?.id ?? null,
+                status: PrismaPaymentStatus.Pending,
+                subscriptionId: resolved.subscriptionId,
+                assessmentId: resolved.assessmentId,
+                paymentMethod: provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget',
+                receiptStatus:
+                  provider === 'robokassa'
+                    ? PrismaPaymentReceiptStatus.Available
+                    : PrismaPaymentReceiptStatus.Pending,
+              },
+            }),
         );
         await this.paymentNotificationService.notifyPaymentCreated({
           id: payment.id,
@@ -154,253 +166,427 @@ export class PaymentCreateService {
           assessmentId: resolved.assessmentId,
         });
 
-        this.logger.log(`Created Robokassa payment link for local payment ${payment.id}`);
+        this.metrics.recordPayment('pending');
+        this.metrics.recordBillingPayment('pending', metricContext);
 
-        return create(CreatePaymentResponseSchema, {
-          paymentId: payment.id,
-          paymentUrl: result.paymentUrl,
-          amount: {
-            amount: resolved.amount,
-            currency: SUBSCRIPTION_CURRENCY,
-          },
-        });
-      }
+        try {
+          if (provider === 'robokassa') {
+            const result = await runInSpan(
+              'RobokassaClient.createPayment',
+              {
+                [NotarySpanAttributes.operation]: BusinessOperations.paymentProviderCreate,
+                'notary.entity': 'Payment',
+                'payment.provider': 'robokassa',
+                'payment.type': formatPrismaPaymentType(prismaType),
+                'payment.status.to': PrismaPaymentStatus.Pending,
+              },
+              () =>
+                this.robokassa.createPayment({
+                  invoiceId: payment.id,
+                  amount: resolved.amount,
+                  description: resolved.description,
+                }),
+              { kind: SpanKind.CLIENT },
+            );
 
-      const receipt = await this.buildPaymentReceipt(request.userId, resolved);
-      const returnUrl = this.buildReturnUrl(prismaType, payment.id);
+            await runInSpan(
+              'Prisma.payment.update transactionId',
+              {
+                'notary.operation': 'payment.db.update',
+                'notary.entity': 'Payment',
+                'db.operation': 'update',
+                'payment.provider': 'robokassa',
+                'payment.status.from': PrismaPaymentStatus.Pending,
+                'payment.status.to': PrismaPaymentStatus.Pending,
+              },
+              () =>
+                this.prisma.payment.update({
+                  where: { id: payment.id },
+                  data: { transactionId: payment.id },
+                }),
+            );
 
-      const result = await this.yookassa.createPayment({
-        amount: resolved.amount,
-        currency: SUBSCRIPTION_CURRENCY,
-        returnUrl,
-        description: resolved.description,
-        idempotenceKey: payment.id,
-        confirmationType: 'embedded',
-        metadata: {
-          payment_id: payment.id,
-          user_id: request.userId,
-          type: String(request.type),
-          target_id: request.targetId,
-          ...(resolved.promo ? { promo_code: resolved.promo.code } : {}),
-        },
-        ...(receipt ? { receipt } : {}),
-      });
+            await this.recordPaymentCreatedAudit(
+              request.userId,
+              {
+                id: payment.id,
+                type: prismaType,
+                amount: resolved.amount,
+                discountAmount: resolved.discountAmount,
+                status: PrismaPaymentStatus.Pending,
+                transactionId: payment.id,
+                paymentMethod: 'robokassa_redirect',
+                subscriptionId: resolved.subscriptionId,
+                assessmentId: resolved.assessmentId,
+                promoId: resolved.promo?.id ?? null,
+              },
+              'Robokassa',
+            );
 
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: { transactionId: result.id },
-      });
+            this.logger.log(
+              `Payment provider create succeeded; operation=payment.provider.create; provider=robokassa; payment.type=${formatPrismaPaymentType(prismaType)}; result=success; hasReceipt=true`,
+            );
 
-      await this.recordPaymentCreatedAudit(
-        request.userId,
-        {
-          id: payment.id,
-          type: prismaType,
-          amount: resolved.amount,
-          discountAmount: resolved.discountAmount,
-          status: PrismaPaymentStatus.Pending,
-          transactionId: result.id,
-          paymentMethod: 'yookassa_widget',
-          subscriptionId: resolved.subscriptionId,
-          assessmentId: resolved.assessmentId,
-          promoId: resolved.promo?.id ?? null,
-        },
-        'YooKassa',
-      );
-      await this.paymentNotificationService.notifyPaymentCreated({
-        id: payment.id,
-        userId: request.userId,
-        type: prismaType,
-        amount: resolved.amount,
-        status: PrismaPaymentStatus.Pending,
-        transactionId: result.id,
-        paymentMethod: 'yookassa_widget',
-        subscriptionId: resolved.subscriptionId,
-        assessmentId: resolved.assessmentId,
-      });
+            return create(CreatePaymentResponseSchema, {
+              paymentId: payment.id,
+              paymentUrl: result.paymentUrl,
+              amount: {
+                amount: resolved.amount,
+                currency: SUBSCRIPTION_CURRENCY,
+              },
+            });
+          }
 
-      this.logger.log(
-        `Created YooKassa payment ${result.id} for local payment ${payment.id} with receipt data`,
-      );
+          const receipt = await runInSpan(
+            'PaymentCreateService.buildPaymentReceipt',
+            {
+              'notary.operation': 'payment.receipt.build',
+              'notary.entity': 'PaymentReceipt',
+              'payment.provider': 'yookassa',
+              'payment.receipt.status': PrismaPaymentReceiptStatus.Pending,
+            },
+            () => this.buildPaymentReceipt(request.userId, resolved),
+          );
+          const returnUrl = this.buildReturnUrl(prismaType, payment.id);
 
-      return create(CreatePaymentResponseSchema, {
-        paymentId: payment.id,
-        paymentUrl: result.confirmationUrl || undefined,
-        widget: {
-          provider: 'yookassa',
-          confirmationToken: result.confirmationToken,
-          returnUrl,
-        },
-        amount: {
-          amount: resolved.amount,
-          currency: SUBSCRIPTION_CURRENCY,
-        },
-      });
-    } catch (err) {
-      if (err instanceof YooKassaClientError || err instanceof RobokassaClientError) {
-        this.metrics.recordPayment('failed');
-        this.metrics.recordBillingPayment('failed', metricContext);
+          const result = await runInSpan(
+            'YooKassaClient.createPayment',
+            {
+              [NotarySpanAttributes.operation]: BusinessOperations.paymentProviderCreate,
+              'notary.entity': 'Payment',
+              'payment.provider': 'yookassa',
+              'payment.type': formatPrismaPaymentType(prismaType),
+              'payment.status.to': PrismaPaymentStatus.Pending,
+              'payment.has_promo': Boolean(resolved.promo),
+            },
+            () =>
+              this.yookassa.createPayment({
+                amount: resolved.amount,
+                currency: SUBSCRIPTION_CURRENCY,
+                returnUrl,
+                description: resolved.description,
+                idempotenceKey: payment.id,
+                confirmationType: 'embedded',
+                metadata: {
+                  payment_id: payment.id,
+                  user_id: request.userId,
+                  type: String(request.type),
+                  target_id: request.targetId,
+                  ...(resolved.promo ? { promo_code: resolved.promo.code } : {}),
+                },
+                ...(receipt ? { receipt } : {}),
+              }),
+            { kind: SpanKind.CLIENT },
+          );
 
-        const paymentProvider = provider === 'robokassa' ? 'Robokassa' : 'YooKassa';
+          await runInSpan(
+            'Prisma.payment.update transactionId',
+            {
+              'notary.operation': 'payment.db.update',
+              'notary.entity': 'Payment',
+              'db.operation': 'update',
+              'payment.provider': 'yookassa',
+              'payment.status.from': PrismaPaymentStatus.Pending,
+              'payment.status.to': PrismaPaymentStatus.Pending,
+            },
+            () =>
+              this.prisma.payment.update({
+                where: { id: payment.id },
+                data: { transactionId: result.id },
+              }),
+          );
 
-        await this.prisma.payment.update({
-          where: { id: payment.id },
-          data: { status: PrismaPaymentStatus.Failed },
-        });
+          await this.recordPaymentCreatedAudit(
+            request.userId,
+            {
+              id: payment.id,
+              type: prismaType,
+              amount: resolved.amount,
+              discountAmount: resolved.discountAmount,
+              status: PrismaPaymentStatus.Pending,
+              transactionId: result.id,
+              paymentMethod: 'yookassa_widget',
+              subscriptionId: resolved.subscriptionId,
+              assessmentId: resolved.assessmentId,
+              promoId: resolved.promo?.id ?? null,
+            },
+            'YooKassa',
+          );
+          await runInSpan(
+            'PaymentNotificationService.notifyPaymentCreated',
+            {
+              [NotarySpanAttributes.operation]: BusinessOperations.notificationCreatePayment,
+              'notary.entity': 'Notification',
+              'notification.category': 'payment',
+              'payment.provider': 'yookassa',
+            },
+            () =>
+              this.paymentNotificationService.notifyPaymentCreated({
+                id: payment.id,
+                userId: request.userId,
+                type: prismaType,
+                amount: resolved.amount,
+                status: PrismaPaymentStatus.Pending,
+                transactionId: result.id,
+                paymentMethod: 'yookassa_widget',
+                subscriptionId: resolved.subscriptionId,
+                assessmentId: resolved.assessmentId,
+              }),
+          );
 
-        const failedPaymentMethod =
-          provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget';
+          this.logger.log(
+            `Payment provider create succeeded; operation=payment.provider.create; provider=yookassa; payment.type=${formatPrismaPaymentType(prismaType)}; result=success; hasReceipt=${Boolean(receipt)}`,
+          );
 
-        await this.recordPaymentCreationFailedAudit(
-          request.userId,
-          {
-            id: payment.id,
-            type: prismaType,
-            amount: resolved.amount,
-            discountAmount: resolved.discountAmount,
-            status: PrismaPaymentStatus.Failed,
-            paymentMethod: failedPaymentMethod,
-            subscriptionId: resolved.subscriptionId,
-            assessmentId: resolved.assessmentId,
-            promoId: resolved.promo?.id ?? null,
-            errorMessage: err.message || 'Payment provider error',
-            providerStatusCode: 'statusCode' in err ? (err.statusCode ?? null) : null,
-          },
-          paymentProvider,
-        );
-        await this.paymentNotificationService.notifyPaymentCreationFailed(
-          {
-            id: payment.id,
-            userId: request.userId,
-            type: prismaType,
-            amount: resolved.amount,
-            status: PrismaPaymentStatus.Failed,
-            paymentMethod: failedPaymentMethod,
-            subscriptionId: resolved.subscriptionId,
-            assessmentId: resolved.assessmentId,
-          },
-          err.message || 'Payment provider error',
-        );
+          return create(CreatePaymentResponseSchema, {
+            paymentId: payment.id,
+            paymentUrl: result.confirmationUrl || undefined,
+            widget: {
+              provider: 'yookassa',
+              confirmationToken: result.confirmationToken,
+              returnUrl,
+            },
+            amount: {
+              amount: resolved.amount,
+              currency: SUBSCRIPTION_CURRENCY,
+            },
+          });
+        } catch (err) {
+          if (err instanceof YooKassaClientError || err instanceof RobokassaClientError) {
+            this.metrics.recordPayment('failed');
+            this.metrics.recordBillingPayment('failed', metricContext);
 
-        throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
-      }
+            const paymentProvider = provider === 'robokassa' ? 'Robokassa' : 'YooKassa';
 
-      // Fallback: create payment directly without external payment provider
-      const reason = err instanceof Error ? err.message : 'unknown error';
-      this.metrics.recordPayment('failed');
-      this.metrics.recordBillingPayment('failed', metricContext);
+            await runInSpan(
+              'Prisma.payment.update failed',
+              {
+                'notary.operation': 'payment.db.update',
+                'notary.entity': 'Payment',
+                'db.operation': 'update',
+                'payment.provider': provider,
+                'payment.status.from': PrismaPaymentStatus.Pending,
+                'payment.status.to': PrismaPaymentStatus.Failed,
+              },
+              () =>
+                this.prisma.payment.update({
+                  where: { id: payment.id },
+                  data: { status: PrismaPaymentStatus.Failed },
+                }),
+            );
 
-      this.logger.warn(
-        `Payment provider unavailable (${reason}), creating payment ${payment.id} without external provider`,
-      );
+            const failedPaymentMethod =
+              provider === 'robokassa' ? 'robokassa_redirect' : 'yookassa_widget';
 
-      await this.prisma.payment.update({
-        where: { id: payment.id },
-        data: {
-          paymentMethod: 'direct',
-          receiptStatus: PrismaPaymentReceiptStatus.Available,
-        },
-      });
+            await this.recordPaymentCreationFailedAudit(
+              request.userId,
+              {
+                id: payment.id,
+                type: prismaType,
+                amount: resolved.amount,
+                discountAmount: resolved.discountAmount,
+                status: PrismaPaymentStatus.Failed,
+                paymentMethod: failedPaymentMethod,
+                subscriptionId: resolved.subscriptionId,
+                assessmentId: resolved.assessmentId,
+                promoId: resolved.promo?.id ?? null,
+                errorMessage: err.message || 'Payment provider error',
+                providerStatusCode: 'statusCode' in err ? (err.statusCode ?? null) : null,
+              },
+              paymentProvider,
+            );
+            await runInSpan(
+              'PaymentNotificationService.notifyPaymentCreationFailed',
+              {
+                [NotarySpanAttributes.operation]:
+                  BusinessOperations.notificationCreatePaymentFailed,
+                'notary.entity': 'Notification',
+                'notification.category': 'payment',
+                'payment.provider': provider,
+                'payment.status.to': PrismaPaymentStatus.Failed,
+              },
+              () =>
+                this.paymentNotificationService.notifyPaymentCreationFailed(
+                  {
+                    id: payment.id,
+                    userId: request.userId,
+                    type: prismaType,
+                    amount: resolved.amount,
+                    status: PrismaPaymentStatus.Failed,
+                    paymentMethod: failedPaymentMethod,
+                    subscriptionId: resolved.subscriptionId,
+                    assessmentId: resolved.assessmentId,
+                  },
+                  err.message || 'Payment provider error',
+                ),
+            );
 
-      await this.recordPaymentCreatedAudit(
-        request.userId,
-        {
-          id: payment.id,
-          type: prismaType,
-          amount: resolved.amount,
-          discountAmount: resolved.discountAmount,
-          status: PrismaPaymentStatus.Pending,
-          paymentMethod: 'direct',
-          subscriptionId: resolved.subscriptionId,
-          assessmentId: resolved.assessmentId,
-          promoId: resolved.promo?.id ?? null,
-        },
-        'Direct',
-      );
-      await this.paymentNotificationService.notifyPaymentCreated({
-        id: payment.id,
-        userId: request.userId,
-        type: prismaType,
-        amount: resolved.amount,
-        status: PrismaPaymentStatus.Pending,
-        paymentMethod: 'direct',
-        subscriptionId: resolved.subscriptionId,
-        assessmentId: resolved.assessmentId,
-      });
+            throw new ConnectError(err.message || 'Payment provider error', Code.Internal);
+          }
 
-      return create(CreatePaymentResponseSchema, {
-        paymentId: payment.id,
-        amount: {
-          amount: resolved.amount,
-          currency: SUBSCRIPTION_CURRENCY,
-        },
-      });
-    }
+          // Fallback: create payment directly without external payment provider
+          this.metrics.recordPayment('failed');
+          this.metrics.recordBillingPayment('failed', metricContext);
+
+          this.logger.warn(
+            `Payment provider unavailable; operation=payment.provider.create; provider=${provider}; result=fallback; error=${safeErrorName(err)}`,
+          );
+
+          await runInSpan(
+            'PaymentCreateService.directFallback',
+            {
+              'notary.operation': 'payment.direct_fallback',
+              'notary.entity': 'Payment',
+              'payment.provider': 'direct',
+              'payment.status.from': PrismaPaymentStatus.Pending,
+              'payment.status.to': PrismaPaymentStatus.Pending,
+              'payment.receipt.status': PrismaPaymentReceiptStatus.Available,
+            },
+            async () => {
+              await this.prisma.payment.update({
+                where: { id: payment.id },
+                data: {
+                  paymentMethod: 'direct',
+                  receiptStatus: PrismaPaymentReceiptStatus.Available,
+                },
+              });
+            },
+          );
+
+          await this.recordPaymentCreatedAudit(
+            request.userId,
+            {
+              id: payment.id,
+              type: prismaType,
+              amount: resolved.amount,
+              discountAmount: resolved.discountAmount,
+              status: PrismaPaymentStatus.Pending,
+              paymentMethod: 'direct',
+              subscriptionId: resolved.subscriptionId,
+              assessmentId: resolved.assessmentId,
+              promoId: resolved.promo?.id ?? null,
+            },
+            'Direct',
+          );
+          await runInSpan(
+            'PaymentNotificationService.notifyPaymentCreated direct',
+            {
+              [NotarySpanAttributes.operation]: BusinessOperations.notificationCreatePayment,
+              'notary.entity': 'Notification',
+              'notification.category': 'payment',
+              'payment.provider': 'direct',
+            },
+            () =>
+              this.paymentNotificationService.notifyPaymentCreated({
+                id: payment.id,
+                userId: request.userId,
+                type: prismaType,
+                amount: resolved.amount,
+                status: PrismaPaymentStatus.Pending,
+                paymentMethod: 'direct',
+                subscriptionId: resolved.subscriptionId,
+                assessmentId: resolved.assessmentId,
+              }),
+          );
+
+          return create(CreatePaymentResponseSchema, {
+            paymentId: payment.id,
+            amount: {
+              amount: resolved.amount,
+              currency: SUBSCRIPTION_CURRENCY,
+            },
+          });
+        }
+      },
+    );
   }
 
   async validateSubscriptionPromo(
     request: ValidateSubscriptionPromoRequest,
   ): Promise<ValidateSubscriptionPromoResponse> {
-    const plan = getSubscriptionPlanByPrisma(this.toPrismaPlan(request.plan));
-    const baseAmountCents = parseAmountToCents(plan.price, 'plan.price');
-    const promoValidation = await this.validatePromoCode(request.promoCode);
-    this.metrics.recordPromoValidation(
-      'preview',
-      toPromoValidationMetricStatus(promoValidation.status),
+    return runInSpan(
+      'PaymentCreateService.validateSubscriptionPromo',
+      {
+        'notary.operation': 'payment.promo.validate',
+        'notary.entity': 'Promo',
+        'payment.type': PrismaPaymentType.Subscription,
+        'payment.has_promo': Boolean(request.promoCode?.trim()),
+      },
+      async (span) => {
+        const plan = getSubscriptionPlanByPrisma(this.toPrismaPlan(request.plan));
+        const baseAmountCents = parseAmountToCents(plan.price, 'plan.price');
+        const promoValidation = await this.validatePromoCode(request.promoCode);
+        setSpanAttributes(span, {
+          'payment.promo.status': formatPromoStatus(promoValidation.status),
+        });
+        this.metrics.recordPromoValidation(
+          'preview',
+          toPromoValidationMetricStatus(promoValidation.status),
+        );
+
+        if (promoValidation.status !== PromoValidationStatus.VALID || !promoValidation.promo) {
+          return create(ValidateSubscriptionPromoResponseSchema, {
+            status: promoValidation.status,
+            promoCode: promoValidation.promoCode,
+            baseAmount: {
+              amount: plan.price,
+              currency: SUBSCRIPTION_CURRENCY,
+            },
+            finalAmount: {
+              amount: plan.price,
+              currency: SUBSCRIPTION_CURRENCY,
+            },
+            discountAmount: {
+              amount: centsToAmount(0),
+              currency: SUBSCRIPTION_CURRENCY,
+            },
+            discountPercent: '0.00',
+          });
+        }
+
+        const discountAmount = calculateDiscountAmount(
+          baseAmountCents,
+          promoValidation.promo.discountPercent.toString(),
+        );
+        const finalAmount = Math.max(0, baseAmountCents - discountAmount);
+
+        return create(ValidateSubscriptionPromoResponseSchema, {
+          status: PromoValidationStatus.VALID,
+          promoCode: promoValidation.promo.code,
+          baseAmount: {
+            amount: plan.price,
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+          finalAmount: {
+            amount: centsToAmount(finalAmount),
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+          discountAmount: {
+            amount: centsToAmount(discountAmount),
+            currency: SUBSCRIPTION_CURRENCY,
+          },
+          discountPercent: promoValidation.promo.discountPercent.toString(),
+        });
+      },
     );
-
-    if (promoValidation.status !== PromoValidationStatus.VALID || !promoValidation.promo) {
-      return create(ValidateSubscriptionPromoResponseSchema, {
-        status: promoValidation.status,
-        promoCode: promoValidation.promoCode,
-        baseAmount: {
-          amount: plan.price,
-          currency: SUBSCRIPTION_CURRENCY,
-        },
-        finalAmount: {
-          amount: plan.price,
-          currency: SUBSCRIPTION_CURRENCY,
-        },
-        discountAmount: {
-          amount: centsToAmount(0),
-          currency: SUBSCRIPTION_CURRENCY,
-        },
-        discountPercent: '0.00',
-      });
-    }
-
-    const discountAmount = calculateDiscountAmount(
-      baseAmountCents,
-      promoValidation.promo.discountPercent.toString(),
-    );
-    const finalAmount = Math.max(0, baseAmountCents - discountAmount);
-
-    return create(ValidateSubscriptionPromoResponseSchema, {
-      status: PromoValidationStatus.VALID,
-      promoCode: promoValidation.promo.code,
-      baseAmount: {
-        amount: plan.price,
-        currency: SUBSCRIPTION_CURRENCY,
-      },
-      finalAmount: {
-        amount: centsToAmount(finalAmount),
-        currency: SUBSCRIPTION_CURRENCY,
-      },
-      discountAmount: {
-        amount: centsToAmount(discountAmount),
-        currency: SUBSCRIPTION_CURRENCY,
-      },
-      discountPercent: promoValidation.promo.discountPercent.toString(),
-    });
   }
 
   private async loadReceiptCustomer(userId: string): Promise<{ email: string }> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        email: true,
+    const user = await runInSpan(
+      'Prisma.user.findUnique receipt customer',
+      {
+        'notary.operation': 'payment.receipt.customer_lookup',
+        'notary.entity': 'User',
+        'db.operation': 'select',
       },
-    });
+      () =>
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            email: true,
+          },
+        }),
+    );
 
     if (!user?.email?.trim()) {
       throw new ConnectError(
@@ -576,53 +762,73 @@ export class PaymentCreateService {
   }
 
   private async validatePromoCode(rawPromoCode: string): Promise<PromoValidationResult> {
-    const promoCode = rawPromoCode.trim();
-    if (!promoCode) {
-      return {
-        promo: null,
-        promoCode,
-        status: PromoValidationStatus.UNSPECIFIED,
-      };
-    }
-
-    const promo = await this.prisma.promo.findFirst({
-      where: {
-        code: {
-          equals: promoCode,
-          mode: 'insensitive',
-        },
+    return runInSpan(
+      'PaymentCreateService.validatePromoCode',
+      {
+        'notary.operation': 'payment.promo.validate',
+        'notary.entity': 'Promo',
+        'payment.has_promo': Boolean(rawPromoCode?.trim()),
       },
-    });
+      async (span) => {
+        const promoCode = rawPromoCode.trim();
+        if (!promoCode) {
+          const result = {
+            promo: null,
+            promoCode,
+            status: PromoValidationStatus.UNSPECIFIED,
+          };
+          setSpanAttributes(span, { 'payment.promo.status': formatPromoStatus(result.status) });
+          return result;
+        }
 
-    if (!promo) {
-      return {
-        promo: null,
-        promoCode,
-        status: PromoValidationStatus.NOT_FOUND,
-      };
-    }
+        const promo = await this.prisma.promo.findFirst({
+          where: {
+            code: {
+              equals: promoCode,
+              mode: 'insensitive',
+            },
+          },
+        });
 
-    if (promo.expiresAt && promo.expiresAt.getTime() < Date.now()) {
-      return {
-        promo: null,
-        promoCode,
-        status: PromoValidationStatus.EXPIRED,
-      };
-    }
+        if (!promo) {
+          const result = {
+            promo: null,
+            promoCode,
+            status: PromoValidationStatus.NOT_FOUND,
+          };
+          setSpanAttributes(span, { 'payment.promo.status': formatPromoStatus(result.status) });
+          return result;
+        }
 
-    if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
-      return {
-        promo: null,
-        promoCode,
-        status: PromoValidationStatus.USAGE_LIMIT_REACHED,
-      };
-    }
+        if (promo.expiresAt && promo.expiresAt.getTime() < Date.now()) {
+          const result = {
+            promo: null,
+            promoCode,
+            status: PromoValidationStatus.EXPIRED,
+          };
+          setSpanAttributes(span, { 'payment.promo.status': formatPromoStatus(result.status) });
+          return result;
+        }
 
-    return {
-      promo,
-      promoCode: promo.code,
-      status: PromoValidationStatus.VALID,
-    };
+        if (promo.usageLimit !== null && promo.usedCount >= promo.usageLimit) {
+          const result = {
+            promo: null,
+            promoCode,
+            status: PromoValidationStatus.USAGE_LIMIT_REACHED,
+          };
+          setSpanAttributes(span, { 'payment.promo.status': formatPromoStatus(result.status) });
+          return result;
+        }
+
+        const result = {
+          promo,
+          promoCode: promo.code,
+          status: PromoValidationStatus.VALID,
+        };
+        setSpanAttributes(span, { 'payment.promo.status': formatPromoStatus(result.status) });
+        return result;
+      },
+    );
   }
 
   private buildReturnUrl(type: PrismaPaymentType, paymentId: string): string {
@@ -745,4 +951,51 @@ function toPromoValidationMetricStatus(status: PromoValidationStatus): PromoVali
     default:
       return 'unspecified';
   }
+}
+
+function formatRpcPaymentType(type: RpcPaymentType): string {
+  switch (type) {
+    case RpcPaymentType.SUBSCRIPTION:
+      return 'subscription';
+    case RpcPaymentType.DOCUMENT_COPY:
+      return 'document_copy';
+    case RpcPaymentType.ASSESSMENT:
+      return 'assessment';
+    case RpcPaymentType.UNSPECIFIED:
+    default:
+      return 'unspecified';
+  }
+}
+
+function formatPrismaPaymentType(type: PrismaPaymentType): string {
+  switch (type) {
+    case PrismaPaymentType.Subscription:
+      return 'subscription';
+    case PrismaPaymentType.DocumentCopy:
+      return 'document_copy';
+    case PrismaPaymentType.Assessment:
+      return 'assessment';
+    default:
+      return 'unknown';
+  }
+}
+
+function formatPromoStatus(status: PromoValidationStatus): string {
+  switch (status) {
+    case PromoValidationStatus.VALID:
+      return 'valid';
+    case PromoValidationStatus.NOT_FOUND:
+      return 'not_found';
+    case PromoValidationStatus.EXPIRED:
+      return 'expired';
+    case PromoValidationStatus.USAGE_LIMIT_REACHED:
+      return 'usage_limit_reached';
+    case PromoValidationStatus.UNSPECIFIED:
+    default:
+      return 'unspecified';
+  }
+}
+
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }
