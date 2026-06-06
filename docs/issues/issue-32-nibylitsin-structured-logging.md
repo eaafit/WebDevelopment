@@ -59,7 +59,7 @@ assignees: ['SuperLuchito']
 
 ## Связанные задачи
 
-- **Следующий шаг:** [issue-33](issue-33-nibylitsin-loki-grafana.md) — доставка логов в Loki и Grafana (зависит от стабильного формата логов из этого issue).
+- **Следующий шаг:** [issue-33](issue-33-chernenko-loki-grafana.md) — доставка логов в Loki и Grafana (зависит от стабильного формата логов из этого issue).
 
 ## Связанные файлы
 

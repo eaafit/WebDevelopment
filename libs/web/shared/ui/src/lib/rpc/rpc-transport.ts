@@ -43,6 +43,10 @@ const PUBLIC_AUTH_METHODS = [
   '/notary.auth.v1alpha1.AuthService/RefreshToken',
   '/notary.auth.v1alpha1.AuthService/ForgotPassword',
   '/notary.auth.v1alpha1.AuthService/ResetPassword',
+  '/notary.auth.v1alpha1.AuthService/GetOAuthAuthorizeUrl',
+  '/notary.auth.v1alpha1.AuthService/OAuthLogin',
+  '/notary.auth.v1alpha1.AuthService/ConfirmContact',
+  '/notary.auth.v1alpha1.AuthService/ResendContactCode',
 ];
 
 // ─── Фабрика провайдера ──────────────────────────────────────────────────────

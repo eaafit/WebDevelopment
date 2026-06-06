@@ -23,6 +23,14 @@ enum Role {
   @@map("role")
 }
 
+enum OAuthProvider {
+  Google @map("google")
+  Yandex @map("yandex")
+  Vk     @map("vk")
+
+  @@map("oauth_provider")
+}
+
 enum AssessmentStatus {
   New        @map("new")
   Verified   @map("verified")
@@ -226,7 +234,7 @@ enum ElevatorType {
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique @db.VarChar
-  passwordHash String   @map("password_hash") @db.VarChar
+  passwordHash String?  @map("password_hash") @db.VarChar
   fullName     String   @map("full_name") @db.VarChar
   role         Role     @default(Applicant)
   phoneNumber  String?  @map("phone_number") @db.VarChar
@@ -252,10 +260,26 @@ model User {
   newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
   newsletterDeliveries   NewsletterDelivery[]
 
-  applicantLeads Lead[] @relation("ApplicantLeads")
-  executorLeads  Lead[] @relation("ExecutorLeads")
+  oauthAccounts          OAuthAccount[]
+  contactVerification    ContactVerification?
+  applicantLeads         Lead[] @relation("ApplicantLeads")
+  executorLeads          Lead[] @relation("ExecutorLeads")
 
   @@map("users")
+}
+
+model OAuthAccount {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  provider       OAuthProvider
+  providerUserId String        @map("provider_user_id") @db.VarChar
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 model City {
@@ -532,6 +556,23 @@ model PasswordReset {
 
   @@index([userId])
   @@map("password_resets")
+}
+
+// Код подтверждения контакта после OAuth-регистрации/первой связки.
+// Одна строка на пользователя (upsert). confirmedAt != null — контакт подтверждён (durable-маркер).
+model ContactVerification {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  codeHash    String    @map("code_hash") @db.VarChar
+  expiresAt   DateTime  @map("expires_at") @db.Timestamp()
+  attempts    Int       @default(0)
+  lastSentAt  DateTime  @map("last_sent_at") @db.Timestamp()
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamp()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp()
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("contact_verifications")
 }
 
 model AuditLog {

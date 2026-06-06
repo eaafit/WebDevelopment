@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { createClient } from '@connectrpc/connect';
 import { Assessment, AssessmentStatus, AssessmentService as RPCAssessmentService } from '@notary-portal/api-contracts';
-import { RPC_TRANSPORT, TokenStore } from '@notary-portal/ui';
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 import { PageInfo } from './document.service';
 
 @Injectable({ providedIn: 'root' })

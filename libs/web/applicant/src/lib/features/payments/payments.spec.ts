@@ -80,6 +80,7 @@ describe('Payments', () => {
   });
 
   it('should load the first page immediately', () => {
+    expect(getTransactionHistory).toHaveBeenCalledTimes(1);
     expect(getTransactionHistory).toHaveBeenCalledWith({
       page: 1,
       limit: 10,

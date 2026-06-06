@@ -15,6 +15,7 @@ import {
 } from '@internal/prisma-client';
 import { PaymentCreateService } from './payment-create.service';
 import { YooKassaClientError } from '../yookassa/yookassa.client';
+import { RobokassaClientError } from '../robokassa/robokassa.client';
 
 describe('PaymentCreateService', () => {
   const createPaymentRecord = jest.fn();
@@ -588,6 +589,69 @@ describe('PaymentCreateService', () => {
     );
   });
 
+  it('should record audit and notification when Robokassa rejects payment creation', async () => {
+    process.env['PAYMENT_PROVIDER'] = 'robokassa';
+    robokassa.createPayment.mockImplementation(() => {
+      throw new RobokassaClientError('Robokassa is not configured');
+    });
+
+    const service = new PaymentCreateService(
+      prisma as never,
+      yookassa as never,
+      robokassa as never,
+      metrics as never,
+      paymentSubscriptionService as never,
+      auditService as never,
+      paymentNotificationService as never,
+    );
+
+    const request = create(CreatePaymentRequestSchema, {
+      userId: 'user-1',
+      amount: '1500.00',
+      type: PaymentType.SUBSCRIPTION,
+      targetId: 'subscription-1',
+    });
+
+    await expect(service.createPayment(request)).rejects.toEqual(
+      expect.objectContaining({
+        code: Code.Internal,
+      }),
+    );
+
+    expect(updatePaymentRecord).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: { status: PaymentStatus.Failed },
+    });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionContext: expect.stringContaining('Robokassa'),
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          status: PaymentStatus.Failed,
+          paymentMethod: 'robokassa_redirect',
+          paymentProvider: 'Robokassa',
+          errorMessage: 'Robokassa is not configured',
+        }),
+      }),
+    );
+    expect(paymentNotificationService.notifyPaymentCreationFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PrismaPaymentType.Subscription,
+        amount: '1500.00',
+        status: PaymentStatus.Failed,
+        paymentMethod: 'robokassa_redirect',
+        subscriptionId: 'subscription-1',
+      }),
+      'Robokassa is not configured',
+    );
+  });
+
   it('should create a Robokassa redirect payment without YooKassa widget', async () => {
     process.env['PAYMENT_PROVIDER'] = 'robokassa';
 
@@ -637,6 +701,18 @@ describe('PaymentCreateService', () => {
         after: expect.objectContaining({
           paymentProvider: 'Robokassa',
         }),
+      }),
+    );
+    expect(paymentNotificationService.notifyPaymentCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'payment-1',
+        userId: 'user-1',
+        type: PrismaPaymentType.Subscription,
+        amount: '1350.00',
+        status: PaymentStatus.Pending,
+        transactionId: 'payment-1',
+        paymentMethod: 'robokassa_redirect',
+        subscriptionId: 'subscription-1',
       }),
     );
   });

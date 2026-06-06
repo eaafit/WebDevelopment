@@ -1,5 +1,11 @@
-<div class="page-overlay" (click)="goBackToList()">
-  <div class="status-container" (click)="$event.stopPropagation()">
+<div
+  class="page-overlay"
+  role="button"
+  tabindex="0"
+  (click)="onOverlayClick($event)"
+  (keydown)="onOverlayKeydown($event)"
+>
+  <div class="status-container">
     <div class="status-header">
       <div class="header-content">
         <h3 class="status-title">Информация о заявке</h3>

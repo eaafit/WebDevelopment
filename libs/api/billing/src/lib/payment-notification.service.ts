@@ -62,6 +62,22 @@ export class PaymentNotificationService {
     });
   }
 
+  async notifyPaymentProviderIssue(
+    payment: PaymentNotificationSnapshot,
+    provider: string,
+    errorMessage: string,
+  ): Promise<void> {
+    const summary = buildPaymentSummary(payment);
+
+    await this.notifyAdminsBestEffort(
+      `${provider}: ошибка платежа`,
+      `Платёж требует проверки: ${summary}. Ошибка ${provider}: ${errorMessage}.`,
+      {
+        excludeUserIds: payment.userId ? [payment.userId] : [],
+      },
+    );
+  }
+
   async notifyPaymentCompleted(payment: PaymentNotificationSnapshot): Promise<void> {
     const summary = buildPaymentSummary(payment);
 
@@ -136,7 +152,7 @@ export class PaymentNotificationService {
       await this.createPaymentNotification({ userId, title, message });
     } catch (error) {
       this.logger.warn(
-        `Failed to create payment notification for user ${userId}: ${getErrorMessage(error)}`,
+        `Payment notification failed; operation=notification.create_payment; recipient=user; result=error; error=${safeErrorName(error)}`,
       );
     }
   }
@@ -165,10 +181,14 @@ export class PaymentNotificationService {
       const failedCount = results.filter((result) => result.status === 'rejected').length;
 
       if (failedCount) {
-        this.logger.warn(`Failed to create ${failedCount} admin payment notification(s)`);
+        this.logger.warn(
+          `Payment notification failed; operation=notification.create_payment; recipient=admin; result=partial_failure; failedCount=${failedCount}`,
+        );
       }
     } catch (error) {
-      this.logger.warn(`Failed to create admin payment notifications: ${getErrorMessage(error)}`);
+      this.logger.warn(
+        `Payment notification failed; operation=notification.create_payment; recipient=admin; result=error; error=${safeErrorName(error)}`,
+      );
     }
   }
 
@@ -262,6 +282,6 @@ function formatUser(userId: string | null | undefined): string {
   return userId ? shortId(userId) : 'не указан';
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unknown error';
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

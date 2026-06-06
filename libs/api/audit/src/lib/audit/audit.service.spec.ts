@@ -1,6 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { Logger } from '@nestjs/common';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import {
   ExportAuditEventsRequestSchema,
   ListAuditEventsRequestSchema,
@@ -230,6 +231,55 @@ describe('AuditService', () => {
     });
   });
 
+  it('marks a handled audit write failure and logs no raw details', async () => {
+    const span = {
+      end: jest.fn(),
+      recordException: jest.fn(),
+      setAttribute: jest.fn(),
+      setStatus: jest.fn(),
+    };
+    const getTracerSpy = jest
+      .spyOn(trace, 'getTracer')
+      .mockReturnValue({ startSpan: jest.fn(() => span) } as never);
+    const loggerSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    auditRepository.createAuditLog.mockRejectedValue(
+      new Error(
+        'failed for test@example.com 11111111-1111-4111-8111-111111111111 token=secret',
+      ),
+    );
+
+    await runAs(
+      {
+        sub: 'admin-1',
+        email: 'admin@example.com',
+        role: Role.Admin,
+        iat: 1,
+        exp: 2,
+      },
+      () =>
+        service.record({
+          eventType: 'assessment.updated',
+          targetType: 'Assessment',
+          targetId: '11111111-1111-4111-8111-111111111111',
+          actionTitle: 'Обновлена заявка',
+        }),
+    );
+
+    expect(span.recordException).toHaveBeenCalledWith('Error');
+    expect(span.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'Error',
+    });
+    expect(span.setAttribute).toHaveBeenCalledWith('notary.result', 'error');
+    const logged = JSON.stringify(loggerSpy.mock.calls);
+    expect(logged).not.toContain('test@example.com');
+    expect(logged).not.toContain('11111111-1111-4111-8111-111111111111');
+    expect(logged).not.toContain('secret');
+
+    getTracerSpy.mockRestore();
+    loggerSpy.mockRestore();
+  });
+
   it('should normalize exact actor and target filters', async () => {
     await runAs(
       {
@@ -429,7 +479,7 @@ describe('AuditService', () => {
     ).resolves.toBeUndefined();
 
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to record audit event assessment.updated'),
+      'Audit record failed; operation=audit.record; result=error; error=Error',
     );
     warnSpy.mockRestore();
   });
