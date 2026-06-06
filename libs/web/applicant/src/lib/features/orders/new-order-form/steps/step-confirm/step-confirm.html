@@ -1,0 +1,90 @@
+<section class="summary-card">
+  <h2 class="summary-title">Сводка заявки</h2>
+  <dl class="summary-list">
+    <div class="summary-item">
+      <dt>Тип имущества</dt>
+      <dd>{{ getPropertyTypeLabel(property.propertyType) }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Адрес</dt>
+      <dd>{{ property.address }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Площадь</dt>
+      <dd>{{ property.area }} м²</dd>
+    </div>
+    @if (property.cadastralNumber) {
+    <div class="summary-item">
+      <dt>Кадастровый номер</dt>
+      <dd>{{ property.cadastralNumber }}</dd>
+    </div>
+    }
+    @if (property.description) {
+    <div class="summary-item">
+      <dt>Описание</dt>
+      <dd>{{ property.description }}</dd>
+    </div>
+    }
+  </dl>
+
+  <h3 class="summary-subtitle">Документы</h3>
+  <ul class="summary-documents">
+    @for (document of documents; track $index) {
+    <li>
+      <span class="document-type">{{ getDocumentTypeLabel(document.documentType) }}</span>
+      <span class="document-name">{{ document.fileName }}</span>
+    </li>
+    }
+  </ul>
+</section>
+
+<section class="consent-section" [formGroup]="group">
+  <div class="consent-section-header">
+    <span class="consent-section-icon" aria-hidden="true">🛡️</span>
+    <div>
+      <h2 class="consent-section-title">Согласия</h2>
+      <p class="consent-section-description">
+        Подтвердите достоверность данных и согласие на обработку персональных данных.
+      </p>
+    </div>
+  </div>
+
+  <div class="consent-list">
+    <label class="consent-card" [class.consent-card-invalid]="isInvalid('dataAccuracyConfirmed')">
+      <input
+        type="checkbox"
+        class="form-check-input"
+        formControlName="dataAccuracyConfirmed" />
+      <span class="consent-card-content">
+        <span class="consent-card-title">Достоверность данных</span>
+        <span class="consent-card-text">
+          Я подтверждаю, что все указанные сведения об объекте и приложенные документы являются
+          достоверными. <span class="required-mark">*</span>
+        </span>
+      </span>
+    </label>
+    @if (isInvalid('dataAccuracyConfirmed')) {
+    <p class="field-error">Подтвердите достоверность данных.</p>
+    }
+
+    <label class="consent-card" [class.consent-card-invalid]="isInvalid('personalDataConsent')">
+      <input
+        type="checkbox"
+        class="form-check-input"
+        formControlName="personalDataConsent" />
+      <span class="consent-card-content">
+        <span class="consent-card-title">Обработка персональных данных</span>
+        <span class="consent-card-text">
+          Согласен с условиями обработки персональных данных в соответствии с
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" class="consent-link">
+            Политикой конфиденциальности
+          </a>.
+          <span class="required-mark">*</span>
+        </span>
+      </span>
+    </label>
+    @if (isInvalid('personalDataConsent')) {
+    <p class="field-error">Необходимо согласие на обработку персональных данных.</p>
+    }
+  </div>
+</section>

@@ -1,6 +1,7 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+<<<<<<< Updated upstream
 
 interface Order {
   id: number;
@@ -12,6 +13,11 @@ interface Order {
   createdAt: string;
   updatedAt: string;
 }
+=======
+import { Router } from '@angular/router';
+import { EstimationFormSessionService } from '../estimation-form/estimation-form-session.service';
+import { ApplicantOrdersApiService, type ApplicantOrderView } from './orders-api.service';
+>>>>>>> Stashed changes
 
 @Component({
   selector: 'lib-orders',
@@ -20,73 +26,31 @@ interface Order {
   templateUrl: './orders.html',
   styleUrl: './orders.scss',
 })
-export class Orders {
-  orders = signal<Order[]>([
-    {
-      id: 1,
-      address: 'г. Москва, ул. Тверская, 15-45',
-      addressHint: '3-комнатная, 5 этаж',
-      propertyType: 'Квартира',
-      area: 68.5,
-      status: 'new',
-      createdAt: '15.03.2024',
-      updatedAt: '15.03.2024',
-    },
-    {
-      id: 2,
-      address: 'г. Екатеринбург, ул. Ленина, 10',
-      addressHint: '5-комнатный дом, 1 этаж',
-      propertyType: 'Дом',
-      area: 220.0,
-      status: 'draft',
-      createdAt: '16.03.2024',
-      updatedAt: '16.03.2024',
-    },
-    {
-      id: 3,
-      address: 'г. Санкт-Петербург, Невский пр., 100',
-      addressHint: 'коммерческое помещение, 1 этаж',
-      propertyType: 'Коммерческая',
-      area: 150.0,
-      status: 'progress',
-      createdAt: '10.03.2024',
-      updatedAt: '12.03.2024',
-    },
-    {
-      id: 4,
-      address: 'г. Казань, ул. Баумана, 25',
-      addressHint: '2-этажный дом, 185 м²',
-      propertyType: 'Дом',
-      area: 185.0,
-      status: 'completed',
-      createdAt: '01.03.2024',
-      updatedAt: '08.03.2024',
-    },
-    {
-      id: 5,
-      address: 'г. Новосибирск, Красный пр., 50',
-      addressHint: '2-комнатная, 3 этаж',
-      propertyType: 'Квартира',
-      area: 45.2,
-      status: 'rejected',
-      createdAt: '28.02.2024',
-      updatedAt: '05.03.2024',
-    },
-  ]);
+export class Orders implements OnInit {
+  private readonly ordersApi = inject(ApplicantOrdersApiService);
+  private readonly sessionService = inject(EstimationFormSessionService);
+  private readonly router = inject(Router);
+
+  orders = signal<ApplicantOrderView[]>([]);
+  loading = signal(true);
+  loadError = signal<string | null>(null);
 
   statusFilter = signal<string>('all');
   searchQuery = signal<string>('');
 
   statuses = [
     { value: 'all', label: 'Все' },
-    { value: 'draft', label: 'Черновик' },
     { value: 'new', label: 'Новая' },
     { value: 'progress', label: 'В работе' },
     { value: 'completed', label: 'Завершена' },
     { value: 'rejected', label: 'Отклонена' },
   ];
 
-  get filteredOrders(): Order[] {
+  async ngOnInit(): Promise<void> {
+    await this.loadOrders();
+  }
+
+  get filteredOrders(): ApplicantOrderView[] {
     let result = this.orders();
 
     if (this.statusFilter() !== 'all') {
@@ -98,19 +62,16 @@ export class Orders {
       result = result.filter(
         (order) =>
           order.address.toLowerCase().includes(query) ||
-          order.propertyType.toLowerCase().includes(query),
+          order.propertyType.toLowerCase().includes(query) ||
+          order.id.toLowerCase().includes(query),
       );
     }
 
-    result.sort((a, b) => {
-      const [ad, am, ay] = a.createdAt.split('.');
-      const [bd, bm, by] = b.createdAt.split('.');
-      return new Date(`${ay}-${am}-${ad}`).getTime() > new Date(`${by}-${bm}-${bd}`).getTime()
-        ? -1
-        : 1;
+    return [...result].sort((left, right) => {
+      const leftDate = parseRuDate(left.createdAt);
+      const rightDate = parseRuDate(right.createdAt);
+      return rightDate.getTime() - leftDate.getTime();
     });
-
-    return result;
   }
 
   setStatusFilter(status: string): void {
@@ -123,7 +84,6 @@ export class Orders {
 
   getStatusClass(status: string): string {
     const classes: Record<string, string> = {
-      draft: 'status-draft',
       new: 'status-new',
       progress: 'status-progress',
       completed: 'status-success',
@@ -134,7 +94,6 @@ export class Orders {
 
   getStatusText(status: string): string {
     const texts: Record<string, string> = {
-      draft: 'Черновик',
       new: 'Новая',
       progress: 'В работе',
       completed: 'Завершена',
@@ -144,30 +103,49 @@ export class Orders {
   }
 
   canEdit(status: string): boolean {
-    return status === 'draft' || status === 'new';
+    return status === 'new';
   }
 
-  canDelete(status: string): boolean {
-    return status === 'draft';
+  viewOrder(id: string): void {
+    void this.router.navigate(['/applicant/assessment/status'], {
+      queryParams: { assessmentId: id },
+    });
   }
 
-  viewOrder(id: number): void {
-    console.log('Просмотр заказа:', id);
-  }
-
-  editOrder(id: number): void {
-    console.log('Редактирование заказа:', id);
-  }
-
-  deleteOrder(id: number): void {
-    if (confirm('Вы уверены, что хотите удалить этот черновик?')) {
-      const updated = this.orders().filter((order) => order.id !== id);
-      this.orders.set(updated);
-      console.log('Удалён заказ:', id);
-    }
+  editOrder(id: string): void {
+    void this.router.navigate(['/applicant/assessment'], {
+      queryParams: { assessmentId: id },
+    });
   }
 
   createOrder(): void {
-    console.log('Создать заявку');
+    void this.router.navigate(['/applicant/orders/new']);
   }
+
+  private async loadOrders(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+
+    try {
+      const userId = await this.sessionService.ensureUserId();
+      const items = await this.ordersApi.listUserOrders(userId);
+      this.orders.set(items);
+    } catch (error) {
+      this.loadError.set(
+        error instanceof Error ? error.message : 'Не удалось загрузить список заявок.',
+      );
+      this.orders.set([]);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+}
+
+function parseRuDate(value: string): Date {
+  const [day, month, year] = value.split('.').map((part) => Number(part));
+  if (!day || !month || !year) {
+    return new Date(0);
+  }
+
+  return new Date(year, month - 1, day);
 }

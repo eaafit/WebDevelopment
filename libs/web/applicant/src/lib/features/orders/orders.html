@@ -31,7 +31,15 @@
     }
   </div>
 
-  @if (filteredOrders.length === 0) {
+  @if (loading()) {
+  <div class="empty-state">
+    <p class="text-secondary">Загрузка заявок...</p>
+  </div>
+  } @else if (loadError()) {
+  <div class="empty-state">
+    <p class="text-secondary">{{ loadError() }}</p>
+  </div>
+  } @else if (filteredOrders.length === 0) {
   <div class="empty-state">
     <div class="empty-icon">📋</div>
     <h3>Заявок пока нет</h3>
@@ -70,8 +78,6 @@
             <button class="action-btn view" title="Просмотр" (click)="viewOrder(order.id)">👁</button>
             @if (canEdit(order.status)) {
             <button class="action-btn edit" title="Редактировать" (click)="editOrder(order.id)">✏️</button>
-            } @if (canDelete(order.status)) {
-            <button class="action-btn delete" title="Удалить" (click)="deleteOrder(order.id)">🗑️</button>
             }
           </td>
         </tr>

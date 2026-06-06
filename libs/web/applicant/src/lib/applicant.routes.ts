@@ -21,13 +21,8 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'orders/new',
-        ...placeholder('Подача заявки', [
-          'Ввод данных наследства/объекта',
-          'Выбор типа имущества',
-          'Прикрепление документов',
-          'Согласия/чекбоксы',
-          'Отправка',
-        ]),
+        loadComponent: () =>
+          import('./features/orders/new-order-form/new-order-form').then((m) => m.NewOrderForm),
       },
       {
         path: 'documents',

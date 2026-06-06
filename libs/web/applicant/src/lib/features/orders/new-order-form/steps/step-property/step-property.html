@@ -1,0 +1,121 @@
+<div class="property-step">
+  <div class="property-step-intro">
+    <span class="property-step-icon" aria-hidden="true">🏠</span>
+    <div>
+      <h2 class="property-step-title">Данные об объекте</h2>
+      <p class="property-step-description">
+        Укажите тип имущества, адрес и основные характеристики объекта оценки.
+      </p>
+    </div>
+  </div>
+
+  <fieldset class="fieldset property-fieldset" [formGroup]="group">
+    <legend class="fieldset-legend">Основные параметры</legend>
+
+    <div class="form-grid form-grid-2">
+      <div class="form-group no-mb form-field-full">
+        <label class="form-label" for="propertyType">
+          Тип имущества <span class="required-mark">*</span>
+        </label>
+        <select
+          id="propertyType"
+          class="form-input form-select"
+          formControlName="propertyType"
+          [class.form-input-invalid]="isInvalid('propertyType')">
+          <option value="" disabled>Выберите тип</option>
+          @for (option of propertyTypeOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        @if (isInvalid('propertyType')) {
+        <p class="field-error">Выберите тип имущества.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb form-field-full">
+        <label class="form-label" for="address">
+          Адрес <span class="required-mark">*</span>
+        </label>
+        <input
+          id="address"
+          type="text"
+          class="form-input"
+          formControlName="address"
+          autocomplete="off"
+          placeholder="Введите адрес для поиска в ФИАС"
+          [class.form-input-invalid]="isAddressInvalid()" />
+        @if (addressLookupError()) {
+        <p class="field-error">{{ addressLookupError() }}</p>
+        } @else if (addressSuggestLoading()) {
+        <p class="form-help">Ищем адрес в ФИАС...</p>
+        }
+        @if (addressSuggestions().length) {
+        <ul class="address-suggestion-list" role="listbox" aria-label="Подсказки ФИАС">
+          @for (suggestion of addressSuggestions(); track suggestion.objectId) {
+          <li class="address-suggestion-item">
+            <button
+              class="address-suggestion-button"
+              type="button"
+              role="option"
+              (click)="onSelectAddressSuggestion(suggestion)">
+              {{ suggestion.fullName }}
+            </button>
+          </li>
+          }
+        </ul>
+        }
+        @if (isInvalid('address') && group.get('address')?.hasError('required')) {
+        <p class="field-error">Укажите адрес объекта.</p>
+        } @else if (isInvalid('address') && group.get('address')?.hasError('minlength')) {
+        <p class="field-error">Адрес слишком короткий, минимум 5 символов.</p>
+        } @else if (isInvalid('cityId') && group.get('cityId')?.hasError('required')) {
+        <p class="field-error">Выберите адрес из подсказок ФИАС.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="area">
+          Площадь, м² <span class="required-mark">*</span>
+        </label>
+        <input
+          id="area"
+          type="text"
+          inputmode="decimal"
+          class="form-input"
+          formControlName="area"
+          placeholder="Например: 68.5"
+          [class.form-input-invalid]="isInvalid('area')" />
+          <p class="empty-block"></p>
+        @if (isInvalid('area')) {
+        <p class="field-error">Укажите площадь больше 0.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="cadastralNumber">Кадастровый номер</label>
+        <input
+          id="cadastralNumber"
+          type="text"
+          class="form-input"
+          formControlName="cadastralNumber"
+          placeholder="Необязательно" />
+        <p class="form-help">При наличии укажите кадастровый номер объекта.</p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="fieldset property-fieldset property-fieldset-secondary" [formGroup]="group">
+    <legend class="fieldset-legend">Дополнительно</legend>
+
+    <div class="form-group no-mb">
+      <label class="form-label" for="description">Описание</label>
+      <textarea
+        id="description"
+        class="form-input form-textarea"
+        rows="4"
+        formControlName="description"
+        placeholder="Дополнительные сведения об объекте (необязательно)"></textarea>
+      <p class="form-help">Кратко опишите особенности объекта, если это поможет оценщику.</p>
+    </div>
+  </fieldset>
+</div>
