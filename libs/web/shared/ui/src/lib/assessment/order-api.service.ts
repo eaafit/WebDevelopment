@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { createClient } from '@connectrpc/connect';
 import { OrderService, Order } from '@notary-portal/api-contracts';
 import { timestampFromDate } from '@bufbuild/protobuf/wkt';
-import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { RPC_TRANSPORT } from '../rpc/rpc-transport';
 
 export interface ListOrdersResponse {
   orders: Order[];

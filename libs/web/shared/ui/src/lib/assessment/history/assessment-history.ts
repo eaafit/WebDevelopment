@@ -7,10 +7,10 @@ import { ActivatedRoute } from '@angular/router';
 import { AssessmentDetailModalComponent } from '../assessment-detail-modal';
 import { OrderApiService } from '../order-api.service';
 // import { NotificationService } from '@internal/notification';
-import { TokenStore } from '@notary-portal/ui';
+import { TokenStore } from '../../rpc/token-store';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Router } from '@angular/router';
-import { WebLoggerService } from '@notary-portal/ui';
+import { WebLoggerService } from '../../logging/web-logger.service';
 
 @Component({
   selector: 'lib-assessment-history',
@@ -43,7 +43,6 @@ export class AssessmentHistoryComponent implements OnInit {
     return 'applicant';
   }
 
-
   orders = signal<any[]>([]);
   totalPages = signal<number>(1);
   isLoading = signal<boolean>(false);
@@ -59,12 +58,25 @@ export class AssessmentHistoryComponent implements OnInit {
   selectedOrderId = signal<string | null>(null);
   isModalOpen = signal<boolean>(false);
 
-
-
   notifications = signal([
-    { id: 1, message: 'Заявка заказа №27730eb4-5bde-49b2-a681-c026ac8c85c7 перешла в статус "Принята"', timeAgo: '2 часа назад', icon: '⚡' },
-    { id: 2, message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Принята"', timeAgo: '5 часов назад', icon: '⚡' },
-    { id: 3, message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Создана"', timeAgo: '8 часов назад', icon: '⚡' },
+    {
+      id: 1,
+      message: 'Заявка заказа №27730eb4-5bde-49b2-a681-c026ac8c85c7 перешла в статус "Принята"',
+      timeAgo: '2 часа назад',
+      icon: '⚡',
+    },
+    {
+      id: 2,
+      message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Принята"',
+      timeAgo: '5 часов назад',
+      icon: '⚡',
+    },
+    {
+      id: 3,
+      message: 'Заявка заказа №38f826fe-9f4c-4296-a1e7-62ae28b27fee перешла в статус "Создана"',
+      timeAgo: '8 часов назад',
+      icon: '⚡',
+    },
   ]);
 
   recentEvents = signal<any[]>([]);
@@ -103,7 +115,15 @@ export class AssessmentHistoryComponent implements OnInit {
   async loadOrders(): Promise<void> {
     const userId = this.getCurrentUserId();
     // console.log('Current user ID:', this.getCurrentUserId());
-    this.logger.info('order.history.load_started', { role: this.role, filters: { status: this.statusFilter(), dateFrom: this.dateFrom(), dateTo: this.dateTo(), search: this.searchQuery() } });
+    this.logger.info('order.history.load_started', {
+      role: this.role,
+      filters: {
+        status: this.statusFilter(),
+        dateFrom: this.dateFrom(),
+        dateTo: this.dateTo(),
+        search: this.searchQuery(),
+      },
+    });
 
     this.isLoading.set(true);
     try {
@@ -120,7 +140,10 @@ export class AssessmentHistoryComponent implements OnInit {
 
       this.orders.set(response.orders);
       this.totalPages.set(response.totalPages);
-      this.logger.info('order.history.load_succeeded', { ordersCount: response.orders.length, total: response.totalCount });
+      this.logger.info('order.history.load_succeeded', {
+        ordersCount: response.orders.length,
+        total: response.totalCount,
+      });
     } catch (err) {
       this.logger.error('order.history.load_failed', { error: err });
     } finally {
@@ -187,12 +210,26 @@ export class AssessmentHistoryComponent implements OnInit {
   //   }
   // }
 
-
-
-  onSearchChange(): void { this.logger.info('order.history.filter.search_changed', { search: this.searchQuery() }); this.currentPage.set(1); this.loadOrders(); }
-  onStatusChange(): void { this.logger.info('order.history.filter.status_changed', { status: this.statusFilter() }); this.currentPage.set(1); this.loadOrders(); }
-  onDateFromChange(): void { this.logger.info('order.history.filter.date_from_changed', { dateFrom: this.dateFrom() }); this.currentPage.set(1); this.loadOrders(); }
-  onDateToChange(): void { this.logger.info('order.history.filter.date_to_changed', { dateTo: this.dateTo() }); this.currentPage.set(1); this.loadOrders(); }
+  onSearchChange(): void {
+    this.logger.info('order.history.filter.search_changed', { search: this.searchQuery() });
+    this.currentPage.set(1);
+    this.loadOrders();
+  }
+  onStatusChange(): void {
+    this.logger.info('order.history.filter.status_changed', { status: this.statusFilter() });
+    this.currentPage.set(1);
+    this.loadOrders();
+  }
+  onDateFromChange(): void {
+    this.logger.info('order.history.filter.date_from_changed', { dateFrom: this.dateFrom() });
+    this.currentPage.set(1);
+    this.loadOrders();
+  }
+  onDateToChange(): void {
+    this.logger.info('order.history.filter.date_to_changed', { dateTo: this.dateTo() });
+    this.currentPage.set(1);
+    this.loadOrders();
+  }
 
   goToPage(page: number): void {
     if (page >= 1 && page <= this.totalPages()) {
@@ -213,28 +250,36 @@ export class AssessmentHistoryComponent implements OnInit {
   getSelectedOrder(): any {
     const id = this.selectedOrderId();
     if (!id) return null;
-    const order = this.orders().find(o => o.id === id);
+    const order = this.orders().find((o) => o.id === id);
     if (!order) return null;
 
     // Преобразуем Timestamp → Date для основных полей и для истории статусов
     return {
       ...order,
       orderDate: order.orderDate ? timestampDate(order.orderDate) : null,
-      plannedCompletionDate: order.plannedCompletionDate ? timestampDate(order.plannedCompletionDate) : null,
-      actualCompletionDate: order.actualCompletionDate ? timestampDate(order.actualCompletionDate) : null,
-      statusHistory: order.statusHistory?.map((entry: any) => ({
-        ...entry,
-        date: entry.date ? timestampDate(entry.date) : null,
-      })) || [],
+      plannedCompletionDate: order.plannedCompletionDate
+        ? timestampDate(order.plannedCompletionDate)
+        : null,
+      actualCompletionDate: order.actualCompletionDate
+        ? timestampDate(order.actualCompletionDate)
+        : null,
+      statusHistory:
+        order.statusHistory?.map((entry: any) => ({
+          ...entry,
+          date: entry.date ? timestampDate(entry.date) : null,
+        })) || [],
     };
   }
 
   async repeatOrder(orderId: string): Promise<void> {
     // Найти заказ в текущем списке
-    const order = this.orders().find(o => o.id === orderId);
+    const order = this.orders().find((o) => o.id === orderId);
     this.logger.info('order.history.repeat_order', { orderId });
     if (!order) {
-      this.logger.error('order.history.repeat_order_failed', { orderId, reason: 'Order not found' });
+      this.logger.error('order.history.repeat_order_failed', {
+        orderId,
+        reason: 'Order not found',
+      });
       return;
     }
 
@@ -247,7 +292,9 @@ export class AssessmentHistoryComponent implements OnInit {
       address: order.objectAddress,
       cadastralNumber: '',
       area: order.realEstateObject?.area?.toString() || '',
-      objectType: order.realEstateObject?.objectType ? String(order.realEstateObject.objectType) : '',
+      objectType: order.realEstateObject?.objectType
+        ? String(order.realEstateObject.objectType)
+        : '',
       rooms: order.realEstateObject?.roomsCount?.toString() || '',
       floorsTotal: '',
       floor: order.realEstateObject?.floor?.toString() || '',
@@ -264,7 +311,7 @@ export class AssessmentHistoryComponent implements OnInit {
 
     // Перейти на страницу новой заявки и передать данные
     this.router.navigate(['/applicant/assessment/new/params'], {
-      state: { repeatOrderData: formData }
+      state: { repeatOrderData: formData },
     });
   }
 

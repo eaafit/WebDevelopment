@@ -15,6 +15,13 @@ import { getCurrentUser } from '@internal/auth-shared';
 import { AuditService } from '@internal/audit';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
 import { PaymentNotificationService } from '../payment-notification.service';
 import {
   TransactionHistoryRepository,
@@ -47,102 +54,159 @@ export class TransactionHistoryService {
   ) {}
 
   async getPaymentHistory(request: GetPaymentHistoryRequest): Promise<GetPaymentHistoryResponse> {
-    const scope = request.userId?.trim() ? 'user' : 'all';
+    return runInSpan(
+      'TransactionHistoryService.getPaymentHistory',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.paymentHistoryList,
+        [NotarySpanAttributes.entity]: 'Payment',
+      },
+      async () => {
+        const scope = request.userId?.trim() ? 'user' : 'all';
 
-    try {
-      const response = await this.transactionHistoryRepository.getTransactionHistory(
-        this.normalizeRequest(request),
-      );
-      this.metrics.recordPaymentHistoryRequest(scope, 'success');
-      return response;
-    } catch (error) {
-      this.metrics.recordPaymentHistoryRequest(scope, 'failed');
-      throw error;
-    }
+        try {
+          const response = await this.transactionHistoryRepository.getTransactionHistory(
+            this.normalizeRequest(request),
+          );
+          this.metrics.recordPaymentHistoryRequest(scope, 'success');
+          return response;
+        } catch (error) {
+          this.metrics.recordPaymentHistoryRequest(scope, 'failed');
+          throw error;
+        }
+      },
+    );
   }
 
   async updatePayment(request: UpdatePaymentRequest): Promise<UpdatePaymentResponse> {
-    if (!UUID_PATTERN.test(request.id)) {
-      throw invalidArgument('id', 'must be a valid UUID');
-    }
+    return runInSpan(
+      'TransactionHistoryService.updatePayment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.paymentAdminUpdate,
+        [NotarySpanAttributes.entity]: 'Payment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'payment.status.to':
+          request.status === undefined ? undefined : toStatusText(request.status),
+      },
+      async (span) => {
+        if (!UUID_PATTERN.test(request.id)) {
+          throw invalidArgument('id', 'must be a valid UUID');
+        }
 
-    if (request.status === PaymentStatus.UNSPECIFIED) {
-      throw invalidArgument('status', 'must not be UNSPECIFIED');
-    }
+        if (request.status === PaymentStatus.UNSPECIFIED) {
+          throw invalidArgument('status', 'must not be UNSPECIFIED');
+        }
 
-    if (request.amount !== undefined && !/^\d+(\.\d{1,2})?$/.test(request.amount)) {
-      throw invalidArgument('amount', 'must be a valid decimal (up to 2 fractional digits)');
-    }
+        if (request.amount !== undefined && !/^\d+(\.\d{1,2})?$/.test(request.amount)) {
+          throw invalidArgument('amount', 'must be a valid decimal (up to 2 fractional digits)');
+        }
 
-    const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
-    const response = await this.transactionHistoryRepository.updatePayment(request);
+        const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
+        const response = await this.transactionHistoryRepository.updatePayment(request);
 
-    if (!response.payment) {
-      return response;
-    }
+        if (!response.payment) {
+          return response;
+        }
 
-    const actorUserId = getCurrentUser()?.sub;
-    const after = toAuditSnapshotFromPayment(response.payment);
-    const target = resolveAuditTarget(after.id, after.assessmentId);
-    const shortPaymentId = shortId(after.id);
+        const actorUserId = getCurrentUser()?.sub;
+        const after = toAuditSnapshotFromPayment(response.payment);
+        setSpanAttributes(span, {
+          'payment.status.from': before?.status,
+          'payment.status.to': after.status,
+          'payment.type': after.type,
+        });
+        const target = resolveAuditTarget(after.id, after.assessmentId);
+        const shortPaymentId = shortId(after.id);
 
-    try {
-      await this.auditService.record({
-        actorUserId,
-        eventType: 'payment.updated',
-        targetType: target.targetType,
-        targetId: target.targetId,
-        actionTitle: 'Платёж обновлён',
-        actionContext: `Обновлён платёж ${shortPaymentId}`,
-        targetTitle: target.targetTitle,
-        targetContext: target.targetContext,
-        ...(before ? { before: toAuditJsonFromSnapshot(before) } : {}),
-        after: toAuditJsonFromSnapshot(after),
-      });
-    } catch {
-      // audit failure must not break the main operation
-    }
+        try {
+          await this.auditService.record({
+            actorUserId,
+            eventType: 'payment.updated',
+            targetType: target.targetType,
+            targetId: target.targetId,
+            actionTitle: 'Платёж обновлён',
+            actionContext: `Обновлён платёж ${shortPaymentId}`,
+            targetTitle: target.targetTitle,
+            targetContext: target.targetContext,
+            ...(before ? { before: toAuditJsonFromSnapshot(before) } : {}),
+            after: toAuditJsonFromSnapshot(after),
+          });
+        } catch {
+          // audit failure must not break the main operation
+        }
 
-    await this.paymentNotificationService.notifyPaymentUpdated(after);
+        await runInSpan(
+          'PaymentNotificationService.notifyPaymentUpdated',
+          {
+            [NotarySpanAttributes.operation]: BusinessOperations.notificationCreatePayment,
+            'notary.entity': 'Notification',
+            'notification.category': 'payment',
+            'payment.status.to': after.status,
+          },
+          () => this.paymentNotificationService.notifyPaymentUpdated(after),
+        );
 
-    return response;
+        return response;
+      },
+    );
   }
 
   async deletePayment(request: DeletePaymentRequest): Promise<DeletePaymentResponse> {
-    if (!UUID_PATTERN.test(request.id)) {
-      throw invalidArgument('id', 'must be a valid UUID');
-    }
+    return runInSpan(
+      'TransactionHistoryService.deletePayment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.paymentAdminDelete,
+        [NotarySpanAttributes.entity]: 'Payment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        if (!UUID_PATTERN.test(request.id)) {
+          throw invalidArgument('id', 'must be a valid UUID');
+        }
 
-    const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
-    const response = await this.transactionHistoryRepository.deletePayment(request);
+        const before = await this.transactionHistoryRepository.getPaymentAuditSnapshot(request.id);
+        const response = await this.transactionHistoryRepository.deletePayment(request);
 
-    if (!before) {
-      return response;
-    }
+        if (!before) {
+          return response;
+        }
 
-    const actorUserId = getCurrentUser()?.sub;
-    const target = resolveAuditTarget(before.id, before.assessmentId);
-    const shortPaymentId = shortId(before.id);
+        setSpanAttributes(span, {
+          'payment.status.from': before.status,
+          'payment.type': before.type,
+        });
+        const actorUserId = getCurrentUser()?.sub;
+        const target = resolveAuditTarget(before.id, before.assessmentId);
+        const shortPaymentId = shortId(before.id);
 
-    try {
-      await this.auditService.record({
-        actorUserId,
-        eventType: 'payment.deleted',
-        targetType: target.targetType,
-        targetId: target.targetId,
-        actionTitle: 'Платёж удалён',
-        actionContext: `Удалён платёж ${shortPaymentId}`,
-        targetTitle: target.targetTitle,
-        targetContext: target.targetContext,
-        before: toAuditJsonFromSnapshot(before),
-      });
-    } catch {
-      // audit failure must not break the main operation
-    }
+        try {
+          await this.auditService.record({
+            actorUserId,
+            eventType: 'payment.deleted',
+            targetType: target.targetType,
+            targetId: target.targetId,
+            actionTitle: 'Платёж удалён',
+            actionContext: `Удалён платёж ${shortPaymentId}`,
+            targetTitle: target.targetTitle,
+            targetContext: target.targetContext,
+            before: toAuditJsonFromSnapshot(before),
+          });
+        } catch {
+          // audit failure must not break the main operation
+        }
 
-    await this.paymentNotificationService.notifyPaymentDeleted(before);
+        await runInSpan(
+          'PaymentNotificationService.notifyPaymentDeleted',
+          {
+            [NotarySpanAttributes.operation]: BusinessOperations.notificationCreatePayment,
+            'notary.entity': 'Notification',
+            'notification.category': 'payment',
+          },
+          () => this.paymentNotificationService.notifyPaymentDeleted(before),
+        );
 
-    return response;
+        return response;
+      },
+    );
   }
 
   private normalizeRequest(request: GetPaymentHistoryRequest): TransactionHistoryQuery {

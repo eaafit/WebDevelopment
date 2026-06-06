@@ -18,6 +18,7 @@ describe('AuditMonitoringPage', () => {
   let createObjectUrlMock: jest.Mock;
   let revokeObjectUrlMock: jest.Mock;
   let clickSpy: jest.SpyInstance;
+  let dispatchSpy: jest.SpyInstance;
   const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
   const originalCreateObjectURL = URL.createObjectURL;
   const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -45,6 +46,9 @@ describe('AuditMonitoringPage', () => {
       value: revokeObjectUrlMock,
     });
     clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    dispatchSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, 'dispatchEvent')
+      .mockImplementation(() => true);
 
     await TestBed.configureTestingModule({
       imports: [AuditMonitoringPage],
@@ -96,6 +100,7 @@ describe('AuditMonitoringPage', () => {
     }
 
     clickSpy.mockRestore();
+    dispatchSpy.mockRestore();
   });
 
   it('should load the first page on init', async () => {
@@ -340,8 +345,9 @@ describe('AuditMonitoringPage', () => {
       dateTo: '',
     });
     expect(createObjectUrlMock).toHaveBeenCalled();
-    expect(clickSpy).toHaveBeenCalled();
-    expect(revokeObjectUrlMock).toHaveBeenCalledWith('blob:mock-audit-export');
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.any(MouseEvent));
+    expect(clickSpy).not.toHaveBeenCalled();
+    expect(revokeObjectUrlMock).not.toHaveBeenCalled();
     expect(logger.info).toHaveBeenCalledWith(
       'Audit CSV export completed',
       expect.objectContaining({

@@ -61,8 +61,8 @@
 
   <div class="copies-grid">
     @for (item of documents(); track item.id) {
-      <document-row 
-      [document]="item" 
+      <lib-document-row
+      [document]="item"
       [status]="assessmentStatuses()[item.assessmentId]"
       />
     } @empty {
@@ -76,13 +76,13 @@
     }
   </div>
 
-  <pagination 
-    [hasPrev]="hasPrev()" 
-    [hasNext]="hasNext()" 
-    [current]="page()" 
-    [totalPages]="totalPages()" 
-    [goToPrev]="goToPrev" 
-    [goToNext]="goToNext" 
+  <lib-pagination
+    [hasPrev]="hasPrev()"
+    [hasNext]="hasNext()"
+    [current]="page()"
+    [totalPages]="totalPages()"
+    [goToPrev]="goToPrev"
+    [goToNext]="goToNext"
     [pageSize]="limit()"
     (pageSizeChange)="changeLimit($event)"
   />

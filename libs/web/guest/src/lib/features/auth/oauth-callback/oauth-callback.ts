@@ -1,0 +1,47 @@
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthService, resolveOAuthProvider } from '../auth.service';
+
+/**
+ * Точка приземления OAuth-редиректа провайдера (redirect_uri).
+ * Провайдер берётся из параметра маршрута /auth/oauth/:provider/callback.
+ * Читает code/state из query, передаёт в AuthService.completeOAuthLogin,
+ * который на успехе сам логинит и редиректит по роли.
+ */
+@Component({
+  selector: 'lib-oauth-callback',
+  standalone: true,
+  imports: [RouterLink],
+  templateUrl: './oauth-callback.html',
+  styleUrl: '../login/login.scss',
+})
+export class OAuthCallback implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+  private readonly authService = inject(AuthService);
+
+  private readonly config = resolveOAuthProvider(this.route.snapshot.paramMap.get('provider'));
+
+  /** Имя провайдера для заголовка/сообщений; для неизвестного — «внешний сервис». */
+  readonly providerName = this.config?.displayName ?? 'внешний сервис';
+  readonly error = this.authService.error;
+  readonly failed = signal(false);
+
+  async ngOnInit(): Promise<void> {
+    const params = this.route.snapshot.queryParamMap;
+
+    // Неизвестный провайдер или провайдер вернул ошибку (например, отказ в доступе).
+    if (!this.config || params.get('error')) {
+      this.failed.set(true);
+      return;
+    }
+
+    const code = params.get('code') ?? '';
+    const state = params.get('state') ?? '';
+    // device_id присылает VK ID; для Google/Yandex его нет (пустая строка).
+    const deviceId = params.get('device_id') ?? '';
+    const ok = await this.authService.completeOAuthLogin(this.config, code, state, deviceId);
+    if (!ok) {
+      this.failed.set(true);
+    }
+  }
+}

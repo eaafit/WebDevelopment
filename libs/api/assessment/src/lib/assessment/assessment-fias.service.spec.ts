@@ -17,6 +17,7 @@ describe('AssessmentService FIAS flow', () => {
     new StubFiasProvider(),
     {} as never,
     {} as never,
+    {} as never,
   );
 
   beforeEach(() => {

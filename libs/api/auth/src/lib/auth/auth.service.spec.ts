@@ -1,6 +1,7 @@
 import { Code } from '@connectrpc/connect';
 import { create } from '@bufbuild/protobuf';
 import { Logger } from '@nestjs/common';
+import { SpanStatusCode, trace } from '@opentelemetry/api';
 import { Role as PrismaRole } from '@internal/prisma-client';
 import {
   ForgotPasswordRequestSchema,
@@ -257,9 +258,85 @@ describe('AuthService', () => {
       }),
     );
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to create admin registration notification'),
+      'Auth notification failed; operation=auth.registration.notify_admins; result=error; error=Error',
     );
 
+    warnSpy.mockRestore();
+  });
+
+  it('keeps registration successful but marks welcome mail span as failed', async () => {
+    const tracing = mockTracer();
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const transactionalMailer = {
+      sendWelcomeAfterRegistration: jest.fn().mockRejectedValue(new Error('smtp failed')),
+    };
+    const user: User = create(UserSchema, {
+      id: 'user-4',
+      email: 'mail-user@example.com',
+      fullName: 'Mail User',
+      role: UserRole.APPLICANT,
+      isActive: true,
+    });
+    const serviceWithMailer = new AuthService(
+      authRepository as never,
+      refreshTokenRepository as never,
+      passwordResetRepository as never,
+      passwordService as never,
+      tokenService as never,
+      metrics as never,
+      auditService as never,
+      notificationService as never,
+      null,
+      transactionalMailer as never,
+    );
+
+    authRepository.findByEmail.mockResolvedValue(null);
+    authRepository.toPrismaRole.mockReturnValue('Applicant');
+    authRepository.createUser.mockResolvedValue(user);
+    passwordService.hash.mockResolvedValue('password-hash');
+    tokenService.generateTokenPair.mockReturnValue({
+      accessToken: 'access-token',
+      refreshToken: 'refresh-token',
+      refreshExpiresAt: new Date('2026-04-12T00:00:00.000Z'),
+    });
+    refreshTokenRepository.save.mockResolvedValue(undefined);
+
+    const result = await serviceWithMailer.register(
+      create(RegisterRequestSchema, {
+        email: 'mail-user@example.com',
+        password: 'Password123',
+        fullName: 'Mail User',
+        role: UserRole.APPLICANT,
+      }),
+    );
+    await settleBestEffortWork();
+
+    expect(result.result?.accessToken).toBe('access-token');
+    expect(transactionalMailer.sendWelcomeAfterRegistration).toHaveBeenCalled();
+    const mailSpan = tracing.spans.get('TransactionalMailer.sendWelcomeAfterRegistration');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('auth.mail.delivery', 'failed');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('notary.side_effect.result', 'error');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('notary.result', 'error');
+    expect(mailSpan?.setAttribute).not.toHaveBeenCalledWith('notary.result', 'success');
+    expect(mailSpan?.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'Error',
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Auth mail delivery failed; operation=auth.mail.send_welcome; result=error; error=Error',
+    );
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('smtp failed');
+    expect(mailSpanAttributes(tracing, 'TransactionalMailer.sendWelcomeAfterRegistration')).toEqual(
+      {
+        'notary.operation': 'auth.mail.send_welcome',
+        'notary.entity': 'User',
+      },
+    );
+    expect(mailSpanAttributes(tracing, 'AuthService.register')).not.toHaveProperty(
+      'notary.actor.role',
+    );
+
+    tracing.restore();
     warnSpy.mockRestore();
   });
 
@@ -305,6 +382,47 @@ describe('AuthService', () => {
           reason: 'invalid_password',
           email: 'seed-user-000@seed.local',
           role: 'Applicant',
+        }),
+      }),
+    );
+  });
+
+  it('rejects password login for an OAuth-only account (null password hash)', async () => {
+    authRepository.findByEmail.mockResolvedValue({
+      id: 'user-9',
+      email: 'oauth-user@example.com',
+      fullName: 'OAuth User',
+      role: 'Applicant',
+      passwordHash: null,
+      isActive: true,
+    });
+
+    await expect(
+      service.login(
+        create(LoginRequestSchema, {
+          email: 'oauth-user@example.com',
+          password: 'whatever-password',
+        }),
+      ),
+    ).rejects.toMatchObject({
+      code: Code.Unauthenticated,
+      message: '[unauthenticated] invalid credentials',
+    });
+
+    // Парольная проверка не должна запускаться без хэша.
+    expect(passwordService.compare).not.toHaveBeenCalled();
+    expect(refreshTokenRepository.save).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorEmail: 'oauth-user@example.com',
+        allowAnonymous: true,
+        eventType: 'user.login_failed',
+        targetType: 'User',
+        targetId: 'user-9',
+        actionContext: 'Аккаунт без пароля (вход через внешний сервис)',
+        after: expect.objectContaining({
+          reason: 'oauth_only_account',
+          email: 'oauth-user@example.com',
         }),
       }),
     );
@@ -395,6 +513,7 @@ describe('AuthService', () => {
   });
 
   it('records password reset requests without storing reset tokens or URLs', async () => {
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
     authRepository.findByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'seed-user-000@seed.local',
@@ -436,6 +555,78 @@ describe('AuthService', () => {
     const auditPayload = JSON.stringify(auditService.record.mock.calls);
     expect(auditPayload).not.toContain('raw-reset-token');
     expect(auditPayload).not.toContain('/auth/reset-password');
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[Auth] PASSWORD_RESET_MAILER не настроен; ссылка сброса пароля не логируется',
+    );
+    const warnPayload = JSON.stringify(warnSpy.mock.calls);
+    expect(warnPayload).not.toContain('raw-reset-token');
+    expect(warnPayload).not.toContain('/auth/reset-password');
+    warnSpy.mockRestore();
+  });
+
+  it('keeps forgotPassword successful but marks reset mail span as failed', async () => {
+    const tracing = mockTracer();
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const passwordResetMailer = {
+      sendResetLink: jest.fn().mockRejectedValue(new Error('smtp failed')),
+    };
+    const serviceWithMailer = new AuthService(
+      authRepository as never,
+      refreshTokenRepository as never,
+      passwordResetRepository as never,
+      passwordService as never,
+      tokenService as never,
+      metrics as never,
+      auditService as never,
+      notificationService as never,
+      passwordResetMailer as never,
+      null,
+    );
+
+    authRepository.findByEmail.mockResolvedValue({
+      id: 'user-1',
+      email: 'seed-user-000@seed.local',
+      fullName: 'Заявитель 1',
+      role: 'Applicant',
+      isActive: true,
+    });
+    tokenService.generatePasswordResetToken.mockReturnValue('raw-reset-token');
+    passwordResetRepository.create.mockResolvedValue(undefined);
+
+    await serviceWithMailer.forgotPassword(
+      create(ForgotPasswordRequestSchema, {
+        email: 'seed-user-000@seed.local',
+      }),
+    );
+    await settleBestEffortWork();
+
+    expect(passwordResetMailer.sendResetLink).toHaveBeenCalledWith(
+      'seed-user-000@seed.local',
+      expect.stringContaining('/auth/reset-password?token=raw-reset-token'),
+    );
+    const mailSpan = tracing.spans.get('PasswordResetMailer.sendResetLink');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('auth.mail.delivery', 'failed');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('notary.side_effect.result', 'error');
+    expect(mailSpan?.setAttribute).toHaveBeenCalledWith('notary.result', 'error');
+    expect(mailSpan?.setAttribute).not.toHaveBeenCalledWith('notary.result', 'success');
+    expect(mailSpan?.setStatus).toHaveBeenCalledWith({
+      code: SpanStatusCode.ERROR,
+      message: 'Error',
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Auth mail delivery failed; operation=auth.mail.send_password_reset; result=error; error=Error',
+    );
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('smtp failed');
+    expect(mailSpanAttributes(tracing, 'PasswordResetMailer.sendResetLink')).toEqual({
+      'notary.operation': 'auth.mail.send_password_reset',
+      'notary.entity': 'PasswordReset',
+    });
+    expect(
+      JSON.stringify(mailSpanAttributes(tracing, 'PasswordResetMailer.sendResetLink')),
+    ).not.toContain('raw-reset-token');
+
+    tracing.restore();
+    warnSpy.mockRestore();
   });
 
   it('records password reset failures for unknown emails', async () => {
@@ -560,3 +751,48 @@ describe('AuthService', () => {
     expect(JSON.stringify(auditService.record.mock.calls)).not.toContain('bad-reset-token');
   });
 });
+
+type TracedSpanMock = {
+  end: jest.Mock;
+  recordException: jest.Mock;
+  setAttribute: jest.Mock;
+  setStatus: jest.Mock;
+};
+
+function mockTracer(): {
+  spans: Map<string, TracedSpanMock>;
+  startSpan: jest.Mock;
+  restore: () => void;
+} {
+  const spans = new Map<string, TracedSpanMock>();
+  const startSpan = jest.fn((spanName: string) => {
+    const span = {
+      end: jest.fn(),
+      recordException: jest.fn(),
+      setAttribute: jest.fn(),
+      setStatus: jest.fn(),
+    };
+    spans.set(spanName, span);
+    return span;
+  });
+  const getTracerSpy = jest.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never);
+
+  return {
+    spans,
+    startSpan,
+    restore: () => getTracerSpy.mockRestore(),
+  };
+}
+
+function mailSpanAttributes(
+  tracing: { startSpan: jest.Mock },
+  spanName: string,
+): Record<string, unknown> | undefined {
+  const call = tracing.startSpan.mock.calls.find(([name]) => name === spanName);
+  return call?.[1]?.attributes;
+}
+
+async function settleBestEffortWork(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}

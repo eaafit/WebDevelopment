@@ -16,8 +16,8 @@ import { WebLoggerService } from '@notary-portal/ui';
 })
 export class HistoryItemComponent {
   @Input() order!: AssessmentOrder;
-  @Input() role: 'applicant' | 'notary' = 'applicant';
-  @Input() currentUserId: string = '';
+  @Input() role = 'applicant' as 'applicant' | 'notary';
+  @Input() currentUserId = '';
   @Output() repeat = new EventEmitter<string>();
   @Output() view = new EventEmitter<string>();
   @Output() orderTaken = new EventEmitter<string>();

@@ -1,6 +1,11 @@
-<div class="page-overlay" (click)="goBackToList()">
-  <div class="new-doc-fieldset" (click)="$event.stopPropagation()">
-    
+<div
+  class="page-overlay"
+  role="button"
+  tabindex="0"
+  (click)="onOverlayClick($event)"
+  (keydown)="onOverlayKeydown($event)"
+>
+  <div class="new-doc-fieldset">
     <h3 class="form-title">Запрос копии документа</h3>
 
     <div class="input-block">
@@ -26,8 +31,8 @@
     </div>
 
     <div class="input-block document-section">
-      <label class="label">Основания (доверенность, свидетельство и т.д.) <span class="required">*</span></label>
-      
+      <label class="label" for="documentFile">Основания (доверенность, свидетельство и т.д.) <span class="required">*</span></label>
+
       @if (!selectedFile) {
         <div class="file-upload-placeholder">
           <input class="file-input" id="documentFile" type="file" (change)="onDocumentUpload($event)" />
@@ -47,25 +52,27 @@
 
     <div class="input-block">
       <label class="label" for="form-comment">Комментарий к запросу</label>
-      <textarea 
-        id="form-comment" 
-        class="textarea-field" 
+      <textarea
+        id="form-comment"
+        class="textarea-field"
         placeholder="Например: оригинал находится у нотариуса..."
         [ngModel]="comment()"
-        (ngModelChange)="comment.set($event)">
-      </textarea>
+        (ngModelChange)="comment.set($event)"
+      ></textarea>
     </div>
+
     <div class="price-calculation-block">
-  <span class="price-label">Итоговая стоимость копии:</span>
-  <span class="price-value">{{ price() }} ₽</span>
-</div>
+      <span class="price-label">Итоговая стоимость копии:</span>
+      <span class="price-value">{{ price() }} ₽</span>
+    </div>
 
     <div class="form-actions">
-      <button 
-        type="button" 
-        class="btn-submit" 
-        [disabled]="!selectedFile || isSubmitting() || !selectedAssesmentID()" 
-        (click)="onSubmit()">
+      <button
+        type="button"
+        class="btn-submit"
+        [disabled]="!selectedFile || isSubmitting() || !selectedAssesmentID()"
+        (click)="onSubmit()"
+      >
         Отправить запрос
       </button>
     </div>

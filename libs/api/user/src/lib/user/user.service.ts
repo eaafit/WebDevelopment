@@ -15,7 +15,13 @@ import {
   type UpdateProfileRequest,
   type UpdateProfileResponse,
 } from '@notary-portal/api-contracts';
-import { requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
+import { getCurrentUser, requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  normalizeSpanActorRole,
+  runInSpan,
+} from '@internal/tracing';
 import { UserRepository } from './user.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -41,15 +47,25 @@ export class UserService {
   // Доступен: только сам пользователь (не Admin — чтобы не менять чужие данные)
 
   async updateProfile(request: UpdateProfileRequest): Promise<UpdateProfileResponse> {
-    validateUuid(request.userId, 'user_id');
-    requireSelfOrRole(request.userId, Role.Admin);
+    return runInSpan(
+      'UserService.updateProfile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.userProfileUpdate,
+        [NotarySpanAttributes.entity]: 'User',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async () => {
+        validateUuid(request.userId, 'user_id');
+        requireSelfOrRole(request.userId, Role.Admin);
 
-    const user = await this.userRepository.updateProfile(request.userId, {
-      fullName: request.fullName?.trim() || undefined,
-      phoneNumber: request.phoneNumber?.trim() || undefined,
-    });
+        const user = await this.userRepository.updateProfile(request.userId, {
+          fullName: request.fullName?.trim() || undefined,
+          phoneNumber: request.phoneNumber?.trim() || undefined,
+        });
 
-    return create(UpdateProfileResponseSchema, { user });
+        return create(UpdateProfileResponseSchema, { user });
+      },
+    );
   }
 
   // ─── GetUserById ─────────────────────────────────────────────────────────

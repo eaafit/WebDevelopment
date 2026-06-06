@@ -1,17 +1,38 @@
 import { create } from '@bufbuild/protobuf';
 import { AssessmentStatus } from '@internal/prisma-client';
 import { Role, requestContextStorage, type AccessTokenPayload } from '@internal/auth-shared';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import {
   AssessmentStatus as RpcAssessmentStatus,
   CancelAssessmentRequestSchema,
   CompleteAssessmentRequestSchema,
   CreateAssessmentRequestSchema,
+  LogApplicantAssessmentActionRequestSchema,
   UpdateAssessmentRequestSchema,
   VerifyAssessmentRequestSchema,
 } from '@notary-portal/api-contracts';
+import { Logger } from '@nestjs/common';
 import { AssessmentService } from './assessment.service';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { BitrixLeadPublisherService } from '@internal/bitrix-leads';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn(
+      (_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) => action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 describe('AssessmentService audit events', () => {
   const assessmentRepository = {
@@ -43,6 +64,11 @@ describe('AssessmentService audit events', () => {
   const bitrixLeadPublisher = {
     publishLead: jest.fn(),
   };
+  const orderService = {
+    createOrder: jest.fn(),
+    publishOrderToBitrix: jest.fn(),
+    completeOrderForAssessment: jest.fn(),
+  };
 
   const service = new AssessmentService(
     assessmentRepository as never,
@@ -51,6 +77,7 @@ describe('AssessmentService audit events', () => {
     fiasProvider as never,
     notificationService as never,
     bitrixLeadPublisher as never,
+    orderService as never,
   );
 
   beforeEach(() => {
@@ -60,6 +87,11 @@ describe('AssessmentService audit events', () => {
     fiasProvider.searchAddressItems.mockResolvedValue([]);
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
     bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
+    orderService.createOrder.mockResolvedValue({ id: 'lead-1' });
+    orderService.publishOrderToBitrix.mockResolvedValue(undefined);
+    orderService.completeOrderForAssessment.mockResolvedValue(undefined);
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
 
   it('creates an admin notification after assessment creation', async () => {
@@ -380,8 +412,7 @@ describe('AssessmentService audit events', () => {
       'Admin',
       expect.objectContaining({
         title: 'Оценка заявки завершена',
-        message:
-          'По заявке #11111111 завершена оценка объекта. Итоговая стоимость: 1 500 000 ₽.',
+        message: 'По заявке #11111111 завершена оценка объекта. Итоговая стоимость: 1 500 000 ₽.',
       }),
     );
   });
@@ -489,6 +520,36 @@ describe('AssessmentService audit events', () => {
 
     // Даём микрозадаче .catch отработать, чтобы не было unhandled rejection
     await new Promise<void>((resolve) => setImmediate(resolve));
+  });
+
+  it('does not put raw unsupported applicant UI action into spans or logs', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const rawAction = 'drop-table-token=secret-token-test@example.com';
+
+    await expect(
+      service.logApplicantAssessmentAction(
+        create(LogApplicantAssessmentActionRequestSchema, {
+          action: rawAction,
+          status: 'New',
+        }),
+      ),
+    ).rejects.toThrow('action must be a supported applicant assessment UI action');
+
+    expect(setSpanAttributes).toHaveBeenCalledWith(expect.anything(), {
+      'assessment.ui_action': 'unsupported',
+    });
+
+    const payload = JSON.stringify([
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+      ...warnSpy.mock.calls,
+    ]);
+    expect(payload).toContain('unsupported');
+    expect(payload).not.toContain(rawAction);
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('test@example.com');
+
+    warnSpy.mockRestore();
   });
 });
 

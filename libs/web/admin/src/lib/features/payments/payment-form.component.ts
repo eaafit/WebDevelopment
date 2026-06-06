@@ -5,6 +5,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
 import { WebLoggerService } from '@notary-portal/ui';
 import { Subscription } from 'rxjs';
+import { AdminAssessmentApiService, type AdminAssessmentRow } from '../RequestAssessment/services/assessment-api.service';
 import { AdminUserApiService, AdminUserRef } from '../RequestAssessment/services/user-api.service';
 import {
   PAYMENT_METHOD_LABELS,
@@ -21,6 +22,14 @@ import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 
 const CURRENCY_OPTIONS = ['RUB', 'USD', 'EUR'] as const;
 type Currency = (typeof CURRENCY_OPTIONS)[number];
+type PaymentSelectControl =
+  | 'type'
+  | 'status'
+  | 'currency'
+  | 'paymentMethod'
+  | 'subscriptionId'
+  | 'assessmentId'
+  | 'transactionId';
 
 @Component({
   selector: 'lib-payment-form',
@@ -36,11 +45,13 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
   private api = inject(AdminPaymentsApiService);
   private readonly logger = inject(WebLoggerService);
   private userApi = inject(AdminUserApiService);
+  private assessmentApi = inject(AdminAssessmentApiService);
   private dataSub?: Subscription;
 
   allUsers: AdminUserRef[] = [];
   userSearchQuery = '';
   userDropdownOpen = false;
+  activeSelectKey: PaymentSelectControl | null = null;
 
   mode: 'create' | 'edit' = 'create';
   paymentId: string | null = null;
@@ -50,7 +61,11 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
   subscriptionIdOptions: string[] = [];
   assessmentIdOptions: string[] = [];
+  assessmentOptions: AdminAssessmentRow[] = [];
   transactionIdOptions: string[] = [];
+  private readonly paymentBySubscriptionId = new Map<string, Payment>();
+  private readonly paymentByTransactionId = new Map<string, Payment>();
+  private readonly subscriptionOwnerById = new Map<string, string>();
 
   idInputMode: { subscriptionId: boolean; assessmentId: boolean; transactionId: boolean } = {
     subscriptionId: false,
@@ -86,7 +101,9 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     });
 
     this.loadIdOptions();
+    this.loadPaymentLookupOptions();
     this.loadUsers();
+    this.loadAssessmentOptions();
 
     if (this.mode === 'edit' && this.paymentId) {
       this.loadPayment(this.paymentId);
@@ -94,6 +111,11 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
 
     this.form.get('type')?.valueChanges.subscribe((type) => {
       this.updateIdFieldRequirements(type as PaymentType);
+      this.clearIncompatibleTargetSelection();
+    });
+
+    this.form.get('userId')?.valueChanges.subscribe(() => {
+      this.clearIncompatibleTargetSelection();
     });
   }
 
@@ -107,6 +129,33 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       this.allUsers = Array.from(this.userApi.usersById.values());
     } catch {
       this.allUsers = [];
+    }
+  }
+
+  private async loadAssessmentOptions(): Promise<void> {
+    try {
+      const page = await this.assessmentApi.listAssessments({ page: 1, limit: 200 });
+      this.assessmentOptions = page.items;
+      this.assessmentIdOptions = this.mergeIdOptions(
+        this.assessmentIdOptions,
+        page.items.map((assessment) => assessment.id),
+      );
+    } catch (err) {
+      this.logWarn('payment.admin.form_assessment_options_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      this.assessmentOptions = [];
+    }
+  }
+
+  private async loadPaymentLookupOptions(): Promise<void> {
+    try {
+      const payments = await this.api.getAllPayments();
+      this.applyPaymentLookupOptions(payments);
+    } catch (err) {
+      this.logWarn('payment.admin.form_payment_lookup_failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -148,23 +197,76 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     if (!target.closest('.user-autocomplete')) {
       this.userDropdownOpen = false;
     }
+    if (!target.closest('.custom-select-container')) {
+      this.activeSelectKey = null;
+    }
+  }
+
+  get filteredSubscriptionIdOptions(): string[] {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return this.subscriptionIdOptions;
+    }
+
+    return this.subscriptionIdOptions.filter((id) => {
+      const ownerId = this.subscriptionOwnerById.get(id);
+      return !ownerId || ownerId === userId;
+    });
+  }
+
+  get filteredAssessmentIdOptions(): string[] {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return this.assessmentIdOptions;
+    }
+
+    return this.assessmentIdOptions.filter((id) => {
+      const assessment = this.assessmentOptions.find((item) => item.id === id);
+      return !assessment || assessment.userId === userId;
+    });
   }
 
   private loadIdOptions(): void {
     this.api.preload();
     this.dataSub = this.api.payments$.subscribe((payments) => {
       if (payments) {
-        this.subscriptionIdOptions = Array.from(
-          new Set(payments.map((p) => p.subscriptionId).filter(Boolean)),
-        ) as string[];
-        this.assessmentIdOptions = Array.from(
-          new Set(payments.map((p) => p.assessmentId).filter(Boolean)),
-        ) as string[];
-        this.transactionIdOptions = Array.from(
-          new Set(payments.map((p) => p.transactionId).filter(Boolean)),
-        ) as string[];
+        this.applyPaymentLookupOptions(payments);
       }
     });
+  }
+
+  private applyPaymentLookupOptions(payments: Payment[]): void {
+    for (const payment of payments) {
+      if (payment.subscriptionId) {
+        if (payment.userId) {
+          this.subscriptionOwnerById.set(payment.subscriptionId, payment.userId);
+        }
+        this.paymentBySubscriptionId.set(
+          payment.subscriptionId,
+          this.pickMostRecentPayment(this.paymentBySubscriptionId.get(payment.subscriptionId), payment),
+        );
+      }
+
+      if (payment.transactionId) {
+        this.paymentByTransactionId.set(
+          payment.transactionId,
+          this.pickMostRecentPayment(this.paymentByTransactionId.get(payment.transactionId), payment),
+        );
+      }
+    }
+
+    this.subscriptionIdOptions = this.mergeIdOptions(
+      this.subscriptionIdOptions,
+      payments.map((payment) => payment.subscriptionId).filter(Boolean) as string[],
+    );
+    this.assessmentIdOptions = this.mergeIdOptions(
+      this.assessmentIdOptions,
+      payments.map((payment) => payment.assessmentId).filter(Boolean) as string[],
+    );
+    this.transactionIdOptions = this.mergeIdOptions(
+      this.transactionIdOptions,
+      payments.map((payment) => payment.transactionId).filter(Boolean) as string[],
+    );
   }
 
   private updateIdFieldRequirements(type: PaymentType): void {
@@ -188,6 +290,24 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
       ...this.idInputMode,
       [field]: !this.idInputMode[field],
     };
+    this.activeSelectKey = null;
+  }
+
+  toggleSelect(key: PaymentSelectControl, event: MouseEvent): void {
+    event.stopPropagation();
+    this.activeSelectKey = this.activeSelectKey === key ? null : key;
+  }
+
+  selectFormValue(key: PaymentSelectControl, value: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.form.get(key)?.setValue(value);
+    this.form.get(key)?.markAsDirty();
+    this.form.get(key)?.markAsTouched();
+    this.activeSelectKey = null;
+  }
+
+  isSelectOpen(key: PaymentSelectControl): boolean {
+    return this.activeSelectKey === key;
   }
 
   private async loadPayment(id: string): Promise<void> {
@@ -271,6 +391,34 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     if (this.mode === 'create') {
       try {
         const targetId = this.resolveTargetId(data);
+        if (!isUuid(data.userId ?? '')) {
+          this.error = 'Выберите пользователя из списка: для создания платежа нужен внутренний UUID пользователя.';
+          this.logWarn('payment.admin.form_create_invalid_user_id', {
+            userId: data.userId,
+          });
+          this.loading = false;
+          return;
+        }
+        if (targetId && !isUuid(targetId)) {
+          this.error = 'Связанный объект должен быть выбран из списка или указан как UUID.';
+          this.logWarn('payment.admin.form_create_invalid_target_id', {
+            paymentType: data.type,
+            targetId,
+          });
+          this.loading = false;
+          return;
+        }
+        const targetError = this.getTargetCompatibilityError(data);
+        if (targetError) {
+          this.error = targetError;
+          this.logWarn('payment.admin.form_create_incompatible_target', {
+            paymentType: data.type,
+            userId: data.userId,
+            targetId,
+          });
+          this.loading = false;
+          return;
+        }
         if (!targetId) {
           this.error = this.getTargetIdErrorMessage(data.type as PaymentType);
           this.logWarn('payment.admin.form_create_no_target', {
@@ -386,6 +534,28 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
     return PAYMENT_STATUS_LABELS[status];
   }
 
+  formatSubscriptionOption(id: string): string {
+    return this.formatPaymentBackedOption('Подписка', id, this.paymentBySubscriptionId.get(id));
+  }
+
+  formatAssessmentOption(id: string): string {
+    const assessment = this.assessmentOptions.find((item) => item.id === id);
+    if (!assessment) {
+      return `Заявка ${this.compactIdentifier(id)}`;
+    }
+
+    const label = assessment.address.trim() || assessment.description.trim();
+    if (!label) {
+      return `Заявка ${this.compactIdentifier(id)}`;
+    }
+
+    return `${this.compactIdentifier(id)} - ${label}`;
+  }
+
+  formatTransactionOption(id: string): string {
+    return this.formatPaymentBackedOption('Транзакция', id, this.paymentByTransactionId.get(id));
+  }
+
   private getTargetIdErrorMessage(type: PaymentType): string {
     switch (type) {
       case 'Subscription':
@@ -435,6 +605,100 @@ export class PaymentFormComponent implements OnInit, OnDestroy {
         return RpcPaymentType.ASSESSMENT;
     }
   }
+
+  private getTargetCompatibilityError(data: ReturnType<typeof this.form.getRawValue>): string | null {
+    const userId = data.userId ?? '';
+    if (!userId) {
+      return null;
+    }
+
+    if (data.type === 'Subscription') {
+      const subscriptionId = data.subscriptionId ?? '';
+      const ownerId = subscriptionId ? this.subscriptionOwnerById.get(subscriptionId) : undefined;
+      if (ownerId && ownerId !== userId) {
+        return 'Выбранная подписка относится к другому пользователю. Выберите подписку из списка после выбора плательщика.';
+      }
+      return null;
+    }
+
+    const assessmentId = data.assessmentId ?? '';
+    const assessment = assessmentId ? this.assessmentOptions.find((item) => item.id === assessmentId) : undefined;
+    if (assessment && assessment.userId !== userId) {
+      return 'Выбранная заявка относится к другому пользователю. Выберите заявку из списка после выбора плательщика.';
+    }
+
+    return null;
+  }
+
+  private clearIncompatibleTargetSelection(): void {
+    const userId = this.form.get('userId')?.value;
+    if (!userId) {
+      return;
+    }
+
+    const subscriptionId = this.form.get('subscriptionId')?.value ?? '';
+    const ownerId = subscriptionId ? this.subscriptionOwnerById.get(subscriptionId) : undefined;
+    if (ownerId && ownerId !== userId) {
+      this.form.get('subscriptionId')?.setValue('');
+    }
+
+    const assessmentId = this.form.get('assessmentId')?.value ?? '';
+    const assessment = assessmentId ? this.assessmentOptions.find((item) => item.id === assessmentId) : undefined;
+    if (assessment && assessment.userId !== userId) {
+      this.form.get('assessmentId')?.setValue('');
+    }
+  }
+
+  private compactIdentifier(id: string): string {
+    const normalized = id.trim();
+    if (normalized.length <= 18) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 8)}...${normalized.slice(-6)}`;
+  }
+
+  private mergeIdOptions(current: string[], next: string[]): string[] {
+    return Array.from(new Set([...current, ...next].filter(Boolean)));
+  }
+
+  private pickMostRecentPayment(current: Payment | undefined, next: Payment): Payment {
+    if (!current) {
+      return next;
+    }
+
+    const currentTime = Date.parse(current.paymentDate);
+    const nextTime = Date.parse(next.paymentDate);
+    if (Number.isNaN(currentTime)) {
+      return next;
+    }
+    if (Number.isNaN(nextTime)) {
+      return current;
+    }
+
+    return nextTime >= currentTime ? next : current;
+  }
+
+  private formatPaymentBackedOption(prefix: string, id: string, payment: Payment | undefined): string {
+    if (!payment) {
+      return `${prefix} ${this.compactIdentifier(id)}`;
+    }
+
+    const amount = this.formatPaymentAmount(payment);
+    const status = PAYMENT_STATUS_LABELS[payment.status] ?? payment.status;
+    const date = toDateInputValue(payment.paymentDate);
+
+    return `${prefix} ${this.compactIdentifier(id)} - ${amount} - ${status} - ${date}`;
+  }
+
+  private formatPaymentAmount(payment: Payment): string {
+    const amount = new Intl.NumberFormat('ru-RU', {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: Number.isInteger(payment.amount) ? 0 : 2,
+    }).format(payment.amount);
+
+    return `${amount} ${payment.currency || 'RUB'}`;
+  }
 }
 
 function toDateInputValue(value: string): string {
@@ -448,4 +712,10 @@ function toDateInputValue(value: string): string {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
 }

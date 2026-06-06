@@ -1,12 +1,14 @@
 ---
 title: '[DEVOPS] Интеграция логов с Grafana Loki и Grafana'
 labels: ['devops', 'observability', 'logs', 'grafana']
-assignees: ['SuperLuchito']
+assignees: ['getpaintoo']
 ---
 
 ## Описание
 
 Настроить цепочку **сбор → Loki → Grafana** для логов API (и при наличии — других сервисов), используя формат JSON из [issue-32](issue-32-nibylitsin-structured-logging.md).
+
+> **Черненко Дмитрий (getpaintoo):** данное issue — доставка технических логов в Loki и просмотр в Grafana.
 
 > **Граница с продуктом:** экраны аудита в админке остаются в [issue-22](issue-22-nibylitsin-audit-log.md) / [issue-23](issue-23-chernenko-logs-security.md). Loki — для операционного просмотра и алертов по техническим логам.
 
