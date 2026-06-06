@@ -41,7 +41,7 @@ export class SupportMockService {
     {
       id: '1',
       subject: 'Не проходит оплата картой МИР',
-      userEmail: 'sergey.govor@example.com',
+      userEmail: '321321@example.com',
       userRole: 'vip',
       userRegisteredAt: new Date('2025-01-15'),
       status: 'open',
@@ -50,7 +50,7 @@ export class SupportMockService {
       messages: [
         {
           id: 'm1',
-          authorName: 'Сергей Говор',
+          authorName: 'Сергей',
           authorRole: 'user',
           text: 'Здравствуйте! Пытаюсь оплатить подписку, выдает ошибку 500.',
           createdAt: new Date(Date.now() - 4 * 3600000)
@@ -60,7 +60,7 @@ export class SupportMockService {
     {
       id: '2',
       subject: 'Ошибка при рендере графиков',
-      userEmail: 'ivan.vasorin@example.com',
+      userEmail: '123321@example.com',
       userRole: 'user',
       userRegisteredAt: new Date('2025-03-10'),
       status: 'in_progress',
@@ -69,7 +69,7 @@ export class SupportMockService {
       messages: [
         {
           id: 'm2',
-          authorName: 'Иван Васорин',
+          authorName: 'Иван',
           authorRole: 'user',
           text: 'В личном кабинете не отображаются графики за прошлую неделю.',
           createdAt: new Date(Date.now() - 1.5 * 3600000)
