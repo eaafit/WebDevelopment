@@ -1,4 +1,4 @@
-import { Component, inject, signal, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 

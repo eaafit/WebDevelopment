@@ -423,47 +423,55 @@ describe('PaymentAttachmentService', () => {
     );
   });
 
-  it('marks receipt as failed and clears stale object reference when file is missing in storage', async () => {
+  it('renders an HTML fallback receipt when a stored object reference is stale', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
       type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1350.00',
+      },
+      paymentDate: new Date('2026-03-06T08:45:00.000Z'),
+      paymentMethod: 'bank_card',
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
       receiptStatus: PaymentReceiptStatus.Available,
+      user: {
+        email: 'notary@example.com',
+        fullName: 'Иван Иванов',
+      },
+      subscription: {
+        plan: SubscriptionPlan.Premium,
+      },
+      assessment: null,
     });
     getObject.mockRejectedValue({ name: 'NoSuchKey' });
     update.mockResolvedValue(undefined);
 
     const service = createService();
 
-    await expect(
-      service.getReceiptFile({
-        paymentId: 'payment-1',
-        userId: 'user-1',
-        role: UserRole.NOTARY.toString(),
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
-
-    expect(update).toHaveBeenCalledWith({
-      where: { id: 'payment-1' },
-      data: {
-        receiptStatus: PaymentReceiptStatus.Failed,
-        attachmentFileName: null,
-        attachmentFileUrl: null,
-      },
+    const result = await service.getReceiptFile({
+      paymentId: 'payment-1',
+      userId: 'user-1',
+      role: UserRole.NOTARY.toString(),
     });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(result.fileName).toBe('receipt-yk-payment-1.html');
+    expect(result.contentType).toBe('text/html; charset=utf-8');
+    expect(result.body.toString()).toContain('Иван Иванов');
     expect(auditService.record).toHaveBeenCalledWith(
       expect.objectContaining({
         actorUserId: 'user-1',
-        eventType: 'payment.receipt.failed',
+        eventType: 'payment.receipt.opened',
         targetType: 'Payment',
         targetId: 'payment-1',
         after: expect.objectContaining({
           paymentId: 'payment-1',
           receiptStatus: PaymentReceiptStatus.Available,
-          failureReason: 'receipt_object_missing',
+          attachmentFileName: 'receipt-yk-payment-1.html',
+          contentType: 'text/html; charset=utf-8',
         }),
       }),
     );

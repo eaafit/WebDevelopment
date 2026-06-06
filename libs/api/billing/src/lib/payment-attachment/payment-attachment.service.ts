@@ -1,7 +1,7 @@
 import { UserRole } from '@notary-portal/api-contracts';
 import { AuditService } from '@internal/audit';
 import { PrismaService } from '@internal/prisma';
-import { PaymentReceiptStatus, type Payment } from '@internal/prisma-client';
+import { PaymentReceiptStatus, type Payment, type SubscriptionPlan } from '@internal/prisma-client';
 import { S3StorageService } from '@internal/storage';
 import {
   BusinessOperations,
@@ -49,6 +49,19 @@ export interface PaymentReceiptDownload {
   fileName: string;
   contentType: string;
 }
+
+type PaymentWithReceiptRelations = Payment & {
+  user?: {
+    email: string;
+    fullName: string;
+  } | null;
+  subscription?: {
+    plan: SubscriptionPlan;
+  } | null;
+  assessment?: {
+    address: string;
+  } | null;
+};
 
 @Injectable()
 export class PaymentAttachmentService {
@@ -311,34 +324,67 @@ export class PaymentAttachmentService {
             this.logger.warn(
               'Payment receipt object missing; operation=payment.receipt.open; provider=s3; result=missing; hasAttachment=true',
             );
-            await this.prisma.payment.update({
-              where: { id: payment.id },
-              data: {
-                receiptStatus: PaymentReceiptStatus.Failed,
-                attachmentFileName: null,
-                attachmentFileUrl: null,
-              },
-            });
-            await this.recordReceiptOpenFailedAudit(
-              input.userId,
-              payment,
-              'receipt_object_missing',
-            );
-            throw new NotFoundException('receipt file is missing');
+            return this.renderFallbackReceipt(input.userId, payment, 'receipt_object_missing');
           }
 
           this.logger.error(
             'Payment receipt object read failed; operation=payment.receipt.open; provider=s3; result=error; hasAttachment=true',
           );
-          await this.recordReceiptOpenFailedAudit(
-            input.userId,
-            payment,
-            'object_storage_unavailable',
-          );
-          throw new ServiceUnavailableException('object storage unavailable');
+          return this.renderFallbackReceipt(input.userId, payment, 'object_storage_unavailable');
         }
       },
     );
+  }
+
+  private async renderFallbackReceipt(
+    actorUserId: string,
+    payment: PaymentWithReceiptRelations,
+    reason: string,
+  ): Promise<PaymentReceiptDownload> {
+    if (payment.attachmentFileName?.toLowerCase().endsWith('.pdf')) {
+      await this.recordReceiptOpenFailedAudit(actorUserId, payment, reason);
+      throw new ServiceUnavailableException('object storage unavailable');
+    }
+
+    const fileName =
+      payment.attachmentFileName?.trim() ||
+      buildStoredPaymentReceiptFileName(payment.id, payment.transactionId);
+    const contentType = 'text/html; charset=utf-8';
+    const body = renderStoredPaymentReceipt({
+      payment: {
+        id: payment.id,
+        userId: payment.userId,
+        type: payment.type,
+        amount: payment.amount.toString(),
+        paymentDate: payment.paymentDate,
+        paymentMethod: payment.paymentMethod,
+        transactionId: payment.transactionId,
+      },
+      user: payment.user ?? {
+        email: '',
+        fullName: '',
+      },
+      subscription: payment.subscription ?? null,
+      assessment: payment.assessment ?? null,
+      providerPayment: {
+        capturedAt: payment.paymentDate.toISOString(),
+        createdAt: payment.paymentDate.toISOString(),
+        paymentMethodType: payment.paymentMethod,
+        paymentMethodTitle: payment.paymentMethod,
+        receiptRegistration: 'succeeded',
+      },
+    });
+
+    this.logger.warn(
+      'Payment receipt fallback rendered; operation=payment.receipt.open; result=fallback; hasAttachment=false',
+    );
+    await this.recordReceiptOpenedAudit(actorUserId, payment, fileName, contentType);
+
+    return {
+      body,
+      fileName,
+      contentType,
+    };
   }
 
   private async recordReceiptAttachedAudit(
@@ -408,8 +454,28 @@ export class PaymentAttachmentService {
     paymentId: string,
     userId: string,
     role: string,
-  ): Promise<Payment> {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+  ): Promise<PaymentWithReceiptRelations> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true,
+          },
+        },
+        subscription: {
+          select: {
+            plan: true,
+          },
+        },
+        assessment: {
+          select: {
+            address: true,
+          },
+        },
+      },
+    });
     if (!payment) {
       throw new NotFoundException('payment not found');
     }

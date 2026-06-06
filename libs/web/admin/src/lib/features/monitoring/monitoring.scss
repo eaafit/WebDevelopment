@@ -1,76 +1,85 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .monitoring-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
   padding: 1.5rem;
+  color: var(--admin-text, #0f172a);
 }
 
 .tabs {
   display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.45rem;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 90%) 100%);
+  box-shadow: 0 10px 24px rgb(15 23 42 / 6%);
 }
 
 .tab {
   cursor: pointer;
-
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-bottom: 2px solid transparent;
-
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #6b7280;
-
-  background: none;
-
-  transition: all 0.2s;
+  min-height: 42px;
+  padding: 0.68rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--admin-text-soft, #475569);
+  background: transparent;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
 
   &:hover {
-    color: #374151;
+    border-color: rgb(220 38 38 / 14%);
+    color: var(--admin-accent, #dc2626);
+    background: rgb(220 38 38 / 4%);
+  }
+
+  &:focus-visible {
+    outline: 3px solid rgb(220 38 38 / 14%);
+    outline-offset: 2px;
   }
 
   &.active {
-    border-bottom-color: #2563eb;
-    color: #2563eb;
+    border-color: rgb(220 38 38 / 20%);
+    color: #fff;
+    background: linear-gradient(135deg, var(--admin-accent, #dc2626), var(--admin-accent-strong, #991b1b));
+    box-shadow: 0 8px 18px rgb(220 38 38 / 18%);
   }
 }
 
 .tab-content {
-  flex: 1;
+  min-width: 0;
 }
 
-.placeholder {
-  padding: 2rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  background: #f9fafb;
+.tab-content > * {
+  display: block;
+  min-width: 0;
+}
 
-  h2 {
-    margin: 0 0 1rem;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #111827;
+@media (width <= 760px) {
+  .monitoring-container {
+    padding: 1rem;
   }
 
-  p {
-    margin: 0 0 1rem;
-    line-height: 1.5;
-    color: #6b7280;
+  .tabs {
+    width: 100%;
   }
 
-  ul {
-    margin: 0 0 1rem;
-    padding-left: 1.5rem;
-    color: #6b7280;
-
-    li {
-      margin-bottom: 0.5rem;
-    }
-  }
-
-  p:last-child {
-    margin-bottom: 0;
-    font-style: italic;
+  .tab {
+    flex: 1 1 180px;
   }
 }

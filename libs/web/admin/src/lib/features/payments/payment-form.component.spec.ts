@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { PaymentStatus as RpcPaymentStatus, PaymentType as RpcPaymentType } from '@notary-portal/api-contracts';
-import { WebLoggerService } from '@notary-portal/ui';
+import { RPC_TRANSPORT, WebLoggerService } from '@notary-portal/ui';
 import { BehaviorSubject } from 'rxjs';
 import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { AdminUserApiService, type AdminUserRef } from '../RequestAssessment/services/user-api.service';
@@ -9,6 +9,9 @@ import { MOCK_PAYMENTS, type Payment } from './payments.shared';
 import { PaymentFormComponent } from './payment-form.component';
 
 describe('PaymentFormComponent', () => {
+  const testUserId = '11111111-1111-4111-8111-111111111111';
+  const testAssessmentId = '22222222-2222-4222-8222-222222222222';
+
   let fixture: ComponentFixture<PaymentFormComponent>;
   let component: PaymentFormComponent;
   let routerNavigate: jest.Mock;
@@ -20,7 +23,7 @@ describe('PaymentFormComponent', () => {
   let routeId: string | null = null;
 
   const testUser: AdminUserRef = {
-    id: 'user-uuid-1',
+    id: testUserId,
     fullName: 'Иван Иванов',
     email: 'ivan@test.ru',
     role: 'Applicant',
@@ -52,6 +55,10 @@ describe('PaymentFormComponent', () => {
               },
             },
           },
+        },
+        {
+          provide: RPC_TRANSPORT,
+          useValue: {},
         },
         {
           provide: AdminPaymentsApiService,
@@ -131,7 +138,7 @@ describe('PaymentFormComponent', () => {
         payer: testUser.fullName,
         amount: 5000,
         type: 'Assessment',
-        assessmentId: 'assessment-uuid-1',
+        assessmentId: testAssessmentId,
         paymentMethod: 'card',
         status: 'pending',
       });
@@ -142,7 +149,7 @@ describe('PaymentFormComponent', () => {
         userId: testUser.id,
         amount: '5000',
         type: RpcPaymentType.ASSESSMENT,
-        targetId: 'assessment-uuid-1',
+        targetId: testAssessmentId,
       });
       expect(component.successMessage).toBe('Платёж успешно создан');
       expect(routerNavigate).toHaveBeenCalledWith(['/admin', 'payments']);
@@ -160,7 +167,7 @@ describe('PaymentFormComponent', () => {
         payer: testUser.fullName,
         amount: 5000,
         type: 'Assessment',
-        assessmentId: 'assessment-uuid-1',
+        assessmentId: testAssessmentId,
       });
 
       await component.submit();

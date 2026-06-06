@@ -241,10 +241,6 @@ export class PaymentWebhookService {
           signatureValue: payload.signatureValue,
         });
 
-        if (!signatureValid) {
-          throw new PaymentWebhookError('Robokassa signature is invalid', 401);
-        }
-
         const payment = await runInSpan(
           'PaymentWebhookService.findPaymentById',
           {
@@ -255,6 +251,20 @@ export class PaymentWebhookService {
           },
           () => this.findPaymentById(payload.invoiceId),
         );
+
+        if (!signatureValid) {
+          if (payment) {
+            await this.recordRobokassaCallbackFailure(
+              payment,
+              { ...payload, outSum: normalizedOutSum },
+              'Robokassa signature is invalid',
+              401,
+            );
+          }
+
+          throw new PaymentWebhookError('Robokassa signature is invalid', 401);
+        }
+
         if (!payment) {
           return `OK${payload.invoiceId}`;
         }
@@ -268,6 +278,13 @@ export class PaymentWebhookService {
         });
 
         if (parseMoneyToCents(payment.amount.toString()) !== parseMoneyToCents(normalizedOutSum)) {
+          await this.recordRobokassaCallbackFailure(
+            payment,
+            { ...payload, outSum: normalizedOutSum },
+            'Robokassa amount mismatch',
+            401,
+          );
+
           throw new PaymentWebhookError('Robokassa amount mismatch', 401);
         }
 
@@ -623,6 +640,47 @@ export class PaymentWebhookService {
           markSpanFailure(span, error);
         }
       },
+    );
+  }
+
+  private async recordRobokassaCallbackFailure(
+    payment: PaymentRecord,
+    payload: RobokassaResultPayload,
+    errorMessage: string,
+    statusCode: number,
+  ): Promise<void> {
+    const target = buildPaymentAuditTarget(payment);
+    const paymentMethod = payment.paymentMethod ?? 'robokassa_redirect';
+
+    await this.auditService.record({
+      actorUserId: payment.userId,
+      eventType: 'payment.failed',
+      ...target,
+      actionTitle: 'Ошибка Robokassa callback',
+      actionContext: `Callback Robokassa отклонён: ${errorMessage}`,
+      after: buildPaymentAuditSnapshot(
+        {
+          ...payment,
+          paymentMethod,
+        },
+        {
+          paymentProvider: 'Robokassa',
+          callbackStatus: 'rejected',
+          callbackInvoiceId: payload.invoiceId,
+          callbackOutSum: payload.outSum,
+          errorMessage,
+          providerStatusCode: statusCode,
+        },
+      ),
+    });
+
+    await this.paymentNotificationService.notifyPaymentProviderIssue(
+      {
+        ...payment,
+        paymentMethod,
+      },
+      'Robokassa',
+      errorMessage,
     );
   }
 

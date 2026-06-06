@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { WebLoggerService, TokenStore } from '@notary-portal/ui';
 import { AdminPaymentsApiService } from '../../api/admin-payments-api.service';
 import { MOCK_PAYMENTS, Payment } from './payments.shared';
@@ -24,6 +24,7 @@ describe('Payments', () => {
   let listPaymentsMock: jest.Mock;
   let getAllPaymentsMock: jest.Mock;
   let anchorClickSpy: jest.SpyInstance;
+  let anchorDispatchSpy: jest.SpyInstance;
 
   function createMockProviders(
     paymentsStream: BehaviorSubject<Payment[] | null>,
@@ -104,6 +105,9 @@ describe('Payments', () => {
     urlCtor.createObjectURL = jest.fn(() => 'blob:http://localhost/fake-url');
     urlCtor.revokeObjectURL = jest.fn();
     anchorClickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation();
+    anchorDispatchSpy = jest
+      .spyOn(HTMLAnchorElement.prototype, 'dispatchEvent')
+      .mockImplementation(() => true);
 
     await TestBed.configureTestingModule({
       imports: [Payments],
@@ -116,15 +120,12 @@ describe('Payments', () => {
     // Trigger ngOnInit
     fixture.detectChanges();
 
-    // Manually trigger the payments data emission
-    paymentsSubject.next(MOCK_PAYMENTS.map((p) => ({ ...p })));
-
-    // Detect changes to update the component with the new data
     fixture.detectChanges();
   });
 
   afterEach(() => {
     anchorClickSpy.mockRestore();
+    anchorDispatchSpy.mockRestore();
     paymentsSubject.complete();
   });
 
@@ -245,13 +246,91 @@ describe('Payments', () => {
     expect(component.loading).toBe(false);
   });
 
-  it('should log error when payments stream fails', async () => {
+  it('should reload the first page when admin changes page size', () => {
+    component.currentPage = 3;
+
+    component.onPageSizeChanged(50);
+
+    expect(component.pageSize).toBe(50);
+    expect(component.currentPage).toBe(1);
+    expect(listPaymentsMock).toHaveBeenLastCalledWith({
+      page: 1,
+      limit: 50,
+      statuses: [],
+      types: [],
+      searchQuery: undefined,
+    });
+  });
+
+  it('opens and closes custom select controls from the keyboard', () => {
+    const openEvent = new KeyboardEvent('keydown', { key: 'ArrowDown' });
+    const closeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const openPreventSpy = jest.spyOn(openEvent, 'preventDefault');
+    const closePreventSpy = jest.spyOn(closeEvent, 'preventDefault');
+
+    component.onUiSelectTriggerKeydown('statusFilter', openEvent);
+
+    expect(component.activeSelectKey).toBe('statusFilter');
+    expect(openPreventSpy).toHaveBeenCalled();
+
+    component.onUiSelectMenuKeydown(closeEvent);
+
+    expect(component.activeSelectKey).toBeNull();
+    expect(closePreventSpy).toHaveBeenCalled();
+  });
+
+  it('should show total payments from server metadata instead of current page length', () => {
+    listPaymentsMock.mockReturnValueOnce(
+      of({
+        payments: MOCK_PAYMENTS.slice(0, 1).map((p) => ({ ...p })),
+        meta: {
+          currentPage: 1,
+          totalItems: 42,
+          totalPages: 5,
+          limit: 20,
+        },
+      }),
+    );
+
+    component.onPageSizeChanged(20);
+
+    expect(component.payments).toHaveLength(1);
+    expect(component.totalItems).toBe(42);
+    expect(component.totalPages).toBe(5);
+  });
+
+  it('uses compact default table widths and lets admins resize columns', () => {
+    expect(component.getColumnWidth('id')).toBe(58);
+
+    component.startColumnResize(
+      'id',
+      new MouseEvent('mousedown', {
+        clientX: 100,
+      }),
+    );
+    component.onDocumentMouseMove(
+      new MouseEvent('mousemove', {
+        clientX: 132,
+      }),
+    );
+    component.onDocumentMouseUp();
+
+    expect(component.getColumnWidth('id')).toBe(90);
+  });
+
+  it('builds accessible row labels for the payment table', () => {
+    const label = component.getPaymentRowAriaLabel(MOCK_PAYMENTS[0]);
+
+    expect(label).toContain('payment payment-1');
+    expect(label).toContain('receipt check_1001.pdf');
+  });
+
+  it('should log error when paged payment loading fails', async () => {
     const failLogger = {
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
     };
-    const failSubject = new BehaviorSubject<Payment[] | null>(null);
 
     // Reset TestBed and create a fresh instance for this test
     TestBed.resetTestingModule();
@@ -271,18 +350,8 @@ describe('Payments', () => {
           provide: AdminPaymentsApiService,
           useValue: {
             preload: jest.fn(),
-            payments$: failSubject.asObservable(),
-            listPayments: jest.fn(() =>
-              of({
-                payments: [],
-                meta: {
-                  currentPage: 1,
-                  totalItems: 0,
-                  totalPages: 1,
-                  limit: 10,
-                },
-              }),
-            ),
+            payments$: new BehaviorSubject<Payment[] | null>(null).asObservable(),
+            listPayments: jest.fn(() => throwError(() => new Error('Network failure'))),
             getAllPayments: async () => [],
             deletePayment: jest.fn().mockResolvedValue(true),
           },
@@ -298,8 +367,6 @@ describe('Payments', () => {
     const failComponent = failFixture.componentInstance;
     failFixture.detectChanges(); // Trigger ngOnInit
 
-    failSubject.error(new Error('Network failure'));
-
     expect(failLogger.error).toHaveBeenCalledWith(
       'payment.admin.list_load_failed',
       expect.objectContaining({
@@ -308,7 +375,6 @@ describe('Payments', () => {
       }),
     );
     expect(failComponent.loadError).toBeTruthy();
-    failSubject.complete();
   });
 
   it('should log list destroyed on ngOnDestroy', () => {
@@ -368,17 +434,97 @@ describe('Payments', () => {
     );
   });
 
+  it('should log delete cancelled', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openDeleteModal(payment);
+    component.onDeleteCancelled();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.delete_cancelled',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should log edit open requested', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openEditModal(payment);
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.edit_open_requested',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+      }),
+    );
+  });
+
+  it('should log view opened', () => {
+    const payment = MOCK_PAYMENTS[0];
+    component.openViewModal(payment);
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.view_opened',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: String(payment.id),
+      }),
+    );
+  });
+
+  it('should log create form opened', () => {
+    component.goToCreateForm();
+
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.create_form_opened',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should navigate to existing admin orders route from the applications shortcut', () => {
+    const router = TestBed.inject(Router);
+
+    component.goToApplications();
+
+    expect(router.navigate).toHaveBeenCalledWith(['/admin', 'orders'], undefined);
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.navigate_applications',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        paymentId: null,
+        assessmentId: null,
+      }),
+    );
+  });
+
+  it('should preserve assessment id when opening the linked order list', () => {
+    const router = TestBed.inject(Router);
+
+    component.goToApplication('assessment-42');
+
+    expect(router.navigate).toHaveBeenCalledWith(['/admin', 'orders'], {
+      queryParams: { assessmentId: 'assessment-42' },
+    });
+    expect(logger.info).toHaveBeenCalledWith(
+      'payment.admin.navigate_application',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        assessmentId: 'assessment-42',
+      }),
+    );
+  });
+
   it('should log export csv started and succeeded', () => {
     component.exportToCsv();
 
     expect(getAllPaymentsMock).not.toHaveBeenCalled();
     expect(URL.createObjectURL).toHaveBeenCalled();
-    expect(anchorClickSpy).toHaveBeenCalled();
+    expect(anchorDispatchSpy).toHaveBeenCalledWith(expect.any(MouseEvent));
     expect(logger.info).toHaveBeenCalledWith(
       'payment.admin.export_csv_started',
       expect.objectContaining({
         area: 'admin_payments_list',
         rows: component.filteredPayments.length,
+        summary: expect.stringContaining('rows=2'),
       }),
     );
     expect(logger.info).toHaveBeenCalledWith(
@@ -386,6 +532,42 @@ describe('Payments', () => {
       expect.objectContaining({
         area: 'admin_payments_list',
         rows: MOCK_PAYMENTS.length,
+        summary: expect.stringContaining('completed=1'),
+      }),
+    );
+  });
+
+  it('should show csv export error when current selection is empty', () => {
+    component.payments = [];
+
+    component.exportToCsv();
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(anchorDispatchSpy).not.toHaveBeenCalled();
+    expect(component.exportError).toBe('No payments in current selection for CSV export');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.admin.export_csv_skipped_empty',
+      expect.objectContaining({ area: 'admin_payments_list' }),
+    );
+  });
+
+  it('should keep the page interactive when csv download fails', () => {
+    const urlCtor = globalThis.URL as typeof URL & {
+      createObjectURL?: jest.Mock;
+    };
+    urlCtor.createObjectURL?.mockImplementationOnce(() => {
+      throw new Error('Blob URL blocked');
+    });
+
+    component.exportToCsv();
+
+    expect(component.exporting).toBe(false);
+    expect(component.exportError).toBe('Blob URL blocked');
+    expect(logger.error).toHaveBeenCalledWith(
+      'payment.admin.export_csv_failed',
+      expect.objectContaining({
+        area: 'admin_payments_list',
+        error: expect.any(Error),
       }),
     );
   });
