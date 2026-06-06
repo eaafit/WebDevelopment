@@ -1,17 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { ListOrdersRequest, GetOrderRequest } from '@notary-portal/api-contracts';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
-import { TakeOrderRequest, TakeOrderResponse, Order as OrderProto } from '@notary-portal/api-contracts';
+import { TakeOrderRequest } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class OrderRpcService {
+  private readonly logger = new Logger(OrderRpcService.name);
+
   constructor(private readonly orderService: OrderService) { }
 
   async listOrders(request: ListOrdersRequest): Promise<any> {
     try {
-      // console.log('[OrderRpcService] listOrders called with:', JSON.stringify(request, null, 2));
-
       const findManyParams = {
         userId: request.userId,
         role: request.role as 'applicant' | 'notary' | undefined,
@@ -22,32 +22,27 @@ export class OrderRpcService {
         page: request.page,
         pageSize: request.pageSize,
       };
-      console.log('[OrderRpcService] findManyParams:', findManyParams);
 
       const result = await this.orderService.findMany(findManyParams);
-      console.log('[OrderRpcService] findMany result:', {
-        ordersCount: result.orders?.length,
-        total: result.total,
-        totalPages: result.totalPages,
-      });
 
       const orders = result.orders.map((order: any) => {
         try {
           return this.toOrderProto(order);
         } catch (err) {
-          console.error('[OrderRpcService] Error mapping order:', order?.id, err);
+          this.logError('mapOrder', err);
           throw err;
         }
       });
 
-      console.log('[OrderRpcService] response orders count:', orders.length);
-      if (orders.length > 0) {
-        // Логируем первый заказ для проверки
-        console.log('[OrderRpcService] First order sample:', JSON.stringify(orders[0], (key, value) => {
-          if (typeof value === 'bigint') return value.toString();
-          return value;
-        }, 2));
-      }
+      this.logger.debug({
+        operation: 'listOrders',
+        ordersCount: orders.length,
+        total: result.total,
+        totalPages: result.totalPages,
+        hasStatusFilter: Boolean(request.status && request.status !== 'all'),
+        hasSearchFilter: Boolean(request.searchQuery?.trim()),
+        hasDateRange: Boolean(request.dateFrom || request.dateTo),
+      });
 
       const response = {
         orders: orders,
@@ -56,7 +51,7 @@ export class OrderRpcService {
       };
       return response;
     } catch (error) {
-      console.error('[OrderRpcService] Error in listOrders:', error);
+      this.logError('listOrders', error);
       throw error;
     }
   }
@@ -66,7 +61,7 @@ export class OrderRpcService {
       const order = await this.orderService.findOne(request.orderId);
       return this.toOrderProto(order);
     } catch (error) {
-      console.error('[OrderRpcService] Error in getOrder:', error);
+      this.logError('getOrder', error);
       throw error;
     }
   }
@@ -76,7 +71,7 @@ export class OrderRpcService {
       const order = await this.orderService.takeOrder(request.orderId, request.notaryId);
       return { order: this.toOrderProto(order) };   // важно: обёртка { order: ... }
     } catch (error) {
-      console.error('[OrderRpcService] Error in takeOrder:', error);
+      this.logError('takeOrder', error);
       throw error;
     }
   }
@@ -89,7 +84,11 @@ export class OrderRpcService {
       if (typeof date === 'string') return timestampFromDate(new Date(date));
       if (typeof date === 'number') return timestampFromDate(new Date(date));
       if (date.seconds !== undefined) return date; // уже Timestamp
-      console.warn('[OrderRpcService] Unexpected date value:', date, typeof date);
+      this.logger.warn({
+        operation: 'toOrderProto',
+        message: 'Unexpected date value type',
+        valueType: typeof date,
+      });
       return undefined;
     };
 
@@ -133,4 +132,16 @@ export class OrderRpcService {
       realEstateObject: realEstateObject,
     };
   }
+
+  private logError(operation: string, error: unknown): void {
+    this.logger.error({
+      operation,
+      result: 'error',
+      error: safeErrorName(error),
+    });
+  }
+}
+
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

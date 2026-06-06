@@ -10,6 +10,8 @@ import {
   NotificationType as PrismaNotificationType,
   Role as PrismaRole,
 } from '@internal/prisma-client';
+import { runInSpan } from '@internal/tracing';
+import type { Span } from '@opentelemetry/api';
 import {
   ListNotificationsRequestSchema,
   MarkAllAsReadRequestSchema,
@@ -20,7 +22,23 @@ import {
 } from '@notary-portal/api-contracts';
 import { NotificationService } from './notification.service';
 
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  return {
+    ...actual,
+    runInSpan: jest.fn(
+      async (
+        _spanName: string,
+        _attributes: Record<string, unknown>,
+        action: (span: Span) => unknown | Promise<unknown>,
+      ) => action({} as Span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
+
 const USER_ID = '11111111-1111-4111-a111-111111111111';
+const SECOND_USER_ID = '22222222-2222-4222-a222-222222222222';
 
 describe('NotificationService', () => {
   const repository = {
@@ -48,10 +66,10 @@ describe('NotificationService', () => {
       create(NotificationSchema, {
         id: 'notification-1',
         userId: USER_ID,
-        title: 'Рассылка завершена',
+        title: 'Broadcast completed',
         category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
-        message: 'Рассылка завершена',
+        message: 'Broadcast completed',
         sentAt: timestampFromDate(new Date('2026-05-15T10:00:00.000Z')),
         status: RpcNotificationStatus.SENT,
       }),
@@ -67,18 +85,18 @@ describe('NotificationService', () => {
   it('normalizes internal notification payloads before creating them', async () => {
     await service.createNotification({
       userId: USER_ID,
-      title: '  Рассылка завершена  ',
+      title: '  Broadcast completed  ',
       category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
-      message: '  Рассылка завершена  ',
+      message: '  Broadcast completed  ',
     });
 
     expect(repository.createNotification).toHaveBeenCalledWith({
       userId: USER_ID,
-      title: 'Рассылка завершена',
+      title: 'Broadcast completed',
       category: RpcNotificationCategory.SYSTEM,
       type: RpcNotificationType.PUSH,
-      message: 'Рассылка завершена',
+      message: 'Broadcast completed',
       status: undefined,
       sentAt: undefined,
       readAt: undefined,
@@ -117,10 +135,10 @@ describe('NotificationService', () => {
     await expect(
       service.createNotification({
         userId: 'invalid-user',
-        title: 'Рассылка завершена',
+        title: 'Broadcast completed',
         category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
-        message: 'Рассылка завершена',
+        message: 'Broadcast completed',
       }),
     ).rejects.toMatchObject({
       code: Code.InvalidArgument,
@@ -131,12 +149,107 @@ describe('NotificationService', () => {
     await expect(
       service.createNotification({
         userId: USER_ID,
-        title: 'Рассылка завершена',
+        title: 'Broadcast completed',
         category: RpcNotificationCategory.SYSTEM,
         type: RpcNotificationType.PUSH,
         message: '   ',
       }),
     ).rejects.toBeInstanceOf(ConnectError);
+  });
+
+  it('keeps the main unknown-channel metric behavior for unspecified notifications', async () => {
+    await service.createNotification({
+      userId: USER_ID,
+      type: RpcNotificationType.UNSPECIFIED,
+      message: 'System notification',
+    });
+
+    expect(metricsService.recordNotificationSent).toHaveBeenCalledWith('unknown', 'system');
+    expect(metricsService.recordNotificationUnread).toHaveBeenCalledWith('user');
+  });
+
+  it('creates role notifications in one aggregate span without per-recipient spans', async () => {
+    const roleUserIds = [USER_ID, SECOND_USER_ID];
+    repository.listActiveUserIdsByRoles.mockResolvedValueOnce(roleUserIds);
+    repository.filterUserIdsWithInAppEnabled.mockResolvedValueOnce(roleUserIds);
+
+    await service.createInternalNotificationsForRole(PrismaRole.Admin, {
+      message: 'New application',
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+
+    expect(runInSpan).toHaveBeenCalledTimes(1);
+    expect(repository.filterUserIdsWithInAppEnabled).toHaveBeenCalledWith(
+      roleUserIds,
+      'assessment',
+    );
+    expect(repository.createNotification).not.toHaveBeenCalled();
+    expect(repository.createManyNotifications).toHaveBeenCalledWith({
+      userIds: roleUserIds,
+      title: undefined,
+      message: 'New application',
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: PrismaNotificationType.InApp,
+      status: undefined,
+    });
+    expect(metricsService.recordNotificationSent).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the existing multi-role bulk payload and metric behavior', async () => {
+    const roleUserIds = [USER_ID, SECOND_USER_ID];
+    repository.listActiveUserIdsByRoles.mockResolvedValueOnce(roleUserIds);
+    repository.filterUserIdsWithInAppEnabled.mockResolvedValueOnce(roleUserIds);
+
+    await service.createInternalNotificationsForRoles({
+      roles: [PrismaRole.Admin, PrismaRole.Notary],
+      message: 'System message',
+      category: 'assessment',
+      type: RpcNotificationType.IN_APP,
+    });
+
+    expect(runInSpan).toHaveBeenCalledTimes(1);
+    expect(repository.createNotification).not.toHaveBeenCalled();
+    expect(repository.createManyNotifications).toHaveBeenCalledWith({
+      userIds: roleUserIds,
+      message: 'System message',
+      type: PrismaNotificationType.InApp,
+      status: undefined,
+    });
+    expect(metricsService.recordNotificationSent).not.toHaveBeenCalled();
+  });
+
+  it('does not claim an actor role for operations without an authorization check', async () => {
+    repository.markAsRead.mockResolvedValue(
+      create(NotificationSchema, {
+        id: '33333333-3333-4333-a333-333333333333',
+        userId: USER_ID,
+        title: 'Notification',
+        type: RpcNotificationType.PUSH,
+        message: 'System notification',
+        sentAt: timestampFromDate(new Date('2026-05-15T10:00:00.000Z')),
+        status: RpcNotificationStatus.SENT,
+      }),
+    );
+
+    await runAsCurrentUser(() =>
+      service.markAsRead({ id: '33333333-3333-4333-a333-333333333333' } as never),
+    );
+
+    const attributes = jest.mocked(runInSpan).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(attributes).not.toHaveProperty('notary.actor.role');
+  });
+
+  it('records actor role only after mark-all authorization succeeds', async () => {
+    await runAsCurrentUser(() => service.markAllAsRead({ userId: USER_ID } as never));
+
+    expect(runInSpan).toHaveBeenCalledWith(
+      'NotificationService.markAllAsRead',
+      expect.objectContaining({
+        'notary.actor.role': 'applicant',
+      }),
+      expect.any(Function),
+    );
   });
 
   it('normalizes list pagination and compact enum filters', async () => {
@@ -368,36 +481,6 @@ describe('NotificationService', () => {
       status: undefined,
     });
   });
-
-  it('fans out single-role notifications through individual preference checks', async () => {
-    const roleUserIds = [USER_ID, '44444444-4444-4444-a444-444444444444'];
-    repository.listActiveUserIdsByRoles.mockResolvedValueOnce(roleUserIds);
-
-    await service.createInternalNotificationsForRole(PrismaRole.Notary, {
-      category: RpcNotificationCategory.ASSESSMENT,
-      message: 'Assessment report is ready',
-    });
-
-    expect(repository.listActiveUserIdsByRoles).toHaveBeenCalledWith([PrismaRole.Notary]);
-    expect(repository.getOrCreatePreferenceRows).toHaveBeenCalledTimes(roleUserIds.length);
-    expect(repository.createNotification).toHaveBeenCalledTimes(roleUserIds.length);
-    expect(repository.createNotification).toHaveBeenNthCalledWith(1, {
-      userId: roleUserIds[0],
-      title: undefined,
-      category: RpcNotificationCategory.ASSESSMENT,
-      message: 'Assessment report is ready',
-      type: RpcNotificationType.PUSH,
-      status: RpcNotificationStatus.SENT,
-    });
-    expect(repository.createNotification).toHaveBeenNthCalledWith(2, {
-      userId: roleUserIds[1],
-      title: undefined,
-      category: RpcNotificationCategory.ASSESSMENT,
-      message: 'Assessment report is ready',
-      type: RpcNotificationType.PUSH,
-      status: RpcNotificationStatus.SENT,
-    });
-  });
 });
 
 function notificationUser(): AccessTokenPayload {
@@ -413,7 +496,7 @@ function notificationUser(): AccessTokenPayload {
 function otherNotificationUser(): AccessTokenPayload {
   return {
     ...notificationUser(),
-    sub: '22222222-2222-4222-a222-222222222222',
+    sub: SECOND_USER_ID,
     email: 'other@example.com',
   };
 }

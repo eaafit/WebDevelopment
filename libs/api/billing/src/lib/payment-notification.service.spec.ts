@@ -99,7 +99,9 @@ describe('PaymentNotificationService', () => {
         ([payload]) => payload.userId === 'admin-2',
       ),
     ).toHaveLength(1);
-    expect(warnSpy).toHaveBeenCalledWith('Failed to create 1 admin payment notification(s)');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Payment notification failed; operation=notification.create_payment; recipient=admin; result=partial_failure; failedCount=1',
+    );
 
     warnSpy.mockRestore();
   });

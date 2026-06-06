@@ -13,6 +13,7 @@ import {
   UserRole,
 } from '@notary-portal/api-contracts';
 import { Role, requestContextStorage, type AccessTokenPayload } from '@internal/auth-shared';
+import { markSpanFailure } from '@internal/tracing';
 import {
   NewsletterAudienceType as PrismaNewsletterAudienceType,
   NewsletterCampaignStatus as PrismaNewsletterCampaignStatus,
@@ -20,6 +21,11 @@ import {
   Role as PrismaRole,
 } from '@internal/prisma-client';
 import { NewsletterService } from './newsletter.service';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  return { ...actual, markSpanFailure: jest.fn() };
+});
 
 describe('NewsletterService', () => {
   const repository = {
@@ -407,8 +413,9 @@ describe('NewsletterService', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('newsletter.campaign.delivery_failed'),
     );
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('b@example.com'));
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('SMTP rejected recipient'));
+    const logged = JSON.stringify(logger.warn.mock.calls);
+    expect(logged).not.toContain('b@example.com');
+    expect(logged).not.toContain('SMTP rejected recipient');
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
       type: RpcNotificationType.PUSH,
@@ -503,9 +510,14 @@ describe('NewsletterService', () => {
       },
     );
     expect(logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('newsletter.campaign.send_flow_interrupted'),
+      expect.stringContaining('operation=newsletter.campaign.send'),
     );
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('row lock timeout'));
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('error=Error'));
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('row lock timeout');
+    expect(markSpanFailure).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'row lock timeout' }),
+    );
     expect(auditService.record).toHaveBeenCalledTimes(2);
     expect(notificationService.createNotification).toHaveBeenCalledWith({
       userId: '11111111-1111-4111-a111-111111111111',
