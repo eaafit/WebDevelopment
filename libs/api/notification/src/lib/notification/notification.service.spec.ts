@@ -57,11 +57,6 @@ describe('NotificationService', () => {
     recordNotificationUnread: jest.fn(),
     recordNotificationError: jest.fn(),
   };
-  const metricsService = {
-    recordNotificationSent: jest.fn(),
-    recordNotificationUnread: jest.fn(),
-    recordNotificationError: jest.fn(),
-  };
 
   const service = new NotificationService(repository as never, metricsService as never);
 
