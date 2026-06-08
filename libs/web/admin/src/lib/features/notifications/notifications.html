@@ -20,6 +20,9 @@
         <button type="button" class="admin-notifications__btn admin-notifications__btn--ghost" (click)="reload()">
           Обновить
         </button>
+        <button type="button" routerLink="./settings" class="admin-notifications__btn admin-notifications__btn--ghost">
+          Настройки
+        </button>
         <button type="button" class="admin-notifications__btn" (click)="clearAllHistory()">Очистить историю</button>
       </div>
       @if (inboxCount(); as c) {
@@ -70,6 +73,10 @@
     Клик по непрочитанной карточке отмечает её прочитанной. Кнопка «Удалить» удаляет запись из истории администратора.
   </p>
 
+  @if (actionError()) {
+  <p class="admin-notifications__action-error">{{ actionError() }}</p>
+  }
+
   @if (loading()) {
   <div class="admin-notifications__empty">
     <strong>Загружаем уведомления.</strong>
@@ -106,7 +113,6 @@
           </span>
           <span
             class="chip chip--lifecycle"
-            [class.chip--lifecycle-created]="item.lifecycle === 'created'"
             [class.chip--lifecycle-sent]="item.lifecycle === 'sent'"
             [class.chip--lifecycle-failed]="item.lifecycle === 'failed'"
             [class.chip--lifecycle-read]="item.lifecycle === 'read'"

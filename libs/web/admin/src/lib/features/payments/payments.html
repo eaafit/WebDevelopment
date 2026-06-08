@@ -18,7 +18,7 @@
         type="button"
         class="admin-btn admin-btn--primary"
         (click)="exportToCsv()"
-        [disabled]="!filteredPayments.length">
+        [disabled]="loading || exporting">
         Экспорт CSV
       </button>
       <button type="button" class="admin-btn admin-btn--secondary" (click)="goToCreateForm()">+ Создать платёж</button>
@@ -28,21 +28,22 @@
 
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
-      <p>
-        Экспорт выгружает только текущую отфильтрованную выборку. Пагинация, фильтры по колонкам и действия в таблице
-        работают как прежде.
-      </p>
       <small class="admin-toolbar__status">
         Найдено: {{ filteredPayments.length }} · Страница {{ currentPage }} из {{ totalPages }}
       </small>
       @if (loadError) {
       <small class="admin-toolbar__status">{{ loadError }}</small>
       }
+      @if (exportError) {
+      <small class="admin-toolbar__status payments-export-error">{{ exportError }}</small>
+      }
+      @if (receiptError) {
+      <small class="admin-toolbar__status payments-export-error">{{ receiptError }}</small>
+      }
     </div>
-    <span class="admin-toolbar__meta">Всего платежей: {{ payments.length }}</span>
   </section>
 
-  <article class="admin-card">
+  <article class="admin-card payments-filter-card">
     <div class="admin-card__header">
       <div>
         <h3>Фильтры и поиск</h3>
@@ -60,16 +61,52 @@
           (ngModelChange)="onFiltersChanged()" />
       </label>
 
-      <label class="admin-field payments-field payments-field--status">
+      <div class="admin-field payments-field payments-field--status">
         <span>Статус</span>
-        <select [(ngModel)]="statusFilter" (ngModelChange)="onFiltersChanged()">
-          <option value="">Все статусы</option>
-          <option value="completed">Завершён</option>
-          <option value="pending">В обработке</option>
-          <option value="failed">Ошибка</option>
-          <option value="refunded">Возврат</option>
-        </select>
-      </label>
+        <div class="admin-select">
+          <button
+            type="button"
+            class="admin-select__trigger"
+            [class.is-open]="isUiSelectOpen('statusFilter')"
+            (click)="toggleUiSelect('statusFilter', $event)"
+            (keydown)="onUiSelectTriggerKeydown('statusFilter', $event)"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="isUiSelectOpen('statusFilter')"
+            aria-controls="payments-status-filter-list">
+            <span>{{ getStatusFilterLabel() }}</span>
+            <i class="las la-angle-down"></i>
+          </button>
+          @if (isUiSelectOpen('statusFilter')) {
+          <div
+            id="payments-status-filter-list"
+            class="admin-select__menu"
+            role="listbox"
+            tabindex="-1"
+            (keydown)="onUiSelectMenuKeydown($event)">
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="statusFilter === ''"
+              (click)="selectStatusFilter('', $event)"
+              role="option"
+              [attr.aria-selected]="statusFilter === ''">
+              Все статусы
+            </button>
+            @for (status of statusOptions; track status) {
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="statusFilter === status"
+              (click)="selectStatusFilter(status, $event)"
+              role="option"
+              [attr.aria-selected]="statusFilter === status">
+              {{ getStatusLabel(status) }}
+            </button>
+            }
+          </div>
+          }
+        </div>
+      </div>
 
       <div class="payments-filters__actions">
         <button type="button" class="admin-btn admin-btn--secondary">Применить</button>
@@ -83,26 +120,80 @@
         <h3>Список платежей</h3>
         <p>Просмотр, редактирование, удаление и переход к связанной заявке доступны прямо из строки таблицы.</p>
       </div>
-      <span class="admin-badge admin-badge--neutral">На странице: {{ paginatedPayments.length }}</span>
+      <div class="admin-card__controls">
+        <div class="page-size-control">
+          <span>На странице:</span>
+          <div class="admin-select admin-select--compact">
+            <button
+              type="button"
+              class="admin-select__trigger"
+              [class.is-open]="isUiSelectOpen('pageSize')"
+              [disabled]="loading"
+              (click)="toggleUiSelect('pageSize', $event)"
+              (keydown)="onUiSelectTriggerKeydown('pageSize', $event)"
+              aria-haspopup="listbox"
+              [attr.aria-expanded]="isUiSelectOpen('pageSize')"
+              aria-controls="payments-page-size-list">
+              <span>{{ pageSize }}</span>
+              <i class="las la-angle-down"></i>
+            </button>
+            @if (isUiSelectOpen('pageSize')) {
+            <div
+              id="payments-page-size-list"
+              class="admin-select__menu"
+              role="listbox"
+              tabindex="-1"
+              (keydown)="onUiSelectMenuKeydown($event)">
+              @for (size of pageSizeOptions; track size) {
+              <button
+                type="button"
+                class="admin-select__option"
+                [class.is-selected]="pageSize === size"
+                (click)="selectPageSize(size, $event)"
+                role="option"
+                [attr.aria-selected]="pageSize === size">
+                {{ size }}
+              </button>
+              }
+            </div>
+            }
+          </div>
+        </div>
+        <span class="admin-badge admin-badge--neutral">Всего платежей: {{ totalItems }}</span>
+      </div>
     </div>
 
     <div class="payments-table-shell">
       <div class="table-responsive">
         <table class="payments-table">
+          <colgroup>
+            @for (column of headerColumns; track column.key) {
+            <col [style.width.px]="getColumnWidth(column.key)" />
+            }
+          </colgroup>
           <thead>
             <tr>
               @for (column of headerColumns; track column.key) {
-              <th class="filterable no-wrap-col">
+              <th class="filterable no-wrap-col" [style.width.px]="getColumnWidth(column.key)">
                 <div class="header-cell">
                   <span>{{ column.label }}</span>
-                  <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">
-                    ▼
+                  <button
+                    type="button"
+                    class="filter-trigger"
+                    [class.is-active]="activeFilterColumn === column.key"
+                    (click)="toggleColumnFilter(column.key, $event)">
+                    <i class="las la-angle-down"></i>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  class="column-resize-handle"
+                  (mousedown)="startColumnResize(column.key, $event)"
+                  (click)="$event.stopPropagation()"
+                  aria-label="Изменить ширину столбца"></button>
                 @if (activeFilterColumn === column.key) {
                 <div
                   class="column-filter-menu"
-                  [ngStyle]="filterMenuStyle"
                   (click)="$event.stopPropagation()"
                   (keydown)="$event.stopPropagation()"
                   tabindex="-1"
@@ -171,10 +262,10 @@
               }
             </tr>
             } } @else if (paginatedPayments.length) { @for (payment of paginatedPayments; track payment.id) {
-            <tr>
+            <tr [attr.aria-label]="getPaymentRowAriaLabel(payment)">
               <td>{{ payment.id }}</td>
               <td>{{ payment.paymentDate | date:'dd.MM.yyyy' }}</td>
-              <td>{{ payment.payer }}</td>
+              <td>{{ getPayerName(payment) }}</td>
               <td>{{ getTypeLabel(payment.type) }}</td>
               <td>{{ payment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
               <td>{{ payment.fee | currency:'RUB':'symbol-narrow':'1.2-2' }}</td>
@@ -235,7 +326,7 @@
             </tr>
             } } @else {
             <tr>
-              <td class="payments-table__empty" colspan="12">
+              <td class="payments-table__empty" [attr.colspan]="headerColumns.length">
                 @if (loadError) { {{ loadError }} } @else { По текущим фильтрам платежи не найдены. Попробуйте изменить
                 параметры поиска. }
               </td>
@@ -399,7 +490,7 @@
     </div>
     <div class="modal-body view-details">
       <p><strong>ID:</strong> {{ currentPayment.id }}</p>
-      <p><strong>Плательщик:</strong> {{ currentPayment.payer }}</p>
+      <p><strong>Плательщик:</strong> {{ getPayerName(currentPayment) }}</p>
       <p><strong>Тип:</strong> {{ getTypeLabel(currentPayment.type) }}</p>
       <p><strong>Сумма:</strong> {{ currentPayment.amount | currency:'RUB':'symbol-narrow':'1.2-2' }}</p>
       <p><strong>Дата платежа:</strong> {{ currentPayment.paymentDate | date:'dd.MM.yyyy' }}</p>

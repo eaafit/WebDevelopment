@@ -116,22 +116,28 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
 
     if (this.transport === 'smtp' && this.transporter) {
       const from = this.mailFrom();
+      const resetTtlLabel = passwordResetTtlLabel();
       await this.transporter.sendMail({
         from: `"${appName}" <${from}>`,
         to,
         subject: `Восстановление пароля — ${appName}`,
-        text: `Здравствуйте.\n\nПерейдите по ссылке, чтобы задать новый пароль:\n\n${resetUrl}\n\nСсылка действует ограниченное время. Если вы не запрашивали сброс, проигнорируйте это письмо.\n\n— ${appName}`,
-        html: `
-        <p>Здравствуйте.</p>
-        <p><a href="${escapeHtml(resetUrl)}">Перейдите по ссылке</a>, чтобы задать новый пароль.</p>
-        <p>Ссылка действует ограниченное время. Если вы не запрашивали сброс, проигнорируйте это письмо.</p>
-        <p>— ${escapeHtml(appName)}</p>
-      `.trim(),
+        text: [
+          'Здравствуйте.',
+          '',
+          'Мы получили запрос на смену пароля.',
+          '',
+          `Задать новый пароль: ${resetUrl}`,
+          '',
+          `Ссылка действует ${resetTtlLabel}. Если вы не запрашивали сброс, просто проигнорируйте это письмо.`,
+          '',
+          `— ${appName}`,
+        ].join('\n'),
+        html: passwordResetEmailHtml({ appName, resetUrl, resetTtlLabel }),
       });
       return;
     }
 
-    console.warn('[MailSender] Почта не настроена — ссылка сброса пароля:', resetUrl);
+    console.warn('[MailSender] Почта не настроена; ссылка сброса пароля не логируется');
   }
 
   async sendWelcomeAfterRegistration(payload: WelcomeMailPayload): Promise<void> {
@@ -176,14 +182,12 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
         to: payload.email,
         subject,
         text,
-        html: `
-        <p>Здравствуйте, ${escapeHtml(payload.fullName)}!</p>
-        <p>Ваша учётная запись в ${escapeHtml(appName)} успешно создана.</p>
-        <p>Роль: ${escapeHtml(payload.roleLabel)}<br/>
-        Вход в личный кабинет: <a href="${escapeHtml(payload.loginUrl)}">${escapeHtml(payload.loginUrl)}</a></p>
-        <p>Если вы не регистрировались в сервисе, свяжитесь с поддержкой.</p>
-        <p>— ${escapeHtml(appName)}</p>
-      `.trim(),
+        html: welcomeEmailHtml({
+          appName,
+          fullName: payload.fullName,
+          loginUrl: payload.loginUrl,
+          roleLabel: payload.roleLabel,
+        }),
       });
       return;
     }
@@ -363,6 +367,115 @@ export class MailSenderService implements PasswordResetMailer, TransactionalMail
       `.trim(),
     });
   }
+}
+
+function passwordResetTtlLabel(): string {
+  const seconds = Number(process.env['PASSWORD_RESET_TTL_SEC'] ?? 3600);
+  const minutes = Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds / 60)) : 60;
+  return `${minutes} минут`;
+}
+
+function passwordResetEmailHtml(params: {
+  appName: string;
+  resetUrl: string;
+  resetTtlLabel: string;
+}): string {
+  const appName = escapeHtml(params.appName);
+  const resetUrl = escapeHtml(params.resetUrl);
+  const resetTtlLabel = escapeHtml(params.resetTtlLabel);
+
+  return `
+    <div style="margin:0;background:#f4f1ec;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#172033">
+      <div style="display:none;max-height:0;overflow:hidden;opacity:0">
+        Безопасная ссылка для установки нового пароля в ${appName}.
+      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;border-collapse:collapse">
+        <tr>
+          <td style="padding:0">
+            <div style="border:1px solid #e5dccd;border-radius:24px;background:#ffffff;box-shadow:0 24px 70px rgba(23,32,51,.12);overflow:hidden">
+              <div style="padding:28px 32px;background:#172033;color:#ffffff">
+                <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#d7b56d">Premium access</div>
+                <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;font-weight:700">Восстановление пароля</h1>
+              </div>
+              <div style="padding:32px">
+                <p style="margin:0 0 16px;font-size:17px;line-height:1.65">Здравствуйте.</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#445066">
+                  Мы получили запрос на смену пароля для аккаунта в ${appName}. Нажмите кнопку ниже, чтобы задать новый пароль.
+                </p>
+                <p style="margin:0 0 28px">
+                  <a href="${resetUrl}" style="display:inline-block;border-radius:999px;background:#b68a35;padding:14px 26px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none">
+                    Задать новый пароль
+                  </a>
+                </p>
+                <div style="border-radius:18px;background:#f7f3eb;padding:18px 20px;color:#574936;font-size:14px;line-height:1.6">
+                  Ссылка действует ${resetTtlLabel}. Если вы не запрашивали восстановление, письмо можно проигнорировать.
+                </div>
+                <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#697386">
+                  Если кнопка не открывается, скопируйте ссылку в браузер:<br/>
+                  <a href="${resetUrl}" style="color:#7b5a1e;word-break:break-all">${resetUrl}</a>
+                </p>
+              </div>
+            </div>
+            <p style="margin:18px 0 0;text-align:center;font-size:12px;color:#7b8496">© ${appName}</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `.trim();
+}
+
+function welcomeEmailHtml(params: {
+  appName: string;
+  fullName: string;
+  loginUrl: string;
+  roleLabel: string;
+}): string {
+  const appName = escapeHtml(params.appName);
+  const fullName = escapeHtml(params.fullName);
+  const loginUrl = escapeHtml(params.loginUrl);
+  const roleLabel = escapeHtml(params.roleLabel);
+
+  return `
+    <div style="margin:0;background:#f4f1ec;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#172033">
+      <div style="display:none;max-height:0;overflow:hidden;opacity:0">
+        Ваш аккаунт в ${appName} успешно создан.
+      </div>
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;margin:0 auto;border-collapse:collapse">
+        <tr>
+          <td style="padding:0">
+            <div style="border:1px solid #e5dccd;border-radius:24px;background:#ffffff;box-shadow:0 24px 70px rgba(23,32,51,.12);overflow:hidden">
+              <div style="padding:30px 32px;background:#172033;color:#ffffff">
+                <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#d7b56d">Welcome</div>
+                <h1 style="margin:12px 0 0;font-size:28px;line-height:1.2;font-weight:700">Добро пожаловать</h1>
+              </div>
+              <div style="padding:32px">
+                <p style="margin:0 0 16px;font-size:17px;line-height:1.65">Здравствуйте, ${fullName}!</p>
+                <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#445066">
+                  Учётная запись в ${appName} создана. Ваш доступ уже активен, можно перейти в личный кабинет.
+                </p>
+                <div style="margin:0 0 26px;border-radius:18px;background:#f7f3eb;padding:18px 20px;color:#574936;font-size:15px;line-height:1.6">
+                  Роль в системе: <strong>${roleLabel}</strong>
+                </div>
+                <p style="margin:0 0 28px">
+                  <a href="${loginUrl}" style="display:inline-block;border-radius:999px;background:#b68a35;padding:14px 26px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none">
+                    Войти в личный кабинет
+                  </a>
+                </p>
+                <div style="border-left:4px solid #d7b56d;padding:2px 0 2px 16px;color:#697386;font-size:14px;line-height:1.6">
+                  Если вы не регистрировались в сервисе, свяжитесь с поддержкой и не передавайте никому данные для входа.
+                </div>
+                <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#697386">
+                  Прямая ссылка для входа:<br/>
+                  <a href="${loginUrl}" style="color:#7b5a1e;word-break:break-all">${loginUrl}</a>
+                </p>
+              </div>
+            </div>
+            <p style="margin:18px 0 0;text-align:center;font-size:12px;color:#7b8496">© ${appName}</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `.trim();
 }
 
 function escapeHtml(s: string): string {

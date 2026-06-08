@@ -8,6 +8,31 @@
 - Сеть **`proxy`** для Nginx Proxy Manager: `docker network create proxy` (один раз)
 - Файл **`.env.portal`** (см. [`env.portal.example`](env.portal.example))
 
+## Локальный полный запуск
+
+Этот режим поднимает портал на `http://localhost:4200`, API за nginx в том же origin, Postgres и Mailpit для писем восстановления пароля.
+
+```bash
+cd apps/web
+cp env.portal.example .env.portal
+docker network create proxy   # если ещё нет
+
+docker compose --env-file .env.portal -f docker-compose.portal.yml -f docker-compose.local.yml up -d postgres mailpit
+docker compose --env-file .env.portal -f docker-compose.portal.yml -f docker-compose.local.yml --profile migrate run --rm migrate
+docker compose --env-file .env.portal -f docker-compose.portal.yml -f docker-compose.local.yml up -d --build api portal
+```
+
+Почта для локального восстановления пароля открывается в Mailpit: `http://localhost:8025`. Sample-аккаунты из формы входа создаются API автоматически, когда в `.env.portal` включено `PORTAL_BOOTSTRAP_SAMPLE_USERS=true`.
+
+Если нужны не только аккаунты, но и демо-данные по заявкам/платежам/уведомлениям, после миграций выполните seed из корня репозитория:
+
+```powershell
+cd ../..
+$env:DATABASE_URL='postgresql://admin:admin@localhost:5432/db?schema=public'
+pnpm install --frozen-lockfile
+pnpm nx run prisma:seed
+```
+
 ## Nginx Proxy Manager (отдельно от портала)
 
 Из каталога `apps/web` поднимите NPM (порты 80/81/443 на хосте; данные — в `./proxy-manager-data` и `./proxy-manager-letsencrypt`):
@@ -40,9 +65,9 @@ docker network create proxy   # если ещё нет
 
 docker compose -f docker-compose.npm.yml up -d
 
-docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build
-
+docker compose --env-file .env.portal -f docker-compose.portal.yml up -d postgres
 docker compose --env-file .env.portal -f docker-compose.portal.yml --profile migrate run --rm migrate
+docker compose --env-file .env.portal -f docker-compose.portal.yml up -d --build api portal
 ```
 
 Если Docker отвечает **`i/o timeout`**: на медленном VPS или нестабильной сети увеличьте таймаут клиента (пример для Linux): `export COMPOSE_HTTP_TIMEOUT=300`. Отдельно выполните `docker compose ... build`, затем `up -d` без `--build`, чтобы понять, таймаут на этапе сборки или запуска. При первом деплое дождитесь, пока Postgres пройдёт healthcheck (пустой том инициализируется дольше).

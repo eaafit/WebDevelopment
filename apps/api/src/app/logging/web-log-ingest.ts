@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import express from 'express';
 import pino, { type Logger as PinoLoggerInstance } from 'pino';
+import type { AuthBrowserValidationForm } from '@internal/metrics';
 import { createPinoLoggerOptions } from './logging.config';
 
 export const WEB_LOG_INGEST_PATH = '/api/logs/web';
@@ -13,6 +14,13 @@ const MAX_ARRAY_ITEMS = 20;
 
 const VALID_WEB_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
 type WebLogLevel = (typeof VALID_WEB_LOG_LEVELS)[number];
+
+const AUTH_VALIDATION_FORMS: Record<string, AuthBrowserValidationForm> = {
+  'auth.login.validation_failed': 'login',
+  'auth.register.validation_failed': 'register',
+  'auth.password_reset.request.validation_failed': 'password_reset_request',
+  'auth.password_reset.submit.validation_failed': 'password_reset_submit',
+};
 
 const SENSITIVE_KEYS = new Set(
   [
@@ -46,6 +54,12 @@ export interface WebLogPayload {
 }
 
 type WebLogLogger = Pick<PinoLoggerInstance, WebLogLevel>;
+type WebLogMetricsRecorder = {
+  recordAuthBrowserValidationFailed: (
+    form: AuthBrowserValidationForm,
+    reason?: string,
+  ) => void;
+};
 type WebLogRequestHeaders = {
   header: (name: string) => string | string[] | undefined;
 };
@@ -60,6 +74,7 @@ export function createWebLogLogger(): WebLogLogger {
 export function registerWebLogIngestion(
   expressInstance: Express,
   logger: WebLogLogger = createWebLogLogger(),
+  metrics?: WebLogMetricsRecorder,
 ): void {
   expressInstance.post(
     WEB_LOG_INGEST_PATH,
@@ -72,6 +87,7 @@ export function registerWebLogIngestion(
       }
 
       logger[payload.level](buildWebLogObject(payload, req), payload.message);
+      recordAuthBrowserValidationFailure(payload, metrics);
       res.status(204).end();
     },
   );
@@ -211,6 +227,32 @@ function sanitizeWebLogString(value: string): string {
       /(^|[\s,{;])(password|token|accessToken|access_token|refreshToken|refresh_token|authorization|cookie|setCookie|set-cookie|secret|signature|card|passport)\s*[:=]\s*[^&,\s;}]+/gi,
       (_match, prefix: string, key: string) => `${prefix}${key}=[REDACTED]`,
     );
+}
+
+function recordAuthBrowserValidationFailure(
+  payload: WebLogPayload,
+  metrics?: WebLogMetricsRecorder,
+): void {
+  const form = AUTH_VALIDATION_FORMS[payload.message];
+  if (!form || !metrics) {
+    return;
+  }
+
+  metrics.recordAuthBrowserValidationFailed(form, metricReasonFromContext(payload.context));
+}
+
+function metricReasonFromContext(context: unknown): string {
+  if (!isRecord(context) || typeof context['reason'] !== 'string') {
+    return 'unknown';
+  }
+
+  const reason = context['reason']
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '_')
+    .slice(0, 80);
+
+  return reason || 'unknown';
 }
 
 function isWebLogLevel(value: string): value is WebLogLevel {

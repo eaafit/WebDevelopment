@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { WebLoggerService } from '@notary-portal/ui';
 import {
   AdminNotificationsApiService,
@@ -37,18 +38,20 @@ const DEFAULT_FILTERS: AdminNotificationFilters = {
 @Component({
   selector: 'lib-notifications',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './notifications.html',
   styleUrl: './notifications.scss',
 })
-export class AdminNotifications implements OnInit {
+export class AdminNotifications implements OnInit, OnDestroy {
   private readonly api = inject(AdminNotificationsApiService);
   private readonly logger = inject(WebLoggerService);
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   protected readonly filters = signal<AdminNotificationFilters>({ ...DEFAULT_FILTERS });
   protected readonly notifications = signal<AdminNotification[]>([]);
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly actionError = signal<string | null>(null);
 
   protected readonly filtered = computed(() => {
     const { category, channel, lifecycle } = this.filters();
@@ -78,6 +81,16 @@ export class AdminNotifications implements OnInit {
 
   ngOnInit(): void {
     void this.loadNotifications();
+    this.refreshTimer = setInterval(() => {
+      void this.loadNotifications();
+    }, 30_000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   protected setFilter<K extends keyof AdminNotificationFilters>(
@@ -135,6 +148,7 @@ export class AdminNotifications implements OnInit {
   protected async markAllAsRead(): Promise<void> {
     try {
       await this.api.markAllAsRead();
+      this.actionError.set(null);
       this.notifications.update((items) =>
         items.map((n) =>
           n.lifecycle === 'deleted'
@@ -146,6 +160,7 @@ export class AdminNotifications implements OnInit {
         ),
       );
     } catch (error) {
+      this.actionError.set('Не удалось отметить уведомления прочитанными.');
       this.handleActionError('notification.admin.mark_all_failed', error);
     }
   }
@@ -158,6 +173,7 @@ export class AdminNotifications implements OnInit {
 
     try {
       const updated = await this.api.markAsRead(id);
+      this.actionError.set(null);
       this.notifications.update((items) =>
         items.map((n) =>
           n.id === id
@@ -168,6 +184,7 @@ export class AdminNotifications implements OnInit {
         ),
       );
     } catch (error) {
+      this.actionError.set('Не удалось отметить уведомление прочитанным.');
       this.handleActionError('notification.admin.mark_one_failed', error, { notificationId: id });
     }
   }
@@ -178,11 +195,15 @@ export class AdminNotifications implements OnInit {
     try {
       const success = await this.api.deleteNotification(id);
       if (!success) {
-        throw new Error('Сервер не подтвердил удаление уведомления');
+        this.handleActionError('notification.admin.delete_stale', new Error('stale notification'), {
+          notificationId: id,
+        });
       }
 
+      this.actionError.set(null);
       this.notifications.update((items) => items.filter((n) => n.id !== id));
     } catch (error) {
+      this.actionError.set('Не удалось удалить уведомление.');
       this.handleActionError('notification.admin.delete_failed', error, { notificationId: id });
     }
   }
@@ -192,20 +213,31 @@ export class AdminNotifications implements OnInit {
       return;
     }
 
-    try {
-      const ids = this.notifications().map((item) => item.id);
-      const results = await Promise.allSettled(ids.map((id) => this.api.deleteNotification(id)));
-      const failedCount = results.filter(
-        (result) => result.status === 'rejected' || !result.value,
-      ).length;
+    const ids = this.notifications().map((item) => item.id);
+    const results = await Promise.allSettled(
+      ids.map(async (id) => ({
+        id,
+        success: await this.api.deleteNotification(id),
+      })),
+    );
+    const deletedIds = new Set(
+      results
+        .filter((result) => result.status === 'fulfilled')
+        .map((result) => result.value.id),
+    );
+    const failedCount = results.length - deletedIds.size;
 
-      if (failedCount) {
-        throw new Error(`Не удалось удалить уведомлений: ${failedCount}`);
-      }
+    if (deletedIds.size) {
+      this.notifications.update((items) => items.filter((item) => !deletedIds.has(item.id)));
+    }
 
-      this.notifications.set([]);
-    } catch (error) {
-      this.handleActionError('notification.admin.clear_failed', error);
+    if (failedCount) {
+      this.actionError.set(`Не удалось удалить уведомлений: ${failedCount}`);
+      this.handleActionError('notification.admin.clear_failed', new Error('partial clear failed'), {
+        failedCount,
+      });
+    } else {
+      this.actionError.set(null);
     }
   }
 
@@ -222,6 +254,7 @@ export class AdminNotifications implements OnInit {
 
     try {
       const response = await this.api.listNotifications();
+      this.actionError.set(null);
       this.notifications.set(response.notifications.map(toAdminNotification));
       this.logger.info('notification.admin.list_load_succeeded', {
         area: 'admin_notifications',

@@ -25,6 +25,22 @@ td.actions {
   color: var(--admin-text);
 }
 
+.payments-page > .admin-card {
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+
+  &:has(.admin-select__trigger.is-open),
+  &:has(.column-filter-menu) {
+    z-index: 3000;
+  }
+}
+
+.payments-filter-card {
+  overflow: visible;
+  isolation: isolate;
+}
+
 .payments-page .admin-btn:disabled {
   cursor: not-allowed;
   transform: none;
@@ -32,7 +48,193 @@ td.actions {
   box-shadow: none;
 }
 
+.admin-toolbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-card__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-select {
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+
+  &--compact {
+    min-width: 78px;
+  }
+
+  &:has(.admin-select__trigger.is-open) {
+    z-index: 100;
+  }
+}
+
+.admin-select__trigger {
+  cursor: pointer;
+
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  min-height: 42px;
+  min-width: 0;
+  padding: 0.66rem 0.8rem;
+  border: 1px solid rgb(203 213 225 / 92%);
+  border-radius: 14px;
+
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--admin-text);
+  text-align: left;
+
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 4%),
+    inset 0 1px 0 rgb(255 255 255 / 95%);
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  i {
+    flex: 0 0 auto;
+    color: var(--admin-text-muted);
+    transition: transform 0.18s ease;
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgb(100 116 139 / 45%);
+    box-shadow:
+      0 6px 14px rgb(15 23 42 / 7%),
+      inset 0 1px 0 rgb(255 255 255 / 100%);
+  }
+
+  &:focus-visible,
+  &.is-open {
+    border-color: rgb(100 116 139 / 58%);
+    outline: none;
+    box-shadow:
+      0 0 0 3px rgb(100 116 139 / 12%),
+      0 8px 18px rgb(15 23 42 / 8%);
+  }
+
+  &.is-open i {
+    transform: rotate(180deg);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+}
+
+.admin-select__menu {
+  position: absolute;
+  z-index: 10000;
+  top: calc(100% + 0.35rem);
+  left: 0;
+
+  overflow: auto;
+
+  width: 100%;
+  min-width: 100%;
+  max-height: 240px;
+  padding: 0.35rem;
+  border: 1px solid rgb(203 213 225 / 92%);
+  border-radius: 14px;
+
+  background: #fff;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 16%);
+
+  animation: select-menu-enter 0.14s ease both;
+}
+
+.admin-select__option {
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  min-height: 36px;
+  padding: 0.5rem 0.65rem;
+  border: 0;
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--admin-text);
+  text-align: left;
+
+  background: #fff;
+
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+
+  &:hover,
+  &:focus-visible {
+    outline: none;
+    color: var(--admin-text);
+    background: rgb(248 250 252);
+    transform: translateX(2px);
+  }
+
+  &.is-selected {
+    font-weight: 700;
+    background: rgb(241 245 249);
+  }
+}
+
+.page-size-control {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  padding: 0.38rem 0.45rem 0.38rem 0.8rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--admin-text-soft);
+
+  background: #fff;
+
+  .admin-select__trigger {
+    min-height: 34px;
+    padding: 0.42rem 0.65rem;
+    border-color: transparent;
+    border-radius: 999px;
+    background: var(--admin-bg);
+  }
+}
+
 .payments-filters {
+  position: relative;
+  z-index: 2000;
+  overflow: visible;
+
   display: grid;
   grid-template-columns: minmax(0, 3.8fr) minmax(220px, 1.2fr) auto;
   gap: 1rem;
@@ -62,21 +264,24 @@ td.actions {
 }
 
 .payments-table-shell {
-  padding: 0 1.15rem 1.15rem;
+  position: relative;
+  z-index: 1;
+  padding: 0;
 }
 
 .table-responsive {
   overflow-x: auto;
-  border: 1px solid var(--admin-border);
-  border-radius: 18px;
+  border-top: 1px solid var(--admin-border);
+  border-radius: 0 0 18px 18px;
   background: linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
 }
 
 .payments-table {
+  table-layout: fixed;
   border-spacing: 0;
   border-collapse: separate;
   width: 100%;
-  min-width: 1220px;
+  min-width: 980px;
 
   th,
   td {
@@ -87,10 +292,10 @@ td.actions {
   th {
     position: relative;
 
-    padding: 1rem 0.95rem;
+    padding: 0.7rem 0.5rem;
     border-bottom: 1px solid var(--admin-border);
 
-    font-size: 0.8rem;
+    font-size: 0.74rem;
     font-weight: 700;
     color: var(--admin-text-muted);
     text-transform: uppercase;
@@ -107,10 +312,11 @@ td.actions {
   td {
     overflow: hidden;
 
-    padding: 1rem 0.95rem;
+    padding: 0.68rem 0.5rem;
     border-bottom: 1px solid rgb(148 163 184 / 18%);
 
     color: var(--admin-text);
+    font-size: 0.88rem;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -136,9 +342,17 @@ td.actions {
 
 .header-cell {
   display: flex;
-  gap: 0.65rem;
+  gap: 0.32rem;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
+
+  span {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 .filter-trigger {
@@ -148,13 +362,13 @@ td.actions {
   align-items: center;
   justify-content: center;
 
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--admin-border);
-  border-radius: 10px;
+  border-radius: 8px;
 
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   color: var(--admin-text-soft);
 
   background: #fff;
@@ -171,16 +385,77 @@ td.actions {
     color: var(--admin-accent);
     background: var(--admin-accent-soft);
   }
+
+  &.is-active i {
+    transform: rotate(180deg);
+  }
+
+  i {
+    line-height: 1;
+    transition: transform 0.18s ease;
+  }
+}
+
+.payments-table th {
+  position: relative;
+}
+
+.column-resize-handle {
+  cursor: col-resize;
+
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+
+  width: 8px;
+  padding: 0;
+  border: 0;
+
+  background: transparent;
+
+  &::after {
+    content: '';
+
+    position: absolute;
+    top: 24%;
+    right: 4px;
+    bottom: 24%;
+
+    width: 1px;
+    border-radius: 999px;
+
+    background: transparent;
+
+    transition:
+      background-color 0.18s ease,
+      box-shadow 0.18s ease;
+  }
+
+  &:hover::after,
+  &:focus-visible::after {
+    background: rgb(220 38 38 / 45%);
+    box-shadow: 0 0 0 3px rgb(220 38 38 / 8%);
+  }
+
+  &:focus-visible {
+    outline: none;
+  }
 }
 
 .column-filter-menu {
-  position: fixed;
+  position: absolute;
   z-index: 9999;
+  top: calc(100% + 6px);
+  left: 0;
 
-  overflow: auto;
+  overflow: visible;
 
-  width: min(auto, 90vw);
-  padding: 0.8rem;
+  width: max-content;
+  min-width: 300px;
+  max-width: min(480px, 90vw);
+  padding: 1rem;
   border: 1px solid var(--admin-border);
   border-radius: 18px;
 
@@ -378,11 +653,11 @@ td.actions {
   align-items: center;
   justify-content: center;
 
-  min-width: 108px;
-  padding: 0.42rem 0.78rem;
+  min-width: 92px;
+  padding: 0.34rem 0.58rem;
   border-radius: 999px;
 
-  font-size: 0.79rem;
+  font-size: 0.74rem;
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
@@ -429,7 +704,7 @@ td.actions {
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
   align-items: center;
   justify-content: flex-end;
 }
@@ -441,13 +716,13 @@ td.actions {
   align-items: center;
   justify-content: center;
 
-  width: 36px;
-  height: 36px;
-  padding: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
   border: 1px solid transparent;
   border-radius: 10px;
 
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   color: var(--admin-text-soft);
 
   background: transparent;
@@ -705,6 +980,18 @@ td.actions {
   to {
     transform: translateY(0);
     opacity: 1;
+  }
+}
+
+@keyframes select-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

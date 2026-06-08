@@ -4,7 +4,7 @@ export type PaymentMethod = string;
 
 export interface Payment {
   id: string | number;
-  userId: string;
+  userId?: string;
   paymentDate: string;
   payer: string;
   amount: number;

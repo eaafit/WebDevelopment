@@ -1,0 +1,15 @@
+﻿---
+description: psyconsallt — локальный API, Postgres и MinIO в Kubernetes
+globs: psyconsallt/**/*
+alwaysApply: false
+---
+
+# Гибридная разработка psyconsallt
+
+- **PostgreSQL** — в Kubernetes.
+- **MinIO** — в Kubernetes.
+- **API** (`psyconsallt/apps/api`) — **локально** (`nx serve api`, порт **3000**).
+
+Веб: `nx serve web` (**4200**), прокси `psyconsallt/apps/web/proxy.conf.cjs`; для доступа к API в кластере — **`NG_APP_API_ROOT`** / **`API_PROXY_TARGET`**, при Ingress с host — **`NG_APP_PROXY_HOST`**.
+
+По умолчанию при отладке API, маркетплейса, APK, Connect и БД: **инфраструктура в k8s, процесс API — на машине разработчика**, пока явно не указано иное.

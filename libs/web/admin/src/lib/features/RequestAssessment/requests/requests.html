@@ -1,22 +1,86 @@
-<div class="admin-page admin-crud-page requests-container">
-  <h1 class="page-title">Заявки на оценку</h1>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/line-awesome@1.3.0/dist/line-awesome/css/line-awesome.min.css" />
 
-  @if (loading) {
-  <div class="admin-toolbar">
-    <p>Загрузка заявок…</p>
-  </div>
-  } @if (loadError) {
-  <div class="admin-toolbar admin-toolbar--error">
-    <p>{{ loadError }}</p>
-    <button type="button" class="btn btn-secondary" (click)="reload()">Повторить</button>
-  </div>
-  }
+<section class="admin-page admin-crud-page requests-container">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">Личный кабинет администратора / Заявки</p>
+      <h2>Заявки на оценку</h2>
+      <p class="admin-page__lead">
+        Контролируйте поступающие заявки, назначайте нотариусов и ведите статусы оценки в одном рабочем списке.
+      </p>
+    </div>
+
+    <div class="admin-page__actions">
+      <button type="button" class="admin-btn admin-btn--secondary" (click)="reload()" [disabled]="loading">
+        Обновить данные
+      </button>
+    </div>
+  </header>
+
+  <section class="admin-toolbar requests-toolbar" [class.admin-toolbar--error]="loadError">
+    <div class="admin-toolbar__copy">
+      <small class="admin-toolbar__status">
+        Найдено: {{ filteredAssessments.length }} · Страница {{ currentPage }} из {{ totalPages || 1 }}
+      </small>
+      @if (loading) {
+      <small class="admin-toolbar__status">Загрузка заявок…</small>
+      } @if (loadError) {
+      <small class="admin-toolbar__status">{{ loadError }}</small>
+      }
+    </div>
+    @if (loadError) {
+    <button type="button" class="admin-btn admin-btn--secondary" (click)="reload()">Повторить</button>
+    }
+  </section>
 
   <!-- СПИСОК ЗАЯВОК -->
   @if (!showView) {
-  <div class="list-container">
-    <div class="list-header">
-      <h2>Список заявок</h2>
+  <article class="admin-card list-container">
+    <div class="admin-card__header list-header">
+      <div>
+        <h3>Список заявок</h3>
+        <p>Фильтры, сортировка по колонкам и быстрые действия доступны прямо из таблицы.</p>
+      </div>
+      <div class="admin-card__controls">
+        <div class="page-size-control">
+          <span>На странице:</span>
+          <div class="admin-select admin-select--compact" [class.is-open]="isUiSelectOpen('pageSize')">
+            <button
+              type="button"
+              class="admin-select__trigger"
+              (click)="toggleUiSelect('pageSize', $event)"
+              [disabled]="loading"
+              aria-haspopup="listbox"
+              [attr.aria-expanded]="isUiSelectOpen('pageSize')"
+              aria-controls="orders-page-size-list"
+              (keydown)="onUiSelectTriggerKeydown('pageSize', $event)">
+              <span>{{ itemsPerPage }}</span>
+              <i class="las la-angle-down" aria-hidden="true"></i>
+            </button>
+            @if (isUiSelectOpen('pageSize')) {
+            <div
+              id="orders-page-size-list"
+              class="admin-select__menu"
+              role="listbox"
+              tabindex="-1"
+              (keydown)="onUiSelectMenuKeydown($event)">
+            @for (size of pageSizeOptions; track size) {
+              <button
+                type="button"
+                class="admin-select__option"
+                [class.is-selected]="itemsPerPage === size"
+                (click)="selectPageSize(size, $event)"
+                role="option"
+                [attr.aria-selected]="itemsPerPage === size">
+                {{ size }}
+              </button>
+            }
+            </div>
+            }
+          </div>
+        </div>
+        <span class="admin-badge admin-badge--neutral">Всего заявок: {{ filteredAssessments.length }}</span>
+      </div>
     </div>
 
     <!-- ФИЛЬТРЫ -->
@@ -41,13 +105,49 @@
         <input id="orders-date-to" type="date" [(ngModel)]="dateTo" [min]="dateFrom || null" />
       </div>
       <div class="top-filters__field">
-        <label for="orders-notary">Нотариус</label>
-        <select id="orders-notary" [(ngModel)]="notaryFilter">
-          <option value="">Все</option>
+        <span class="top-filters__label">Нотариус</span>
+        <div id="orders-notary" class="admin-select" [class.is-open]="isUiSelectOpen('notaryFilter')">
+          <button
+            type="button"
+            class="admin-select__trigger"
+            (click)="toggleUiSelect('notaryFilter', $event)"
+            aria-haspopup="listbox"
+            [attr.aria-expanded]="isUiSelectOpen('notaryFilter')"
+            aria-controls="orders-notary-filter-list"
+            (keydown)="onUiSelectTriggerKeydown('notaryFilter', $event)">
+            <span>{{ getNotaryFilterLabel() }}</span>
+            <i class="las la-angle-down" aria-hidden="true"></i>
+          </button>
+          @if (isUiSelectOpen('notaryFilter')) {
+          <div
+            id="orders-notary-filter-list"
+            class="admin-select__menu"
+            role="listbox"
+            tabindex="-1"
+            (keydown)="onUiSelectMenuKeydown($event)">
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="!notaryFilter"
+              (click)="selectNotaryFilter('', $event)"
+              role="option"
+              [attr.aria-selected]="!notaryFilter">
+              Все
+            </button>
           @for (n of notaryOptions; track n.id) {
-          <option [value]="n.id">{{ n.label }}</option>
+            <button
+              type="button"
+              class="admin-select__option"
+              [class.is-selected]="notaryFilter === n.id"
+              (click)="selectNotaryFilter(n.id, $event)"
+              role="option"
+              [attr.aria-selected]="notaryFilter === n.id">
+              {{ n.label }}
+            </button>
           }
-        </select>
+          </div>
+          }
+        </div>
       </div>
       <div class="top-filters__actions">
         <button type="button" class="btn btn-primary" (click)="applyFilters()">Применить</button>
@@ -64,7 +164,13 @@
             <th class="filterable no-wrap-col">
               <div class="header-cell">
                 <span>{{ column.label }}</span>
-                <button type="button" class="filter-trigger" (click)="toggleColumnFilter(column.key, $event)">▼</button>
+                <button
+                  type="button"
+                  class="filter-trigger"
+                  [class.is-active]="activeFilterColumn === column.key"
+                  (click)="toggleColumnFilter(column.key, $event)">
+                  <i class="las la-angle-down" aria-hidden="true"></i>
+                </button>
               </div>
               @if (activeFilterColumn === column.key) {
               <div
@@ -179,7 +285,7 @@
       <button [disabled]="currentPage === totalPages" (click)="changePage(currentPage + 1)">›</button>
     </div>
     }
-  </div>
+  </article>
   }
 
   <!-- ДЕТАЛИ ЗАЯВКИ -->
@@ -383,4 +489,4 @@
     </div>
   </div>
   }
-</div>
+</section>

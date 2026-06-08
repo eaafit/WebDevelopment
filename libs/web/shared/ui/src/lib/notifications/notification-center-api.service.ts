@@ -3,6 +3,7 @@ import { createClient } from '@connectrpc/connect';
 import { Injectable, inject } from '@angular/core';
 import { from, map, type Observable } from 'rxjs';
 import {
+  NotificationCategory,
   NotificationService,
   NotificationStatus,
   NotificationType,
@@ -11,8 +12,13 @@ import {
 } from '@notary-portal/api-contracts';
 import { RPC_TRANSPORT } from '../rpc/rpc-transport';
 
-export type NotificationCenterChannel = 'email' | 'sms' | 'push';
-export type NotificationCenterDomainType = 'application' | 'document' | 'payment' | 'system';
+export type NotificationCenterChannel = 'email' | 'sms' | 'push' | 'in-app';
+export type NotificationCenterDomainType =
+  | 'application'
+  | 'document'
+  | 'payment'
+  | 'assessment'
+  | 'system';
 export type NotificationCenterLifecycle = 'created' | 'sent' | 'read' | 'failed';
 
 export interface NotificationCenterItem {
@@ -81,7 +87,9 @@ export class NotificationCenterApiService {
   }
 }
 
-function toNotificationCenterPage(response: ListNotificationsResponse): NotificationCenterPage {
+export function toNotificationCenterPage(
+  response: ListNotificationsResponse,
+): NotificationCenterPage {
   return {
     notifications: response.notifications.map(toNotificationCenterItem),
     totalItems: response.meta?.totalItems ?? response.notifications.length,
@@ -89,10 +97,10 @@ function toNotificationCenterPage(response: ListNotificationsResponse): Notifica
   };
 }
 
-function toNotificationCenterItem(notification?: Notification): NotificationCenterItem {
+export function toNotificationCenterItem(notification?: Notification): NotificationCenterItem {
   const message = notification?.message?.trim() || 'Системное уведомление';
   const createdAt = notification?.sentAt ? timestampDate(notification.sentAt).toISOString() : '';
-  const title = buildTitle(message);
+  const title = notification?.title?.trim() || buildTitle(message);
 
   return {
     id: notification?.id ?? '',
@@ -100,7 +108,7 @@ function toNotificationCenterItem(notification?: Notification): NotificationCent
     description: buildDescription(message, title),
     createdAt,
     relativeTime: formatRelativeTime(createdAt),
-    type: inferDomainType(message),
+    type: toDomainType(notification?.category ?? NotificationCategory.UNSPECIFIED, message),
     channel: toChannel(notification?.type ?? NotificationType.PUSH),
     lifecycle: toLifecycle(
       notification?.status ?? NotificationStatus.SENT,
@@ -119,6 +127,27 @@ function buildDescription(message: string, title: string): string {
   return normalized === title ? 'Уведомление из системы нотариального портала.' : normalized;
 }
 
+function toDomainType(
+  category: NotificationCategory,
+  message: string,
+): NotificationCenterDomainType {
+  switch (category) {
+    case NotificationCategory.APPLICATION:
+      return 'application';
+    case NotificationCategory.DOCUMENT:
+      return 'document';
+    case NotificationCategory.PAYMENT:
+      return 'payment';
+    case NotificationCategory.ASSESSMENT:
+      return 'assessment';
+    case NotificationCategory.SYSTEM:
+      return 'system';
+    case NotificationCategory.UNSPECIFIED:
+    default:
+      return inferDomainType(message);
+  }
+}
+
 function inferDomainType(message: string): NotificationCenterDomainType {
   const normalized = message.toLowerCase();
   if (/заявк|оценк|заказ/.test(normalized)) return 'application';
@@ -133,6 +162,8 @@ function toChannel(type: NotificationType): NotificationCenterChannel {
       return 'email';
     case NotificationType.SMS:
       return 'sms';
+    case NotificationType.IN_APP:
+      return 'in-app';
     case NotificationType.PUSH:
     default:
       return 'push';

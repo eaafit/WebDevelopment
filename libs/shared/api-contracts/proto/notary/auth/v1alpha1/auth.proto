@@ -11,6 +11,24 @@ service AuthService {
   rpc Logout (LogoutRequest) returns (LogoutResponse);
   rpc ForgotPassword (ForgotPasswordRequest) returns (ForgotPasswordResponse);
   rpc ResetPassword (ResetPasswordRequest) returns (ResetPasswordResponse);
+
+  // OAuth (внешние провайдеры). На этом этапе реализован только Google;
+  // generic-форма (поле provider) позволит добавить Yandex/VK без новых RPC.
+  rpc GetOAuthAuthorizeUrl (GetOAuthAuthorizeUrlRequest) returns (GetOAuthAuthorizeUrlResponse);
+  rpc OAuthLogin (OAuthLoginRequest) returns (OAuthLoginResponse);
+
+  // Подтверждение контакта после OAuth-регистрации/первой связки кодом из письма
+  // (dev: код пишется в лог api). Вызываются гостем по короткому ticket.
+  rpc ConfirmContact (ConfirmContactRequest) returns (ConfirmContactResponse);
+  rpc ResendContactCode (ResendContactCodeRequest) returns (ResendContactCodeResponse);
+}
+
+// Внешний OAuth-провайдер. UNSPECIFIED = 0 для совместимости proto3.
+enum OauthProvider {
+  OAUTH_PROVIDER_UNSPECIFIED = 0;
+  OAUTH_PROVIDER_GOOGLE = 1;
+  OAUTH_PROVIDER_YANDEX = 2;
+  OAUTH_PROVIDER_VK = 3;
 }
 
 message RegisterRequest {
@@ -68,3 +86,53 @@ message ResetPasswordRequest {
 }
 
 message ResetPasswordResponse {}
+
+// Запрос URL авторизации провайдера. Бэкенд возвращает готовый URL
+// (с подписанным state) и сам state — фронт дублирует его в sessionStorage
+// для сверки на callback (defense-in-depth против CSRF).
+message GetOAuthAuthorizeUrlRequest {
+  OauthProvider provider = 1;
+}
+
+message GetOAuthAuthorizeUrlResponse {
+  string url = 1;
+  string state = 2;
+}
+
+// Завершение OAuth-входа: фронт передаёт code и state, полученные на callback.
+message OAuthLoginRequest {
+  OauthProvider provider = 1;
+  string code = 2;
+  string state = 3;
+  // device_id выдаётся VK ID на callback и обязателен при обмене кода на токен.
+  // Для Google/Yandex пустой.
+  string device_id = 4;
+}
+
+message OAuthLoginResponse {
+  // Заполняется при повторном входе (контакт уже подтверждён) — выдаются токены.
+  AuthResult result = 1;
+  // true — новая регистрация / первая связка: вход не завершён, нужен код подтверждения.
+  bool verification_required = 2;
+  // Короткоживущий ticket для ConfirmContact/ResendContactCode (не равен коду, не хранится в БД).
+  string verification_ticket = 3;
+  // Контакт (email), на который отправлен код — для подсказки на форме.
+  string contact_to_verify = 4;
+}
+
+// Подтверждение контакта введённым кодом. На успехе возвращает токены (как обычный вход).
+message ConfirmContactRequest {
+  string ticket = 1;
+  string code = 2;
+}
+
+message ConfirmContactResponse {
+  AuthResult result = 1;
+}
+
+// Повторная отправка кода (новый код инвалидирует старый). Серверный кулдаун против спама.
+message ResendContactCodeRequest {
+  string ticket = 1;
+}
+
+message ResendContactCodeResponse {}

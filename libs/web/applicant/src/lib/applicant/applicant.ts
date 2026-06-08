@@ -1,6 +1,6 @@
-import { Component, ViewEncapsulation } from '@angular/core';
+import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { DashboardLayout } from '@notary-portal/ui';
+import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 
 const APPLICANT_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
@@ -25,8 +25,19 @@ const APPLICANT_MENU = [
   styleUrl: './applicant.scss',
   encapsulation: ViewEncapsulation.None,
 })
-export class Applicant {
+export class Applicant implements OnInit, OnDestroy {
+  private readonly notificationCounter = inject(NotificationCounterService);
+
   menuItems = APPLICANT_MENU;
   pageTitle = 'Личный кабинет заявителя';
   userLabel = 'Заявитель';
+  unreadNotifications = this.notificationCounter.unreadCount;
+
+  ngOnInit(): void {
+    this.notificationCounter.startPolling();
+  }
+
+  ngOnDestroy(): void {
+    this.notificationCounter.stopPolling();
+  }
 }
