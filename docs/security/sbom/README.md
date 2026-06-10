@@ -1,34 +1,34 @@
-# Runtime SBOM Evidence
+# Доказательство Runtime SBOM
 
-This directory stores a reproducible CycloneDX inventory for the Notary Portal runtime dependency set.
+Эта директория хранит воспроизводимый CycloneDX-инвентарь runtime-зависимостей портала нотариальных услуг.
 
-The committed file is intentionally limited to runtime dependencies reachable from `package.json` `dependencies` and `optionalDependencies`. It does not include the full Nx, Angular CLI, Jest, ESLint and Stylelint development toolchain unless the generator is called with `--include-dev`.
+Committed SBOM намеренно ограничен runtime-зависимостями из `package.json` `dependencies` и `optionalDependencies`. Полная dev toolchain Nx, Angular CLI, Jest, ESLint и Stylelint не попадает в этот файл, если генератор не запущен с флагом `--include-dev`.
 
-## Files
+## Файлы
 
-| File                              | Purpose                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------ |
-| `notary-portal-pnpm.cdx.json`     | CycloneDX 1.5 runtime dependency inventory generated from the installed pnpm layout. |
-| `scripts/ci/generate-sbom.mjs`    | Local generator used to refresh the SBOM from `node_modules` and `package.json`.     |
-| `.gitlab-ci.yml` `cyclonedx_scan` | Container image SBOM job that produces image-level SBOM artifacts for release tags.  |
+| Файл                              | Назначение                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `notary-portal-pnpm.cdx.json`     | CycloneDX 1.5 inventory runtime-зависимостей, созданный из pnpm layout.     |
+| `scripts/ci/generate-sbom.mjs`    | Локальный генератор для обновления SBOM из `node_modules` и `package.json`. |
+| `.gitlab-ci.yml` `cyclonedx_scan` | CI job, который создает image-level SBOM artifacts для релизных тегов.      |
 
-## Why This SBOM Is Committed
+## Зачем SBOM Хранится В Репозитории
 
-The GitLab pipeline produces image-level SBOM artifacts for release tags, but a committed runtime SBOM is useful for a coursework review because it makes the supply-chain layer visible in the pull request itself:
+GitLab pipeline создает image-level SBOM artifacts для релизных тегов, но committed runtime SBOM полезен для учебного ревью:
 
-1. reviewers can inspect the real dependency inventory without opening CI artifacts;
-2. the repository has a stable example of CycloneDX output;
-3. local verification can compare generated output with the committed file;
-4. the PR demonstrates both dependency-level and container-level evidence.
+1. преподаватель может посмотреть реальный список зависимостей прямо в PR;
+2. в репозитории есть стабильный пример CycloneDX output;
+3. локальная проверка может сравнить сгенерированный файл с committed file;
+4. PR показывает два уровня evidence: dependency-level и container-level.
 
-## Regenerate
+## Как Перегенерировать
 
 ```bash
 node scripts/ci/generate-sbom.mjs docs/security/sbom/notary-portal-pnpm.cdx.json
 jq empty docs/security/sbom/notary-portal-pnpm.cdx.json
 ```
 
-The generator expects dependencies to be installed:
+Генератор ожидает, что зависимости установлены:
 
 ```bash
 corepack enable
@@ -36,28 +36,28 @@ corepack prepare pnpm@10.29.3 --activate
 pnpm install --frozen-lockfile
 ```
 
-To include development dependencies as well:
+Если нужно включить development dependencies:
 
 ```bash
 node scripts/ci/generate-sbom.mjs docs/security/sbom/notary-portal-pnpm-dev.cdx.json --include-dev
 ```
 
-The development SBOM is much larger and is not committed by default because the release images only need the runtime dependency evidence.
+Development SBOM значительно больше и по умолчанию не коммитится, потому что release images требуют evidence именно по runtime-зависимостям.
 
-## Local Review Checklist
+## Чек-Лист Локального Ревью
 
-1. Confirm the SBOM is valid JSON.
-2. Confirm `bomFormat` is `CycloneDX`.
-3. Confirm `specVersion` is `1.5`.
-4. Confirm `metadata.component.name` matches `@notary-portal/source`.
-5. Confirm `metadata.properties` contains `notary-portal:scope = runtime`.
-6. Confirm `metadata.properties` contains a non-zero `notary-portal:component-count`.
-7. Confirm direct runtime packages such as `@nestjs/core`, `@angular/core`, `express`, `pg`, `pino` and `prom-client` are present.
-8. Confirm obvious dev-only packages such as `jest`, `eslint` and `typescript` are absent from the runtime file.
-9. Confirm the root dependency graph references direct runtime dependencies.
-10. Confirm CI still generates image SBOM artifacts for tag builds.
+1. Убедиться, что SBOM является валидным JSON.
+2. Убедиться, что `bomFormat` равен `CycloneDX`.
+3. Убедиться, что `specVersion` равен `1.5`.
+4. Убедиться, что `metadata.component.name` равен `@notary-portal/source`.
+5. Убедиться, что `metadata.properties` содержит `notary-portal:scope = runtime`.
+6. Убедиться, что `metadata.properties` содержит ненулевой `notary-portal:component-count`.
+7. Проверить наличие прямых runtime packages: `@nestjs/core`, `@angular/core`, `express`, `pg`, `pino`, `prom-client`.
+8. Проверить, что dev-only packages `jest`, `eslint`, `typescript` отсутствуют в runtime file.
+9. Проверить, что root dependency graph ссылается на прямые runtime dependencies.
+10. Проверить, что CI продолжает генерировать image SBOM artifacts для tag builds.
 
-Useful commands:
+Полезные команды:
 
 ```bash
 jq -r '.bomFormat, .specVersion, .metadata.component.name' docs/security/sbom/notary-portal-pnpm.cdx.json
@@ -66,44 +66,44 @@ jq -r '.components[].name' docs/security/sbom/notary-portal-pnpm.cdx.json | sort
 jq -r '.components[].name' docs/security/sbom/notary-portal-pnpm.cdx.json | sort | grep -E '(^jest$|^eslint$|^typescript$)' || true
 ```
 
-## Relationship To Trivy
+## Связь С Trivy
 
-The committed SBOM and the Trivy CI jobs answer different questions.
+Committed SBOM и Trivy jobs отвечают на разные вопросы.
 
-| Evidence                   | Question Answered                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| Runtime SBOM               | Which npm packages are reachable from the app runtime dependency graph?                 |
-| Trivy image scan           | Which vulnerabilities are visible in the built container images?                        |
-| Trivy CycloneDX image SBOM | Which OS and application components are present inside each pushed image?               |
-| SonarQube                  | Which code quality, maintainability and security issues are visible in the source tree? |
+| Evidence                   | На какой вопрос отвечает                                                   |
+| -------------------------- | -------------------------------------------------------------------------- |
+| Runtime SBOM               | Какие npm packages достижимы из runtime dependency graph приложения?       |
+| Trivy image scan           | Какие уязвимости видны в собранных container images?                       |
+| Trivy CycloneDX image SBOM | Какие OS и application components находятся внутри каждого pushed image?   |
+| SonarQube                  | Какие code quality, maintainability и security issues видны в source tree? |
 
-The runtime SBOM is therefore not a replacement for container scanning. It is a stable local artifact that complements the release pipeline.
+Runtime SBOM не заменяет container scanning. Это стабильный локальный artifact, который дополняет release pipeline.
 
-## CI Expectations
+## Ожидания От CI
 
-The `cyclonedx_scan` GitLab job runs only for valid release tags. Its output is stored as CI artifacts:
+GitLab job `cyclonedx_scan` запускается только для валидных релизных тегов. Результат сохраняется как CI artifacts:
 
 - `sbom-api.cdx.json`
 - `sbom-web.cdx.json`
 
-Those files are image SBOMs. They include operating system packages from base images such as `node:24-bookworm-slim` and `nginx:1.27-alpine`, plus application-level components detected by the scanner.
+Эти файлы являются image SBOMs. Они включают OS packages из base images `node:24-bookworm-slim` и `nginx:1.27-alpine`, а также application-level components, которые находит scanner.
 
-## Updating Policy
+## Когда Обновлять
 
-Refresh `notary-portal-pnpm.cdx.json` when:
+Обновлять `notary-portal-pnpm.cdx.json` нужно, когда:
 
-- `pnpm-lock.yaml` changes;
-- runtime dependencies in `package.json` change;
-- the Node/pnpm install layout changes;
-- a security review asks for a fresh dependency inventory;
-- a release candidate tag is prepared and the PR needs pinned evidence.
+- изменился `pnpm-lock.yaml`;
+- изменились runtime dependencies в `package.json`;
+- поменялся Node/pnpm install layout;
+- security review просит свежий dependency inventory;
+- готовится release candidate tag и PR требует pinned evidence.
 
-Do not refresh it for unrelated documentation-only changes, because that creates noisy diffs.
+Для несвязанных documentation-only изменений файл лучше не обновлять, чтобы не создавать шумный diff.
 
-## Known Limits
+## Известные Ограничения
 
-The generator follows installed package links instead of parsing the full `pnpm-lock.yaml` graph. This keeps the output aligned with what the local build actually installs, but it also means the SBOM should be regenerated after `pnpm install --frozen-lockfile`.
+Генератор идет по установленным package links, а не парсит весь `pnpm-lock.yaml` graph. Это привязывает результат к реально установленной локальной сборке, но означает, что SBOM нужно перегенерировать после `pnpm install --frozen-lockfile`.
 
-Peer dependencies are included when they can be resolved from the package directory. Optional dependencies are included when they are present in the installed layout.
+Peer dependencies включаются, если их можно разрешить из директории package. Optional dependencies включаются, если они присутствуют в installed layout.
 
-The file is generated with a stable timestamp so repeated runs are reviewable. The component hashes are based on package manifests, not tarball archives.
+Файл генерируется со стабильным timestamp, чтобы повторные запуски были удобны для review. Component hashes основаны на package manifests, а не на tarball archives.

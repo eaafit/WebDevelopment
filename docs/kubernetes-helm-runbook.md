@@ -1,22 +1,22 @@
-# Kubernetes and Helm Release Runbook
+# Runbook Релиза Через Kubernetes и Helm
 
-This runbook describes the operational flow added for the coursework CI/CD PR. It covers the kustomize demo manifests, the Helm chart, release tag rules, smoke checks, observability objects and rollback paths.
+Этот runbook описывает операционный сценарий, добавленный в учебный CI/CD PR. Здесь собраны kustomize manifests, Helm chart, правила релизных тегов, smoke-проверки, monitoring objects и порядок rollback.
 
-## Deployment Options
+## Варианты Деплоя
 
-| Path                         | Directory                            | Best For                                                             |
-| ---------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
-| Kustomize local overlay      | `deploy/k8s/overlays/local`          | Fast demo on kind or minikube with local images.                     |
-| Kustomize staging overlay    | `deploy/k8s/overlays/staging`        | Review of staging values, TLS annotations and higher replica counts. |
-| Kustomize production overlay | `deploy/k8s/overlays/production`     | Review of production host, resources and HPA limits.                 |
-| Helm chart                   | `deploy/helm/notary-portal`          | Reusable release install or upgrade flow.                            |
-| GitLab CI deploy job         | `.gitlab-ci.yml` `deploy_kubernetes` | Tag-driven deploy from pushed container images.                      |
+| Путь                         | Директория                           | Для чего нужен                                                     |
+| ---------------------------- | ------------------------------------ | ------------------------------------------------------------------ |
+| Kustomize local overlay      | `deploy/k8s/overlays/local`          | Быстрая демка на kind или minikube с локальными образами.          |
+| Kustomize staging overlay    | `deploy/k8s/overlays/staging`        | Ревью staging-настроек, TLS annotations и увеличенного числа pods. |
+| Kustomize production overlay | `deploy/k8s/overlays/production`     | Ревью production host, ресурсов и HPA limits.                      |
+| Helm chart                   | `deploy/helm/notary-portal`          | Повторяемая установка или upgrade релиза.                          |
+| GitLab CI deploy job         | `.gitlab-ci.yml` `deploy_kubernetes` | Деплой из CI после сборки контейнеров по валидному release tag.    |
 
-## Release Tag Contract
+## Правило Релизного Тега
 
-Container builds and deploy jobs are intentionally gated by tags.
+Сборка контейнеров и deploy jobs специально закрыты проверкой тегов. Это защищает pipeline от случайного production build из обычной ветки.
 
-Allowed:
+Разрешены:
 
 ```bash
 1.1.1
@@ -25,7 +25,7 @@ Allowed:
 2.0.0
 ```
 
-Rejected:
+Отклоняются:
 
 ```bash
 v1.1.1
@@ -36,61 +36,61 @@ v1.1.1
 1.1.01
 ```
 
-Check locally:
+Проверка локально:
 
 ```bash
 bash scripts/ci/validate-semver-tag.sh 1.1.1-rc.2
 bash scripts/ci/validate-semver-tag.sh v1.1.1
 ```
 
-The second command should fail.
+Вторая команда должна завершиться ошибкой.
 
-## Local Image Build
+## Локальная Сборка Образов
 
-Build images before either kind/kustomize or Helm local install:
+Перед деплоем через kind, minikube, kustomize или Helm нужно собрать два образа:
 
 ```bash
 docker build -f apps/api/Dockerfile -t notary-portal-api:local .
 docker build -f apps/web/Dockerfile -t notary-portal-web:local .
 ```
 
-For kind:
+Для kind:
 
 ```bash
 kind load docker-image notary-portal-api:local
 kind load docker-image notary-portal-web:local
 ```
 
-For minikube:
+Для minikube:
 
 ```bash
 minikube image load notary-portal-api:local
 minikube image load notary-portal-web:local
 ```
 
-## Kustomize Local Deploy
+## Локальный Деплой Через Kustomize
 
-Render:
+Сначала можно отрендерить manifests без применения:
 
 ```bash
 kubectl kustomize deploy/k8s/overlays/local
 ```
 
-Apply:
+Затем применить их в кластер:
 
 ```bash
 kubectl apply -k deploy/k8s/overlays/local
 kubectl get pods,svc,ingress -n notary-portal
 ```
 
-Run migrations:
+Проверка migration job:
 
 ```bash
 kubectl get jobs -n notary-portal
 kubectl logs job/notary-prisma-migrate -n notary-portal
 ```
 
-Check API:
+Проверка API:
 
 ```bash
 kubectl port-forward -n notary-portal svc/api 3000:3000
@@ -98,65 +98,65 @@ curl -fsS http://localhost:3000/health
 curl -fsS http://localhost:3000/metrics | head
 ```
 
-Check Web:
+Проверка Web:
 
 ```bash
 kubectl port-forward -n notary-portal svc/web 8080:80
 curl -fsS http://localhost:8080/ | head
 ```
 
-## Kustomize Staging Review
+## Ревью Staging Overlay
 
-Render staging values:
+Рендер staging-настроек:
 
 ```bash
 kubectl kustomize deploy/k8s/overlays/staging
 ```
 
-What to inspect:
+Что нужно проверить:
 
-1. namespace is `notary-portal-staging`;
-2. `NODE_ENV` is `staging`;
-3. ingress host is `notary-staging.example.com`;
-4. TLS issuer is `letsencrypt-staging`;
-5. API and Web replicas start from `2`;
-6. HPA maximum is lower than production;
-7. image repositories point to the placeholder registry path.
+1. namespace равен `notary-portal-staging`;
+2. `NODE_ENV` равен `staging`;
+3. ingress host равен `notary-staging.example.com`;
+4. TLS issuer равен `letsencrypt-staging`;
+5. API и Web стартуют с `2` replicas;
+6. максимум HPA ниже, чем в production;
+7. image repositories указывают на placeholder registry path.
 
-The staging overlay is not meant to be applied as-is to a real cluster until registry and secret values are replaced.
+Staging overlay не нужно применять в реальный кластер без замены registry и secret values.
 
-## Kustomize Production Review
+## Ревью Production Overlay
 
-Render production values:
+Рендер production-настроек:
 
 ```bash
 kubectl kustomize deploy/k8s/overlays/production
 ```
 
-What to inspect:
+Что нужно проверить:
 
-1. namespace is `notary-portal`;
-2. `NODE_ENV` is `production`;
-3. ingress host is `notary.example.com`;
-4. TLS issuer is `letsencrypt-production`;
-5. Robokassa test mode is disabled;
-6. API starts at `3` replicas;
-7. Web starts at `3` replicas;
-8. API HPA can scale to `8`;
-9. Web HPA can scale to `6`;
-10. Postgres resource limits are increased.
+1. namespace равен `notary-portal`;
+2. `NODE_ENV` равен `production`;
+3. ingress host равен `notary.example.com`;
+4. TLS issuer равен `letsencrypt-production`;
+5. тестовый режим Robokassa отключен;
+6. API стартует с `3` replicas;
+7. Web стартует с `3` replicas;
+8. API HPA может масштабироваться до `8`;
+9. Web HPA может масштабироваться до `6`;
+10. resource limits для Postgres увеличены.
 
-Production overlay still expects a real secret named `notary-portal-secret`.
+Production overlay ожидает реальный secret с именем `notary-portal-secret`.
 
-## Helm Local Install
+## Локальная Установка Через Helm
 
-Render the chart:
+Рендер chart:
 
 ```bash
 helm template notary-portal deploy/helm/notary-portal -f deploy/helm/notary-portal/values-local.yaml
 ```
 
-Install:
+Установка:
 
 ```bash
 helm upgrade --install notary-portal deploy/helm/notary-portal \
@@ -165,23 +165,23 @@ helm upgrade --install notary-portal deploy/helm/notary-portal \
   -f deploy/helm/notary-portal/values-local.yaml
 ```
 
-Check:
+Проверка:
 
 ```bash
 helm status notary-portal -n notary-portal
 kubectl get pods,svc,ingress -n notary-portal
 ```
 
-## Helm Staging Install
+## Установка Helm Для Staging
 
-Create the secret first:
+Сначала создать secret:
 
 ```bash
 kubectl create namespace notary-portal-staging --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n notary-portal-staging -f deploy/k8s/base/secret.example.yaml
 ```
 
-Install:
+Установка:
 
 ```bash
 helm upgrade --install notary-portal deploy/helm/notary-portal \
@@ -191,17 +191,17 @@ helm upgrade --install notary-portal deploy/helm/notary-portal \
   --set web.image.tag=1.1.1-rc.2
 ```
 
-Expected result:
+Ожидаемый результат:
 
-- API deployment rolls out with two initial replicas;
-- Web deployment rolls out with two initial replicas;
-- migration hook runs before install or upgrade;
-- Ingress points to the staging host;
-- HPA and PDB objects are created.
+- API deployment раскатывается с двумя начальными replicas;
+- Web deployment раскатывается с двумя начальными replicas;
+- migration hook выполняется перед install или upgrade;
+- Ingress указывает на staging host;
+- создаются HPA и PDB objects.
 
-## Helm Production Install
+## Установка Helm Для Production
 
-Create production secrets outside Git:
+Production secrets создаются вне Git:
 
 ```bash
 kubectl create namespace notary-portal --dry-run=client -o yaml | kubectl apply -f -
@@ -219,7 +219,7 @@ kubectl create secret generic notary-portal-secret \
   --from-literal=S3_SECRET_KEY='<replace>'
 ```
 
-Install:
+Установка:
 
 ```bash
 helm upgrade --install notary-portal deploy/helm/notary-portal \
@@ -229,32 +229,32 @@ helm upgrade --install notary-portal deploy/helm/notary-portal \
   --set web.image.tag=1.1.1
 ```
 
-## GitLab CI Deploy Variables
+## Переменные GitLab CI Для Деплоя
 
-| Variable                      | Required   | Purpose                                            |
-| ----------------------------- | ---------- | -------------------------------------------------- |
-| `CI_REGISTRY`                 | yes        | Registry host used by Kaniko and Docker pulls.     |
-| `CI_REGISTRY_IMAGE`           | yes        | Base registry path for API and Web images.         |
-| `CI_REGISTRY_USER`            | yes        | Registry login user.                               |
-| `CI_REGISTRY_PASSWORD`        | yes        | Registry login password or token.                  |
-| `SONAR_HOST_URL`              | for Sonar  | SonarQube endpoint.                                |
-| `SONAR_TOKEN`                 | for Sonar  | SonarQube scanner token.                           |
-| `KUBE_CONFIG_B64`             | for deploy | Base64 encoded kubeconfig.                         |
-| `KUBE_NAMESPACE`              | optional   | Defaults to `notary-portal`.                       |
-| `KUBE_SECRET_MANIFEST`        | optional   | Secret manifest applied by deploy job.             |
-| `KUBE_ENABLE_MONITORING_CRDS` | optional   | Set to `true` when Prometheus Operator CRDs exist. |
-| `CI_RUN_INTEGRATION_SMOKE`    | optional   | Enables compose integration smoke automatically.   |
+| Переменная                    | Обязательность | Назначение                                        |
+| ----------------------------- | -------------- | ------------------------------------------------- |
+| `CI_REGISTRY`                 | да             | Registry host для Kaniko и Docker pull.           |
+| `CI_REGISTRY_IMAGE`           | да             | Базовый registry path для API и Web images.       |
+| `CI_REGISTRY_USER`            | да             | Пользователь registry.                            |
+| `CI_REGISTRY_PASSWORD`        | да             | Пароль или token для registry.                    |
+| `SONAR_HOST_URL`              | для Sonar      | Адрес SonarQube.                                  |
+| `SONAR_TOKEN`                 | для Sonar      | Token для SonarQube Scanner.                      |
+| `KUBE_CONFIG_B64`             | для deploy     | kubeconfig, закодированный в Base64.              |
+| `KUBE_NAMESPACE`              | опционально    | По умолчанию `notary-portal`.                     |
+| `KUBE_SECRET_MANIFEST`        | опционально    | Secret manifest, который применяет deploy job.    |
+| `KUBE_ENABLE_MONITORING_CRDS` | опционально    | `true`, если есть Prometheus Operator CRDs.       |
+| `CI_RUN_INTEGRATION_SMOKE`    | опционально    | Автоматически включает compose integration smoke. |
 
 ## Monitoring Objects
 
-The kustomize base and Helm chart include optional Prometheus Operator objects:
+Kustomize base и Helm chart включают опциональные объекты Prometheus Operator:
 
-- `ServiceMonitor` for `/metrics`;
-- `PrometheusRule` for API target availability;
-- `PrometheusRule` for failed access spikes;
-- restart-related rule in kustomize base.
+- `ServiceMonitor` для `/metrics`;
+- `PrometheusRule` для проверки доступности API target;
+- `PrometheusRule` для всплесков failed access;
+- правило по restart-событиям в kustomize base.
 
-If the cluster does not have Prometheus Operator CRDs, either install the CRDs or disable the monitoring templates in Helm:
+Если в кластере нет Prometheus Operator CRDs, нужно установить CRDs или отключить monitoring templates в Helm:
 
 ```bash
 helm upgrade --install notary-portal deploy/helm/notary-portal \
@@ -263,30 +263,30 @@ helm upgrade --install notary-portal deploy/helm/notary-portal \
   --set monitoring.enabled=false
 ```
 
-For kustomize, remove `monitoring.yaml` from `deploy/k8s/base/kustomization.yaml` for clusters without the CRDs.
+Для kustomize можно убрать `monitoring.yaml` из `deploy/k8s/base/kustomization.yaml`.
 
-## Network Policy Expectations
+## NetworkPolicy
 
-Network policies implement a small zero-trust baseline:
+Network policies задают минимальный zero-trust baseline:
 
-1. default deny ingress and egress;
-2. Web accepts HTTP traffic and can reach API;
-3. API accepts traffic from Web and ingress namespaces;
-4. API can reach Postgres, DNS, HTTP and HTTPS;
-5. Postgres only accepts API and migration job traffic.
+1. default deny для ingress и egress;
+2. Web принимает HTTP traffic и может обращаться к API;
+3. API принимает traffic от Web и ingress namespaces;
+4. API может обращаться к Postgres, DNS, HTTP и HTTPS;
+5. Postgres принимает traffic только от API и migration job.
 
-If the cluster uses a CNI without NetworkPolicy support, the objects are accepted but not enforced.
+Если CNI в кластере не поддерживает NetworkPolicy, объекты применятся, но правила не будут enforced.
 
 ## Rollback
 
-Helm rollback:
+Rollback через Helm:
 
 ```bash
 helm history notary-portal -n notary-portal
 helm rollback notary-portal <revision> -n notary-portal
 ```
 
-Kustomize rollback by image tag:
+Rollback через kustomize сменой image tag:
 
 ```bash
 kubectl set image deployment/notary-api api=registry.example.com/notary-portal/notary-portal-api:<old-tag> -n notary-portal
@@ -295,41 +295,41 @@ kubectl rollout status deployment/notary-api -n notary-portal
 kubectl rollout status deployment/notary-web -n notary-portal
 ```
 
-If migrations are not backward-compatible, stop and restore database backup before rolling back the application image.
+Если migrations несовместимы назад, сначала нужно остановиться и восстановить database backup, а уже потом откатывать application image.
 
-## Release Evidence Checklist
+## Чек-Лист Доказательств Релиза
 
-Before marking a release ready:
+Перед тем как считать релиз готовым:
 
-1. Tag passes `scripts/ci/validate-semver-tag.sh`.
-2. Unit tests pass.
-3. Lint and stylelint pass.
-4. API build passes.
-5. Web build passes.
-6. API image builds.
-7. Web image builds.
-8. Container smoke passes.
-9. Trivy scan artifacts are present.
-10. CycloneDX image SBOM artifacts are present.
-11. Runtime SBOM is current.
-12. SonarQube analysis is attached when secrets are configured.
-13. Kustomize local overlay renders.
-14. Helm chart renders for local values.
-15. Deploy job has required kubeconfig and registry variables.
+1. Tag проходит `scripts/ci/validate-semver-tag.sh`.
+2. Unit tests прошли.
+3. Lint и stylelint прошли.
+4. API build прошел.
+5. Web build прошел.
+6. API image собирается.
+7. Web image собирается.
+8. Container smoke проходит.
+9. Trivy scan artifacts приложены.
+10. CycloneDX image SBOM artifacts приложены.
+11. Runtime SBOM актуален.
+12. SonarQube analysis прикреплен, если настроены secrets.
+13. Kustomize local overlay рендерится.
+14. Helm chart рендерится для local values.
+15. Deploy job имеет kubeconfig и registry variables.
 
-## Troubleshooting
+## Диагностика Проблем
 
-| Symptom                          | Likely Cause                                   | Fix                                                               |
-| -------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------- |
-| `ImagePullBackOff`               | Cluster cannot pull registry image.            | Check registry credentials and image tag.                         |
-| migration job fails              | `DATABASE_URL` or Prisma files missing.        | Check secret and API image contains `/app/prisma`.                |
-| API readiness fails              | App cannot connect to Postgres or missing env. | Check API logs and secret values.                                 |
-| Web shows 502 on API paths       | Ingress or nginx routes cannot reach API.      | Check service names and endpoints.                                |
-| Prometheus objects fail to apply | CRDs are missing.                              | Install Prometheus Operator CRDs or disable monitoring.           |
-| HPA shows unknown metrics        | Metrics server is missing.                     | Install metrics-server in the cluster.                            |
-| NetworkPolicy blocks traffic     | CNI enforces default deny.                     | Check labels and temporarily disable NetworkPolicy for diagnosis. |
+| Симптом                           | Вероятная причина                           | Что проверить                                                 |
+| --------------------------------- | ------------------------------------------- | ------------------------------------------------------------- |
+| `ImagePullBackOff`                | Кластер не может скачать registry image.    | Registry credentials и image tag.                             |
+| migration job падает              | Нет `DATABASE_URL` или Prisma files.        | Secret и наличие `/app/prisma` внутри API image.              |
+| API readiness fails               | App не подключается к Postgres или нет env. | API logs и secret values.                                     |
+| Web показывает 502 на API paths   | Ingress или nginx routes не доходят до API. | Service names и endpoints.                                    |
+| Prometheus objects не применяются | Нет CRDs.                                   | Установить Prometheus Operator CRDs или отключить monitoring. |
+| HPA показывает unknown metrics    | В кластере нет metrics-server.              | Установить metrics-server.                                    |
+| NetworkPolicy блокирует traffic   | CNI enforcing default deny.                 | Проверить labels или временно отключить NetworkPolicy.        |
 
-## Cleanup
+## Очистка
 
 Kustomize:
 
@@ -344,7 +344,7 @@ helm uninstall notary-portal -n notary-portal
 kubectl delete namespace notary-portal
 ```
 
-Local Docker smoke:
+Локальный Docker smoke:
 
 ```bash
 docker compose -p notary-smoke -f apps/web/docker-compose.portal.yml down -v --remove-orphans

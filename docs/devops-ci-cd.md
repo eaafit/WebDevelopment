@@ -1,30 +1,30 @@
-# CI/CD, SonarQube, Gitea MCP and Kubernetes
+# CI/CD, SonarQube, Gitea MCP и Kubernetes
 
-This repository uses Nx, pnpm, Docker and Kubernetes manifests to demonstrate a full DevOps delivery path for the Notary Portal.
+Этот документ описывает DevOps-слой, добавленный для учебного PR по порталу нотариальных услуг. В одном сценарии собраны Nx, pnpm, Docker, GitLab CI, SonarQube, Gitea MCP и Kubernetes-манифесты, чтобы показать полный путь от тестов до деплоя.
 
-## Pipeline Layout
+## Схема Pipeline
 
-The GitLab pipeline mirrors the classroom example:
+GitLab pipeline повторяет структуру из примера преподавателя:
 
-1. `test` - unit tests and optional Docker Compose integration smoke.
-2. `code_quality` - ESLint, Stylelint and SonarQube Scanner.
-3. `build` - SemVer tag validation and Kaniko container builds.
-4. `test_image` - pull and smoke-check the built API and Web images.
-5. `security_scan` - Trivy vulnerability reports and CycloneDX SBOM files.
-6. `deploy` - Kubernetes deploy with kustomize and `kubectl`.
+1. `test` - unit-тесты и опциональный интеграционный smoke через Docker Compose.
+2. `code_quality` - ESLint, Stylelint и анализ SonarQube Scanner.
+3. `build` - проверка SemVer-тега и сборка контейнеров через Kaniko.
+4. `test_image` - загрузка собранных API/Web образов и smoke-проверка контейнеров.
+5. `security_scan` - отчеты Trivy по уязвимостям и CycloneDX SBOM-файлы.
+6. `deploy` - деплой в Kubernetes через kustomize и `kubectl`.
 
-Release container jobs run only for valid tags:
+Сборка релизных контейнеров запускается только для валидных тегов:
 
 ```bash
 bash scripts/ci/validate-semver-tag.sh 1.2.3
 bash scripts/ci/validate-semver-tag.sh 1.2.3-rc.1
 ```
 
-Invalid examples such as `v1.2.3`, `1.2`, `1.2.3-beta.1` and `01.2.3` are rejected.
+Теги `v1.2.3`, `1.2`, `1.2.3-beta.1` и `01.2.3` отклоняются. Это важно для задания: контейнерные образы не собираются случайно из любой ветки, а только из понятного релизного тега.
 
-## Local Verification
+## Локальная Проверка
 
-Run the same commands used by CI:
+Ниже команды, которые повторяют основные проверки из CI:
 
 ```bash
 pnpm exec nx run-many -t test --parallel=3 --ci --coverage
@@ -35,43 +35,55 @@ docker build -f apps/web/Dockerfile -t notary-portal-web:test .
 bash scripts/ci/integration-smoke.sh
 ```
 
-The integration smoke uses `apps/web/docker-compose.portal.yml`, creates a separate Compose project named `notary-smoke`, runs Prisma migrations, and checks:
+Интеграционный smoke использует `apps/web/docker-compose.portal.yml`, создает отдельный Compose-проект `notary-smoke`, выполняет Prisma-миграции и проверяет:
 
-- `/health` through nginx;
-- `/metrics` through nginx;
-- the Angular shell from `/`.
+- `/health` через nginx;
+- `/metrics` через nginx;
+- загрузку Angular shell со страницы `/`.
 
-Set `KEEP_SMOKE_STACK=1` to keep the containers after the smoke run.
+Если нужно оставить контейнеры после проверки, можно запустить:
 
-## SonarQube and Gitea MCP
+```bash
+KEEP_SMOKE_STACK=1 bash scripts/ci/integration-smoke.sh
+```
 
-Start the local DevOps lab:
+## SonarQube и Gitea MCP
+
+Локальный DevOps-стенд запускается так:
 
 ```bash
 docker compose -f devops/docker-compose.devops.yml up -d --build
 ```
 
-Services:
+Сервисы стенда:
 
 - SonarQube: `http://localhost:9000`
 - Gitea: `http://localhost:3002`
-- Gitea MCP SSE endpoint: `http://localhost:8080/sse`
+- Gitea MCP SSE endpoint: `http://localhost:8080/mcp`
 
-Create a Gitea access token in `Settings -> Applications`, then restart MCP with:
+В локальной демке порт `9000` может быть занят MinIO. Тогда SonarQube удобно поднять на другом порту:
+
+```bash
+SONARQUBE_PORT=19000 docker compose -f devops/docker-compose.devops.yml up -d sonarqube
+```
+
+Для MCP нужно создать Gitea access token в `Settings -> Applications`, затем перезапустить сервис:
 
 ```bash
 GITEA_MCP_TOKEN=<token> docker compose -f devops/docker-compose.devops.yml up -d --build gitea-mcp
 ```
 
-The MCP server follows the official Gitea SSE mode:
+MCP-сервер запускается в официальном SSE-режиме Gitea:
 
 ```bash
 gitea-mcp -t sse --host http://gitea:3000 --token <token>
 ```
 
-## Kubernetes Demo
+Важно для показа: `/mcp` - это не HTML-страница, а streaming endpoint для MCP-клиента. В браузере там не должно быть красивого интерфейса; корректный признак работы - ответ `200 OK` с `Content-Type: text/event-stream`.
 
-Build local images first:
+## Kubernetes Демо
+
+Сначала нужно собрать локальные образы:
 
 ```bash
 docker build -f apps/api/Dockerfile -t notary-portal-api:local .
@@ -81,27 +93,27 @@ kubectl apply -k deploy/k8s/overlays/local
 kubectl get pods,svc,ingress -n notary-portal
 ```
 
-`kubectl apply` requires a running local cluster such as kind or minikube. For kind, load the local images before applying:
+`kubectl apply` требует запущенный локальный кластер, например kind или minikube. Для kind перед apply нужно загрузить образы внутрь кластера:
 
 ```bash
 kind load docker-image notary-portal-api:local
 kind load docker-image notary-portal-web:local
 ```
 
-The local overlay includes a demo secret with non-production values. For real clusters, create a secret from `deploy/k8s/base/secret.example.yaml` and deploy through CI.
+Локальный overlay содержит demo secret с небоевыми значениями. Для настоящего кластера секрет создается отдельно на основе `deploy/k8s/base/secret.example.yaml` или передается через CI.
 
-Additional overlays are available for review:
+Для ревью также доступны отдельные overlays:
 
 ```bash
 kubectl kustomize deploy/k8s/overlays/staging
 kubectl kustomize deploy/k8s/overlays/production
 ```
 
-The base manifests include service accounts, resource limits, HPA, PDB, NetworkPolicy and optional Prometheus Operator objects (`ServiceMonitor`, `PrometheusRule`).
+Базовые manifests включают service accounts, resource limits, HPA, PDB, NetworkPolicy и опциональные объекты Prometheus Operator (`ServiceMonitor`, `PrometheusRule`).
 
-## Helm Release Path
+## Helm Release
 
-The same application can be rendered and installed through Helm:
+То же приложение можно отрендерить и установить через Helm:
 
 ```bash
 helm template notary-portal deploy/helm/notary-portal -f deploy/helm/notary-portal/values-local.yaml
@@ -111,32 +123,34 @@ helm upgrade --install notary-portal deploy/helm/notary-portal \
   -f deploy/helm/notary-portal/values-local.yaml
 ```
 
-Environment values:
+Файлы настроек окружений:
 
 - `deploy/helm/notary-portal/values-local.yaml`
 - `deploy/helm/notary-portal/values-staging.yaml`
 - `deploy/helm/notary-portal/values-production.yaml`
 
-See [kubernetes-helm-runbook.md](kubernetes-helm-runbook.md) for rollback, smoke checks and release evidence.
+Подробный порядок проверки, rollback и release evidence описан в [kubernetes-helm-runbook.md](kubernetes-helm-runbook.md).
 
 ## Runtime SBOM
 
-The repository includes a reproducible runtime dependency SBOM:
+В репозитории хранится воспроизводимый SBOM по runtime-зависимостям:
 
 ```bash
 node scripts/ci/generate-sbom.mjs docs/security/sbom/notary-portal-pnpm.cdx.json
 jq empty docs/security/sbom/notary-portal-pnpm.cdx.json
 ```
 
-This complements the GitLab `cyclonedx_scan` job, which creates image-level SBOM artifacts for release tags.
+Этот файл дополняет GitLab job `cyclonedx_scan`, который создает image-level SBOM artifacts для релизных тегов. За счет committed SBOM преподаватель может увидеть supply-chain evidence прямо в PR, даже не открывая artifacts в CI.
 
-Required GitLab variables for deployment:
+## Переменные GitLab CI
+
+Для полноценного деплоя нужны переменные:
 
 - `CI_REGISTRY`, `CI_REGISTRY_IMAGE`, `CI_REGISTRY_USER`, `CI_REGISTRY_PASSWORD`
 - `SONAR_HOST_URL`, `SONAR_TOKEN`
 - `KUBE_CONFIG_B64`
-- `KUBE_NAMESPACE` (defaults to `notary-portal`)
-- `KUBE_SECRET_MANIFEST` if the cluster secret should be applied by CI
-- `KUBE_ENABLE_MONITORING_CRDS=true` if the target cluster has Prometheus Operator CRDs and should receive `ServiceMonitor`/`PrometheusRule`
+- `KUBE_NAMESPACE` (по умолчанию `notary-portal`)
+- `KUBE_SECRET_MANIFEST`, если secret нужно применить из CI
+- `KUBE_ENABLE_MONITORING_CRDS=true`, если в кластере установлены Prometheus Operator CRDs и нужно применить `ServiceMonitor`/`PrometheusRule`
 
-The deploy job decodes `KUBE_CONFIG_B64`, applies kustomize manifests, rewrites API/Web images to the release tag, and waits for both deployments.
+Deploy job декодирует `KUBE_CONFIG_B64`, применяет kustomize manifests, подставляет API/Web images с релизным тегом и ждет rollout обоих deployments.
