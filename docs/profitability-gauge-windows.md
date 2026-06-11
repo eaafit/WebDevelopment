@@ -1,109 +1,90 @@
-# Windows: запуск demo Gauge-метрики доходности
+# Windows: запуск Gauge-метрики доходности
 
-Этот пакет содержит готовый локальный пример Grafana + PostgreSQL для проверки Gauge-панели доходности.
+Документ описывает запуск панели Gauge с метрикой доходности в Grafana.
 
-## Что нужно установить
+## Что нужно
 
 1. Docker Desktop for Windows.
-2. Node.js LTS, если нужно запускать тесты командой `node scripts/profitability-demo.test.mjs`.
+2. Запущенные контейнеры из основного docker-compose проекта.
 
-## Как запустить
+## Как проверить
 
-1. Распакуйте zip в любую папку, например:
-
-   ```text
-   C:\Users\<user>\Desktop\profitability-gauge-demo
-   ```
-
-2. Откройте PowerShell в этой папке.
-3. Запустите контейнеры:
+1. Убедитесь что контейнеры запущены:
 
    ```powershell
-   docker compose -f docker-compose.profitability-demo.yaml up -d
+   docker ps
    ```
 
-4. Откройте Grafana:
+   Должны быть запущены:
+   - notary-grafana (порт 3001)
+   - notary-postgres (порт 5432)
+
+2. Откройте Grafana:
 
    ```text
-   http://localhost:3001/d/profitability-gauge-demo/dohodnost--gauge-demo
+   http://localhost:3001
    ```
 
-5. Войдите:
+3. Войдите:
 
    ```text
    admin / admin
    ```
 
-6. Если Grafana попросит сменить пароль, нажмите `Skip`.
+4. Откройте dashboard:
 
-## Где находится результат
+   ```text
+   http://localhost:3001/d/profitability-gauge-demo/dohodnost
+   ```
 
-В Grafana откройте:
+## Что показывает dashboard
 
-```text
-Dashboards -> Доходность - Gauge Demo
-```
+**7 панелей Gauge:**
 
-На dashboard есть переменная `Сценарий`. Переключайте значения:
+| Панель | Период | Пороги |
+| --- | --- | --- |
+| 1 | За 7 дней | 50k / 100k руб. |
+| 2 | За 30 дней | 50k / 100k руб. |
+| 3 | За 90 дней | 100k / 200k руб. |
+| 4 | Все время | 100k / 200k руб. |
+| 5 | Тест: 50 000 руб. | 100k / 200k руб. |
+| 6 | Тест: 150 000 руб. | 100k / 200k руб. |
+| 7 | Тест: 250 000 руб. | 100k / 200k руб. |
 
-- `500 руб. - красная зона`;
-- `1 500 руб. - желтая зона`;
-- `2 500 руб. - зеленая зона`.
+## Тестовые данные в БД
 
-Gauge-панель `Текущая доходность` будет менять цвет автоматически.
-
-## Как посмотреть тестовые данные
-
-```powershell
-docker exec profitability-demo-postgres psql -U grafana -d profitability_demo -c "SELECT scenario, label, profit_rub, expected_zone FROM profitability_samples ORDER BY id;"
-```
-
-## Как изменить тестовые данные
-
-Пример: поменять красный сценарий на `800` руб.
+Посмотреть платежи:
 
 ```powershell
-docker exec profitability-demo-postgres psql -U grafana -d profitability_demo -c "UPDATE profitability_samples SET label = '800 руб. - красная зона', profit_rub = 800.00, expected_zone = 'red' WHERE scenario = 'red_500';"
+docker exec notary-postgres psql -U admin -d db -c "SELECT status, SUM(amount) as total FROM payments GROUP BY status;"
 ```
 
-Пример: поменять желтый сценарий на `1800` руб.
+Текущая доходность (успешные платежи):
 
 ```powershell
-docker exec profitability-demo-postgres psql -U grafana -d profitability_demo -c "UPDATE profitability_samples SET label = '1 800 руб. - желтая зона', profit_rub = 1800.00, expected_zone = 'yellow' WHERE scenario = 'yellow_1500';"
+docker exec notary-postgres psql -U admin -d db -c "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'completed';"
 ```
 
-Пример: поменять зеленый сценарий на `3200` руб.
+## Тесты
 
-```powershell
-docker exec profitability-demo-postgres psql -U grafana -d profitability_demo -c "UPDATE profitability_samples SET label = '3 200 руб. - зеленая зона', profit_rub = 3200.00, expected_zone = 'green' WHERE scenario = 'green_2500';"
-```
-
-После изменения нажмите `Refresh` в Grafana.
-
-## Как запустить проверки
+Запустить тесты:
 
 ```powershell
 node scripts/profitability-demo.test.mjs
+node scripts/profitability-integration.test.mjs
 ```
 
 Тесты проверяют:
+- PostgreSQL datasource конфигурацию;
+- Dashboard JSON (7 панелей Gauge);
+- Правильные thresholds (50k/100k и 100k/200k);
+- SQL-запросы к таблице payments;
+- Docker контейнеры запущены.
 
-- Docker Compose конфигурацию;
-- PostgreSQL datasource;
-- SQL seed с тестовыми данными;
-- dashboard JSON;
-- Gauge thresholds `1000` и `2000`;
-- документацию.
+## Остановка
 
-## Как остановить стенд
-
-```powershell
-docker compose -f docker-compose.profitability-demo.yaml down
-```
-
-Если нужно полностью удалить тестовую базу и начать заново:
+Контейнеры останавливаются через основной docker-compose:
 
 ```powershell
-docker compose -f docker-compose.profitability-demo.yaml down -v
-docker compose -f docker-compose.profitability-demo.yaml up -d
+docker compose down
 ```
