@@ -166,15 +166,25 @@
 
     .event-item {
       display: flex;
+      width: 100%;
       gap: 0.75rem;
       align-items: center;
       padding: 0.5rem;
+      border: 0;
       border-bottom: 1px solid var(--border);
+      background: transparent;
+      color: inherit;
       cursor: pointer;
+      font: inherit;
+      text-align: left;
       transition: background 0.2s;
 
       &:hover {
         background: var(--bg-secondary);
+      }
+
+      &:disabled {
+        cursor: default;
       }
 
       .event-icon {

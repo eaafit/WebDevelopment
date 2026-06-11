@@ -4,7 +4,7 @@ import { StatusTimelineComponent } from '../status-timeline/status-timeline';
 import { AssessmentOrder } from '../models';
 import { OrderApiService } from '../../order-api.service';
 import { RouterModule } from '@angular/router';
-import { WebLoggerService } from '@notary-portal/ui';
+import { WebLoggerService } from '../../../logging/web-logger.service';
 
 @Component({
   selector: 'lib-history-item',

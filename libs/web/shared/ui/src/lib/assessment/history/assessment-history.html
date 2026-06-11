@@ -31,11 +31,16 @@
       <div class="card-title">📢 Последние изменения</div>
       <div class="events-list">
         @for (event of recentEvents(); track $index) {
-        <div class="event-item" (click)="event.orderId && openModal(event.orderId)">
+        <button
+          type="button"
+          class="event-item"
+          [disabled]="!event.orderId"
+          (click)="event.orderId && openModal(event.orderId)"
+        >
           <span class="event-icon">{{ eventIcon(event.eventType) }}</span>
           <span class="event-text">{{ formatEventText(event) }}</span>
           <span class="event-date">{{ formatEventDate(event.eventDate) | date: 'dd.MM.yyyy HH:mm' }}</span>
-        </div>
+        </button>
         }
       </div>
     </div>
