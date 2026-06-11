@@ -8,7 +8,7 @@ import {
   type TransactionTableFilters,
   WebLoggerService,
 } from '@notary-portal/ui';
-import { catchError, distinctUntilChanged, map, of, startWith, switchMap, tap } from 'rxjs';
+import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { TransactionsApiService, type TransactionsHistoryQuery } from './transactions-api.service';
 
 const DEFAULT_FILTERS: TransactionTableFilters = {
@@ -44,8 +44,6 @@ export class Transactions {
     this.logInfo('transaction.history.notary.page_opened');
     toObservable(this.queryState)
       .pipe(
-        startWith(this.queryState()),
-        distinctUntilChanged(areQueryStatesEqual),
         tap(({ page, filters }) => {
           this.loading.set(true);
           this.error.set(null);
@@ -211,25 +209,6 @@ export class Transactions {
       dateTo: filters.dateTo || null,
     };
   }
-}
-
-function areQueryStatesEqual(
-  left: { page: number; filters: TransactionTableFilters },
-  right: { page: number; filters: TransactionTableFilters },
-): boolean {
-  return left.page === right.page && areFiltersEqual(left.filters, right.filters);
-}
-
-function areFiltersEqual(
-  left: TransactionTableFilters,
-  right: TransactionTableFilters,
-): boolean {
-  return (
-    left.searchQuery === right.searchQuery &&
-    left.status === right.status &&
-    left.dateFrom === right.dateFrom &&
-    left.dateTo === right.dateTo
-  );
 }
 
 function extractTransactionsError(err: unknown): string {

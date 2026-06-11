@@ -1,11 +1,11 @@
-import { Component, inject, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, ViewEncapsulation, OnInit, OnDestroy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { DashboardLayout, NotificationCounterService } from '@notary-portal/ui';
 
 const NOTARY_MENU = [
   { label: 'Главная', route: '.', icon: '🏠' },
   { label: 'Заказы', route: 'orders', icon: '📄' },
-  { label: 'Подписка', route: 'subscription', icon: '👑' },
+  { label: 'Подписка', route: 'subscription/checkout', icon: '👑' },
   { label: 'Транзакции', route: 'transactions', icon: '💳' },
   { label: 'Модуль оценки', route: 'assessment', icon: '📐' },
   { label: 'История заказов', route: 'assessment/history', icon: '📋' },

@@ -1,9 +1,7 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
-import { Dashboard } from './features/dashboard/dashboard';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
-import { Copy, List, New } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -15,22 +13,39 @@ export const notaryRoutes: Route[] = [
     path: '',
     component: Notary,
     children: [
-      { path: '', component: Dashboard },
+      { path: '', ...placeholder('Главная', ['Обзор кабинета нотариуса']) } as Route,
       {
         path: 'orders',
         loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
       },
       {
         path: 'subscription',
-        loadComponent: () => import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+        ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
+      } as Route,
+      {
+        path: 'subscription/checkout/success',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
+        path: 'subscription/checkout/cancel',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+      },
+      {
+        path: 'subscription/checkout',
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
       },
       {
         path: 'transactions',
-        loadComponent: () => import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
+        loadComponent: () =>
+          import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
       },
       {
         path: 'assessment',
-        loadComponent: () => import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
         path: 'monitoring',
@@ -47,22 +62,32 @@ export const notaryRoutes: Route[] = [
           {
             path: '',
             pathMatch: 'full',
-            component: List,
+            loadComponent: () => import('../../../shared/ui/src/lib/copies/list/list').then((m) => m.List),
             data: { role: 'notary' },
           },
           {
             path: 'new',
-            component: New,
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/new/new').then((m) => m.New),
           },
           {
             path: ':id',
-            component: Copy,
+            loadComponent: () =>
+              import('../../../shared/ui/src/lib/copies/copy/copy').then((m) => m.Copy),
           },
         ],
       },
       {
         path: 'notifications',
-        loadComponent: () => import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.NotaryNotificationSettings,
+          ),
       },
       {
         path: 'support',
