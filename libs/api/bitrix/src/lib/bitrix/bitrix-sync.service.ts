@@ -1,8 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { BitrixApiService } from './bitrix-api.service';
 import { BitrixConfigService } from './bitrix-config.service';
 import { createHash } from 'crypto';
+import { getCurrentUser } from '@internal/auth-shared';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
 
 interface SyncOptions {
   forceResync?: boolean;
@@ -38,6 +47,7 @@ interface SyncLogEntry {
 
 @Injectable()
 export class BitrixSyncService {
+  private readonly logger = new Logger(BitrixSyncService.name);
   private isSyncRunning = false;
 
   constructor(
@@ -47,26 +57,40 @@ export class BitrixSyncService {
   ) {}
 
   async startSync(forceResync = false): Promise<SyncResult> {
-    if (this.isSyncRunning) {
-      return {
-        jobId: 'already_running',
-        status: 'already_running',
-        message: 'Sync is already running',
-      };
-    }
+    return runInSpan(
+      'BitrixSyncService.startSync',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixUsersSyncStart,
+        [NotarySpanAttributes.entity]: 'BitrixSync',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'bitrix.force_resync': forceResync,
+      },
+      async (span) => {
+        if (this.isSyncRunning) {
+          setSpanAttributes(span, { 'bitrix.sync.status': 'already_running' });
+          return {
+            jobId: 'already_running',
+            status: 'already_running',
+            message: 'Sync is already running',
+          };
+        }
 
-    const jobId = `sync_${Date.now()}`;
+        const jobId = `sync_${Date.now()}`;
 
-    // Запускаем синхронизацию в фоне
-    this.runSyncInBackground(jobId, forceResync).catch((error) => {
-      console.error('Sync failed:', error);
-    });
+        this.runSyncInBackground(jobId, forceResync).catch((error) => {
+          this.logger.error(
+            `Bitrix sync background failed; operation=bitrix.sync.background; result=error; error=${safeErrorName(error)}`,
+          );
+        });
 
-    return {
-      jobId,
-      status: 'started',
-      message: 'Sync started successfully',
-    };
+        setSpanAttributes(span, { 'bitrix.sync.status': 'started' });
+        return {
+          jobId,
+          status: 'started',
+          message: 'Sync started successfully',
+        };
+      },
+    );
   }
 
   async getStatus(jobId: string): Promise<SyncStatus> {
@@ -143,102 +167,127 @@ export class BitrixSyncService {
   }
 
   private async runSyncInBackground(jobId: string, forceResync: boolean): Promise<void> {
-    this.isSyncRunning = true;
+    return runInSpan(
+      'BitrixSyncService.runSyncInBackground',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixUsersSync,
+        [NotarySpanAttributes.entity]: 'BitrixSync',
+        'bitrix.sync.status': 'running',
+        'bitrix.force_resync': forceResync,
+      },
+      async (span) => {
+        this.isSyncRunning = true;
 
-    try {
-      // Создаем запись о синхронизации
-      const sync = await this.prisma.bitrixSync.create({
-        data: {
-          jobId,
-          status: 'running',
-          totalUsers: 0,
-          processedUsers: 0,
-          successfulSyncs: 0,
-          failedSyncs: 0,
-          startedAt: new Date(),
-        },
-      });
-
-      // Получаем всех пользователей
-      const users = await this.prisma.user.findMany({
-        where: { isActive: true },
-        select: {
-          id: true,
-          email: true,
-          fullName: true,
-          phoneNumber: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-      // Обновляем общее количество пользователей
-      await this.prisma.bitrixSync.update({
-        where: { id: sync.id },
-        data: { totalUsers: users.length },
-      });
-
-      // Синхронизируем каждого пользователя
-      for (let i = 0; i < users.length; i++) {
-        const user = users[i];
         try {
-          await this.syncUser(user, forceResync, sync.id);
+          const sync = await this.prisma.bitrixSync.create({
+            data: {
+              jobId,
+              status: 'running',
+              totalUsers: 0,
+              processedUsers: 0,
+              successfulSyncs: 0,
+              failedSyncs: 0,
+              startedAt: new Date(),
+            },
+          });
+
+          const users = await this.prisma.user.findMany({
+            where: { isActive: true },
+            select: {
+              id: true,
+              email: true,
+              fullName: true,
+              phoneNumber: true,
+              role: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          });
+          setSpanAttributes(span, { 'bitrix.sync.total_users': users.length });
+
+          await this.prisma.bitrixSync.update({
+            where: { id: sync.id },
+            data: { totalUsers: users.length },
+          });
+
+          let successfulSyncs = 0;
+          let failedSyncs = 0;
+          for (let i = 0; i < users.length; i++) {
+            const user = users[i];
+            try {
+              await this.syncUser(user, forceResync, sync.id);
+
+              await this.prisma.bitrixSync.update({
+                where: { id: sync.id },
+                data: {
+                  processedUsers: i + 1,
+                  successfulSyncs: { increment: 1 },
+                },
+              });
+              successfulSyncs += 1;
+            } catch (error) {
+              this.logger.warn(
+                `Bitrix user sync failed; operation=bitrix.sync.user; result=error; error=${safeErrorName(error)}`,
+              );
+
+              await this.prisma.bitrixSyncLog.create({
+                data: {
+                  syncId: sync.id,
+                  userId: user.id,
+                  action: 'error',
+                  status: 'error',
+                  message: error instanceof Error ? error.message : 'Unknown error',
+                  timestamp: new Date(),
+                },
+              });
+
+              await this.prisma.bitrixSync.update({
+                where: { id: sync.id },
+                data: {
+                  processedUsers: i + 1,
+                  failedSyncs: { increment: 1 },
+                },
+              });
+              failedSyncs += 1;
+            }
+          }
 
           await this.prisma.bitrixSync.update({
             where: { id: sync.id },
             data: {
-              processedUsers: i + 1,
-              successfulSyncs: { increment: 1 },
+              status: 'completed',
+              completedAt: new Date(),
             },
           });
+          setSpanAttributes(span, {
+            'bitrix.sync.status': 'completed',
+            'bitrix.sync.successful_count': successfulSyncs,
+            'bitrix.sync.failed_count': failedSyncs,
+          });
+          if (failedSyncs > 0) {
+            markSpanFailure(span, new Error('BitrixUserSyncFailed'));
+          }
         } catch (error) {
-          console.error(`Failed to sync user ${user.id}:`, error);
+          markSpanFailure(span, error);
+          this.logger.error(
+            `Bitrix sync job failed; operation=bitrix.sync.job; result=error; error=${safeErrorName(error)}`,
+          );
 
-          await this.prisma.bitrixSyncLog.create({
+          await this.prisma.bitrixSync.updateMany({
+            where: { jobId, status: 'running' },
             data: {
-              syncId: sync.id,
-              userId: user.id,
-              action: 'error',
-              status: 'error',
-              message: error instanceof Error ? error.message : 'Unknown error',
-              timestamp: new Date(),
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error',
+              completedAt: new Date(),
             },
           });
-
-          await this.prisma.bitrixSync.update({
-            where: { id: sync.id },
-            data: {
-              processedUsers: i + 1,
-              failedSyncs: { increment: 1 },
-            },
-          });
+          setSpanAttributes(span, { 'bitrix.sync.status': 'failed' });
+        } finally {
+          this.isSyncRunning = false;
         }
-      }
-
-      // Завершаем синхронизацию
-      await this.prisma.bitrixSync.update({
-        where: { id: sync.id },
-        data: {
-          status: 'completed',
-          completedAt: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error('Sync job failed:', error);
-
-      // Обновляем статус на failed
-      await this.prisma.bitrixSync.updateMany({
-        where: { jobId, status: 'running' },
-        data: {
-          status: 'failed',
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-          completedAt: new Date(),
-        },
-      });
-    } finally {
-      this.isSyncRunning = false;
-    }
+      },
+      { root: true },
+    );
   }
 
   private async syncUser(user: any, forceResync: boolean, syncId: string): Promise<void> {
@@ -407,4 +456,8 @@ export class BitrixSyncService {
 
     return createHash('sha256').update(JSON.stringify(data)).digest('hex');
   }
+}
+
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

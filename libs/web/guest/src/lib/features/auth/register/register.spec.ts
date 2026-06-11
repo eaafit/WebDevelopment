@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { UserRole } from '@notary-portal/ui';
+import { UserRole, WebLoggerService } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
 import { Register } from './register';
 
@@ -9,10 +9,12 @@ describe('Register', () => {
   let component: Register;
   let fixture: ComponentFixture<Register>;
   let register: jest.MockedFunction<AuthService['register']>;
+  let logger: { warn: jest.Mock };
   let errorSignal = signal<string | null>(null);
 
   beforeEach(async () => {
     register = jest.fn().mockResolvedValue(undefined);
+    logger = { warn: jest.fn() };
     errorSignal = signal<string | null>(null);
 
     await TestBed.configureTestingModule({
@@ -26,6 +28,10 @@ describe('Register', () => {
             error: errorSignal.asReadonly(),
             register,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -68,6 +74,27 @@ describe('Register', () => {
 
     expect(register).not.toHaveBeenCalled();
     expect(component.validationError).toBe('Укажите корректный номер телефона.');
+  });
+
+  it('should log validation failure without storing the phone or password', async () => {
+    fillValidForm(component);
+    component.phoneNumber = '+799912345';
+
+    await component.onSubmit();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'auth.register.validation_failed',
+      expect.objectContaining({
+        emailDomain: 'example.com',
+        role: 'applicant',
+        reason: 'invalid_phone',
+        outcome: 'failed',
+      }),
+    );
+    const payload = JSON.stringify(logger.warn.mock.calls);
+    expect(payload).not.toContain('+799912345');
+    expect(payload).not.toContain('Password123');
   });
 
   it('should format a +7 phone number while typing', () => {
@@ -124,12 +151,8 @@ describe('Register', () => {
 
     const root = fixture.nativeElement as HTMLElement;
     const passwordInput = root.querySelector<HTMLInputElement>('#password');
-    const confirmInput = root.querySelector<HTMLInputElement>(
-      '#confirmPassword',
-    );
-    const buttons = root.querySelectorAll<HTMLButtonElement>(
-      '.login__password-toggle',
-    );
+    const confirmInput = root.querySelector<HTMLInputElement>('#confirmPassword');
+    const buttons = root.querySelectorAll<HTMLButtonElement>('.login__password-toggle');
 
     expect(passwordInput?.type).toBe('password');
     expect(confirmInput?.type).toBe('password');

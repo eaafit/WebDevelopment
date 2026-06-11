@@ -1,6 +1,6 @@
 # Git Issues — Задачи на разработку экранов
 
-Сгенерировано на основе `docs/Responsobility.md`.  
+Сгенерировано на основе `docs/Responsobility.md`.
 Каждый файл — готовый issue в GitHub-формате (frontmatter + тело).
 
 ---
@@ -41,8 +41,10 @@
 | 30  | [issue-30](issue-30-vasiliev-gushina-admin-assessment.md)   | Васильев Степан + Гущина Мария      | mgusssh      | Админ-панель модуля оценки — очередь + аналитика           |
 | 31  | [issue-31](issue-31-okuntsev-kazarinov-landing.md)          | Окунцев Тимофей + Казаринов Алексей | —            | Landing page                                               |
 | 32  | [issue-32](issue-32-nibylitsin-structured-logging.md)       | Нибылицын Лукьян                    | SuperLuchito | Структурированное логирование API и Angular (ops)          |
-| 33  | [issue-33](issue-33-nibylitsin-loki-grafana.md)             | Нибылицын Лукьян                    | SuperLuchito | Loki + Grafana — сбор и визуализация технических логов     |
+| 33  | [issue-33](issue-33-chernenko-loki-grafana.md)              | Черненко Дмитрий                    | getpaintoo   | Loki + Grafana — сбор и визуализация технических логов     |
 | 34  | [issue-34](issue-34-nibylitsin-tempo-tracing.md)            | Нибылицын Лукьян                    | SuperLuchito | Grafana Tempo + OpenTelemetry — трассировка бизнес-запросов |
+| 35  | [issue-35](issue-35-nibylitsin-business-process-tracing.md) | Нибылицын Лукьян                    | SuperLuchito | OpenTelemetry + Tempo — разметка бизнес-процессов API      |
+| 36  | [issue-36](issue-36-nibylitsin-tempo-dashboard.md)          | Нибылицын Лукьян                    | SuperLuchito | Grafana Tempo — дашборд бизнес-трассировок                 |
 
 ---
 
@@ -66,9 +68,11 @@ issue-26 (форма параметров)
 issue-11 (чат) + issue-21 (FAQ) → полный модуль поддержки
 issue-16 (список платежей) + issue-17 (формы) → раздел платежей Admin
 issue-22 (аудит лента) + issue-23 (логи детальные) → мониторинг Admin (UI / доменный аудит)
-issue-32 (структурированные ops-логи API + Angular) → issue-33 (Loki + Grafana) → issue-34 (Tempo + OpenTelemetry — трассировка)
+issue-32 (структурированные ops-логи API + Angular) → issue-33 (Loki + Grafana) → issue-34 (Tempo + OpenTelemetry — трассировка) → issue-35 (разметка бизнес-процессов API) → issue-36 (дашборд бизнес-трассировок Tempo)
 issue-34 добавляет трассировку поверх уже существующих логов и Grafana-стека: Loki остаётся для технических логов, Tempo — для просмотра конкретной цепочки выполнения одного запроса.
-issue-22/23 — продуктовый аудит; issue-32/33 — инфраструктурные логи; issue-34 — трассировка (не замена аудита)
+issue-35 расширяет issue-34: вместо одного демо-сценария размечает основные процессы серверной части стабильными этапами трассировки.
+issue-36 добавляет дашборд Grafana для просмотра размеченных бизнес-трассировок Tempo.
+issue-22/23 — продуктовый аудит; issue-32/33 — инфраструктурные логи; issue-34/35/36 — трассировка и её просмотр в Grafana (не замена аудита)
 issue-30 (Васильев + Гущина) → общая задача на 2 разработчика
 ```
 

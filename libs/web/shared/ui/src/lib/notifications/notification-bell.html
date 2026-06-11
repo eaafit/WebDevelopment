@@ -9,7 +9,7 @@
   </button>
 
   @if (open()) {
-    <div class="notification-bell__panel" (click)="$event.stopPropagation()">
+    <div class="notification-bell__panel">
       <header class="notification-bell__panel-header">
         <strong>Уведомления</strong>
         <button type="button" class="notification-bell__close" (click)="close()">×</button>

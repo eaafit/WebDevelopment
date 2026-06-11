@@ -85,4 +85,86 @@ describe('web log ingestion', () => {
       expect.any(Function),
     );
   });
+
+  it('records auth validation metrics for known browser validation events', () => {
+    const post = jest.fn();
+    const logger = {
+      debug: jest.fn(),
+      error: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+    };
+    const metrics = {
+      recordAuthBrowserValidationFailed: jest.fn(),
+    };
+    registerWebLogIngestion({ post } as never, logger, metrics);
+
+    const handler = post.mock.calls[0][2] as (req: unknown, res: unknown) => void;
+    const status = jest.fn().mockReturnThis();
+    const end = jest.fn();
+    handler(
+      {
+        body: {
+          env: 'production',
+          level: 'warn',
+          message: 'auth.register.validation_failed',
+          context: {
+            reason: 'invalid_email',
+            password: 'Password123',
+          },
+        },
+        header: () => undefined,
+      },
+      { status, end },
+    );
+
+    expect(metrics.recordAuthBrowserValidationFailed).toHaveBeenCalledWith(
+      'register',
+      'invalid_email',
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({
+          password: '[REDACTED]',
+          reason: 'invalid_email',
+        }),
+      }),
+      'auth.register.validation_failed',
+    );
+    expect(status).toHaveBeenCalledWith(204);
+    expect(end).toHaveBeenCalled();
+  });
+
+  it('does not record auth validation metrics for ordinary browser logs', () => {
+    const post = jest.fn();
+    const metrics = {
+      recordAuthBrowserValidationFailed: jest.fn(),
+    };
+    registerWebLogIngestion(
+      { post } as never,
+      {
+        debug: jest.fn(),
+        error: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+      },
+      metrics,
+    );
+
+    const handler = post.mock.calls[0][2] as (req: unknown, res: unknown) => void;
+    handler(
+      {
+        body: {
+          env: 'production',
+          level: 'info',
+          message: 'notification.admin.list_load_started',
+          context: { reason: 'ignored' },
+        },
+        header: () => undefined,
+      },
+      { status: jest.fn().mockReturnThis(), end: jest.fn() },
+    );
+
+    expect(metrics.recordAuthBrowserValidationFailed).not.toHaveBeenCalled();
+  });
 });

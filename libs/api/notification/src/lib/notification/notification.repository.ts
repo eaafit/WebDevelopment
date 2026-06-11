@@ -57,7 +57,9 @@ export interface CreateNotificationInput {
 
 export interface CreateManyNotificationsInput {
   userIds: string[];
+  title?: string;
   message: string;
+  category?: RpcNotificationCategory;
   type?: PrismaNotificationType;
   status?: PrismaNotificationStatus;
 }
@@ -91,7 +93,9 @@ export class NotificationRepository {
     await this.prisma.notification.createMany({
       data: input.userIds.map((userId) => ({
         userId,
+        title: input.title ?? 'Уведомление',
         message: input.message,
+        category: this.toPrismaCategory(input.category ?? RpcNotificationCategory.SYSTEM),
         type: input.type ?? PrismaNotificationType.Push,
         status: input.status ?? PrismaNotificationStatus.Sent,
       })),

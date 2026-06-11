@@ -62,7 +62,7 @@
 
 /* ── Form ── */
 .payment-form {
-  overflow: hidden;
+  overflow: visible;
 
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius, 20px);
@@ -73,10 +73,25 @@
 
 /* ── Sections ── */
 .form-section {
+  position: relative;
+  z-index: 1;
+
+  animation: form-section-enter 0.28s ease both;
   padding: 1.35rem 1.5rem;
 
   & + .form-section {
     border-top: 1px solid var(--admin-border);
+  }
+
+  &:has(.custom-select.is-open),
+  &:has(.user-dropdown) {
+    z-index: 20;
+  }
+
+  @for $index from 1 through 5 {
+    &:nth-child(#{$index}) {
+      animation-delay: #{($index - 1) * 0.035}s;
+    }
   }
 
   &__title {
@@ -86,6 +101,15 @@
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--admin-accent);
+  }
+
+  &__hint {
+    max-width: 760px;
+    margin: -0.35rem 0 1rem;
+
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--admin-text-muted);
   }
 }
 
@@ -98,9 +122,14 @@
 
 /* ── Form group ── */
 .form-group {
+  position: relative;
+
   display: grid;
   gap: 0.45rem;
+  align-content: start;
+
   min-width: 0;
+  padding-bottom: 1.25rem;
 
   &--full {
     grid-column: 1 / -1;
@@ -154,7 +183,57 @@
   }
 
   select {
+    appearance: none;
     cursor: pointer;
+    padding-right: 2.55rem;
+    border-color: rgb(203 213 225 / 92%);
+
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--admin-text-muted) 50%),
+      linear-gradient(135deg, var(--admin-text-muted) 50%, transparent 50%),
+      linear-gradient(180deg, #fff 0%, rgb(248 250 252 / 86%) 100%);
+    background-position:
+      calc(100% - 1.22rem) calc(50% - 0.12rem),
+      calc(100% - 0.92rem) calc(50% - 0.12rem),
+      0 0;
+    background-repeat: no-repeat;
+    background-size:
+      0.32rem 0.32rem,
+      0.32rem 0.32rem,
+      100% 100%;
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 4%),
+      inset 0 1px 0 rgb(255 255 255 / 95%);
+
+    &:hover:not(:focus) {
+      border-color: rgb(100 116 139 / 45%);
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--admin-text-muted) 50%),
+        linear-gradient(135deg, var(--admin-text-muted) 50%, transparent 50%),
+        linear-gradient(180deg, #fff 0%, #fff 100%);
+      box-shadow:
+        0 6px 14px rgb(15 23 42 / 7%),
+        inset 0 1px 0 rgb(255 255 255 / 100%);
+      transform: translateY(-1px);
+    }
+
+    &:focus {
+      border-color: rgb(100 116 139 / 58%);
+      outline: none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, var(--admin-text-muted) 50%),
+        linear-gradient(135deg, var(--admin-text-muted) 50%, transparent 50%),
+        linear-gradient(180deg, #fff 0%, #fff 100%);
+      box-shadow:
+        0 0 0 3px rgb(100 116 139 / 12%),
+        0 8px 18px rgb(15 23 42 / 8%);
+      transform: translateY(-1px);
+    }
+
+    option {
+      color: var(--admin-text);
+      background: #fff;
+    }
   }
 
   textarea {
@@ -166,15 +245,20 @@
 /* ── User autocomplete ── */
 .user-autocomplete {
   position: relative;
+  z-index: 1;
 
   input[type='text'] {
     width: 100%;
+  }
+
+  &:has(.user-dropdown) {
+    z-index: 70;
   }
 }
 
 .user-dropdown {
   position: absolute;
-  z-index: 100;
+  z-index: 120;
   top: calc(100% + 4px);
   left: 0;
 
@@ -237,6 +321,142 @@
   }
 }
 
+/* ── Custom selects ── */
+.custom-select-container {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+
+  &:has(.custom-select.is-open) {
+    z-index: 60;
+  }
+}
+
+.custom-select {
+  cursor: pointer;
+
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.82rem 0.95rem;
+  border: 1px solid rgb(203 213 225 / 92%);
+  border-radius: var(--admin-radius-xs, 14px);
+
+  font: inherit;
+  font-size: 1rem;
+  color: var(--admin-text);
+  text-align: left;
+
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 4%),
+    inset 0 1px 0 rgb(255 255 255 / 95%);
+
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  i {
+    flex: 0 0 auto;
+    font-size: 1rem;
+    line-height: 1;
+    color: var(--admin-text-muted);
+    transition: transform 0.18s ease;
+  }
+
+  &:hover {
+    border-color: rgb(100 116 139 / 45%);
+    box-shadow:
+      0 6px 14px rgb(15 23 42 / 7%),
+      inset 0 1px 0 rgb(255 255 255 / 100%);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible,
+  &.is-open {
+    border-color: rgb(100 116 139 / 58%);
+    outline: none;
+    box-shadow:
+      0 0 0 3px rgb(100 116 139 / 12%),
+      0 8px 18px rgb(15 23 42 / 8%);
+  }
+
+  &.is-open i {
+    transform: rotate(180deg);
+  }
+}
+
+.custom-select-menu {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 0.35rem);
+  left: 0;
+
+  overflow: auto;
+
+  width: 100%;
+  max-height: 240px;
+  padding: 0.35rem;
+  border: 1px solid rgb(203 213 225 / 92%);
+  border-radius: 14px;
+
+  background: #fff;
+  box-shadow: 0 18px 42px rgb(15 23 42 / 16%);
+
+  animation: custom-select-menu-enter 0.14s ease both;
+}
+
+.custom-select-option {
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  min-height: 38px;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 0.94rem;
+  color: var(--admin-text);
+  text-align: left;
+
+  background: #fff;
+
+  transition:
+    background-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+
+  &:hover,
+  &:focus-visible {
+    outline: none;
+    color: var(--admin-text);
+    background: rgb(248 250 252);
+    transform: translateX(2px);
+  }
+
+  &.is-selected {
+    font-weight: 700;
+    color: var(--admin-text);
+    background: rgb(241 245 249);
+  }
+}
+
 /* ── ID field wrapper (select/input + toggle button) ── */
 .id-field-wrapper {
   display: flex;
@@ -248,6 +468,19 @@
     flex: 1;
     min-width: 0;
   }
+
+  .custom-select-container {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.field-hint {
+  margin-top: -0.12rem;
+
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--admin-text-muted);
 }
 
 .id-mode-toggle {
@@ -281,22 +514,42 @@
   }
 
   &:hover {
-    border-color: rgb(220 38 38 / 22%);
+    border-color: var(--admin-border);
     color: var(--admin-accent);
-    background: rgb(220 38 38 / 5%);
+    background: #fff;
     transform: translateY(-1px);
+
+    i {
+      transform: scale(1.04);
+    }
   }
 
   &:active {
+    background: #fff;
     transform: translateY(0);
+  }
+
+  i {
+    transition: transform 0.18s ease;
   }
 }
 
 /* ── Field error ── */
 .field-error {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+
+  display: block;
+  overflow: hidden;
+
+  max-width: 100%;
+
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--admin-critical-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Actions ── */
@@ -392,5 +645,29 @@
 
   .btn {
     width: 100%;
+  }
+}
+
+@keyframes form-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes custom-select-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

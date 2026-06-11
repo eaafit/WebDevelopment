@@ -1,9 +1,17 @@
 import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
-import { context, SpanStatusCode, trace, type Span, type Tracer } from '@opentelemetry/api';
 import { AuditService } from '@internal/audit';
 import { Role, getCurrentUser } from '@internal/auth-shared';
+import { BitrixLeadPublisherService } from '@internal/bitrix-leads';
 import { NotificationService } from '@internal/notification';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
 import {
   AssessmentStatus,
   CancelAssessmentResponseSchema,
@@ -95,12 +103,9 @@ const YEAR_BUILT_LIMITS = {
   maximum: new Date().getFullYear() + 1,
 } as const;
 
-type SpanAttributes = Record<string, string | number | boolean>;
-
 @Injectable()
 export class AssessmentService {
   private readonly logger = new Logger(AssessmentService.name);
-  private readonly tracer: Tracer = trace.getTracer(AssessmentService.name);
 
   constructor(
     private readonly assessmentRepository: AssessmentRepository,
@@ -108,6 +113,7 @@ export class AssessmentService {
     private readonly metrics: MetricsService,
     @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
+    private readonly bitrixLeadPublisher: BitrixLeadPublisherService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -126,154 +132,225 @@ export class AssessmentService {
   ): Promise<GetFiasAddressHintsResponse> {
     const query = normalizeFiasQuery(request.query);
     const limit = normalizeFiasLimit(request.limit);
-    const startedAt = Date.now();
-    this.logger.log(`Starting FIAS address hints request queryLength=${query.length} limit=${limit}`);
-
-    try {
-      if (query.length < FIAS_QUERY_MIN_LENGTH) {
+    return runInSpan(
+      'AssessmentService.getFiasAddressHints',
+      {
+        'notary.operation': 'assessment.fias.hints',
+        'notary.entity': 'FiasAddress',
+        'fias.query_length': query.length,
+        'fias.limit': limit,
+      },
+      async () => {
+        const startedAt = Date.now();
         this.logger.log(
-          `Completed FIAS address hints request hintsCount=0 durationMs=${Date.now() - startedAt}`,
+          `Starting FIAS address hints request queryLength=${query.length} limit=${limit}`,
         );
-        return create(GetFiasAddressHintsResponseSchema, { hints: [] });
-      }
 
-      const hints = await this.fiasProvider.getAddressHint({
-        query,
-        limit,
-        addressType: normalizeFiasAddressType(request.addressType),
-      });
+        try {
+          if (query.length < FIAS_QUERY_MIN_LENGTH) {
+            this.logger.log(
+              `Completed FIAS address hints request hintsCount=0 durationMs=${Date.now() - startedAt}`,
+            );
+            return create(GetFiasAddressHintsResponseSchema, { hints: [] });
+          }
 
-      this.logger.log(
-        `Completed FIAS address hints request hintsCount=${hints.length} durationMs=${Date.now() - startedAt}`,
-      );
-      return create(GetFiasAddressHintsResponseSchema, { hints });
-    } catch (error) {
-      this.logFiasOperationFailure('address hints request', error, {
-        queryLength: query.length,
-      });
-      throw error;
-    }
+          const hints = await this.fiasProvider.getAddressHint({
+            query,
+            limit,
+            addressType: normalizeFiasAddressType(request.addressType),
+          });
+
+          this.logger.log(
+            `Completed FIAS address hints request hintsCount=${hints.length} durationMs=${Date.now() - startedAt}`,
+          );
+          return create(GetFiasAddressHintsResponseSchema, { hints });
+        } catch (error) {
+          this.logFiasOperationFailure('address hints request', error, {
+            queryLength: query.length,
+          });
+          throw error;
+        }
+      },
+    );
   }
 
   async searchFiasAddressItems(
     request: SearchFiasAddressItemsRequest,
   ): Promise<SearchFiasAddressItemsResponse> {
-    const query = normalizeFiasQuery(request.query);
-    if (query.length < FIAS_QUERY_MIN_LENGTH) {
-      return create(SearchFiasAddressItemsResponseSchema, { items: [] });
-    }
+    return runInSpan(
+      'AssessmentService.searchFiasAddressItems',
+      {
+        'notary.operation': 'assessment.fias.search',
+        'notary.entity': 'FiasAddress',
+      },
+      async (span) => {
+        const query = normalizeFiasQuery(request.query);
+        const limit = normalizeFiasLimit(request.limit);
+        setSpanAttributes(span, {
+          'fias.query_length': query.length,
+          'fias.limit': limit,
+        });
+        if (query.length < FIAS_QUERY_MIN_LENGTH) {
+          return create(SearchFiasAddressItemsResponseSchema, { items: [] });
+        }
 
-    const items = await this.fiasProvider.searchAddressItems({
-      query,
-      limit: normalizeFiasLimit(request.limit),
-      addressType: normalizeFiasAddressType(request.addressType),
-    });
+        const items = await this.fiasProvider.searchAddressItems({
+          query,
+          limit,
+          addressType: normalizeFiasAddressType(request.addressType),
+        });
 
-    return create(SearchFiasAddressItemsResponseSchema, { items });
+        return create(SearchFiasAddressItemsResponseSchema, { items });
+      },
+    );
   }
 
   async getFiasAddressItemById(
     request: GetFiasAddressItemByIdRequest,
   ): Promise<GetFiasAddressItemByIdResponse> {
-    const objectId = normalizeRequiredText(request.objectId, 'object_id');
-    const startedAt = Date.now();
-    this.logger.log(`Starting FIAS address item lookup objectId=${objectId}`);
+    return runInSpan(
+      'AssessmentService.getFiasAddressItemById',
+      {
+        'notary.operation': 'assessment.fias.lookup_by_id',
+        'notary.entity': 'FiasAddress',
+      },
+      async () => {
+        const objectId = normalizeRequiredText(request.objectId, 'object_id');
+        const startedAt = Date.now();
+        this.logger.log('Starting FIAS address item lookup; operation=assessment.fias.lookup_by_id');
 
-    try {
-      const item = await this.resolveFiasItemGeography(
-        await this.fiasProvider.getAddressItemById(objectId),
-      );
-      this.logger.log(
-        `Completed FIAS address item lookup objectId=${objectId}` +
-          ` durationMs=${Date.now() - startedAt}` +
-          formatLogFields({
-            cityId: item.cityId,
-            districtId: item.districtId,
-          }),
-      );
-      return create(GetFiasAddressItemByIdResponseSchema, { item });
-    } catch (error) {
-      this.logFiasOperationFailure('address item lookup', error, { objectId });
-      throw error;
-    }
+        try {
+          const item = await this.resolveFiasItemGeography(
+            await this.fiasProvider.getAddressItemById(objectId),
+          );
+          this.logger.log(
+            `Completed FIAS address item lookup; operation=assessment.fias.lookup_by_id; result=success; durationMs=${Date.now() - startedAt}`,
+          );
+          return create(GetFiasAddressItemByIdResponseSchema, { item });
+        } catch (error) {
+          this.logFiasOperationFailure('address item lookup', error, { objectId });
+          throw error;
+        }
+      },
+    );
   }
 
   async getFiasAddressItemByGuid(
     request: GetFiasAddressItemByGuidRequest,
   ): Promise<GetFiasAddressItemByGuidResponse> {
-    const item = await this.resolveFiasItemGeography(
-      await this.fiasProvider.getAddressItemByGuid(
-        normalizeRequiredText(request.objectGuid, 'object_guid'),
-      ),
+    return runInSpan(
+      'AssessmentService.getFiasAddressItemByGuid',
+      {
+        'notary.operation': 'assessment.fias.lookup_by_guid',
+        'notary.entity': 'FiasAddress',
+      },
+      async () => {
+        const item = await this.resolveFiasItemGeography(
+          await this.fiasProvider.getAddressItemByGuid(
+            normalizeRequiredText(request.objectGuid, 'object_guid'),
+          ),
+        );
+        return create(GetFiasAddressItemByGuidResponseSchema, { item });
+      },
     );
-    return create(GetFiasAddressItemByGuidResponseSchema, { item });
   }
 
   async getFiasAddressDetails(
     request: GetFiasAddressDetailsRequest,
   ): Promise<GetFiasAddressDetailsResponse> {
-    const details = await this.fiasProvider.getDetails(
-      normalizeRequiredText(request.objectId, 'object_id'),
+    return runInSpan(
+      'AssessmentService.getFiasAddressDetails',
+      {
+        'notary.operation': 'assessment.fias.details',
+        'notary.entity': 'FiasAddress',
+      },
+      async () => {
+        const details = await this.fiasProvider.getDetails(
+          normalizeRequiredText(request.objectId, 'object_id'),
+        );
+        return create(GetFiasAddressDetailsResponseSchema, { details });
+      },
     );
-    return create(GetFiasAddressDetailsResponseSchema, { details });
   }
 
   async searchFiasAddressByParts(
     request: SearchFiasAddressByPartsRequest,
   ): Promise<SearchFiasAddressByPartsResponse> {
-    const region = normalizeOptionalText(request.region);
-    const city = normalizeOptionalText(request.city);
-    const street = normalizeOptionalText(request.street);
-    const house = normalizeOptionalText(request.house);
+    return runInSpan(
+      'AssessmentService.searchFiasAddressByParts',
+      {
+        'notary.operation': 'assessment.fias.search_by_parts',
+        'notary.entity': 'FiasAddress',
+      },
+      async (span) => {
+        const region = normalizeOptionalText(request.region);
+        const city = normalizeOptionalText(request.city);
+        const street = normalizeOptionalText(request.street);
+        const house = normalizeOptionalText(request.house);
+        const limit = normalizeFiasLimit(request.limit);
+        setSpanAttributes(span, {
+          'fias.has_region': Boolean(region),
+          'fias.has_city': Boolean(city),
+          'fias.has_street': Boolean(street),
+          'fias.has_house': Boolean(house),
+          'fias.limit': limit,
+        });
 
-    if (!region && !city && !street && !house) {
-      return create(SearchFiasAddressByPartsResponseSchema, { items: [] });
-    }
+        if (!region && !city && !street && !house) {
+          return create(SearchFiasAddressByPartsResponseSchema, { items: [] });
+        }
 
-    const items = await this.fiasProvider.searchByParts({
-      region,
-      city,
-      street,
-      house,
-      limit: normalizeFiasLimit(request.limit),
-      addressType: normalizeFiasAddressType(request.addressType),
-    });
+        const items = await this.fiasProvider.searchByParts({
+          region,
+          city,
+          street,
+          house,
+          limit,
+          addressType: normalizeFiasAddressType(request.addressType),
+        });
 
-    return create(SearchFiasAddressByPartsResponseSchema, { items });
+        return create(SearchFiasAddressByPartsResponseSchema, { items });
+      },
+    );
   }
 
-  logApplicantAssessmentAction(
+  async logApplicantAssessmentAction(
     request: LogApplicantAssessmentActionRequest,
-  ): LogApplicantAssessmentActionResponse {
-    const action = normalizeRequiredText(request.action, 'action');
-    if (!APPLICANT_ASSESSMENT_ACTIONS.has(action)) {
-      this.logger.warn(`Unsupported applicant assessment UI action action=${action}`);
-      throw new ConnectError(
-        'action must be a supported applicant assessment UI action',
-        Code.InvalidArgument,
-      );
-    }
+  ): Promise<LogApplicantAssessmentActionResponse> {
+    return runInSpan(
+      'AssessmentService.logApplicantAssessmentAction',
+      {
+        'notary.operation': 'assessment.applicant_action',
+        'notary.entity': 'Assessment',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        const action = normalizeRequiredText(request.action, 'action');
+        if (!APPLICANT_ASSESSMENT_ACTIONS.has(action)) {
+          setSpanAttributes(span, { 'assessment.ui_action': 'unsupported' });
+          this.logger.warn(
+            'Unsupported applicant assessment UI action; operation=assessment.applicant_action; result=invalid_action',
+          );
+          throw new ConnectError(
+            'action must be a supported applicant assessment UI action',
+            Code.InvalidArgument,
+          );
+        }
 
-    this.logger.log(
-      `Applicant assessment UI action action=${action}` +
-        formatLogFields({
-          assessmentId: normalizeOptionalText(request.assessmentId),
-          status: normalizeOptionalText(request.status),
-          targetRoute: normalizeOptionalText(request.targetRoute),
-        }),
+        setSpanAttributes(span, { 'assessment.ui_action': action });
+        this.logger.log(
+          `Applicant assessment UI action; operation=assessment.applicant_action; result=success; action=${action}; status=${normalizeOptionalText(request.status) ?? 'unknown'}`,
+        );
+
+        return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
+      },
     );
-
-    return create(LogApplicantAssessmentActionResponseSchema, { ok: true });
   }
 
   async listAssessments(request: ListAssessmentsRequest): Promise<ListAssessmentsResponse> {
     const query = this.normalizeListRequest(request);
     this.logger.log(
-      `Starting assessment list request page=${query.page} limit=${query.limit}` +
-        formatLogFields({
-          userId: query.userId,
-          status: query.status,
-        }),
+      `Starting assessment list request; operation=assessment.list; page=${query.page}; limit=${query.limit}; hasStatusFilter=${Boolean(query.status)}`,
     );
 
     try {
@@ -293,14 +370,12 @@ export class AssessmentService {
   }
 
   async getAssessment(request: GetAssessmentRequest): Promise<GetAssessmentResponse> {
-    this.logger.log(`Starting assessment lookup assessmentId=${request.id}`);
+    this.logger.log('Starting assessment lookup; operation=assessment.get');
 
     try {
       validateUuid(request.id, 'id');
       const response = await this.assessmentRepository.getAssessment(request.id);
-      this.logger.log(
-        `Completed assessment lookup assessmentId=${response.assessment?.id ?? request.id}`,
-      );
+      this.logger.log('Completed assessment lookup; operation=assessment.get; result=success');
       return response;
     } catch (error) {
       this.logOperationFailure('getAssessment', error, { assessmentId: request.id });
@@ -309,29 +384,25 @@ export class AssessmentService {
   }
 
   async createAssessment(request: CreateAssessmentRequest): Promise<CreateAssessmentResponse> {
-    return this.runInSpan(
+    return runInSpan(
       'AssessmentService.createAssessment',
       {
-        'app.operation': 'assessment.create',
-        'app.entity': 'Assessment',
+        [NotarySpanAttributes.operation]: BusinessOperations.assessmentCreate,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
         'assessment.has_real_estate_object': hasRealEstateObjectInputData(request.realEstateObject),
       },
       async () => {
         this.logger.log(
-          `Starting assessment creation userId=${request.userId}` +
-            formatLogFields({
-              hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-              cityId: request.realEstateObject?.cityId,
-              districtId: request.realEstateObject?.districtId,
-            }),
+          `Starting assessment creation; operation=assessment.create; hasRealEstateObject=${hasRealEstateObjectInputData(request.realEstateObject)}`,
         );
 
         try {
-          const normalized = await this.runInSpan(
+          const normalized = await runInSpan(
             'AssessmentService.createAssessment.normalizeAndValidate',
             {
-              'app.operation': 'assessment.create.normalize_and_validate',
-              'app.entity': 'Assessment',
+              'notary.operation': 'assessment.create.normalize_and_validate',
+              'notary.entity': 'Assessment',
               'assessment.has_real_estate_object': hasRealEstateObjectInputData(
                 request.realEstateObject,
               ),
@@ -353,11 +424,11 @@ export class AssessmentService {
             },
           );
 
-          const assessment = await this.runInSpan(
+          const assessment = await runInSpan(
             'AssessmentRepository.createAssessment',
             {
-              'app.operation': 'assessment.repository.create',
-              'app.entity': 'Assessment',
+              'notary.operation': 'assessment.repository.create',
+              'notary.entity': 'Assessment',
               'db.operation': 'insert',
             },
             () =>
@@ -368,59 +439,66 @@ export class AssessmentService {
                 realEstateObject: normalized.realEstateObject,
               }),
           );
-          const snapshot = await this.runInSpan(
+          await runInSpan(
+            'AssessmentRepository.createLeadFromAssessment side effect',
+            {
+              'notary.operation': 'assessment.lead.create_side_effect',
+              'notary.entity': 'Lead',
+            },
+            async (leadSpan) => {
+              try {
+                await this.assessmentRepository.createLeadFromAssessment(
+                  assessment.id,
+                  assessment.userId,
+                );
+              } catch (error) {
+                markSpanFailure(leadSpan, error);
+                this.logger.warn(
+                  `Assessment lead creation failed; operation=assessment.lead.create_side_effect; result=error; error=${safeErrorName(error)}`,
+                );
+              }
+            },
+          );
+
+          const snapshot = await runInSpan(
             'AssessmentRepository.getAssessmentSnapshot',
             {
-              'app.operation': 'assessment.repository.snapshot',
-              'app.entity': 'Assessment',
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
               'db.operation': 'select',
             },
             () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
           );
 
           this.metrics.recordAssessmentCreated('new');
-          await this.runInSpan(
-            'AuditService.record assessment.created',
-            {
-              'app.operation': 'audit.record',
-              'app.entity': 'Assessment',
-              'audit.event_type': 'assessment.created',
-            },
-            () =>
-              this.auditService.record({
-                actorUserId: getCurrentUser()?.sub ?? request.userId,
-                eventType: 'assessment.created',
-                targetType: 'Assessment',
-                targetId: assessment.id,
-                actionTitle: 'Создана заявка',
-                actionContext: 'Создание новой заявки на оценку',
-                targetTitle: `Заявка ${shortId(assessment.id)}`,
-                targetContext: snapshot.address,
-                after: toAuditSnapshot(snapshot),
-              }),
-          );
-          await this.runInSpan(
-            'NotificationService.createAdminAssessmentNotificationBestEffort',
-            {
-              'app.operation': 'notification.create_admin_assessment',
-              'app.entity': 'Assessment',
-              'notification.recipient_role': PrismaRole.Admin,
-            },
-            async () =>
-              this.createAdminAssessmentNotificationBestEffort({
-                title: 'Создана новая заявка на оценку',
-                message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
-                  assessment.id,
-                )}: ${formatAssessmentAddress(snapshot.address)}.`,
-              }),
-          );
+          await this.auditService.record({
+            actorUserId: getCurrentUser()?.sub ?? request.userId,
+            eventType: 'assessment.created',
+            targetType: 'Assessment',
+            targetId: assessment.id,
+            actionTitle: 'Создана заявка',
+            actionContext: 'Создание новой заявки на оценку',
+            targetTitle: `Заявка ${shortId(assessment.id)}`,
+            targetContext: snapshot.address,
+            after: toAuditSnapshot(snapshot),
+          });
+          await this.createAdminAssessmentNotificationBestEffort({
+            title: 'Создана новая заявка на оценку',
+            message: `${await this.getActorDisplayName(getCurrentUser()?.sub ?? request.userId, 'Заявитель')} создал заявку ${shortId(
+              assessment.id,
+            )}: ${formatAssessmentAddress(snapshot.address)}.`,
+          });
+
+          // Публикация заявки как лида в Bitrix24 — fire-and-forget,
+          // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
+          this.bitrixLeadPublisher.publishLead(assessment.id).catch((error: unknown) => {
+            this.logger.warn(
+              `Bitrix lead publish failed; operation=bitrix.lead.publish; result=error; error=${safeErrorName(error)}`,
+            );
+          });
 
           this.logger.log(
-            `Created assessment assessmentId=${assessment.id} userId=${assessment.userId}` +
-              formatLogFields({
-                status: assessment.status,
-                realEstateObjectId: assessment.realEstateObjectId,
-              }),
+            `Created assessment; operation=assessment.create; result=success; status=${assessment.status}`,
           );
 
           return create(CreateAssessmentResponseSchema, { assessment });
@@ -437,232 +515,394 @@ export class AssessmentService {
   }
 
   async updateAssessment(request: UpdateAssessmentRequest): Promise<UpdateAssessmentResponse> {
-    this.logger.log(
-      `Starting assessment update assessmentId=${request.id}` +
-        formatLogFields({
-          hasRealEstateObject: hasRealEstateObjectInputData(request.realEstateObject),
-          cityId: request.realEstateObject?.cityId,
-          districtId: request.realEstateObject?.districtId,
-        }),
+    return runInSpan(
+      'AssessmentService.updateAssessment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.assessmentUpdate,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'assessment.has_real_estate_object': hasRealEstateObjectInputData(request.realEstateObject),
+      },
+      async (span) => {
+        this.logger.log(
+          `Starting assessment update; operation=assessment.update; hasRealEstateObject=${hasRealEstateObjectInputData(request.realEstateObject)}`,
+        );
+
+        try {
+          validateUuid(request.id, 'id');
+          const before = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot before update',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(request.id),
+          );
+
+          const realEstateObject = await runInSpan(
+            'AssessmentService.updateAssessment.normalizeAndValidate',
+            {
+              'notary.operation': 'assessment.update.normalize_and_validate',
+              'notary.entity': 'Assessment',
+              'assessment.has_real_estate_object': hasRealEstateObjectInputData(
+                request.realEstateObject,
+              ),
+            },
+            () =>
+              this.normalizeRealEstateObjectGeography(
+                normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
+              ),
+          );
+          const assessment = await runInSpan(
+            'AssessmentRepository.updateAssessment',
+            {
+              'notary.operation': 'assessment.repository.update',
+              'notary.entity': 'Assessment',
+              'db.operation': 'update',
+            },
+            () =>
+              this.assessmentRepository.updateAssessment(request.id, {
+                address: realEstateObject?.address ?? normalizeOptionalText(request.address),
+                description: request.description.trim(),
+                realEstateObject,
+              }),
+          );
+          const after = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot after update',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+          setSpanAttributes(span, {
+            'assessment.status.from': before.status,
+            'assessment.status.to': after.status,
+          });
+
+          await this.auditService.record({
+            actorUserId: getCurrentUser()?.sub,
+            eventType: 'assessment.updated',
+            targetType: 'Assessment',
+            targetId: assessment.id,
+            actionTitle: 'Обновлена заявка',
+            actionContext: 'Изменены данные заявки на оценку',
+            targetTitle: `Заявка ${shortId(assessment.id)}`,
+            targetContext: after.address,
+            before: toAuditSnapshot(before),
+            after: toAuditSnapshot(after),
+          });
+          await this.createAdminAssessmentNotificationBestEffort({
+            title: 'Обновлена заявка на оценку',
+            message: `${await this.getActorDisplayName(
+              getCurrentUser()?.sub ?? before.userId,
+              'Исполнитель',
+            )} изменил данные заявки ${shortId(assessment.id)}: ${formatAssessmentAddress(
+              after.address,
+            )}.`,
+          });
+
+          this.logger.log(
+            `Updated assessment; operation=assessment.update; result=success; status=${assessment.status}`,
+          );
+
+          return create(UpdateAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('updateAssessment', error, {
+            assessmentId: request.id,
+            cityId: request.realEstateObject?.cityId,
+            districtId: request.realEstateObject?.districtId,
+          });
+          throw error;
+        }
+      },
     );
-
-    try {
-      validateUuid(request.id, 'id');
-      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
-
-      const realEstateObject = await this.normalizeRealEstateObjectGeography(
-        normalizeRealEstateObjectInput(request.realEstateObject, 'update'),
-      );
-      const assessment = await this.assessmentRepository.updateAssessment(request.id, {
-        address: realEstateObject?.address ?? normalizeOptionalText(request.address),
-        description: request.description.trim(),
-        realEstateObject,
-      });
-      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-      await this.auditService.record({
-        actorUserId: getCurrentUser()?.sub,
-        eventType: 'assessment.updated',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Обновлена заявка',
-        actionContext: 'Изменены данные заявки на оценку',
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: after.address,
-        before: toAuditSnapshot(before),
-        after: toAuditSnapshot(after),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Обновлена заявка на оценку',
-        message: `${await this.getActorDisplayName(
-          getCurrentUser()?.sub ?? before.userId,
-          'Исполнитель',
-        )} изменил данные заявки ${shortId(assessment.id)}: ${formatAssessmentAddress(
-          after.address,
-        )}.`,
-      });
-
-      this.logger.log(
-        `Updated assessment assessmentId=${assessment.id}` +
-          formatLogFields({
-            status: assessment.status,
-            realEstateObjectId: assessment.realEstateObjectId,
-          }),
-      );
-
-      return create(UpdateAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('updateAssessment', error, {
-        assessmentId: request.id,
-        cityId: request.realEstateObject?.cityId,
-        districtId: request.realEstateObject?.districtId,
-      });
-      throw error;
-    }
   }
 
   async verifyAssessment(request: VerifyAssessmentRequest): Promise<VerifyAssessmentResponse> {
-    this.logger.log(`Starting assessment verification assessmentId=${request.id}`);
+    return runInSpan(
+      'AssessmentService.verifyAssessment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.assessmentVerify,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        this.logger.log('Starting assessment verification; operation=assessment.verify');
 
-    try {
-      validateUuid(request.id, 'id');
-      const actor = getCurrentUser();
-      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+        try {
+          validateUuid(request.id, 'id');
+          const actor = getCurrentUser();
+          const before = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot before verify',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(request.id),
+          );
 
-      const assessment = await this.assessmentRepository.verifyAssessment(
-        request.id,
-        isNotaryRole(actor?.role) ? actor?.sub : undefined,
-      );
-      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
+          const assessment = await runInSpan(
+            'AssessmentRepository.verifyAssessment',
+            {
+              'notary.operation': 'assessment.repository.verify',
+              'notary.entity': 'Assessment',
+              'db.operation': 'update',
+            },
+            () =>
+              this.assessmentRepository.verifyAssessment(
+                request.id,
+                isNotaryRole(actor?.role) ? actor?.sub : undefined,
+              ),
+          );
+          const after = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot after verify',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+          const assignedNotaryId = after.notaryId ?? undefined;
+          const assignsNotary = before.notaryId !== assignedNotaryId && Boolean(assignedNotaryId);
+          setSpanAttributes(span, {
+            'assessment.status.from': before.status,
+            'assessment.status.to': after.status,
+            'assessment.assigns_notary': assignsNotary,
+          });
 
-      if (before.notaryId !== after.notaryId && after.notaryId) {
-        await this.auditService.record({
-          actorUserId: actor?.sub,
-          eventType: 'assessment.assigned_to_notary',
-          targetType: 'Assessment',
-          targetId: assessment.id,
-          actionTitle: 'Заявка назначена нотариусу',
-          actionContext: `Нотариус: ${formatOptionalId(before.notaryId)} -> ${shortId(after.notaryId)}`,
-          targetTitle: `Заявка ${shortId(assessment.id)}`,
-          targetContext: after.address,
-          before: toAuditSnapshot(before),
-          after: toAuditSnapshot(after),
-        });
-        await this.createAdminAssessmentNotificationBestEffort({
-          title: 'Заявка назначена нотариусу',
-          message: buildAssignedToNotaryMessage(
-            assessment.id,
-            await this.assessmentRepository.getUserDisplayName(after.notaryId),
-          ),
-        });
-      }
+          if (assignsNotary && assignedNotaryId) {
+            await this.auditService.record({
+              actorUserId: actor?.sub,
+              eventType: 'assessment.assigned_to_notary',
+              targetType: 'Assessment',
+              targetId: assessment.id,
+              actionTitle: 'Заявка назначена нотариусу',
+              actionContext: `Нотариус: ${formatOptionalId(before.notaryId)} -> ${shortId(assignedNotaryId)}`,
+              targetTitle: `Заявка ${shortId(assessment.id)}`,
+              targetContext: after.address,
+              before: toAuditSnapshot(before),
+              after: toAuditSnapshot(after),
+            });
+            await this.createAdminAssessmentNotificationBestEffort({
+              title: 'Заявка назначена нотариусу',
+              message: buildAssignedToNotaryMessage(
+                assessment.id,
+                await this.assessmentRepository.getUserDisplayName(assignedNotaryId),
+              ),
+            });
+          }
 
-      await this.auditService.record({
-        actorUserId: actor?.sub,
-        eventType: 'assessment.status_in_progress',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Заявка переведена в работу',
-        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: after.address,
-        before: toAuditSnapshot(before),
-        after: toAuditSnapshot(after),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Заявка взята в работу',
-        message: buildInProgressMessage(
-          assessment.id,
-          await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
-        ),
-      });
+          await this.auditService.record({
+            actorUserId: actor?.sub,
+            eventType: 'assessment.status_in_progress',
+            targetType: 'Assessment',
+            targetId: assessment.id,
+            actionTitle: 'Заявка переведена в работу',
+            actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+            targetTitle: `Заявка ${shortId(assessment.id)}`,
+            targetContext: after.address,
+            before: toAuditSnapshot(before),
+            after: toAuditSnapshot(after),
+          });
+          await this.createAdminAssessmentNotificationBestEffort({
+            title: 'Заявка взята в работу',
+            message: buildInProgressMessage(
+              assessment.id,
+              await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
+            ),
+          });
 
-      this.logger.log(
-        `Verified assessment assessmentId=${assessment.id}` +
-          formatLogFields({
-            status: assessment.status,
-            notaryId: isNotaryRole(actor?.role) ? actor?.sub : undefined,
-          }),
-      );
+          this.logger.log(
+            `Verified assessment; operation=assessment.verify; result=success; status=${assessment.status}`,
+          );
 
-      return create(VerifyAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('verifyAssessment', error, { assessmentId: request.id });
-      throw error;
-    }
+          return create(VerifyAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('verifyAssessment', error, { assessmentId: request.id });
+          throw error;
+        }
+      },
+    );
   }
 
   async completeAssessment(
     request: CompleteAssessmentRequest,
   ): Promise<CompleteAssessmentResponse> {
-    this.logger.log(`Starting assessment completion assessmentId=${request.id}`);
+    return runInSpan(
+      'AssessmentService.completeAssessment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.assessmentComplete,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'assessment.has_final_estimated_value': Boolean(request.finalEstimatedValue?.trim()),
+      },
+      async (span) => {
+        this.logger.log('Starting assessment completion; operation=assessment.complete');
 
-    try {
-      validateUuid(request.id, 'id');
-      const actor = getCurrentUser();
-      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+        try {
+          validateUuid(request.id, 'id');
+          const actor = getCurrentUser();
+          const before = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot before complete',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(request.id),
+          );
 
-      if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
-        this.logger.warn(`Invalid final estimated value assessmentId=${request.id}`);
-        throw new ConnectError(
-          'final_estimated_value must be a valid decimal number',
-          Code.InvalidArgument,
-        );
-      }
+          if (!DECIMAL_PATTERN.test(request.finalEstimatedValue)) {
+            this.logger.warn(
+              'Invalid final estimated value; operation=assessment.complete; result=invalid_input',
+            );
+            throw new ConnectError(
+              'final_estimated_value must be a valid decimal number',
+              Code.InvalidArgument,
+            );
+          }
 
-      const assessment = await this.assessmentRepository.completeAssessment(
-        request.id,
-        request.finalEstimatedValue,
-      );
-      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-      await this.auditService.record({
-        actorUserId: actor?.sub,
-        eventType: 'assessment.completed',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Заявка завершена',
-        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: after.address,
-        before: toAuditSnapshot(before),
-        after: toAuditSnapshot(after),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Оценка заявки завершена',
-        message: buildCompletedMessage(assessment.id, after.estimatedValue),
-      });
+          const assessment = await runInSpan(
+            'AssessmentRepository.completeAssessment',
+            {
+              'notary.operation': 'assessment.repository.complete',
+              'notary.entity': 'Assessment',
+              'db.operation': 'update',
+            },
+            () =>
+              this.assessmentRepository.completeAssessment(request.id, request.finalEstimatedValue),
+          );
+          const after = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot after complete',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+          setSpanAttributes(span, {
+            'assessment.status.from': before.status,
+            'assessment.status.to': after.status,
+            'assessment.has_final_estimated_value': Boolean(after.estimatedValue),
+          });
 
-      this.logger.log(
-        `Completed assessment assessmentId=${assessment.id}` +
-          formatLogFields({ status: assessment.status }),
-      );
+          await this.auditService.record({
+            actorUserId: actor?.sub,
+            eventType: 'assessment.completed',
+            targetType: 'Assessment',
+            targetId: assessment.id,
+            actionTitle: 'Заявка завершена',
+            actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+            targetTitle: `Заявка ${shortId(assessment.id)}`,
+            targetContext: after.address,
+            before: toAuditSnapshot(before),
+            after: toAuditSnapshot(after),
+          });
+          await this.createAdminAssessmentNotificationBestEffort({
+            title: 'Оценка заявки завершена',
+            message: buildCompletedMessage(assessment.id, after.estimatedValue),
+          });
 
-      return create(CompleteAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('completeAssessment', error, { assessmentId: request.id });
-      throw error;
-    }
+          this.logger.log(
+            `Completed assessment; operation=assessment.complete; result=success; status=${assessment.status}`,
+          );
+
+          return create(CompleteAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('completeAssessment', error, { assessmentId: request.id });
+          throw error;
+        }
+      },
+    );
   }
 
   async cancelAssessment(request: CancelAssessmentRequest): Promise<CancelAssessmentResponse> {
-    this.logger.log(`Starting assessment cancellation assessmentId=${request.id}`);
+    return runInSpan(
+      'AssessmentService.cancelAssessment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.assessmentCancel,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'assessment.has_cancel_reason': Boolean(request.reason?.trim()),
+      },
+      async (span) => {
+        this.logger.log('Starting assessment cancellation; operation=assessment.cancel');
 
-    try {
-      validateUuid(request.id, 'id');
-      const actor = getCurrentUser();
-      const before = await this.assessmentRepository.getAssessmentSnapshot(request.id);
+        try {
+          validateUuid(request.id, 'id');
+          const actor = getCurrentUser();
+          const before = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot before cancel',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(request.id),
+          );
 
-      const assessment = await this.assessmentRepository.cancelAssessment(
-        request.id,
-        request.reason?.trim() || undefined,
-      );
-      const after = await this.assessmentRepository.getAssessmentSnapshot(assessment.id);
-      await this.auditService.record({
-        actorUserId: actor?.sub,
-        eventType: 'assessment.cancelled',
-        targetType: 'Assessment',
-        targetId: assessment.id,
-        actionTitle: 'Заявка отменена',
-        actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
-        targetTitle: `Заявка ${shortId(assessment.id)}`,
-        targetContext: after.address,
-        before: toAuditSnapshot(before),
-        after: toAuditSnapshot(after),
-      });
-      await this.createAdminAssessmentNotificationBestEffort({
-        title: 'Заявка на оценку отменена',
-        message: buildCancelledMessage(assessment.id, after.cancelReason),
-      });
+          const assessment = await runInSpan(
+            'AssessmentRepository.cancelAssessment',
+            {
+              'notary.operation': 'assessment.repository.cancel',
+              'notary.entity': 'Assessment',
+              'db.operation': 'update',
+            },
+            () =>
+              this.assessmentRepository.cancelAssessment(
+                request.id,
+                request.reason?.trim() || undefined,
+              ),
+          );
+          const after = await runInSpan(
+            'AssessmentRepository.getAssessmentSnapshot after cancel',
+            {
+              'notary.operation': 'assessment.repository.snapshot',
+              'notary.entity': 'Assessment',
+              'db.operation': 'select',
+            },
+            () => this.assessmentRepository.getAssessmentSnapshot(assessment.id),
+          );
+          setSpanAttributes(span, {
+            'assessment.status.from': before.status,
+            'assessment.status.to': after.status,
+            'assessment.has_cancel_reason': Boolean(after.cancelReason?.trim()),
+          });
 
-      this.logger.log(
-        `Cancelled assessment assessmentId=${assessment.id}` +
-          formatLogFields({ status: assessment.status }),
-      );
+          await this.auditService.record({
+            actorUserId: actor?.sub,
+            eventType: 'assessment.cancelled',
+            targetType: 'Assessment',
+            targetId: assessment.id,
+            actionTitle: 'Заявка отменена',
+            actionContext: `Статус: ${statusLabel(before.status)} -> ${statusLabel(after.status)}`,
+            targetTitle: `Заявка ${shortId(assessment.id)}`,
+            targetContext: after.address,
+            before: toAuditSnapshot(before),
+            after: toAuditSnapshot(after),
+          });
+          await this.createAdminAssessmentNotificationBestEffort({
+            title: 'Заявка на оценку отменена',
+            message: buildCancelledMessage(assessment.id, after.cancelReason),
+          });
 
-      return create(CancelAssessmentResponseSchema, { assessment });
-    } catch (error) {
-      this.logOperationFailure('cancelAssessment', error, { assessmentId: request.id });
-      throw error;
-    }
+          this.logger.log(
+            `Cancelled assessment; operation=assessment.cancel; result=success; status=${assessment.status}`,
+          );
+
+          return create(CancelAssessmentResponseSchema, { assessment });
+        } catch (error) {
+          this.logOperationFailure('cancelAssessment', error, { assessmentId: request.id });
+          throw error;
+        }
+      },
+    );
   }
 
   private normalizeListRequest(request: ListAssessmentsRequest): AssessmentQuery {
@@ -682,17 +922,16 @@ export class AssessmentService {
     error: unknown,
     context: Record<string, unknown>,
   ): void {
-    const contextFields = formatLogFields(context);
+    void context;
     if (isExpectedOperationError(error)) {
       this.logger.warn(
-        `Assessment operation ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+        `Assessment operation failed; operation=${operation}; result=expected_error; error=${safeErrorName(error)}`,
       );
       return;
     }
 
     this.logger.error(
-      `Assessment operation ${operation} failed${contextFields}: ${errorMessage(error)}`,
-      errorStack(error),
+      `Assessment operation failed; operation=${operation}; result=error; error=${safeErrorName(error)}`,
     );
   }
 
@@ -701,17 +940,16 @@ export class AssessmentService {
     error: unknown,
     context: Record<string, unknown>,
   ): void {
-    const contextFields = formatLogFields(context);
+    void context;
     if (isExpectedOperationError(error)) {
       this.logger.warn(
-        `FIAS ${operation} could not be completed${contextFields}: ${errorMessage(error)}`,
+        `FIAS operation failed; operation=${operation}; result=expected_error; error=${safeErrorName(error)}`,
       );
       return;
     }
 
     this.logger.error(
-      `FIAS ${operation} failed${contextFields}: ${errorMessage(error)}`,
-      errorStack(error),
+      `FIAS operation failed; operation=${operation}; result=error; error=${safeErrorName(error)}`,
     );
   }
 
@@ -736,7 +974,7 @@ export class AssessmentService {
       });
     } catch (error) {
       this.logger.warn(
-        `Failed to create admin assessment notification: ${errorMessage(error)}`,
+        `Assessment notification failed; operation=notification.create_internal_for_role; result=error; error=${safeErrorName(error)}`,
       );
     }
   }
@@ -754,27 +992,6 @@ export class AssessmentService {
       cityId: resolvedIds.cityId,
       districtId: resolvedIds.districtId,
     };
-  }
-
-  private async runInSpan<T>(
-    name: string,
-    attributes: SpanAttributes,
-    action: () => Promise<T>,
-  ): Promise<T> {
-    const span = this.tracer.startSpan(name, { attributes });
-
-    return context.with(trace.setSpan(context.active(), span), async () => {
-      try {
-        const result = await action();
-        span.setStatus({ code: SpanStatusCode.OK });
-        return result;
-      } catch (error) {
-        recordSpanFailure(span, error);
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
   }
 
   private async normalizeRealEstateObjectGeography(
@@ -831,31 +1048,6 @@ export class AssessmentService {
 
     return items.find((item) => normalizeAddressMatchKey(item.fullName) === normalizedAddress);
   }
-}
-
-function recordSpanFailure(span: Span, error: unknown): void {
-  if (error instanceof Error) {
-    span.recordException(error);
-  } else {
-    span.recordException(String(error));
-  }
-
-  span.setStatus({
-    code: SpanStatusCode.ERROR,
-    message: spanErrorStatusMessage(error),
-  });
-}
-
-function spanErrorStatusMessage(error: unknown): string {
-  if (error instanceof ConnectError) {
-    return `ConnectError:${error.code}`;
-  }
-
-  if (error instanceof Error) {
-    return error.name;
-  }
-
-  return 'UnknownError';
 }
 
 function validateUuid(value: string | undefined, fieldName: string): void {
@@ -927,11 +1119,7 @@ function normalizeFiasAddressType(value: number | undefined): number | undefined
 }
 
 function normalizeAddressMatchKey(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/\s+/g, ' ');
+  return value.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
 }
 
 function normalizeOptionalRequiredText(
@@ -1269,17 +1457,6 @@ function isPrismaNotFoundError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function errorStack(error: unknown): string | undefined {
-  return error instanceof Error ? error.stack : undefined;
-}
-
-function formatLogFields(fields: Record<string, unknown>): string {
-  const entries = Object.entries(fields).filter(([, value]) => value !== undefined && value !== '');
-  return entries.length
-    ? ` ${entries.map(([key, value]) => `${key}=${String(value)}`).join(' ')}`
-    : '';
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

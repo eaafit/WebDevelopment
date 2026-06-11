@@ -1,14 +1,22 @@
 import { create } from '@bufbuild/protobuf';
-import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { requireAuth } from '@internal/auth-shared';
+import { AuditService } from '@internal/audit';
+import { MetricsService, type NotificationChannel } from '@internal/metrics';
 import {
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
   Role as PrismaRole,
 } from '@internal/prisma-client';
-import { getCurrentUser, requireAuth } from '@internal/auth-shared';
-import { MetricsService } from '@internal/metrics';
-import { AuditService } from '@internal/audit';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
+import { Injectable } from '@nestjs/common';
 import {
   DeleteNotificationResponseSchema,
   GetNotificationSettingsResponseSchema,
@@ -16,10 +24,8 @@ import {
   MarkAsReadResponseSchema,
   NotificationCategory as RpcNotificationCategory,
   NotificationStatus as RpcNotificationStatus,
-  NotificationType,
   NotificationType as RpcNotificationType,
   UpdateNotificationSettingsResponseSchema,
-  type Notification as RpcNotification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type GetNotificationSettingsRequest,
@@ -30,10 +36,10 @@ import {
   type MarkAllAsReadResponse,
   type MarkAsReadRequest,
   type MarkAsReadResponse,
+  type Notification as RpcNotification,
   type UpdateNotificationSettingsRequest,
   type UpdateNotificationSettingsResponse,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
 import { NotificationRepository } from './notification.repository';
 import {
   isInAppEnabledForCategory,
@@ -66,53 +72,328 @@ export class NotificationService {
   ) {}
 
   async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
+    return runInSpan(
+      'NotificationService.createNotification',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationCreate,
+        [NotarySpanAttributes.entity]: 'Notification',
+        'notification.category': formatNotificationCategory(request.category),
+        'notification.type': formatNotificationType(request.type),
+      },
+      async () => {
+        validateUuid(request.userId, 'user_id');
+
+        const message = normalizeMessage(request.message);
+
+        this.recordNotificationMetricsBestEffort(request.type, request.category);
+
+        const notification = await this.notificationRepository.createNotification({
+          userId: request.userId,
+          title: normalizeOptionalTitle(request.title),
+          type: request.type,
+          category: request.category,
+          message,
+          status: request.status,
+          sentAt: request.sentAt,
+          readAt: request.readAt,
+        });
+
+        await this.recordNotificationAuditEvent(notification, false);
+
+        return notification;
+      },
+    );
+  }
+
+  async createInternalNotification(params: {
+    userId: string;
+    title?: string;
+    category?: RpcNotificationCategory;
+    message: string;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
+  }): Promise<void> {
+    return runInSpan(
+      'NotificationService.createInternalNotification',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationCreateInternal,
+        [NotarySpanAttributes.entity]: 'Notification',
+        'notification.category': formatNotificationCategory(params.category),
+        'notification.type': formatNotificationType(params.type ?? RpcNotificationType.PUSH),
+      },
+      async () => {
+        validateUuid(params.userId, 'user_id');
+
+        const category = toPreferenceCategory(params.category);
+        const preferenceRows = await this.notificationRepository.getOrCreatePreferenceRows(
+          params.userId,
+        );
+        if (!isInAppEnabledForCategory(preferenceRows, category)) {
+          return;
+        }
+
+        const notificationType = params.type ?? RpcNotificationType.PUSH;
+
+        this.recordNotificationMetricsBestEffort(notificationType, params.category);
+
+        const notification = await this.notificationRepository.createNotification({
+          userId: params.userId,
+          title: normalizeOptionalTitle(params.title),
+          category: params.category ?? RpcNotificationCategory.SYSTEM,
+          message: normalizeMessage(params.message),
+          type: notificationType,
+          status: params.status ?? RpcNotificationStatus.SENT,
+        });
+
+        await this.recordNotificationAuditEvent(notification, false);
+      },
+    );
+  }
+
+  async createInternalNotificationsForRoles(params: {
+    roles: PrismaRole[];
+    message: string;
+    type?: RpcNotificationType;
+    status?: RpcNotificationStatus;
+    category?: NotificationPreferenceCategory;
+  }): Promise<void> {
+    return runInSpan(
+      'NotificationService.createInternalNotificationsForRoles',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationCreateInternalForRoles,
+        [NotarySpanAttributes.entity]: 'Notification',
+        'notification.category': params.category ?? 'assessment',
+        'notification.type': formatNotificationType(params.type),
+        'notification.recipient.role': params.roles.length === 1 ? params.roles[0] : 'multiple',
+      },
+      async (span) => {
+        const userIds = await this.notificationRepository.listActiveUserIdsByRoles(params.roles);
+        const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
+          userIds,
+          params.category ?? 'assessment',
+        );
+        setSpanAttributes(span, { 'notification.recipient_count': enabledUserIds.length });
+
+        await this.notificationRepository.createManyNotifications({
+          userIds: enabledUserIds,
+          message: params.message,
+          type: toPrismaType(params.type),
+          status: toPrismaStatus(params.status),
+        });
+      },
+    );
+  }
+
+  async createInternalNotificationsForRole(
+    role: PrismaRole,
+    params: Omit<Parameters<NotificationService['createInternalNotification']>[0], 'userId'>,
+  ): Promise<void> {
+    return runInSpan(
+      'NotificationService.createInternalNotificationsForRole',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationCreateInternalForRole,
+        [NotarySpanAttributes.entity]: 'Notification',
+        'notification.category': formatNotificationCategory(params.category),
+        'notification.type': formatNotificationType(params.type),
+        'notification.recipient.role': role,
+      },
+      async (span) => {
+        const userIds = await this.notificationRepository.listActiveUserIdsByRoles([role]);
+        const category = toPreferenceCategory(params.category);
+        const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
+          userIds,
+          category,
+        );
+        setSpanAttributes(span, { 'notification.recipient_count': enabledUserIds.length });
+
+        if (!enabledUserIds.length) {
+          return;
+        }
+
+        const notificationType = params.type ?? RpcNotificationType.PUSH;
+        enabledUserIds.forEach(() =>
+          this.recordNotificationMetricsBestEffort(notificationType, params.category),
+        );
+
+        await this.notificationRepository.createManyNotifications({
+          userIds: enabledUserIds,
+          title: normalizeOptionalTitle(params.title),
+          message: normalizeMessage(params.message),
+          category: params.category ?? RpcNotificationCategory.SYSTEM,
+          type: toPrismaType(params.type),
+          status: toPrismaStatus(params.status),
+        });
+
+        await this.auditService.record({
+          eventType: 'notification.created',
+          targetType: 'notification',
+          actionTitle: 'Уведомления созданы',
+          actionContext: 'Массовая отправка уведомлений для роли',
+          targetTitle: params.title,
+          targetContext: formatNotificationCategory(params.category),
+          after: {
+            createdCount: enabledUserIds.length,
+            type: params.type,
+            category: params.category,
+          },
+        });
+      },
+    );
+  }
+
+  listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
     validateUuid(request.userId, 'user_id');
-
-    const message = normalizeMessage(request.message);
-
-    try {
-      // Record metric for notification sent
-      const channelMap: Record<RpcNotificationType, string> = {
-        [RpcNotificationType.EMAIL]: 'email',
-        [RpcNotificationType.SMS]: 'sms',
-        [RpcNotificationType.PUSH]: 'push',
-        [RpcNotificationType.IN_APP]: 'in_app',
-        [RpcNotificationType.UNSPECIFIED]: 'unknown',
-      };
-
-      const channel = channelMap[request.type] || 'unknown';
-      this.metricsService.recordNotificationSent(channel as any, String(request.category || 'system'));
-      this.metricsService.recordNotificationUnread('user');
-    } catch (error) {
-      // best-effort metrics
-      try {
-        const channelMap: Record<RpcNotificationType, string> = {
-          [RpcNotificationType.EMAIL]: 'email',
-          [RpcNotificationType.SMS]: 'sms',
-          [RpcNotificationType.PUSH]: 'push',
-          [RpcNotificationType.IN_APP]: 'in_app',
-          [RpcNotificationType.UNSPECIFIED]: 'unknown',
-        };
-        const channel = channelMap[request.type] || 'unknown';
-        this.metricsService.recordNotificationError(channel as any, 'unknown');
-      } catch {
-        // ignore
-      }
+    const currentUser = requireAuth();
+    if (currentUser.sub !== request.userId) {
+      throw new ConnectError(
+        'access denied: can only list own notifications',
+        Code.PermissionDenied,
+      );
     }
 
-    const notification = await this.notificationRepository.createNotification({
+    const query = {
+      page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE, 'pagination.page'),
+      limit: normalizePageLimit(request.pagination?.limit),
       userId: request.userId,
-      title: normalizeOptionalTitle(request.title),
-      type: request.type,
-      category: request.category,
-      message,
-      status: request.status,
-      sentAt: request.sentAt,
-      readAt: request.readAt,
-    });
+      types: normalizeRepeatedEnumFilter(request.filters?.types, RpcNotificationType.UNSPECIFIED),
+      statuses: normalizeRepeatedEnumFilter(
+        request.filters?.statuses,
+        RpcNotificationStatus.UNSPECIFIED,
+      ),
+      unreadOnly: request.filters?.unreadOnly ?? false,
+    };
 
-    await this.recordNotificationAuditEvent(notification, false);
-    return notification;
+    return runInSpan(
+      'NotificationService.listNotifications',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationList,
+        [NotarySpanAttributes.entity]: 'Notification',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(currentUser.role),
+      },
+      async () => this.notificationRepository.listNotifications(query),
+    );
+  }
+
+  async markAsRead(request: MarkAsReadRequest): Promise<MarkAsReadResponse> {
+    return runInSpan(
+      'NotificationService.markAsRead',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationMarkRead,
+        [NotarySpanAttributes.entity]: 'Notification',
+      },
+      async () => {
+        validateUuid(request.id, 'id');
+        const { notification, updated } = await this.notificationRepository.markAsRead(request.id);
+
+        if (updated) {
+          await this.recordNotificationAuditEvent(notification, true);
+        }
+
+        return create(MarkAsReadResponseSchema, { notification });
+      },
+    );
+  }
+
+  async markAllAsRead(request: MarkAllAsReadRequest): Promise<MarkAllAsReadResponse> {
+    validateUuid(request.userId, 'user_id');
+    const currentUser = requireAuth();
+    if (currentUser.sub !== request.userId) {
+      throw new ConnectError(
+        'access denied: can only mark own notifications',
+        Code.PermissionDenied,
+      );
+    }
+
+    return runInSpan(
+      'NotificationService.markAllAsRead',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationMarkAllRead,
+        [NotarySpanAttributes.entity]: 'Notification',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(currentUser.role),
+      },
+      async (span) => {
+        const notifications = await this.notificationRepository.markAllAsRead(request.userId);
+        setSpanAttributes(span, { 'notification.updated_count': notifications.length });
+
+        await Promise.all(
+          notifications.map((notification) =>
+            this.recordNotificationAuditEvent(notification, true),
+          ),
+        );
+
+        return create(MarkAllAsReadResponseSchema, { updatedCount: notifications.length });
+      },
+    );
+  }
+
+  async deleteNotification(
+    request: DeleteNotificationRequest,
+  ): Promise<DeleteNotificationResponse> {
+    return runInSpan(
+      'NotificationService.deleteNotification',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationDelete,
+        [NotarySpanAttributes.entity]: 'Notification',
+      },
+      async () => {
+        validateUuid(request.id, 'id');
+        const success = await this.notificationRepository.deleteNotification(request.id);
+        return create(DeleteNotificationResponseSchema, { success });
+      },
+    );
+  }
+
+  async getNotificationSettings(
+    _request: GetNotificationSettingsRequest,
+  ): Promise<GetNotificationSettingsResponse> {
+    void _request;
+    const currentUser = requireAuth();
+
+    return runInSpan(
+      'NotificationService.getNotificationSettings',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationSettingsGet,
+        [NotarySpanAttributes.entity]: 'NotificationPreference',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(currentUser.role),
+      },
+      async () => {
+        const settings = await this.notificationRepository.getOrCreatePreferencesMatrix(
+          currentUser.sub,
+        );
+        return create(GetNotificationSettingsResponseSchema, {
+          settings,
+        });
+      },
+    );
+  }
+
+  async updateNotificationSettings(
+    request: UpdateNotificationSettingsRequest,
+  ): Promise<UpdateNotificationSettingsResponse> {
+    const currentUser = requireAuth();
+
+    return runInSpan(
+      'NotificationService.updateNotificationSettings',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.notificationSettingsUpdate,
+        [NotarySpanAttributes.entity]: 'NotificationPreference',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(currentUser.role),
+      },
+      async () => {
+        if (!request.settings) {
+          throw new ConnectError('settings is required', Code.InvalidArgument);
+        }
+
+        const settings = await this.notificationRepository.updatePreferencesMatrix(
+          currentUser.sub,
+          request.settings,
+        );
+
+        return create(UpdateNotificationSettingsResponseSchema, {
+          settings,
+        });
+      },
+    );
   }
 
   private async recordNotificationAuditEvent(
@@ -148,233 +429,22 @@ export class NotificationService {
     });
   }
 
-  async createInternalNotification(params: {
-    userId: string;
-    title?: string;
-    category?: RpcNotificationCategory;
-    message: string;
-    type?: RpcNotificationType;
-    status?: RpcNotificationStatus;
-  }): Promise<void> {
-    validateUuid(params.userId, 'user_id');
-
-    const category = (params.category ?? 'system') as NotificationPreferenceCategory;
-    const preferenceRows = await this.notificationRepository.getOrCreatePreferenceRows(params.userId);
-    if (!isInAppEnabledForCategory(preferenceRows, category)) {
-      return;
-    }
-
-    const notificationType = params.type ?? RpcNotificationType.PUSH;
+  private recordNotificationMetricsBestEffort(
+    type: RpcNotificationType,
+    category: RpcNotificationCategory | NotificationPreferenceCategory | undefined,
+  ): void {
+    const channel = notificationChannelForRpcType(type);
 
     try {
-      const channelMap: Record<RpcNotificationType, string> = {
-        [RpcNotificationType.EMAIL]: 'email',
-        [RpcNotificationType.SMS]: 'sms',
-        [RpcNotificationType.PUSH]: 'push',
-        [RpcNotificationType.IN_APP]: 'in_app',
-        [RpcNotificationType.UNSPECIFIED]: 'unknown',
-      };
-
-      const channel = channelMap[notificationType] || 'unknown';
-      this.metricsService.recordNotificationSent(channel as any, String(params.category ?? 'system'));
+      this.metricsService.recordNotificationSent(channel, String(category ?? 'system'));
       this.metricsService.recordNotificationUnread('user');
-    } catch (error) {
-      // best-effort metrics
+    } catch {
       try {
-        const channelMap: Record<RpcNotificationType, string> = {
-          [RpcNotificationType.EMAIL]: 'email',
-          [RpcNotificationType.SMS]: 'sms',
-          [RpcNotificationType.PUSH]: 'push',
-          [RpcNotificationType.IN_APP]: 'in_app',
-          [RpcNotificationType.UNSPECIFIED]: 'unknown',
-        };
-        const channel = channelMap[notificationType] || 'unknown';
-        this.metricsService.recordNotificationError(channel as any, 'unknown');
+        this.metricsService.recordNotificationError(channel, 'unknown');
       } catch {
         // ignore
       }
     }
-
-    const notification = await this.notificationRepository.createNotification({
-      userId: params.userId,
-      title: normalizeOptionalTitle(params.title),
-      category: params.category ?? RpcNotificationCategory.SYSTEM,
-      message: normalizeMessage(params.message),
-      type: notificationType,
-      status: params.status ?? RpcNotificationStatus.SENT,
-    });
-
-    await this.recordNotificationAuditEvent(notification, false);
-  }
-
-  async createInternalNotificationsForRoles(params: {
-    roles: PrismaRole[];
-    message: string;
-    type?: RpcNotificationType;
-    status?: RpcNotificationStatus;
-    category?: NotificationPreferenceCategory;
-  }): Promise<void> {
-    const userIds = await this.notificationRepository.listActiveUserIdsByRoles(params.roles);
-    const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
-      userIds,
-      params.category ?? 'assessment',
-    );
-
-    await this.notificationRepository.createManyNotifications({
-      userIds: enabledUserIds,
-      message: params.message,
-      type: toPrismaType(params.type),
-      status: toPrismaStatus(params.status),
-    });
-  }
-
-  async createInternalNotificationsForRole(
-    role: PrismaRole,
-    params: Omit<Parameters<NotificationService['createInternalNotification']>[0], 'userId'>,
-  ): Promise<void> {
-    const userIds = await this.notificationRepository.listActiveUserIdsByRoles([role]);
-
-    const enabledUserIds = await this.notificationRepository.filterUserIdsWithInAppEnabled(
-      userIds,
-      this.rpcCategoryToPreference(params.category) ?? 'assessment',
-    );
-
-    if (!enabledUserIds.length) {
-      return;
-    }
-
-    await this.notificationRepository.createManyNotifications({
-      userIds: enabledUserIds,
-      message: params.message,
-      type: toPrismaType(params.type),
-      status: toPrismaStatus(params.status),
-    });
-
-    // Record a single aggregated audit event for bulk notification creation
-    await this.auditService.record({
-      eventType: 'notification.created',
-      targetType: 'notification',
-      actionTitle: 'Уведомления созданы',
-      actionContext: 'Массовая отправка уведомлений для роли',
-      targetTitle: params.title,
-      targetContext: String(params.category ?? 'assessment'),
-      after: {
-        createdCount: enabledUserIds.length,
-        type: params.type,
-        category: params.category,
-      },
-    });
-  }
-
-  private rpcCategoryToPreference(
-    category?: RpcNotificationCategory | NotificationPreferenceCategory,
-  ): NotificationPreferenceCategory | undefined {
-    switch (category) {
-      case RpcNotificationCategory.ASSESSMENT:
-        return 'assessment';
-      case RpcNotificationCategory.PAYMENT:
-        return 'payment';
-      case RpcNotificationCategory.SYSTEM:
-        return 'system';
-      default:
-        // If already a preference category string, return as-is
-        if (category === 'assessment' || category === 'payment' || category === 'system') {
-          return category as NotificationPreferenceCategory;
-        }
-        return undefined;
-    }
-  }
-
-  listNotifications(request: ListNotificationsRequest): Promise<ListNotificationsResponse> {
-    validateUuid(request.userId, 'user_id');
-    const currentUser = requireAuth();
-    if (currentUser.sub !== request.userId) {
-      throw new ConnectError('access denied: can only list own notifications', Code.PermissionDenied);
-    }
-
-    return this.notificationRepository.listNotifications({
-      page: normalizePositiveInt(request.pagination?.page, DEFAULT_PAGE, 'pagination.page'),
-      limit: normalizePageLimit(request.pagination?.limit),
-      userId: request.userId,
-      types: normalizeRepeatedEnumFilter(
-        request.filters?.types,
-        RpcNotificationType.UNSPECIFIED,
-      ),
-      statuses: normalizeRepeatedEnumFilter(
-        request.filters?.statuses,
-        RpcNotificationStatus.UNSPECIFIED,
-      ),
-      unreadOnly: request.filters?.unreadOnly ?? false,
-    });
-  }
-
-  async markAsRead(request: MarkAsReadRequest): Promise<MarkAsReadResponse> {
-    validateUuid(request.id, 'id');
-    const { notification, updated } = await this.notificationRepository.markAsRead(request.id);
-
-    if (updated) {
-      await this.recordNotificationAuditEvent(notification, true);
-    }
-
-    return create(MarkAsReadResponseSchema, { notification });
-  }
-
-  async markAllAsRead(request: MarkAllAsReadRequest): Promise<MarkAllAsReadResponse> {
-    validateUuid(request.userId, 'user_id');
-    const currentUser = requireAuth();
-    if (currentUser.sub !== request.userId) {
-      throw new ConnectError('access denied: can only mark own notifications', Code.PermissionDenied);
-    }
-
-    const notifications = await this.notificationRepository.markAllAsRead(request.userId);
-
-    await Promise.all(
-      notifications.map((notification) => this.recordNotificationAuditEvent(notification, true)),
-    );
-
-    return create(MarkAllAsReadResponseSchema, { updatedCount: notifications.length });
-  }
-
-  async deleteNotification(request: DeleteNotificationRequest): Promise<DeleteNotificationResponse> {
-    validateUuid(request.id, 'id');
-    const success = await this.notificationRepository.deleteNotification(request.id);
-    return create(DeleteNotificationResponseSchema, { success });
-  }
-
-  async getNotificationSettings(
-    _request: GetNotificationSettingsRequest,
-  ): Promise<GetNotificationSettingsResponse> {
-    const userId = getCurrentUser()?.sub;
-    if (!userId) {
-      throw new ConnectError('authentication required', Code.Unauthenticated);
-    }
-
-    const settings = await this.notificationRepository.getOrCreatePreferencesMatrix(userId);
-    return create(GetNotificationSettingsResponseSchema, {
-      settings,
-    });
-  }
-
-  async updateNotificationSettings(
-    request: UpdateNotificationSettingsRequest,
-  ): Promise<UpdateNotificationSettingsResponse> {
-    const userId = getCurrentUser()?.sub;
-    if (!userId) {
-      throw new ConnectError('authentication required', Code.Unauthenticated);
-    }
-
-    if (!request.settings) {
-      throw new ConnectError('settings is required', Code.InvalidArgument);
-    }
-
-    const settings = await this.notificationRepository.updatePreferencesMatrix(
-      userId,
-      request.settings,
-    );
-
-    return create(UpdateNotificationSettingsResponseSchema, {
-      settings,
-    });
   }
 }
 
@@ -408,7 +478,25 @@ function toPrismaType(type: RpcNotificationType | undefined): PrismaNotification
   }
 }
 
-function toPrismaStatus(status: RpcNotificationStatus | undefined): PrismaNotificationStatus | undefined {
+function notificationChannelForRpcType(type: RpcNotificationType): NotificationChannel {
+  switch (type) {
+    case RpcNotificationType.EMAIL:
+      return 'email';
+    case RpcNotificationType.SMS:
+      return 'sms';
+    case RpcNotificationType.PUSH:
+      return 'push';
+    case RpcNotificationType.IN_APP:
+      return 'in_app';
+    case RpcNotificationType.UNSPECIFIED:
+    default:
+      return 'unknown' as NotificationChannel;
+  }
+}
+
+function toPrismaStatus(
+  status: RpcNotificationStatus | undefined,
+): PrismaNotificationStatus | undefined {
   switch (status) {
     case RpcNotificationStatus.FAILED:
       return PrismaNotificationStatus.Failed;
@@ -462,4 +550,55 @@ function normalizeRepeatedEnumFilter<T extends number>(
 ): T[] | undefined {
   const normalized = [...new Set((values ?? []).filter((value) => value !== unspecifiedValue))];
   return normalized.length ? normalized : undefined;
+}
+
+function toPreferenceCategory(
+  category: RpcNotificationCategory | undefined,
+): NotificationPreferenceCategory {
+  switch (category) {
+    case RpcNotificationCategory.PAYMENT:
+      return 'payment';
+    case RpcNotificationCategory.ASSESSMENT:
+      return 'assessment';
+    case RpcNotificationCategory.SYSTEM:
+    case undefined:
+    default:
+      return 'system';
+  }
+}
+
+function formatNotificationCategory(
+  category: RpcNotificationCategory | NotificationPreferenceCategory | undefined,
+): string {
+  switch (category) {
+    case RpcNotificationCategory.ASSESSMENT:
+    case 'assessment':
+      return 'assessment';
+    case RpcNotificationCategory.PAYMENT:
+    case 'payment':
+      return 'payment';
+    case RpcNotificationCategory.SYSTEM:
+    case 'system':
+    case undefined:
+      return 'system';
+    default:
+      return 'unknown';
+  }
+}
+
+function formatNotificationType(type: RpcNotificationType | undefined): string {
+  switch (type) {
+    case RpcNotificationType.EMAIL:
+      return 'email';
+    case RpcNotificationType.SMS:
+      return 'sms';
+    case RpcNotificationType.PUSH:
+      return 'push';
+    case RpcNotificationType.IN_APP:
+      return 'in_app';
+    case RpcNotificationType.UNSPECIFIED:
+    case undefined:
+    default:
+      return 'unspecified';
+  }
 }

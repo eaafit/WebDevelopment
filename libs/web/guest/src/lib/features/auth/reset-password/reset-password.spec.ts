@@ -1,6 +1,7 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import { WebLoggerService } from '@notary-portal/ui';
 import { AuthService } from '../auth.service';
 import { ResetPassword } from './reset-password';
 
@@ -8,9 +9,11 @@ describe('ResetPassword', () => {
   let component: ResetPassword;
   let fixture: ComponentFixture<ResetPassword>;
   let resetPassword: jest.MockedFunction<AuthService['resetPassword']>;
+  let logger: { warn: jest.Mock };
 
   beforeEach(async () => {
     resetPassword = jest.fn().mockResolvedValue(undefined);
+    logger = { warn: jest.fn() };
 
     await TestBed.configureTestingModule({
       imports: [ResetPassword],
@@ -31,6 +34,10 @@ describe('ResetPassword', () => {
             error: signal<string | null>(null).asReadonly(),
             resetPassword,
           },
+        },
+        {
+          provide: WebLoggerService,
+          useValue: logger,
         },
       ],
     }).compileComponents();
@@ -71,6 +78,13 @@ describe('ResetPassword', () => {
     await component.onSubmit();
 
     expect(resetPassword).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'auth.password_reset.submit.validation_failed',
+      expect.objectContaining({
+        reason: 'weak_password',
+        outcome: 'failed',
+      }),
+    );
   });
 
   it('should not submit when passwords do not match', async () => {
@@ -80,6 +94,14 @@ describe('ResetPassword', () => {
     await component.onSubmit();
 
     expect(resetPassword).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'auth.password_reset.submit.validation_failed',
+      expect.objectContaining({
+        reason: 'password_mismatch',
+        outcome: 'failed',
+      }),
+    );
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('Password123');
   });
 
   it('should submit a valid reset password request', async () => {

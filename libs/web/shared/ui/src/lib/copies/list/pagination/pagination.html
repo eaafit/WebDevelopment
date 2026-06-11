@@ -1,0 +1,38 @@
+<div class="pagination-container">
+  
+  <div class="pagination-nav">
+    <button 
+      class="page-btn nav-arrow" 
+      [class.disabled]="!hasPrev()" 
+      (click)="hasPrev() && goToPrev()()"
+      title="Предыдущая страница">
+      &larr; Назад
+    </button>
+
+    <div class="page-info">
+      <span class="current-page">{{ current() }}</span> 
+      <span class="separator">из</span> 
+      <span class="total-pages">{{ totalPages() }}</span>
+    </div>
+
+    <button 
+      class="page-btn nav-arrow" 
+      [class.disabled]="!hasNext()" 
+      (click)="hasNext() && goToNext()()"
+      title="Следующая страница">
+      Вперед &rarr;
+    </button>
+  </div>
+
+<div class="pagination-settings">
+  <label class="limit-label" for="page-size-select">Показывать</label>
+  <select 
+    id="page-size-select"
+    class="modern-select page-size-control" 
+    (change)="onPageSizeChange($event)"> <option value="5" [selected]="pageSize() === 5">по 5 элементов</option>
+    <option value="9" [selected]="pageSize() === 9">по 9 элементов</option>
+    <option value="20" [selected]="pageSize() === 20">по 20 элементов</option>
+    <option value="50" [selected]="pageSize() === 50">по 50 элементов</option>
+  </select>
+</div>
+</div>

@@ -1,0 +1,56 @@
+<div class="document-row">
+  <div class="row">
+    <span class="value">{{ document().fileName }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Тип файла</span>
+    <span class="value">{{ document().fileType | slice:0:3 }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Версия файла</span>
+    <span class="value">{{ document().version }}</span>
+  </div>
+  <div class="row">
+    <span class="param">Заявка</span>
+    <span class="value">{{ document().assessmentId }}</span>
+  </div>
+  
+  <div class="row date-row">
+    <span class="param">Дата загрузки</span>
+    <div class="value date-container">
+      @if (uploaded()) {
+        <div class="date-text">{{ uploaded()?.date }}</div>
+        <div class="time-text">{{ uploaded()?.time }}</div>
+      } @else {
+        -
+      }
+    </div>
+  </div>
+
+  <div class="row comment-row">
+    <span class="param">Комментарий</span>
+    <div class="value comment-container">
+      @if ($any(document()).comment) {
+        <div class="comment-wrapper" [title]="$any(document()).comment">
+          <svg class="comment-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span class="comment-text">{{ $any(document()).comment }}</span>
+        </div>
+      } @else {
+        <span class="no-comment">—</span>
+      }
+    </div>
+  </div>
+
+  <div class="row title-row">
+    <span class="status-badge" [ngClass]="'status-' + getMappedStatus(status())">
+      <span class="status-dot"></span>
+      {{ getStatusText(status()) }}
+    </span>
+  </div>
+
+  <button type="button" class="card-footer" (click)="navigateToDocumentPage()">
+    <span class="action-text">Открыть детали</span>
+  </button>
+</div>

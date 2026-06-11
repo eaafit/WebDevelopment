@@ -1,15 +1,38 @@
 import { create } from '@bufbuild/protobuf';
 import { AssessmentStatus } from '@internal/prisma-client';
 import { Role, requestContextStorage, type AccessTokenPayload } from '@internal/auth-shared';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import {
   AssessmentStatus as RpcAssessmentStatus,
   CancelAssessmentRequestSchema,
   CompleteAssessmentRequestSchema,
   CreateAssessmentRequestSchema,
+  LogApplicantAssessmentActionRequestSchema,
   UpdateAssessmentRequestSchema,
   VerifyAssessmentRequestSchema,
 } from '@notary-portal/api-contracts';
+import { Logger } from '@nestjs/common';
 import { AssessmentService } from './assessment.service';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import type { BitrixLeadPublisherService } from '@internal/bitrix-leads';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
+      action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 describe('AssessmentService audit events', () => {
   const assessmentRepository = {
@@ -38,6 +61,9 @@ describe('AssessmentService audit events', () => {
   const notificationService = {
     createInternalNotificationsForRole: jest.fn(),
   };
+  const bitrixLeadPublisher = {
+    publishLead: jest.fn(),
+  };
 
   const service = new AssessmentService(
     assessmentRepository as never,
@@ -45,6 +71,7 @@ describe('AssessmentService audit events', () => {
     metrics as never,
     fiasProvider as never,
     notificationService as never,
+    bitrixLeadPublisher as never,
   );
 
   beforeEach(() => {
@@ -53,6 +80,9 @@ describe('AssessmentService audit events', () => {
     assessmentRepository.resolveGeographyIds.mockResolvedValue({});
     fiasProvider.searchAddressItems.mockResolvedValue([]);
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
+    bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
 
   it('creates an admin notification after assessment creation', async () => {
@@ -418,6 +448,100 @@ describe('AssessmentService audit events', () => {
         message: 'Заявка #11111111 была отменена. Причина: неполные данные.',
       }),
     );
+  });
+
+  it('publishes assessment to bitrix as lead after successful create', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+
+    await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+  });
+
+  it('does not propagate bitrix publish failure to caller', async () => {
+    const assessmentId = '11111111-1111-4111-8111-111111111111';
+    const applicantId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = buildSnapshot({
+      id: assessmentId,
+      notaryId: null,
+      status: AssessmentStatus.New,
+    });
+
+    assessmentRepository.createAssessment.mockResolvedValue({
+      id: assessmentId,
+      userId: applicantId,
+      status: RpcAssessmentStatus.NEW,
+      address: snapshot.address,
+      description: snapshot.description ?? '',
+      estimatedValue: '',
+    });
+    assessmentRepository.getAssessmentSnapshot.mockResolvedValue(snapshot);
+    bitrixLeadPublisher.publishLead.mockRejectedValueOnce(new Error('Bitrix down'));
+
+    const response = await service.createAssessment(
+      create(CreateAssessmentRequestSchema, {
+        userId: applicantId,
+        address: snapshot.address,
+      }),
+    );
+
+    // Основная заявка вернулась успешно, несмотря на падение Bitrix
+    expect(response).toBeDefined();
+    expect(bitrixLeadPublisher.publishLead).toHaveBeenCalledWith(assessmentId);
+
+    // Даём микрозадаче .catch отработать, чтобы не было unhandled rejection
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  });
+
+  it('does not put raw unsupported applicant UI action into spans or logs', async () => {
+    const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const rawAction = 'drop-table-token=secret-token-test@example.com';
+
+    await expect(
+      service.logApplicantAssessmentAction(
+        create(LogApplicantAssessmentActionRequestSchema, {
+          action: rawAction,
+          status: 'New',
+        }),
+      ),
+    ).rejects.toThrow('action must be a supported applicant assessment UI action');
+
+    expect(setSpanAttributes).toHaveBeenCalledWith(expect.anything(), {
+      'assessment.ui_action': 'unsupported',
+    });
+
+    const payload = JSON.stringify([
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+      ...warnSpy.mock.calls,
+    ]);
+    expect(payload).toContain('unsupported');
+    expect(payload).not.toContain(rawAction);
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('test@example.com');
+
+    warnSpy.mockRestore();
   });
 });
 
