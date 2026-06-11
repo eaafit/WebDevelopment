@@ -264,6 +264,7 @@ export class NewsletterService {
       throw new ConnectError('newsletter campaign has no recipients', Code.FailedPrecondition);
     }
 
+    const audienceMetricType: NewsletterAudienceMetricType = 'selected';
     const campaign = await this.newsletterRepository.createCampaign({
       createdById: isUuid(actor.sub) ? actor.sub : null,
       subject: source.subject,
@@ -284,6 +285,10 @@ export class NewsletterService {
       campaign.audienceLabel,
       source.recipients.length,
       'newsletter.campaign.repeat_started',
+    );
+    this.metricsService.recordNewsletterCampaignStarted(
+      audienceMetricType,
+      source.recipients.length,
     );
     await this.recordCampaignAuditBestEffort({
       actor,
@@ -311,6 +316,7 @@ export class NewsletterService {
         } catch (error) {
           const deliveryErrorMessage = normalizeErrorMessage(error);
           failedCount += 1;
+          this.metricsService.recordNewsletterDelivery('failed');
           this.logDeliveryFailure(campaign.id, recipient.email, deliveryErrorMessage);
 
           try {
@@ -328,6 +334,7 @@ export class NewsletterService {
         }
 
         sentCount += 1;
+        this.metricsService.recordNewsletterDelivery('sent');
 
         try {
           await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
@@ -360,6 +367,10 @@ export class NewsletterService {
       sentCount,
       failedCount,
       'newsletter.campaign.repeat_completed',
+    );
+    this.metricsService.recordNewsletterCampaignCompleted(
+      audienceMetricType,
+      formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
     );
     await this.recordCampaignAuditBestEffort({
       actor,
