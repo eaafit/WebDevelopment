@@ -1,7 +1,7 @@
 import { Component, computed, signal, OnInit, OnDestroy, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardUpdateService } from '../../services/dashboard-update.service';
-import { NotaryAssessmentApiService, Assessment } from '../../services/assessment-api.service';
+import { NotaryAssessmentApiService } from '../../services/assessment-api.service';
 import { Subscription } from 'rxjs';
 
 type Status = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
