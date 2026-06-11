@@ -12,6 +12,7 @@ export interface AssessmentItem {
   address: string;
   description: string;
   estimatedValue: string;
+  cancelReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,12 +24,12 @@ const MOCK_ASSESSMENTS: AssessmentItem[] = [
   { id: 'ast-002', userId: 'user-2', applicantName: 'Петрова Мария Сергеевна', status: 'InProgress', address: 'г. Санкт-Петербург, Невский пр., д. 100', description: 'Коммерческое помещение, 150 м²', estimatedValue: '', createdAt: '2026-06-02T11:30:00Z', updatedAt: '2026-06-03T09:00:00Z' },
   { id: 'ast-003', userId: 'user-3', applicantName: 'Сидоров Алексей Викторович', status: 'Completed', address: 'г. Екатеринбург, ул. Ленина, д. 10', description: '5-комнатный дом, 220 м²', estimatedValue: '8500000', createdAt: '2026-05-28T14:20:00Z', updatedAt: '2026-06-02T16:45:00Z' },
   { id: 'ast-004', userId: 'user-4', applicantName: 'Кузнецова Анна Владимировна', status: 'Verified', address: 'г. Казань, ул. Баумана, д. 25', description: '2-этажный дом, 185 м²', estimatedValue: '', createdAt: '2026-05-20T09:15:00Z', updatedAt: '2026-05-30T11:00:00Z' },
-  { id: 'ast-005', userId: 'user-5', applicantName: 'Михайлов Дмитрий Андреевич', status: 'Cancelled', address: 'г. Новосибирск, Красный пр., д. 50', description: '2-комнатная квартира, 45.2 м²', estimatedValue: '', createdAt: '2026-05-15T08:00:00Z', updatedAt: '2026-05-25T12:30:00Z' },
+  { id: 'ast-005', userId: 'user-5', applicantName: 'Михайлов Дмитрий Андреевич', status: 'Cancelled', address: 'г. Новосибирск, Красный пр., д. 50', description: '2-комнатная квартира, 45.2 м²', estimatedValue: '', cancelReason: 'Заявитель передумал', createdAt: '2026-05-15T08:00:00Z', updatedAt: '2026-05-25T12:30:00Z' },
   { id: 'ast-006', userId: 'user-6', applicantName: 'Соколова Елена Дмитриевна', status: 'New', address: 'г. Краснодар, ул. Красная, д. 20', description: '1-комнатная квартира', estimatedValue: '', createdAt: '2026-06-04T09:00:00Z', updatedAt: '2026-06-04T09:00:00Z' },
   { id: 'ast-007', userId: 'user-7', applicantName: 'Морозов Андрей Сергеевич', status: 'InProgress', address: 'г. Сочи, ул. Навагинская, д. 5', description: 'Таунхаус, 120 м²', estimatedValue: '', createdAt: '2026-06-05T14:00:00Z', updatedAt: '2026-06-06T10:00:00Z' },
   { id: 'ast-008', userId: 'user-8', applicantName: 'Волкова Татьяна Павловна', status: 'Completed', address: 'г. Нижний Новгород, ул. Большая Покровская, д. 30', description: 'Офисное помещение, 80 м²', estimatedValue: '4200000', createdAt: '2026-06-01T08:00:00Z', updatedAt: '2026-06-04T15:00:00Z' },
   { id: 'ast-009', userId: 'user-9', applicantName: 'Зайцев Константин Игоревич', status: 'Verified', address: 'г. Ростов-на-Дону, пр. Будённовский, д. 45', description: '3-комнатная квартира', estimatedValue: '', createdAt: '2026-05-30T12:00:00Z', updatedAt: '2026-06-05T11:00:00Z' },
-  { id: 'ast-010', userId: 'user-10', applicantName: 'Николаева Ольга Владимировна', status: 'Cancelled', address: 'г. Самара, ул. Ленинградская, д. 12', description: 'Земельный участок', estimatedValue: '', createdAt: '2026-05-25T10:00:00Z', updatedAt: '2026-06-03T09:00:00Z' },
+  { id: 'ast-010', userId: 'user-10', applicantName: 'Николаева Ольга Владимировна', status: 'Cancelled', address: 'г. Самара, ул. Ленинградская, д. 12', description: 'Земельный участок', estimatedValue: '', cancelReason: 'Не сошлись в цене', createdAt: '2026-05-25T10:00:00Z', updatedAt: '2026-06-03T09:00:00Z' },
   { id: 'ast-011', userId: 'user-11', applicantName: 'Павлов Сергей Николаевич', status: 'New', address: 'г. Уфа, пр. Октября, д. 88', description: 'Склад 500 м²', estimatedValue: '', createdAt: '2026-05-22T16:00:00Z', updatedAt: '2026-06-01T14:00:00Z' },
   { id: 'ast-012', userId: 'user-12', applicantName: 'Егорова Анастасия Дмитриевна', status: 'InProgress', address: 'г. Воронеж, ул. Плехановская, д. 7', description: '2-комнатная квартира', estimatedValue: '', createdAt: '2026-05-18T11:00:00Z', updatedAt: '2026-05-28T09:00:00Z' },
   { id: 'ast-013', userId: 'user-13', applicantName: 'Тимофеев Алексей Петрович', status: 'Completed', address: 'г. Волгоград, ул. Мира, д. 15', description: 'Частный дом, 150 м²', estimatedValue: '12500000', createdAt: '2026-06-06T09:00:00Z', updatedAt: '2026-06-06T09:00:00Z' },
@@ -351,6 +352,8 @@ export class Assessment implements OnInit {
   closeCancelModal(): void {
     this.showCancelModal = false;
     this.assessmentToCancel = null;
+    this.cancelReason = '';
+    this.cancelReasonError = '';
   }
 
   confirmCancel(): void {
@@ -360,6 +363,7 @@ export class Assessment implements OnInit {
     const index = this.assessments.findIndex(a => a.id === this.assessmentToCancel!.id);
     if (index !== -1) {
       this.assessments[index].status = 'Cancelled';
+      this.assessments[index].cancelReason = this.cancelReason;
       
       if (this.showView && this.selectedAssessment?.id === this.assessmentToCancel!.id) {
         this.selectedAssessment = this.assessments[index];

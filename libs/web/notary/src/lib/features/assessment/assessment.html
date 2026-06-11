@@ -219,6 +219,10 @@
             </div>
           </div>
           <div class="detail-row">
+            <div class="detail-label">Причина отмены:</div>
+            <div class="detail-value">{{ selectedAssessment.cancelReason || '—' }}</div>
+          </div>
+          <div class="detail-row">
             <div class="detail-label">Оценочная стоимость:</div>
             <div class="detail-value">{{ formatValue(selectedAssessment.estimatedValue) }}</div>
           </div>
