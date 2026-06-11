@@ -281,7 +281,8 @@ export class Assessment implements OnInit {
   closeCancelModal(): void { this.showCancelModal = false; this.assessmentToCancel = null; this.cancelReason = ''; this.cancelReasonError = ''; }
 
   confirmCancel(): void {
-    if (!this.assessmentToCancel) return;
+    const assessmentToCancel = this.assessmentToCancel;
+    if (!assessmentToCancel) return;
     this.mutationInFlight = true;
     this.audit.log({ action: 'ORDER_CANCELLED', entity: 'Assessment', entityId: this.assessmentToCancel.id, details: { reason: this.cancelReason } });
     this.notifications.send(this.assessmentToCancel.userId, `Ваша заявка отменена. Причина: ${this.cancelReason}`, 'order_cancelled');
@@ -300,7 +301,8 @@ export class Assessment implements OnInit {
   closeVerifyModal(): void { this.showVerifyModal = false; this.assessmentToVerify = null; }
 
   confirmVerify(): void {
-    if (!this.assessmentToVerify) return;
+    const assessmentToVerify = this.assessmentToVerify;
+    if (!assessmentToVerify) return;
     this.mutationInFlight = true;
     this.audit.log({ action: 'ORDER_TAKEN', entity: 'Assessment', entityId: this.assessmentToVerify.id, details: { status: 'Verified' } });
     this.notifications.send(this.assessmentToVerify.userId, 'Ваша заявка принята нотариусом в работу', 'order_taken');
@@ -320,7 +322,8 @@ export class Assessment implements OnInit {
   closeStartWorkModal(): void { this.showStartWorkModal = false; this.assessmentToStartWork = null; }
 
   confirmStartWork(): void {
-    if (!this.assessmentToStartWork) return;
+    const assessmentToStartWork = this.assessmentToStartWork;
+    if (!assessmentToStartWork) return;
     this.mutationInFlight = true;
     this.audit.log({ action: 'ORDER_STARTED', entity: 'Assessment', entityId: this.assessmentToStartWork.id, details: { status: 'InProgress' } });
     this.notifications.send(this.assessmentToStartWork.userId, 'Нотариус начал работу над вашей заявкой', 'order_started');

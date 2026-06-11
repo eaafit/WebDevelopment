@@ -65,6 +65,8 @@
                     [style.top.px]="filterDropdownStyle?.top"
                     [style.left.px]="filterDropdownStyle?.left"
                     (click)="$event.stopPropagation()"
+                    (keydown.enter)="$event.stopPropagation()"
+                    (keydown.space)="$event.stopPropagation()"
                     tabindex="-1"
                     role="menu"
                     aria-label="Меню фильтрации"
@@ -256,7 +258,13 @@
   <!-- МОДАЛКА ОТМЕНЫ -->
   @if (showCancelModal && assessmentToCancel) {
     <div class="modal-overlay" role="dialog" (click)="closeCancelModal()" (keydown.escape)="closeCancelModal()">
-      <div class="modal" role="document" (click)="$event.stopPropagation()">
+      <div
+        class="modal"
+        role="document"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+        (keydown.space)="$event.stopPropagation()"
+        (keydown.escape)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Отмена заявки</h3>
           <button class="close-btn" (click)="closeCancelModal()">&times;</button>
@@ -286,7 +294,13 @@
   <!-- МОДАЛКА ВЗЯТИЯ В РАБОТУ -->
   @if (showVerifyModal && assessmentToVerify) {
     <div class="modal-overlay" role="dialog" (click)="closeVerifyModal()" (keydown.escape)="closeVerifyModal()">
-      <div class="modal" role="document" (click)="$event.stopPropagation()">
+      <div
+        class="modal"
+        role="document"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+        (keydown.space)="$event.stopPropagation()"
+        (keydown.escape)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Взять в работу</h3>
           <button class="close-btn" (click)="closeVerifyModal()">&times;</button>
@@ -303,7 +317,13 @@
   <!-- МОДАЛКА НАЧАТЬ РАБОТУ -->
   @if (showStartWorkModal && assessmentToStartWork) {
     <div class="modal-overlay" role="dialog" (click)="closeStartWorkModal()" (keydown.escape)="closeStartWorkModal()">
-      <div class="modal" role="document" (click)="$event.stopPropagation()">
+      <div
+        class="modal"
+        role="document"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+        (keydown.space)="$event.stopPropagation()"
+        (keydown.escape)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Начать работу</h3>
           <button class="close-btn" (click)="closeStartWorkModal()">&times;</button>
@@ -320,7 +340,13 @@
   <!-- МОДАЛКА ЗАВЕРШИТЬ -->
   @if (showCompleteModal && assessmentToComplete) {
     <div class="modal-overlay" role="dialog" (click)="closeCompleteModal()" (keydown.escape)="closeCompleteModal()">
-      <div class="modal" role="document" (click)="$event.stopPropagation()">
+      <div
+        class="modal"
+        role="document"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+        (keydown.space)="$event.stopPropagation()"
+        (keydown.escape)="$event.stopPropagation()">
         <div class="modal-header">
           <h3>Завершение заявки</h3>
           <button class="close-btn" (click)="closeCompleteModal()">&times;</button>
