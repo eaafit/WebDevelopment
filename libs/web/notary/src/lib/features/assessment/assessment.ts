@@ -2,7 +2,6 @@ import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-// ========== ТИПЫ ==========
 export type AssessmentStatus = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
 
 export interface AssessmentItem {
@@ -19,74 +18,22 @@ export interface AssessmentItem {
 
 type FilterColumn = 'id' | 'address' | 'applicantName' | 'status' | 'estimatedValue' | 'createdAt';
 
-// ========== МОКОВЫЕ ДАННЫЕ (статичные) ==========
 const MOCK_ASSESSMENTS: AssessmentItem[] = [
-  {
-    id: 'ast-001',
-    userId: 'user-1',
-    applicantName: 'Иванов Иван Иванович',
-    status: 'New',
-    address: 'г. Москва, ул. Тверская, д. 15, кв. 45',
-    description: '3-комнатная квартира, 5 этаж, требуется срочная оценка',
-    estimatedValue: '',
-    createdAt: '2026-06-01T10:00:00Z',
-    updatedAt: '2026-06-01T10:00:00Z',
-  },
-  {
-    id: 'ast-002',
-    userId: 'user-2',
-    applicantName: 'Петрова Мария Сергеевна',
-    status: 'Verified',
-    address: 'г. Санкт-Петербург, Невский пр., д. 100',
-    description: 'Коммерческое помещение, 1 этаж, 150 м²',
-    estimatedValue: '',
-    createdAt: '2026-06-02T11:30:00Z',
-    updatedAt: '2026-06-03T09:00:00Z',
-  },
-  {
-    id: 'ast-003',
-    userId: 'user-3',
-    applicantName: 'Сидоров Алексей Викторович',
-    status: 'InProgress',
-    address: 'г. Екатеринбург, ул. Ленина, д. 10',
-    description: '5-комнатный дом, 220 м², земельный участок',
-    estimatedValue: '',
-    createdAt: '2026-05-28T14:20:00Z',
-    updatedAt: '2026-06-02T16:45:00Z',
-  },
-  {
-    id: 'ast-004',
-    userId: 'user-4',
-    applicantName: 'Кузнецова Анна Владимировна',
-    status: 'Completed',
-    address: 'г. Казань, ул. Баумана, д. 25',
-    description: '2-этажный дом, 185 м²',
-    estimatedValue: '9200000',
-    createdAt: '2026-05-20T09:15:00Z',
-    updatedAt: '2026-05-30T11:00:00Z',
-  },
-  {
-    id: 'ast-005',
-    userId: 'user-5',
-    applicantName: 'Михайлов Дмитрий Андреевич',
-    status: 'Cancelled',
-    address: 'г. Новосибирск, Красный пр., д. 50',
-    description: '2-комнатная квартира, 3 этаж, 45.2 м²',
-    estimatedValue: '',
-    createdAt: '2026-05-15T08:00:00Z',
-    updatedAt: '2026-05-25T12:30:00Z',
-  },
-  {
-    id: 'ast-006',
-    userId: 'user-1',
-    applicantName: 'Иванов Иван Иванович',
-    status: 'New',
-    address: 'г. Москва, ул. Арбат, д. 12, кв. 8',
-    description: '2-комнатная квартира, центр',
-    estimatedValue: '',
-    createdAt: '2026-06-03T13:00:00Z',
-    updatedAt: '2026-06-03T13:00:00Z',
-  },
+  { id: 'ast-001', userId: 'user-1', applicantName: 'Иванов Иван Иванович', status: 'New', address: 'г. Москва, ул. Тверская, д. 15, кв. 45', description: '3-комнатная квартира, 5 этаж', estimatedValue: '', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-01T10:00:00Z' },
+  { id: 'ast-002', userId: 'user-2', applicantName: 'Петрова Мария Сергеевна', status: 'InProgress', address: 'г. Санкт-Петербург, Невский пр., д. 100', description: 'Коммерческое помещение, 150 м²', estimatedValue: '', createdAt: '2026-06-02T11:30:00Z', updatedAt: '2026-06-03T09:00:00Z' },
+  { id: 'ast-003', userId: 'user-3', applicantName: 'Сидоров Алексей Викторович', status: 'Completed', address: 'г. Екатеринбург, ул. Ленина, д. 10', description: '5-комнатный дом, 220 м²', estimatedValue: '8500000', createdAt: '2026-05-28T14:20:00Z', updatedAt: '2026-06-02T16:45:00Z' },
+  { id: 'ast-004', userId: 'user-4', applicantName: 'Кузнецова Анна Владимировна', status: 'Verified', address: 'г. Казань, ул. Баумана, д. 25', description: '2-этажный дом, 185 м²', estimatedValue: '', createdAt: '2026-05-20T09:15:00Z', updatedAt: '2026-05-30T11:00:00Z' },
+  { id: 'ast-005', userId: 'user-5', applicantName: 'Михайлов Дмитрий Андреевич', status: 'Cancelled', address: 'г. Новосибирск, Красный пр., д. 50', description: '2-комнатная квартира, 45.2 м²', estimatedValue: '', createdAt: '2026-05-15T08:00:00Z', updatedAt: '2026-05-25T12:30:00Z' },
+  { id: 'ast-006', userId: 'user-6', applicantName: 'Соколова Елена Дмитриевна', status: 'New', address: 'г. Краснодар, ул. Красная, д. 20', description: '1-комнатная квартира', estimatedValue: '', createdAt: '2026-06-04T09:00:00Z', updatedAt: '2026-06-04T09:00:00Z' },
+  { id: 'ast-007', userId: 'user-7', applicantName: 'Морозов Андрей Сергеевич', status: 'InProgress', address: 'г. Сочи, ул. Навагинская, д. 5', description: 'Таунхаус, 120 м²', estimatedValue: '', createdAt: '2026-06-05T14:00:00Z', updatedAt: '2026-06-06T10:00:00Z' },
+  { id: 'ast-008', userId: 'user-8', applicantName: 'Волкова Татьяна Павловна', status: 'Completed', address: 'г. Нижний Новгород, ул. Большая Покровская, д. 30', description: 'Офисное помещение, 80 м²', estimatedValue: '4200000', createdAt: '2026-06-01T08:00:00Z', updatedAt: '2026-06-04T15:00:00Z' },
+  { id: 'ast-009', userId: 'user-9', applicantName: 'Зайцев Константин Игоревич', status: 'Verified', address: 'г. Ростов-на-Дону, пр. Будённовский, д. 45', description: '3-комнатная квартира', estimatedValue: '', createdAt: '2026-05-30T12:00:00Z', updatedAt: '2026-06-05T11:00:00Z' },
+  { id: 'ast-010', userId: 'user-10', applicantName: 'Николаева Ольга Владимировна', status: 'Cancelled', address: 'г. Самара, ул. Ленинградская, д. 12', description: 'Земельный участок', estimatedValue: '', createdAt: '2026-05-25T10:00:00Z', updatedAt: '2026-06-03T09:00:00Z' },
+  { id: 'ast-011', userId: 'user-11', applicantName: 'Павлов Сергей Николаевич', status: 'New', address: 'г. Уфа, пр. Октября, д. 88', description: 'Склад 500 м²', estimatedValue: '', createdAt: '2026-05-22T16:00:00Z', updatedAt: '2026-06-01T14:00:00Z' },
+  { id: 'ast-012', userId: 'user-12', applicantName: 'Егорова Анастасия Дмитриевна', status: 'InProgress', address: 'г. Воронеж, ул. Плехановская, д. 7', description: '2-комнатная квартира', estimatedValue: '', createdAt: '2026-05-18T11:00:00Z', updatedAt: '2026-05-28T09:00:00Z' },
+  { id: 'ast-013', userId: 'user-13', applicantName: 'Тимофеев Алексей Петрович', status: 'Completed', address: 'г. Волгоград, ул. Мира, д. 15', description: 'Частный дом, 150 м²', estimatedValue: '12500000', createdAt: '2026-06-06T09:00:00Z', updatedAt: '2026-06-06T09:00:00Z' },
+  { id: 'ast-014', userId: 'user-14', applicantName: 'Фёдорова Мария Игоревна', status: 'Verified', address: 'г. Челябинск, ул. Кирова, д. 22', description: '3-комнатная квартира', estimatedValue: '', createdAt: '2026-06-07T13:00:00Z', updatedAt: '2026-06-08T10:00:00Z' },
+  { id: 'ast-015', userId: 'user-1', applicantName: 'Иванов Иван Иванович', status: 'New', address: 'г. Москва, ул. Арбат, д. 12, кв. 8', description: '2-комнатная квартира, центр', estimatedValue: '', createdAt: '2026-06-03T13:00:00Z', updatedAt: '2026-06-03T13:00:00Z' },
 ];
 
 @Component({
@@ -97,23 +44,18 @@ const MOCK_ASSESSMENTS: AssessmentItem[] = [
   styleUrl: './assessment.scss',
 })
 export class Assessment implements OnInit {
-  // ========== ДАННЫЕ ==========
-  private allAssessments = MOCK_ASSESSMENTS;
-  assessments: AssessmentItem[] = [...this.allAssessments];
+  assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
   paginatedAssessments: AssessmentItem[] = [];
 
-  // ========== СОСТОЯНИЕ ==========
   loading = false;
   loadError: string | null = null;
   mutationInFlight = false;
 
-  // ========== ФИЛЬТРЫ ==========
   searchTerm = '';
   dateFrom = '';
   dateTo = '';
 
-  // ========== КОЛОНОЧНЫЕ ФИЛЬТРЫ ==========
   readonly headerColumns: { key: FilterColumn; label: string }[] = [
     { key: 'id', label: 'ID' },
     { key: 'address', label: 'Адрес' },
@@ -126,12 +68,7 @@ export class Assessment implements OnInit {
   activeFilterColumn: FilterColumn | null = null;
   filterDropdownStyle: { top: number; left: number } | null = null;
   columnSelectedValues: Record<FilterColumn, string[]> = {
-    id: [],
-    address: [],
-    applicantName: [],
-    status: [],
-    estimatedValue: [],
-    createdAt: [],
+    id: [], address: [], applicantName: [], status: [], estimatedValue: [], createdAt: [],
   };
   currentSortColumn: FilterColumn | null = null;
   currentSortDirection: '' | 'asc' | 'desc' = '';
@@ -139,17 +76,14 @@ export class Assessment implements OnInit {
   filterSortDraft: '' | 'asc' | 'desc' = '';
   filterSelectedDraft = new Set<string>();
 
-  // ========== ПАГИНАЦИЯ ==========
   currentPage = 1;
   itemsPerPage = 10;
   totalPages = 0;
   pages: number[] = [];
 
-  // ========== КАРТОЧКА ==========
   showView = false;
   selectedAssessment: AssessmentItem | null = null;
 
-  // ========== МОДАЛКИ ==========
   showCancelModal = false;
   assessmentToCancel: AssessmentItem | null = null;
   cancelReason = '';
@@ -166,56 +100,45 @@ export class Assessment implements OnInit {
   finalEstimatedValue = '';
   finalEstimatedValueError = '';
 
-  // ========== ХЕЛПЕРЫ ДЛЯ СТАТУСОВ ==========
   readonly statusLabels: Record<string, string> = {
-    New: 'Новая',
-    Verified: 'Подтверждена',
-    InProgress: 'В работе',
-    Completed: 'Завершена',
-    Cancelled: 'Отменена',
+    New: 'Новая', Verified: 'Подтверждена', InProgress: 'В работе', Completed: 'Завершена', Cancelled: 'Отменена',
   };
 
   readonly statusBadgeClasses: Record<string, string> = {
-    New: 'badge-primary',
-    Verified: 'badge-info',
-    InProgress: 'badge-warning',
-    Completed: 'badge-success',
-    Cancelled: 'badge-danger',
+    New: 'badge-primary', Verified: 'badge-info', InProgress: 'badge-warning', Completed: 'badge-success', Cancelled: 'badge-danger',
   };
 
   ngOnInit(): void {
-    this.applyFilters();
+    this.loadAssessments();
   }
 
-  // ========== ФИЛЬТРАЦИЯ И СОРТИРОВКА ==========
+  loadAssessments(): void {
+    this.loading = true;
+    this.assessments = JSON.parse(JSON.stringify(MOCK_ASSESSMENTS));
+    this.applyFilters();
+    this.loading = false;
+  }
+
   applyFilters(): void {
     let result = [...this.assessments];
 
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
-      result = result.filter(
-        (a) =>
-          a.address.toLowerCase().includes(term) ||
-          a.applicantName.toLowerCase().includes(term)
-      );
+      result = result.filter(a => a.address.toLowerCase().includes(term) || a.applicantName.toLowerCase().includes(term));
     }
 
     if (this.dateFrom) {
-      const from = this.dateFrom;
-      result = result.filter((a) => a.createdAt.slice(0, 10) >= from);
+      result = result.filter(a => a.createdAt.slice(0, 10) >= this.dateFrom);
     }
 
     if (this.dateTo) {
-      const to = this.dateTo;
-      result = result.filter((a) => a.createdAt.slice(0, 10) <= to);
+      result = result.filter(a => a.createdAt.slice(0, 10) <= this.dateTo);
     }
 
-    result = result.filter((a) => this.matchesColumnFilters(a));
+    result = result.filter(a => this.matchesColumnFilters(a));
 
     if (this.currentSortColumn && this.currentSortDirection) {
-      result.sort((a, b) =>
-        this.compareByActiveSort(a, b, this.currentSortColumn!, this.currentSortDirection)
-      );
+      result.sort((a, b) => this.compareByActiveSort(a, b, this.currentSortColumn!, this.currentSortDirection));
     } else {
       result.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
     }
@@ -237,7 +160,7 @@ export class Assessment implements OnInit {
   }
 
   private matchesColumnFilters(item: AssessmentItem): boolean {
-    for (const col of this.headerColumns.map((c) => c.key)) {
+    for (const col of this.headerColumns.map(c => c.key)) {
       const selected = this.columnSelectedValues[col];
       if (!selected.length) continue;
       const value = this.getCellValue(item, col);
@@ -248,20 +171,13 @@ export class Assessment implements OnInit {
 
   private getCellValue(item: AssessmentItem, column: FilterColumn): string {
     switch (column) {
-      case 'id':
-        return this.getShortId(item.id);
-      case 'address':
-        return item.address;
-      case 'applicantName':
-        return item.applicantName;
-      case 'status':
-        return this.getStatusLabel(item.status);
-      case 'estimatedValue':
-        return this.formatValue(item.estimatedValue);
-      case 'createdAt':
-        return this.formatDate(item.createdAt);
-      default:
-        return '';
+      case 'id': return this.getShortId(item.id);
+      case 'address': return item.address;
+      case 'applicantName': return item.applicantName;
+      case 'status': return this.getStatusLabel(item.status);
+      case 'estimatedValue': return this.formatValue(item.estimatedValue);
+      case 'createdAt': return this.formatDate(item.createdAt);
+      default: return '';
     }
   }
 
@@ -273,19 +189,13 @@ export class Assessment implements OnInit {
     return Array.from(values).sort((a, b) => a.localeCompare(b, 'ru'));
   }
 
-  private compareByActiveSort(
-    a: AssessmentItem,
-    b: AssessmentItem,
-    column: FilterColumn,
-    direction: string
-  ): number {
+  private compareByActiveSort(a: AssessmentItem, b: AssessmentItem, column: FilterColumn, direction: string): number {
     const left = this.getCellValue(a, column);
     const right = this.getCellValue(b, column);
     const result = left.localeCompare(right, 'ru', { numeric: true });
     return direction === 'asc' ? result : -result;
   }
 
-  // ========== КОЛОНОЧНЫЕ ФИЛЬТРЫ ==========
   toggleColumnFilter(column: FilterColumn, event: MouseEvent): void {
     event.stopPropagation();
     if (this.activeFilterColumn === column) {
@@ -298,21 +208,13 @@ export class Assessment implements OnInit {
     const allValues = this.getUniqueColumnValues(column);
     const selected = this.columnSelectedValues[column];
     this.filterSelectedDraft = new Set(selected.length ? selected : allValues);
-    this.updateFilterDropdownPosition(event.currentTarget as HTMLElement | null);
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.filterDropdownStyle = { top: rect.bottom + 4, left: rect.left };
   }
 
   closeColumnFilter(): void {
     this.activeFilterColumn = null;
     this.filterDropdownStyle = null;
-  }
-
-  private updateFilterDropdownPosition(trigger: HTMLElement | null): void {
-    if (!trigger) {
-      this.filterDropdownStyle = null;
-      return;
-    }
-    const rect = trigger.getBoundingClientRect();
-    this.filterDropdownStyle = { top: rect.bottom + 4, left: rect.left };
   }
 
   setDraftSort(direction: 'asc' | 'desc'): void {
@@ -337,7 +239,7 @@ export class Assessment implements OnInit {
     const all = this.getUniqueColumnValues(this.activeFilterColumn);
     const term = this.filterSearch.trim().toLowerCase();
     if (!term) return all;
-    return all.filter((v) => v.toLowerCase().includes(term));
+    return all.filter(v => v.toLowerCase().includes(term));
   }
 
   isValueChecked(value: string): boolean {
@@ -347,11 +249,11 @@ export class Assessment implements OnInit {
   get isAllChecked(): boolean {
     const values = this.filterValues;
     if (!values.length) return false;
-    return values.every((v) => this.filterSelectedDraft.has(v));
+    return values.every(v => this.filterSelectedDraft.has(v));
   }
 
   onToggleAllChange(event: Event): void {
-    const checked = !!(event.target as HTMLInputElement | null)?.checked;
+    const checked = !!(event.target as HTMLInputElement)?.checked;
     for (const v of this.filterValues) {
       if (checked) this.filterSelectedDraft.add(v);
       else this.filterSelectedDraft.delete(v);
@@ -359,7 +261,7 @@ export class Assessment implements OnInit {
   }
 
   onToggleValueChange(value: string, event: Event): void {
-    const checked = !!(event.target as HTMLInputElement | null)?.checked;
+    const checked = !!(event.target as HTMLInputElement)?.checked;
     if (checked) this.filterSelectedDraft.add(value);
     else this.filterSelectedDraft.delete(value);
   }
@@ -368,7 +270,7 @@ export class Assessment implements OnInit {
     if (!this.activeFilterColumn) return;
     const column = this.activeFilterColumn;
     const allValues = this.getUniqueColumnValues(column);
-    const selected = allValues.filter((v) => this.filterSelectedDraft.has(v));
+    const selected = allValues.filter(v => this.filterSelectedDraft.has(v));
     this.columnSelectedValues[column] = selected.length === allValues.length ? [] : selected;
     if (this.filterSortDraft) {
       this.currentSortColumn = column;
@@ -385,22 +287,13 @@ export class Assessment implements OnInit {
     this.closeColumnFilter();
   }
 
-  // ========== ПАГИНАЦИЯ ==========
   private updatePagination(): void {
     this.totalPages = Math.ceil(this.filteredAssessments.length / this.itemsPerPage);
     const start = (this.currentPage - 1) * this.itemsPerPage;
     this.paginatedAssessments = this.filteredAssessments.slice(start, start + this.itemsPerPage);
-    this.buildPages();
-  }
-
-  private buildPages(): void {
     this.pages = [];
     for (let i = 1; i <= this.totalPages; i++) {
-      if (
-        i === 1 ||
-        i === this.totalPages ||
-        (i >= this.currentPage - 1 && i <= this.currentPage + 1)
-      ) {
+      if (i === 1 || i === this.totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
         this.pages.push(i);
       } else if (i === this.currentPage - 2 || i === this.currentPage + 2) {
         this.pages.push(-1);
@@ -414,7 +307,6 @@ export class Assessment implements OnInit {
     this.updatePagination();
   }
 
-  // ========== ХЕЛПЕРЫ ==========
   getShortId(id: string): string {
     return id.substring(0, 8);
   }
@@ -422,21 +314,13 @@ export class Assessment implements OnInit {
   formatDate(dateString: string): string {
     if (!dateString) return '—';
     return new Date(dateString).toLocaleDateString('ru-RU', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   }
 
   formatValue(value: string): string {
     if (!value) return 'Не определена';
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: 'RUB',
-      maximumFractionDigits: 0,
-    }).format(parseFloat(value));
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(parseFloat(value));
   }
 
   getStatusLabel(status: string): string {
@@ -447,7 +331,6 @@ export class Assessment implements OnInit {
     return this.statusBadgeClasses[status] || 'badge-primary';
   }
 
-  // ========== НАВИГАЦИЯ ==========
   viewAssessment(item: AssessmentItem): void {
     this.selectedAssessment = item;
     this.showView = true;
@@ -458,7 +341,6 @@ export class Assessment implements OnInit {
     this.showView = false;
   }
 
-  // ========== ОТМЕНА ЗАЯВКИ ==========
   openCancelModal(item: AssessmentItem): void {
     this.assessmentToCancel = item;
     this.cancelReason = '';
@@ -469,28 +351,26 @@ export class Assessment implements OnInit {
   closeCancelModal(): void {
     this.showCancelModal = false;
     this.assessmentToCancel = null;
-    this.cancelReason = '';
-    this.cancelReasonError = '';
   }
 
   confirmCancel(): void {
     if (!this.assessmentToCancel) return;
     this.mutationInFlight = true;
-    setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToCancel!.id);
-      if (idx !== -1) {
-        this.assessments[idx] = { ...this.assessments[idx], status: 'Cancelled' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToCancel!.id) {
-          this.selectedAssessment = this.assessments[idx];
-        }
+    
+    const index = this.assessments.findIndex(a => a.id === this.assessmentToCancel!.id);
+    if (index !== -1) {
+      this.assessments[index].status = 'Cancelled';
+      
+      if (this.showView && this.selectedAssessment?.id === this.assessmentToCancel!.id) {
+        this.selectedAssessment = this.assessments[index];
       }
-      this.closeCancelModal();
       this.applyFilters();
-      this.mutationInFlight = false;
-    }, 300);
+    }
+    
+    this.closeCancelModal();
+    this.mutationInFlight = false;
   }
 
-  // ========== ВЗЯТЬ В РАБОТУ ==========
   openVerifyModal(item: AssessmentItem): void {
     this.assessmentToVerify = item;
     this.showVerifyModal = true;
@@ -504,21 +384,21 @@ export class Assessment implements OnInit {
   confirmVerify(): void {
     if (!this.assessmentToVerify) return;
     this.mutationInFlight = true;
-    setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToVerify!.id);
-      if (idx !== -1) {
-        this.assessments[idx] = { ...this.assessments[idx], status: 'Verified' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToVerify!.id) {
-          this.selectedAssessment = this.assessments[idx];
-        }
+    
+    const index = this.assessments.findIndex(a => a.id === this.assessmentToVerify!.id);
+    if (index !== -1) {
+      this.assessments[index].status = 'Verified';
+      
+      if (this.showView && this.selectedAssessment?.id === this.assessmentToVerify!.id) {
+        this.selectedAssessment = this.assessments[index];
       }
-      this.closeVerifyModal();
       this.applyFilters();
-      this.mutationInFlight = false;
-    }, 300);
+    }
+    
+    this.closeVerifyModal();
+    this.mutationInFlight = false;
   }
 
-  // ========== НАЧАТЬ РАБОТУ ==========
   openStartWorkModal(item: AssessmentItem): void {
     this.assessmentToStartWork = item;
     this.showStartWorkModal = true;
@@ -532,21 +412,21 @@ export class Assessment implements OnInit {
   confirmStartWork(): void {
     if (!this.assessmentToStartWork) return;
     this.mutationInFlight = true;
-    setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToStartWork!.id);
-      if (idx !== -1) {
-        this.assessments[idx] = { ...this.assessments[idx], status: 'InProgress' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToStartWork!.id) {
-          this.selectedAssessment = this.assessments[idx];
-        }
+    
+    const index = this.assessments.findIndex(a => a.id === this.assessmentToStartWork!.id);
+    if (index !== -1) {
+      this.assessments[index].status = 'InProgress';
+      
+      if (this.showView && this.selectedAssessment?.id === this.assessmentToStartWork!.id) {
+        this.selectedAssessment = this.assessments[index];
       }
-      this.closeStartWorkModal();
       this.applyFilters();
-      this.mutationInFlight = false;
-    }, 300);
+    }
+    
+    this.closeStartWorkModal();
+    this.mutationInFlight = false;
   }
 
-  // ========== ЗАВЕРШИТЬ ==========
   openCompleteModal(item: AssessmentItem): void {
     this.assessmentToComplete = item;
     this.finalEstimatedValue = '';
@@ -557,14 +437,12 @@ export class Assessment implements OnInit {
   closeCompleteModal(): void {
     this.showCompleteModal = false;
     this.assessmentToComplete = null;
-    this.finalEstimatedValue = '';
-    this.finalEstimatedValueError = '';
   }
 
   confirmComplete(): void {
     if (!this.assessmentToComplete) return;
     
-    const value = this.finalEstimatedValue.trim();
+    const value = String(this.finalEstimatedValue).trim();
     if (!value) {
       this.finalEstimatedValueError = 'Укажите итоговую стоимость';
       return;
@@ -578,31 +456,26 @@ export class Assessment implements OnInit {
     
     this.mutationInFlight = true;
     
-    const idx = this.assessments.findIndex((a) => a.id === this.assessmentToComplete!.id);
-    if (idx !== -1) {
-      this.assessments[idx] = {
-        ...this.assessments[idx],
-        status: 'Completed',
-        estimatedValue: this.finalEstimatedValue,
-      };
+    const index = this.assessments.findIndex(a => a.id === this.assessmentToComplete!.id);
+    if (index !== -1) {
+      this.assessments[index].status = 'Completed';
+      this.assessments[index].estimatedValue = value;
       
       if (this.showView && this.selectedAssessment?.id === this.assessmentToComplete!.id) {
-        this.selectedAssessment = this.assessments[idx];
+        this.selectedAssessment = this.assessments[index];
       }
+      this.applyFilters();
     }
     
     this.closeCompleteModal();
-    this.applyFilters();
     this.mutationInFlight = false;
   }
 
-  // ========== ПЕРЕЗАГРУЗКА ==========
   reload(): void {
-    this.assessments = [...this.allAssessments];
+    this.assessments = JSON.parse(JSON.stringify(MOCK_ASSESSMENTS));
     this.applyFilters();
   }
 
-  // ========== ГЛОБАЛЬНЫЕ СОБЫТИЯ ==========
   @HostListener('document:click')
   onDocumentClick(): void {
     this.closeColumnFilter();

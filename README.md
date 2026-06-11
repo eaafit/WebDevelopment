@@ -37,6 +37,9 @@
 - `pnpm nx serve api` - запустить Back-end
 - `pnpm nx serve web` - запустить Front-end
 
+- `npx nx test admin --testFile=payments`
+- `npx nx test admin`
+
 ---
 
 ### Docker: портал Angular + API (`portal`)

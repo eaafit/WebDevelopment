@@ -60,6 +60,32 @@ describe('RequestsComponent', () => {
     expect(component.notaryOptions.every((opt) => opt.id !== NOTARY_INACTIVE_ID)).toBe(true);
   });
 
+  it('keeps orders visible when user lookup fails during reload', async () => {
+    userMock.loadUsers.mockRejectedValueOnce(new Error('internal error'));
+
+    component.reload();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.loadError).toBeNull();
+    expect(apiMock.listAssessments).toHaveBeenCalledTimes(2);
+    expect(component.assessments).toHaveLength(3);
+    expect(component.filteredAssessments).toHaveLength(3);
+  });
+
+  it('normalizes raw internal assessment list errors for the orders page', async () => {
+    apiMock.listAssessments.mockRejectedValueOnce(new Error('internal error'));
+
+    component.reload();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.loadError).toBe('Не удалось загрузить заявки. Попробуйте обновить страницу.');
+    expect(component.assessments).toHaveLength(0);
+    expect(component.filteredAssessments).toHaveLength(0);
+    expect(fixture.nativeElement.textContent).not.toContain('internal error');
+  });
+
   it('overlays notaryId from the localStorage workaround onto loaded rows', async () => {
     localStorage.setItem(
       ADMIN_NOTARY_ASSIGNMENTS_KEY,
@@ -163,6 +189,26 @@ describe('RequestsComponent', () => {
     expect(stored['a-2']).toBeUndefined();
   });
 
+  it('keeps complete modal usable after an API failure', async () => {
+    const verified = component.assessments.find((a) => a.status === 'Verified');
+    if (!verified) {
+      throw new Error('Expected at least one Verified assessment from the api mock');
+    }
+    apiMock.completeAssessment.mockRejectedValueOnce(new Error('internal error'));
+    component.openCompleteModal(verified);
+    component.finalEstimatedValue = '4500000';
+
+    await component.confirmComplete();
+    fixture.detectChanges();
+
+    expect(component.showCompleteModal).toBe(true);
+    expect(component.mutationInFlight).toBe(false);
+    expect(component.finalEstimatedValueError).toBe(
+      'Не удалось завершить заявку. Проверьте статус заявки и попробуйте ещё раз.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('internal error');
+  });
+
   it('only applies the InProgress override when the server still reports Verified', async () => {
     // Сервер ушёл вперёд (Completed), но локальный override от прежней сессии остался.
     localStorage.setItem(
@@ -220,6 +266,35 @@ describe('RequestsComponent', () => {
     expect(component.dateTo).toBe('');
     expect(component.notaryFilter).toBe('');
     expect(component.filteredAssessments.length).toBe(component.assessments.length);
+  });
+
+  it('rebuilds local pagination when admin changes page size', () => {
+    component.itemsPerPage = 1;
+    component.applyFilters();
+    component.changePage(2);
+
+    component.onPageSizeChanged(20);
+
+    expect(component.itemsPerPage).toBe(20);
+    expect(component.currentPage).toBe(1);
+    expect(component.paginatedAssessments).toHaveLength(component.filteredAssessments.length);
+  });
+
+  it('opens and closes top custom filters from the keyboard', () => {
+    const openEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+    const closeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+    const openPreventSpy = jest.spyOn(openEvent, 'preventDefault');
+    const closePreventSpy = jest.spyOn(closeEvent, 'preventDefault');
+
+    component.onUiSelectTriggerKeydown('notaryFilter', openEvent);
+
+    expect(component.activeSelectKey).toBe('notaryFilter');
+    expect(openPreventSpy).toHaveBeenCalled();
+
+    component.onUiSelectMenuKeydown(closeEvent);
+
+    expect(component.activeSelectKey).toBeNull();
+    expect(closePreventSpy).toHaveBeenCalled();
   });
 
   it('anchors the column filter dropdown to the trigger rect when opened', () => {

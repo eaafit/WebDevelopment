@@ -2,7 +2,7 @@
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { UserRole, WebLoggerService } from '@notary-portal/ui';
-import { AuthService } from '../auth.service';
+import { AuthService, OAUTH_PROVIDERS } from '../auth.service';
 import {
   authRoleName,
   buildAuthLogContext,
@@ -65,6 +65,24 @@ export class Register {
 
   onPhoneNumberChange(value: string): void {
     this.phoneNumber = formatRussianPhone(value);
+  }
+
+  async onOAuthLogin(providerKey: string): Promise<void> {
+    const config = OAUTH_PROVIDERS[providerKey];
+    if (!config) return;
+    try {
+      const url = await this.authService.getAuthorizeUrl(config);
+      this.redirectToProvider(url);
+    } catch {
+      // Сообщение об ошибке уже выставлено в authService.error().
+    }
+  }
+
+  /** Вынесено отдельно для тестируемости (jsdom не выполняет реальную навигацию). */
+  protected redirectToProvider(url: string): void {
+    if (typeof window !== 'undefined') {
+      window.location.assign(url);
+    }
   }
 
   togglePasswordVisibility(): void {

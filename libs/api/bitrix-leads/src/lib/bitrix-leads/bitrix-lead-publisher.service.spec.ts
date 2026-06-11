@@ -1,3 +1,5 @@
+import { trace } from '@opentelemetry/api';
+import { BusinessOperations, NotarySpanAttributes } from '@internal/tracing';
 import { BitrixLeadPublisherService } from './bitrix-lead-publisher.service';
 import {
   BitrixAuthError,
@@ -27,11 +29,7 @@ function makeMocks(overrides: { configured?: boolean } = {}): {
   const config: ConfigMock = {
     isConfigured: jest.fn().mockReturnValue(overrides.configured ?? true),
   };
-  const service = new BitrixLeadPublisherService(
-    prisma as never,
-    api as never,
-    config as never,
-  );
+  const service = new BitrixLeadPublisherService(prisma as never, api as never, config as never);
   return { prisma, api, config, service };
 }
 
@@ -86,6 +84,49 @@ describe('BitrixLeadPublisherService', () => {
         where: { id: 'a-1' },
         data: { bitrixLeadId: '12345' },
       });
+    });
+
+    it('traces root and child operations without PII or full ids in attributes', async () => {
+      const tracing = mockTracer();
+      const { prisma, api, service } = makeMocks();
+      prisma.assessment.findUnique.mockResolvedValue(sampleAssessment);
+      prisma.user.findUnique.mockResolvedValue(sampleUser);
+      api.createLead.mockResolvedValue(12345);
+
+      await service.publishLead('a-1');
+
+      expect(spanAttributes(tracing, 'BitrixLeadPublisherService.publishLead')).toMatchObject({
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadPublish,
+        [NotarySpanAttributes.entity]: 'BitrixLead',
+      });
+      expect(
+        spanAttributes(tracing, 'Prisma.assessment.findUnique bitrix lead publish'),
+      ).toMatchObject({
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadAssessmentLookup,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        'db.operation': 'select',
+      });
+      expect(spanAttributes(tracing, 'Prisma.user.findUnique bitrix lead publish')).toMatchObject({
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadUserLookup,
+        [NotarySpanAttributes.entity]: 'User',
+        'db.operation': 'select',
+      });
+      expect(spanAttributes(tracing, 'Prisma.assessment.update bitrix lead id')).toMatchObject({
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixLeadPersistExternalId,
+        [NotarySpanAttributes.entity]: 'Assessment',
+        'db.operation': 'update',
+      });
+      const serializedSpanData = JSON.stringify({
+        startSpanCalls: tracing.startSpan.mock.calls,
+        setAttributeCalls: [...tracing.spans.values()].map((span) => span.setAttribute.mock.calls),
+      });
+      expect(serializedSpanData).not.toContain(sampleAssessment.address);
+      expect(serializedSpanData).not.toContain(sampleUser.email);
+      expect(serializedSpanData).not.toContain(sampleUser.phoneNumber);
+      expect(serializedSpanData).not.toContain('a-1');
+      expect(serializedSpanData).not.toContain('u-1');
+
+      tracing.restore();
     });
 
     it('converts numeric leadId to string for VARCHAR storage', async () => {
@@ -224,3 +265,43 @@ describe('BitrixLeadPublisherService', () => {
     });
   });
 });
+
+type TracedSpanMock = {
+  end: jest.Mock;
+  recordException: jest.Mock;
+  setAttribute: jest.Mock;
+  setStatus: jest.Mock;
+};
+
+function mockTracer(): {
+  spans: Map<string, TracedSpanMock>;
+  startSpan: jest.Mock;
+  restore: () => void;
+} {
+  const spans = new Map<string, TracedSpanMock>();
+  const startSpan = jest.fn((spanName: string) => {
+    const span = {
+      end: jest.fn(),
+      recordException: jest.fn(),
+      setAttribute: jest.fn(),
+      setStatus: jest.fn(),
+    };
+    spans.set(spanName, span);
+    return span;
+  });
+  const getTracerSpy = jest.spyOn(trace, 'getTracer').mockReturnValue({ startSpan } as never);
+
+  return {
+    spans,
+    startSpan,
+    restore: () => getTracerSpy.mockRestore(),
+  };
+}
+
+function spanAttributes(
+  tracing: { startSpan: jest.Mock },
+  spanName: string,
+): Record<string, unknown> | undefined {
+  const call = tracing.startSpan.mock.calls.find(([name]) => name === spanName);
+  return call?.[1]?.attributes;
+}

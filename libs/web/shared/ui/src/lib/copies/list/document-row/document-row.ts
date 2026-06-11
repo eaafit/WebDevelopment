@@ -1,19 +1,17 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Document } from '../../services/document.service';
 
 @Component({
-  selector: 'document-row',
+  selector: 'lib-document-row',
   imports: [CommonModule],
   templateUrl: './document-row.html',
   styleUrl: './document-row.scss',
 })
 export class DocumentRow {
-  constructor(
-    private router: Router,
-    private route: ActivatedRoute
-  ) { }
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   document = input.required<Document>()
   status = input<number | undefined>();
