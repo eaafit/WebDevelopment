@@ -1,4 +1,10 @@
-import { PartialType } from '@nestjs/swagger';
 import { CreateTariffPlanDto } from './create-tariff-plan.dto';
 
-export class UpdateTariffPlanDto extends PartialType(CreateTariffPlanDto) {}
+export class UpdateTariffPlanDto implements Partial<CreateTariffPlanDto> {
+  name?: string;
+  price?: number;
+  description?: string;
+  isActive?: boolean;
+  validFrom?: string;
+  validTo?: string;
+}

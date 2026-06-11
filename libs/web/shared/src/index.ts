@@ -7,11 +7,24 @@
 //   @notary-portal/shared    ← реэкспортирует из ui (удобный алиас)
 
 // Auth tokens & state
-export { TokenStore, UserRole, USER_ROLE_HOME, parseJwtPayload, isTokenExpired, roleFromPayload } from '@notary-portal/ui';
+export {
+  TokenStore,
+  UserRole,
+  USER_ROLE_HOME,
+  parseJwtPayload,
+  isTokenExpired,
+  roleFromPayload,
+} from '@notary-portal/ui';
 export type { AuthUser, JwtPayload } from '@notary-portal/ui';
 
 // RPC transport
-export { RPC_TRANSPORT, provideRpcTransport, buildRpcBaseUrl, createAuthInterceptor } from '@notary-portal/ui';
+export {
+  RPC_TRANSPORT,
+  provideRpcTransport,
+  buildRpcBaseUrl,
+  buildRpcTransportBaseUrl,
+  createAuthInterceptor,
+} from '@notary-portal/ui';
 export type { RpcTransportOptions } from '@notary-portal/ui';
 
 // Guards

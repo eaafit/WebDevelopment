@@ -1,9 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SubscriptionPlan } from '@notary-portal/api-contracts';
 import { catchError, of } from 'rxjs';
-import { PlanModalComponent, PlanModalSavedEvent } from '../plan-modal/plan-modal';
+import { PlanModalComponent } from '../plan-modal/plan-modal';
 import { TariffPlanService, type TariffPlan } from '../../../../services/tariff-plan.service';
 
 @Component({
@@ -13,46 +13,55 @@ import { TariffPlanService, type TariffPlan } from '../../../../services/tariff-
   templateUrl: './plans-list.html',
   styleUrl: './plans-list.scss',
 })
-export class PlansListComponent {
+export class PlansListComponent implements OnInit {
   private readonly tariffPlanService = inject(TariffPlanService);
 
   readonly tariffPlans = signal<TariffPlan[]>([]);
   readonly error = signal<string | null>(null);
-  get plans() {
+
+  readonly plans = computed(() => {
     const source = this.tariffPlans().slice(0, 3);
     const defaultFeaturesByPlan: Record<SubscriptionPlan, string[]> = {
-      [SubscriptionPlan.UNSPECIFIED]: ['Базовые функции'],
-      [SubscriptionPlan.BASIC]: ['Базовая поддержка', 'Личный кабинет', 'Ограниченные отчёты'],
-      [SubscriptionPlan.PREMIUM]: [
-        'Приоритетная поддержка',
-        'Расширенная аналитика',
-        'Экспорт данных',
+      [SubscriptionPlan.UNSPECIFIED]: ['Р‘Р°Р·РѕРІС‹Рµ С„СѓРЅРєС†РёРё'],
+      [SubscriptionPlan.BASIC]: [
+        'Р‘Р°Р·РѕРІР°СЏ РїРѕРґРґРµСЂР¶РєР°',
+        'Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚',
+        'РћРіСЂР°РЅРёС‡РµРЅРЅС‹Рµ РѕС‚С‡С‘С‚С‹',
       ],
-      [SubscriptionPlan.ENTERPRISE]: ['SLA', 'Интеграции', 'Роли и доступы'],
+      [SubscriptionPlan.PREMIUM]: [
+        'РџСЂРёРѕСЂРёС‚РµС‚РЅР°СЏ РїРѕРґРґРµСЂР¶РєР°',
+        'Р Р°СЃС€РёСЂРµРЅРЅР°СЏ Р°РЅР°Р»РёС‚РёРєР°',
+        'Р­РєСЃРїРѕСЂС‚ РґР°РЅРЅС‹С…',
+      ],
+      [SubscriptionPlan.ENTERPRISE]: ['SLA', 'РРЅС‚РµРіСЂР°С†РёРё', 'Р РѕР»Рё Рё РґРѕСЃС‚СѓРїС‹'],
     };
-    return source.map((p, idx) => {
+
+    return source.map((plan, idx) => {
       const planKey =
         idx === 0
           ? SubscriptionPlan.BASIC
           : idx === 1
             ? SubscriptionPlan.PREMIUM
             : SubscriptionPlan.ENTERPRISE;
+
       return {
         key: planKey,
-        title: p.name,
-        description: p.description || 'Описание отсутствует',
-        pricePerMonth: p.price,
+        title: plan.name,
+        description: plan.description || 'РћРїРёСЃР°РЅРёРµ РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚',
+        pricePerMonth: plan.price,
         features: defaultFeaturesByPlan[planKey],
       };
     });
-  }
+  });
 
   readonly isModalOpen = signal(false);
   readonly modalMode = signal<'create' | 'edit'>('create');
   readonly selectedTariffPlan = signal<TariffPlan | null>(null);
 
   readonly modalTitle = computed(() =>
-    this.modalMode() === 'create' ? 'Создать тарифный план' : 'Редактировать тарифный план',
+    this.modalMode() === 'create'
+      ? 'РЎРѕР·РґР°С‚СЊ С‚Р°СЂРёС„РЅС‹Р№ РїР»Р°РЅ'
+      : 'Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ С‚Р°СЂРёС„РЅС‹Р№ РїР»Р°РЅ',
   );
 
   ngOnInit(): void {
@@ -65,7 +74,7 @@ export class PlansListComponent {
       .getAll({ sortField: 'id', sortDirection: 'desc', limit: 100 })
       .pipe(
         catchError((err) => {
-          this.error.set(err?.message ?? 'Не удалось загрузить тарифные планы');
+          this.error.set(err?.message ?? 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ С‚Р°СЂРёС„РЅС‹Рµ РїР»Р°РЅС‹');
           return of([] as TariffPlan[]);
         }),
       )
@@ -88,7 +97,7 @@ export class PlansListComponent {
     this.isModalOpen.set(false);
   }
 
-  handleSaved(event: PlanModalSavedEvent): void {
+  handleSaved(): void {
     this.isModalOpen.set(false);
     this.loadTariffPlans();
   }

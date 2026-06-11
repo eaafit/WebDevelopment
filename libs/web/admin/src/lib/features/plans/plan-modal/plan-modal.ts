@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { catchError, EMPTY } from 'rxjs';
 import { TariffPlanService, type TariffPlan } from '../../../../services/tariff-plan.service';
@@ -13,14 +13,14 @@ export type PlanModalSavedEvent = { mode: 'create' | 'edit'; plan: TariffPlan };
   templateUrl: './plan-modal.html',
   styleUrl: './plan-modal.scss',
 })
-export class PlanModalComponent {
+export class PlanModalComponent implements OnInit {
   private readonly tariffPlanService = inject(TariffPlanService);
 
   @Input({ required: true }) title!: string;
   @Input({ required: true }) mode!: 'create' | 'edit';
   @Input() plan: TariffPlan | null = null;
 
-  @Output() close = new EventEmitter<void>();
+  @Output() closed = new EventEmitter<void>();
   @Output() saved = new EventEmitter<PlanModalSavedEvent>();
 
   saving = false;
@@ -51,7 +51,7 @@ export class PlanModalComponent {
   }
 
   onClose(): void {
-    this.close.emit();
+    this.closed.emit();
   }
 
   save(): void {
@@ -80,7 +80,7 @@ export class PlanModalComponent {
     request$
       .pipe(
         catchError((err) => {
-          this.error = err?.message ?? 'Не удалось сохранить тарифный план';
+          this.error = err?.message ?? 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ С‚Р°СЂРёС„РЅС‹Р№ РїР»Р°РЅ';
           this.saving = false;
           return EMPTY;
         }),

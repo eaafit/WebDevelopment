@@ -35,6 +35,7 @@ async function bootstrap() {
   const httpAdapter = app.getHttpAdapter();
   const expressInstance = httpAdapter.getInstance();
   expressInstance.use(createHttpLoggingMiddleware());
+  expressInstance.use('/api', express.json());
 
   // Register on the raw Express app before `listen()` → `init()` adds Nest routes, so
   // OPTIONS preflight is handled here — Connect only allows POST/GET and would respond
@@ -54,7 +55,7 @@ async function bootstrap() {
           : (requestOrigin: string | undefined, cb) => {
               cb(null, requestOrigin ? requestOrigin : true);
             },
-      methods: [...connectCors.allowedMethods],
+      methods: [...connectCors.allowedMethods, 'PUT', 'DELETE', 'PATCH'],
       allowedHeaders: [
         ...connectCors.allowedHeaders,
         'Authorization',
@@ -222,6 +223,7 @@ async function bootstrap() {
   );
 
   app.use(
+    '/rpc',
     connectNodeAdapter({
       connect: true,
       grpc: false,

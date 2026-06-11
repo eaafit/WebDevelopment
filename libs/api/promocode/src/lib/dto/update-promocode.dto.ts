@@ -1,4 +1,12 @@
-import { PartialType } from '@nestjs/swagger';
 import { CreatePromocodeDto } from './create-promocode.dto';
 
-export class UpdatePromocodeDto extends PartialType(CreatePromocodeDto) {}
+export class UpdatePromocodeDto implements Partial<CreatePromocodeDto> {
+  code?: string;
+  discountType?: 'percentage' | 'fixed';
+  discountValue?: number;
+  description?: string;
+  isActive?: boolean;
+  validFrom?: string;
+  validTo?: string;
+  maxUses?: number;
+}

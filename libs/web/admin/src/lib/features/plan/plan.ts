@@ -51,19 +51,19 @@ export class PlanComponent implements OnInit {
   loadPlans(): void {
     this.loading = true;
     const params = {
+      page: this.currentPage,
+      limit: this.pageSize,
       filterName: this.filterName || undefined,
       filterStatus: this.filterStatus !== 'all' ? this.filterStatus : undefined,
       filterDateFrom: this.filterDateFrom || undefined,
       filterDateTo: this.filterDateTo || undefined,
       sortField: this.sortField,
       sortDirection: this.sortDirection,
-      skip: (this.currentPage - 1) * this.pageSize,
-      take: this.pageSize,
     };
-    this.tariffPlanService.getAll(params).subscribe({
+    this.tariffPlanService.getPage(params).subscribe({
       next: (data) => {
-        this.allPlans = data;
-        this.totalItems = data.length;
+        this.allPlans = data.items;
+        this.totalItems = data.meta.totalItems;
         this.loading = false;
       },
       error: (err) => {

@@ -37,6 +37,10 @@ export function buildRpcBaseUrl(): string {
   return resolveRpcBaseUrl(typeof window === 'undefined' ? undefined : window.location);
 }
 
+export function buildRpcTransportBaseUrl(): string {
+  return `${buildRpcBaseUrl()}/rpc`;
+}
+
 const PUBLIC_AUTH_METHODS = [
   '/notary.auth.v1alpha1.AuthService/Register',
   '/notary.auth.v1alpha1.AuthService/Login',
@@ -109,7 +113,7 @@ export function provideRpcTransport(
         const opts = typeof optsOrFactory === 'function' ? optsOrFactory() : optsOrFactory;
 
         return createConnectTransport({
-          baseUrl: buildRpcBaseUrl(),
+          baseUrl: buildRpcTransportBaseUrl(),
           interceptors: [createRequestIdInterceptor(), createAuthInterceptor(opts, router)],
         });
       },

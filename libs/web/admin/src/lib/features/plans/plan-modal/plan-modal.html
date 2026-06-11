@@ -1,57 +1,68 @@
-<div class="overlay" (click)="onClose()"></div>
+<button
+  class="overlay"
+  type="button"
+  aria-label="Р—Р°РєСЂС‹С‚СЊ РѕРєРЅРѕ"
+  (click)="onClose()"></button>
+
 <div class="modal" role="dialog" aria-modal="true">
   <div class="modal__head">
     <div>
       <h3>{{ title }}</h3>
-      <div class="muted small" *ngIf="mode === 'create'">Создание нового плана</div>
-      <div class="muted small" *ngIf="mode === 'edit'">Редактирование существующего плана</div>
+      @if (mode === 'create') {
+        <div class="muted small">РЎРѕР·РґР°РЅРёРµ РЅРѕРІРѕРіРѕ РїР»Р°РЅР°</div>
+      }
+      @if (mode === 'edit') {
+        <div class="muted small">Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРіРѕ РїР»Р°РЅР°</div>
+      }
     </div>
-    <button class="btn" type="button" (click)="onClose()">Закрыть</button>
+    <button class="btn" type="button" (click)="onClose()">Р—Р°РєСЂС‹С‚СЊ</button>
   </div>
 
-  <div class="error" *ngIf="error">{{ error }}</div>
+  @if (error) {
+    <div class="error">{{ error }}</div>
+  }
 
   <form (ngSubmit)="save()" class="form">
     <label class="field">
-      <div class="field__label">Название</div>
+      <div class="field__label">РќР°Р·РІР°РЅРёРµ</div>
       <input class="input" name="name" [(ngModel)]="form.name" required />
     </label>
 
     <label class="field">
-      <div class="field__label">Описание</div>
+      <div class="field__label">РћРїРёСЃР°РЅРёРµ</div>
       <textarea class="textarea" name="description" rows="3" [(ngModel)]="form.description"></textarea>
     </label>
 
     <label class="field">
-      <div class="field__label">Цена (₽/мес)</div>
+      <div class="field__label">Р¦РµРЅР° (в‚Ѕ/РјРµСЃ)</div>
       <input class="input" type="number" name="price" [(ngModel)]="form.price" min="0" />
     </label>
 
     <label class="field">
-      <div class="field__label">Фичи (по одной на строку)</div>
+      <div class="field__label">Р¤РёС‡Рё (РїРѕ РѕРґРЅРѕР№ РЅР° СЃС‚СЂРѕРєСѓ)</div>
       <textarea class="textarea" name="featuresText" rows="4" [(ngModel)]="form.featuresText"></textarea>
     </label>
 
     <div class="row">
       <label class="field">
-        <div class="field__label">Действует с</div>
+        <div class="field__label">Р”РµР№СЃС‚РІСѓРµС‚ СЃ</div>
         <input class="input" type="date" name="validFrom" [(ngModel)]="form.validFrom" />
       </label>
       <label class="field">
-        <div class="field__label">Действует по</div>
+        <div class="field__label">Р”РµР№СЃС‚РІСѓРµС‚ РїРѕ</div>
         <input class="input" type="date" name="validTo" [(ngModel)]="form.validTo" />
       </label>
     </div>
 
     <label class="check">
       <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
-      <span>Активен</span>
+      <span>РђРєС‚РёРІРµРЅ</span>
     </label>
 
     <div class="modal__actions">
-      <button class="btn" type="button" (click)="onClose()">Отмена</button>
+      <button class="btn" type="button" (click)="onClose()">РћС‚РјРµРЅР°</button>
       <button class="btn btn-primary" type="submit" [disabled]="saving">
-        {{ saving ? 'Сохранение...' : 'Сохранить' }}
+        {{ saving ? 'РЎРѕС…СЂР°РЅРµРЅРёРµ...' : 'РЎРѕС…СЂР°РЅРёС‚СЊ' }}
       </button>
     </div>
   </form>

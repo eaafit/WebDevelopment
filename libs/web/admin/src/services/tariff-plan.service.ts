@@ -55,6 +55,10 @@ export class TariffPlanService {
   private readonly apiUrl = `${buildRpcBaseUrl()}/api/tariff-plans`;
 
   getAll(params?: TariffPlanQueryParams): Observable<TariffPlan[]> {
+    return this.getPage(params).pipe(map((res) => res.items));
+  }
+
+  getPage(params?: TariffPlanQueryParams): Observable<PaginatedResponse<TariffPlan>> {
     let httpParams = new HttpParams();
     if (params) {
       (Object.keys(params) as (keyof TariffPlanQueryParams)[]).forEach((key) => {
@@ -64,9 +68,7 @@ export class TariffPlanService {
         }
       });
     }
-    return this.http
-      .get<PaginatedResponse<TariffPlan>>(this.apiUrl, { params: httpParams })
-      .pipe(map((res) => res.items));
+    return this.http.get<PaginatedResponse<TariffPlan>>(this.apiUrl, { params: httpParams });
   }
 
   getOne(id: number): Observable<TariffPlan> {
