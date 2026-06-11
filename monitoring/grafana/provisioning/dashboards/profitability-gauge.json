@@ -40,7 +40,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Доходность за 7 дней"
         },
         "overrides": []
       },
@@ -74,7 +75,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '7 days';",
+          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность за 7 дней\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '7 days';",
           "refId": "A"
         }
       ],
@@ -112,7 +113,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Доходность за 30 дней"
         },
         "overrides": []
       },
@@ -146,7 +148,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '30 days';",
+          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность за 30 дней\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '30 days';",
           "refId": "A"
         }
       ],
@@ -184,7 +186,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Доходность за 90 дней"
         },
         "overrides": []
       },
@@ -218,7 +221,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '90 days';",
+          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность за 90 дней\"\nFROM payments\nWHERE status = 'completed'\n  AND payment_date >= NOW() - INTERVAL '90 days';",
           "refId": "A"
         }
       ],
@@ -256,7 +259,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Доходность за все время"
         },
         "overrides": []
       },
@@ -290,7 +294,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность\"\nFROM payments\nWHERE status = 'completed';",
+          "rawSql": "SELECT COALESCE(SUM(amount), 0)::double precision AS \"Доходность за все время\"\nFROM payments\nWHERE status = 'completed';",
           "refId": "A"
         }
       ],
@@ -328,7 +332,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Пример: 50 000 руб."
         },
         "overrides": []
       },
@@ -364,7 +369,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Пример: 50 000 руб."
         },
         "overrides": []
       },
@@ -391,7 +397,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT 50000.00::double precision AS \"Доходность\";",
+          "rawSql": "SELECT 50000.00::double precision AS \"Пример: 50 000 руб.\";",
           "refId": "A"
         }
       ],
@@ -429,7 +435,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Пример: 150 000 руб."
         },
         "overrides": []
       },
@@ -463,7 +470,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT 150000.00::double precision AS \"Доходность\";",
+          "rawSql": "SELECT 150000.00::double precision AS \"Пример: 150 000 руб.\";",
           "refId": "A"
         }
       ],
@@ -501,7 +508,8 @@
               }
             ]
           },
-          "unit": "currencyRUB"
+          "unit": "currencyRUB",
+          "displayName": "Пример: 250 000 руб."
         },
         "overrides": []
       },
@@ -535,7 +543,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT 250000.00::double precision AS \"Доходность\";",
+          "rawSql": "SELECT 250000.00::double precision AS \"Пример: 250 000 руб.\";",
           "refId": "A"
         }
       ],
