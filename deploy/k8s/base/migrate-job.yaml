@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: notary-prisma-migrate
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: notary-prisma-migrate
+    spec:
+      restartPolicy: Never
+      serviceAccountName: notary-migrate
+      containers:
+        - name: migrate
+          image: notary-portal-api:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - cd /app/prisma && ../node_modules/.bin/prisma migrate deploy
+          envFrom:
+            - configMapRef:
+                name: notary-portal-config
+            - secretRef:
+                name: notary-portal-secret

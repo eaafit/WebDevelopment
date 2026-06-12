@@ -48,14 +48,15 @@
 
 - Полная последовательность (сборка, `.env.portal`, миграции, NPM: **Forward Hostname** `portal`, **Forward Port** `80`): [**apps/web/DOCKER.md**](apps/web/DOCKER.md).
 - **Nginx Proxy Manager** отдельным файлом: [`apps/web/docker-compose.npm.yml`](apps/web/docker-compose.npm.yml) — из каталога `apps/web`: `docker compose -f docker-compose.npm.yml up -d` (сеть `proxy` должна существовать: `docker network create proxy`).
+- CI/CD, SonarQube, Gitea MCP, container scanning и Kubernetes-деплой описаны в [docs/devops-ci-cd.md](docs/devops-ci-cd.md). Локальный smoke: `bash scripts/ci/integration-smoke.sh`.
 
 Кратко по типичным проблемам Docker:
 
-| Симптом | Что сделать |
-| ------- | ----------- |
-| **`ENOSPC` / no space left on device** при сборке | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`. |
-| **`i/o timeout`** у `docker compose` | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
-| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`. |
+| Симптом                                             | Что сделать                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`ENOSPC` / no space left on device** при сборке   | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`.                                        |
+| **`i/o timeout`** у `docker compose`                | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
+| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`.                                                                                           |
 
 ---
 
@@ -70,6 +71,8 @@ Tempo доступен на `3200`, принимает OTLP/HTTP на `4318` и 
 Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём. Те же события дополнительно пишутся в Prometheus-метрику `notary_failed_access_total` с низкокардинальными label'ами `reason`, `status_code` и `path_group`.
 
 Smoke-проверка для этого dashboard описана в [`docs/failed-access-loki-smoke.md`](docs/failed-access-loki-smoke.md): там есть тестовые 401/404 запросы, LogQL-запрос и ожидаемые значения панелей.
+
+Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём.
 
 В Explore можно использовать запрос:
 

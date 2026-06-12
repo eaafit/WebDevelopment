@@ -1,0 +1,41 @@
+{{- if and .Values.api.enabled .Values.api.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-api
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.api.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.web.enabled .Values.web.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-web
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.web.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "web") | nindent 6 }}
+---
+{{- end }}
+{{- if and .Values.postgres.enabled .Values.postgres.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "notary-portal.fullname" . }}-postgres
+  labels:
+    {{- include "notary-portal.componentLabels" (dict "root" . "component" "postgres") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.postgres.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "notary-portal.selectorLabels" (dict "root" . "component" "postgres") | nindent 6 }}
+{{- end }}

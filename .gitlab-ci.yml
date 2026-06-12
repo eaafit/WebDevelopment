@@ -1,0 +1,226 @@
+stages:
+  - test
+  - code_quality
+  - build
+  - test_image
+  - security_scan
+  - deploy
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_TAG'
+    - if: '$CI_COMMIT_BRANCH'
+
+variables:
+  NODE_IMAGE: node:24-bookworm-slim
+  PNPM_HOME: '$CI_PROJECT_DIR/.pnpm'
+  API_IMAGE_REPOSITORY: '$CI_REGISTRY_IMAGE/notary-portal-api'
+  WEB_IMAGE_REPOSITORY: '$CI_REGISTRY_IMAGE/notary-portal-web'
+  API_IMAGE: '$CI_REGISTRY_IMAGE/notary-portal-api:$CI_COMMIT_TAG'
+  WEB_IMAGE: '$CI_REGISTRY_IMAGE/notary-portal-web:$CI_COMMIT_TAG'
+  KUBE_NAMESPACE: notary-portal
+
+.node_job:
+  image: '$NODE_IMAGE'
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm/
+      - .nx/cache/
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.29.3 --activate
+    - pnpm install --frozen-lockfile
+
+.docker_job:
+  image: docker:27-cli
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+  before_script:
+    - apk add --no-cache bash curl
+    - docker info
+
+unit_tests:
+  extends: .node_job
+  stage: test
+  script:
+    - pnpm exec nx run-many -t test --parallel=3 --ci --coverage
+  artifacts:
+    when: always
+    expire_in: 7 days
+    paths:
+      - coverage/
+
+integration_tests:
+  extends: .docker_job
+  stage: test
+  script:
+    - bash scripts/ci/integration-smoke.sh
+  rules:
+    - if: '$CI_RUN_INTEGRATION_SMOKE == "true"'
+    - when: manual
+      allow_failure: true
+
+linters:
+  extends: .node_job
+  stage: code_quality
+  script:
+    - pnpm exec nx affected -t lint stylelint --parallel=3
+
+sonarqube_scanner:
+  image: sonarsource/sonar-scanner-cli:latest
+  stage: code_quality
+  needs:
+    - job: unit_tests
+      artifacts: true
+  variables:
+    SONAR_USER_HOME: '$CI_PROJECT_DIR/.sonar'
+    GIT_DEPTH: '0'
+  cache:
+    key: sonar
+    paths:
+      - .sonar/cache
+  script:
+    - sonar-scanner -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.token="$SONAR_TOKEN"
+  rules:
+    - if: '$SONAR_HOST_URL && $SONAR_TOKEN'
+    - when: manual
+      allow_failure: true
+
+validate_release_tag:
+  image: alpine:3.21
+  stage: build
+  script:
+    - apk add --no-cache bash
+    - bash scripts/ci/validate-semver-tag.sh "$CI_COMMIT_TAG"
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+build_container_image:
+  image:
+    name: gcr.io/kaniko-project/executor:v1.24.0-debug
+    entrypoint: ['']
+  stage: build
+  needs:
+    - validate_release_tag
+  script:
+    - mkdir -p /kaniko/.docker
+    - |
+      cat > /kaniko/.docker/config.json <<EOF
+      {"auths":{"$CI_REGISTRY":{"username":"$CI_REGISTRY_USER","password":"$CI_REGISTRY_PASSWORD"}}}
+      EOF
+    - >
+      /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/apps/api/Dockerfile"
+      --destination "$API_IMAGE"
+      --destination "$API_IMAGE_REPOSITORY:latest"
+    - >
+      /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/apps/web/Dockerfile"
+      --destination "$WEB_IMAGE"
+      --destination "$WEB_IMAGE_REPOSITORY:latest"
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+container_smoke:
+  extends: .docker_job
+  stage: test_image
+  needs:
+    - build_container_image
+  script:
+    - docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD"
+    - docker pull "$API_IMAGE"
+    - docker pull "$WEB_IMAGE"
+    - docker run --rm --entrypoint node "$API_IMAGE" --version
+    - docker run -d --rm --name notary-web-smoke -p 8080:80 "$WEB_IMAGE"
+    - |
+      for i in $(seq 1 30); do
+        if curl -fsS http://docker:8080/ >/dev/null; then
+          exit 0
+        fi
+        sleep 2
+      done
+      docker logs notary-web-smoke
+      exit 1
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+container_scanning:
+  image:
+    name: aquasec/trivy:0.58.2
+    entrypoint: ['']
+  stage: security_scan
+  needs:
+    - build_container_image
+  script:
+    - trivy image --format table --exit-code 0 --severity HIGH,CRITICAL "$API_IMAGE"
+    - trivy image --format table --exit-code 0 --severity HIGH,CRITICAL "$WEB_IMAGE"
+    - trivy image --format json --output trivy-api.json "$API_IMAGE"
+    - trivy image --format json --output trivy-web.json "$WEB_IMAGE"
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - trivy-api.json
+      - trivy-web.json
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+runtime_sbom:
+  extends: .node_job
+  stage: security_scan
+  script:
+    - node scripts/ci/generate-sbom.mjs runtime-sbom.cdx.json
+    - node -e "JSON.parse(require('fs').readFileSync('runtime-sbom.cdx.json','utf8'))"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - runtime-sbom.cdx.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+cyclonedx_scan:
+  image:
+    name: aquasec/trivy:0.58.2
+    entrypoint: ['']
+  stage: security_scan
+  needs:
+    - build_container_image
+  script:
+    - trivy image --format cyclonedx --output sbom-api.cdx.json "$API_IMAGE"
+    - trivy image --format cyclonedx --output sbom-web.cdx.json "$WEB_IMAGE"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - sbom-api.cdx.json
+      - sbom-web.cdx.json
+  rules:
+    - if: '$CI_COMMIT_TAG'
+
+deploy_kubernetes:
+  image: dtzar/helm-kubectl:3.16
+  stage: deploy
+  needs:
+    - container_smoke
+    - container_scanning
+    - cyclonedx_scan
+  script:
+    - bash scripts/ci/k8s-deploy.sh
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: manual

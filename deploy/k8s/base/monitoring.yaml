@@ -1,0 +1,52 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: notary-api
+  labels:
+    app.kubernetes.io/name: notary-portal
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notary-portal
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: notary-portal
+  labels:
+    app.kubernetes.io/name: notary-portal
+spec:
+  groups:
+    - name: notary-portal.rules
+      rules:
+        - alert: NotaryApiDown
+          expr: up{job=~".*notary-api.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: Notary Portal API is not scraped by Prometheus
+            description: Prometheus has not scraped the API target for more than two minutes.
+        - alert: NotaryApiHighFailedAccess
+          expr: sum(increase(notary_failed_access_total[10m])) > 20
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High number of failed access attempts
+            description: More than 20 failed access events were recorded in the last 10 minutes.
+        - alert: NotaryApiReadinessFailures
+          expr: sum(increase(kube_pod_container_status_restarts_total{container="api"}[15m])) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: API container restarts are growing
+            description: The API container restarted more than three times in the last 15 minutes.

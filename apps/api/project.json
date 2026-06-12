@@ -64,6 +64,7 @@
       }
     },
     "test": {
+      "dependsOn": ["^generate-proto", "prisma:generate"],
       "options": {
         "passWithNoTests": true
       }
