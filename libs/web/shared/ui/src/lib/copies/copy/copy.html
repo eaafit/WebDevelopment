@@ -51,14 +51,23 @@
     @if (assesment() !== null && doc() !== null) {
       <div class="action-footer">
         @if (assesment()?.status === 1) {
-          <button class="download-button" style="background-color: #f59e0b; border-color: #f59e0b;" (click)="payForDocument($event)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="2" y1="10" x2="22" y2="10"></line>
-            </svg>
-            <span>Оплатить копию</span>
-          </button>
+  <button 
+  class="download-button" 
+  style="background-color: #f59e0b; border-color: #f59e0b;" 
+  [disabled]="isProcessing()" 
+  (click)="payForDocument($event)">
+  
+  @if (isProcessing()) {
+    <span>Обработка...</span>
+  } @else {
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
+      <line x1="2" y1="10" x2="22" y2="10"></line>
+    </svg>
+    <span>Оплатить копию</span>
+  }
+</button>
         } 
         
         @else if (assesment()?.status === 4 || assesment()?.status === 5) {

@@ -26,31 +26,56 @@ export class Copy implements OnInit, OnDestroy {
   doc = signal<Document | null>(null);
   assesment = signal<Assessment | null>(null);
   timer = signal<number>(0);
-  
+  isProcessing = signal(false);
   hasError = signal<boolean>(false);
   private timerId: any = null;
 
   async payForDocument(event: Event) {
     event.stopPropagation();
-    const currentDoc = this.doc();
-    if (!currentDoc) return;
+    
+    // ЕСЛИ УЖЕ ОБРАБАТЫВАЕТСЯ — НИЧЕГО НЕ ДЕЛАЕМ
+    if (this.isProcessing()) return;
+
+    const doc = this.doc();
+    if (!doc) return;
+
+    // ВКЛЮЧАЕМ БЛОКИРОВКУ
+    this.isProcessing.set(true);
 
     try {
-      // Определяем сумму в зависимости от типа документа
-      const amount = (currentDoc as any).documentType === 1 ? 150 : 300;
+      const docType = (doc as any).documentType;
+      // Добавил 6-й тип, чтобы код не падал, если он придет
+      const priceMap: Record<number, number> = { 1: 150, 2: 300, 3: 500, 6: 1000 };
+      const amount = priceMap[docType];
+
+      if (amount === undefined) {
+        console.error('Ошибка: Для типа документа', docType, 'цена не задана в словаре!');
+        this.isProcessing.set(false);
+        return;
+      }
+
+      console.log('Отправляем запрос на оплату. Сумма:', amount, 'ID документа:', doc.assessmentId);
 
       const paymentResponse = await this.paymentClient.createPayment({
-        userId: currentDoc.uploadedById,
+        userId: doc.uploadedById,
         amount: amount.toString(),
         type: PaymentType.DOCUMENT_COPY,
-        targetId: currentDoc.assessmentId,
+        targetId: doc.assessmentId,
+        paymentProvider: 'yookassa'
       });
 
+      console.log('Ответ от сервера пришел:', paymentResponse);
+
       if (paymentResponse.paymentUrl) {
+        console.log('Ура, ссылка есть! Редиректим на:', paymentResponse.paymentUrl);
         window.location.href = paymentResponse.paymentUrl;
+      } else {
+        console.error('АЛАРМ: Сервер ответил, но paymentUrl ПУСТОЙ!', paymentResponse);
+        this.isProcessing.set(false);
       }
     } catch (error) {
-      console.error('Ошибка при создании платежа на странице копии:', error);
+      console.error('АЛАРМ: Запрос к gRPC вообще упал с ошибкой:', error);
+      this.isProcessing.set(false);
     }
   }
   

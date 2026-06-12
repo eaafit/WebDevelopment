@@ -1,7 +1,7 @@
 <div class="document-row">
   
   <div class="row">
-        <span class="param">Имя файла</span>
+    <span class="param">Имя файла</span>
     <span class="value">{{ displayFileName() }}</span>
   </div>
   
@@ -51,39 +51,47 @@
       {{ getStatusText(status()) }}
     </span>
   </div>
-<div class="action-footer">
-  @if (status() === 1) {
-    <button class="download-button" style="background-color: #f59e0b; border-color: #f59e0b;" (click)="payForDocument($event)">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
-        <line x1="2" y1="10" x2="22" y2="10"></line>
-      </svg>
-      <span>Оплатить копию</span>
-    </button>
-  } 
-  
-  @else if (status() === 4 || status() === 5) {
-    @if (document().downloadUrl) {
-      <a [href]="document().downloadUrl" class="download-button" target="_blank" download (click)="$event.stopPropagation()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-        <span>Скачать файл</span>
-      </a>
+
+  <div class="action-footer">
+    @if (status() === 1) {
+      <button 
+        class="download-button" 
+        style="background-color: #f59e0b; border-color: #f59e0b;" 
+        [disabled]="isProcessing()" 
+        (click)="payForDocument($event)">
+        
+        @if (isProcessing()) {
+          <span>Обработка...</span>
+        } @else {
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+          </svg>
+          <span>Оплатить копию</span>
+        }
+      </button>
+    } 
+    
+    @else if (status() === 4 || status() === 5) {
+      @if (document().downloadUrl) {
+        <a [href]="document().downloadUrl" class="download-button" target="_blank" download (click)="$event.stopPropagation()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Скачать файл</span>
+        </a>
+      }
+    } 
+    
+    @else {
+      <div class="timer-display">
+        <span class="pulse-dot"></span>
+        <span>Файл обрабатывается</span>
+      </div>
     }
-  } 
-  
-  @else {
-    <div class="timer-display">
-      <span class="pulse-dot"></span>
-      <span>Файл обрабатывается</span>
-    </div>
-  }
-</div>
+  </div>
 
   <div class="card-footer" (click)="navigateToDocumentPage()">
     <span class="action-text">Открыть детали</span>

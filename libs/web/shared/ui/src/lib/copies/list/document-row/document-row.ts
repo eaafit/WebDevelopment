@@ -1,4 +1,4 @@
-import { Component, computed, input, inject } from '@angular/core';
+import { Component, computed, input, inject, signal } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Document } from '../../services/document.service';
@@ -24,7 +24,8 @@ export class DocumentRow {
 
   document = input.required<Document>()
   status = input<number | undefined>();
-  
+  isProcessing = signal(false);
+
   displayFileName = computed(() => {
     const rawName = this.document().fileName || '';
     if (!rawName.includes('__skip__')) return rawName;
@@ -94,20 +95,44 @@ export class DocumentRow {
     return texts[mapped] || 'В обработке';
   }
 
-  // Новый метод для обработки платежа
   async payForDocument(event: Event) {
-    // Останавливаем всплытие события, чтобы не срабатывал переход по клику на строку
-    event.stopPropagation(); 
+    event.stopPropagation();
     
+    // 1. Блокировка повторных нажатий
+    if (this.isProcessing()) return;
+
     const doc = this.document();
+    if (!doc) return;
+
+    // Включаем "крутилку" или блокировку кнопки
+    this.isProcessing.set(true);
 
     try {
-      // Приводим doc к any, чтобы TS не ругался на отсутствие поля в интерфейсе
-      const amount = (doc as any).documentType === 1 ? 150 : 300; 
+      // Приводим к any, чтобы получить тип
+      const docType = (doc as any).documentType;
+      
+      // Лог для отладки - посмотри в консоль, какой тип приходит
+      console.log('Тип документа:', docType);
 
+      const priceMap: Record<number, number> = {
+        1: 150,
+        2: 300,
+        3: 500
+      };
+
+      const amount = priceMap[docType];
+
+      // 2. БЕЗОПАСНАЯ ПРОВЕРКА: если цена не найдена, прерываем выполнение
+      if (amount === undefined) {
+        console.error('Ошибка: для типа документа', docType, 'цена не задана!');
+        this.isProcessing.set(false); // Снимаем блокировку, чтобы пользователь мог нажать еще раз (если починит)
+        return;
+      }
+
+      // Теперь мы уверены, что amount — это число, и .toString() отработает
       const paymentResponse = await this.paymentClient.createPayment({
         userId: doc.uploadedById,
-        amount: amount.toString(),
+        amount: amount.toString(), 
         type: PaymentType.DOCUMENT_COPY,
         targetId: doc.assessmentId,
         paymentProvider: 'yookassa'
@@ -115,9 +140,14 @@ export class DocumentRow {
 
       if (paymentResponse.paymentUrl) {
         window.location.href = paymentResponse.paymentUrl;
+      } else {
+        // Если url не пришел, тоже разблокируем
+        this.isProcessing.set(false);
       }
     } catch (error) {
-      console.error('Ошибка при инициации платежа из списка:', error);
+      console.error('Ошибка при создании платежа из списка:', error);
+      // Обязательно снимаем блокировку при ошибке
+      this.isProcessing.set(false);
     }
   }
 }
