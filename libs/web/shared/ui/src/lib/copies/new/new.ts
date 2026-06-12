@@ -5,6 +5,7 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { AssessmentStatus } from '@notary-portal/api-contracts';
+import { TokenStore } from '../../rpc/token-store';
 
 // Минимально необходимый набор полей заявки для формы заказа копии.
 interface AssessmentOption {
@@ -28,6 +29,7 @@ export class New implements OnInit {
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly tokenStore = inject(TokenStore);
 
   // Список типов документов строго по ТЗ (по возрастанию цены)
   readonly documentTypes = [
@@ -138,13 +140,10 @@ export class New implements OnInit {
   }
 
   getCurrentUserId(): string {
-    const currentAssesment = this.assesments().find(a => a.id === this.selectedAssesmentID());
-
-    // Пытаемся взять userId или applicantId или clientId из объекта заявки
-    return currentAssesment?.userId ||
-           currentAssesment?.applicantId ||
-           currentAssesment?.clientId ||
-           '00000000-0000-0000-0000-000000000000';
+    // uploaded_by_id обязан совпадать с аутентифицированным пользователем
+    // (бэкенд отклоняет иное). Заказ создаёт текущий заявитель, поэтому берём
+    // его id из TokenStore, а не владельца выбранной заявки.
+    return this.tokenStore.user()?.id ?? '';
   }
 
   async onSubmit() {

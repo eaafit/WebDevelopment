@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { New } from './new';
@@ -24,6 +25,7 @@ describe('New', () => {
       providers: [
         provideRouter([]),
         { provide: RPC_TRANSPORT, useValue: {} },
+        { provide: TokenStore, useValue: { user: () => ({ id: 'auth-user-1' }) } },
         { provide: AssessmentService, useValue: assessmentService },
         { provide: DocumentService, useValue: documentService },
       ],
@@ -46,15 +48,7 @@ describe('New', () => {
     expect(component.price()).toBe(500);
   });
 
-  it('resolves current user id from the selected assessment applicant fields', () => {
-    component.assesments.set([
-      {
-        id: 'assessment-1',
-        applicantId: 'applicant-1',
-      },
-    ]);
-    component.selectedAssesmentID.set('assessment-1');
-
-    expect(component.getCurrentUserId()).toBe('applicant-1');
+  it('resolves current user id from the authenticated user (TokenStore)', () => {
+    expect(component.getCurrentUserId()).toBe('auth-user-1');
   });
 });

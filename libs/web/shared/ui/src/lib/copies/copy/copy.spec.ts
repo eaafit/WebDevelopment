@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
 import { AssessmentStatus, DocumentStatus } from '@notary-portal/api-contracts';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { Copy } from './copy';
@@ -39,6 +40,7 @@ describe('Copy', () => {
       providers: [
         provideRouter([]),
         { provide: RPC_TRANSPORT, useValue: {} },
+        { provide: TokenStore, useValue: { user: () => ({ id: 'notary-1' }) } },
         {
           provide: ActivatedRoute,
           useValue: {

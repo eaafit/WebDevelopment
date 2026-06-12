@@ -13,6 +13,7 @@ import { mapCopyStatus } from '../services/document-status';
 import { CommonModule } from '@angular/common';
 import { createClient } from '@connectrpc/connect';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 
 // Карточка заказа копии. Для заявителя — оплата и получение, для нотариуса —
 // обработка заказа (взять в работу, приложить готовый скан, отметить готовым).
@@ -27,6 +28,7 @@ export class Copy implements OnInit, OnDestroy {
   private readonly documentService = inject(DocumentService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly tokenStore = inject(TokenStore);
   private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   id: string | null = null;
@@ -167,11 +169,13 @@ export class Copy implements OnInit, OnDestroy {
     try {
       this.busy.set(true);
       if (this.selectedScan) {
+        // Скан загружает нотариус, поэтому uploaded_by_id — текущий пользователь
+        // (бэкенд требует совпадения с аутентифицированным).
         await this.documentService.createDocument(
           currentDoc.assessmentId,
           this.selectedScan.name,
           this.selectedScan.type || 'application/octet-stream',
-          currentDoc.uploadedById,
+          this.tokenStore.user()?.id ?? '',
           new Uint8Array(await this.selectedScan.arrayBuffer()),
           { comment: 'Готовая копия', price: currentDoc.price ?? 0 },
         );
