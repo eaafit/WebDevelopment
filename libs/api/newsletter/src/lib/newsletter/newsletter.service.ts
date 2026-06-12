@@ -398,6 +398,7 @@ export class NewsletterService {
         );
 
         this.logCampaignStart(source.recipients.length, 'newsletter.campaign.repeat_started');
+        this.metricsService.recordNewsletterCampaignStarted('selected', source.recipients.length);
         await this.recordCampaignAuditBestEffort({
           actor,
           campaign,
@@ -433,6 +434,7 @@ export class NewsletterService {
                 } catch (error) {
                   const deliveryErrorMessage = normalizeErrorMessage(error);
                   failedCount += 1;
+                  this.metricsService.recordNewsletterDelivery('failed');
                   this.logDeliveryFailure(error);
 
                   try {
@@ -450,6 +452,7 @@ export class NewsletterService {
                 }
 
                 sentCount += 1;
+                this.metricsService.recordNewsletterDelivery('sent');
 
                 try {
                   await this.newsletterRepository.markDeliverySent(campaign.id, recipient.email);
@@ -508,6 +511,10 @@ export class NewsletterService {
           delivery.sentCount,
           delivery.failedCount,
           'newsletter.campaign.repeat_completed',
+        );
+        this.metricsService.recordNewsletterCampaignCompleted(
+          'selected',
+          formatCampaignStatus(finalStatus) as NewsletterCampaignMetricStatus,
         );
         await this.recordCampaignAuditBestEffort({
           actor,

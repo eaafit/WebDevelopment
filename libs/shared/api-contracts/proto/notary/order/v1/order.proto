@@ -9,9 +9,11 @@ service OrderService {
   // Получить список заказов
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
   // Получить детали одного заказа по его ID
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
   rpc GetOrder(GetOrderRequest) returns (Order);
 
   rpc TakeOrder(TakeOrderRequest) returns (TakeOrderResponse);
+  rpc GetRecentOrderEvents(GetRecentOrderEventsRequest) returns (GetRecentOrderEventsResponse);
 }
 
 // Запрос на получение списка заказов
@@ -81,4 +83,22 @@ message TakeOrderRequest {
 
 message TakeOrderResponse {
   Order order = 1;
+}
+
+message RecentOrderEvent {
+  string order_id = 1;
+  string order_address = 2;
+  string event_type = 3;          // 'order.created', 'order.taken', 'order.completed'
+  google.protobuf.Timestamp event_date = 4;
+  string actor_name = 5;
+}
+
+message GetRecentOrderEventsRequest {
+  string user_id = 1;
+  string role = 2;               // 'applicant' или 'notary'
+  int32 limit = 3;               // сколько отображать
+}
+
+message GetRecentOrderEventsResponse {
+  repeated RecentOrderEvent events = 1;
 }

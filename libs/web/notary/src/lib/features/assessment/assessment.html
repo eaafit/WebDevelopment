@@ -255,10 +255,12 @@
       <div
         class="modal"
         role="document"
+        tabindex="-1"
         (click)="$event.stopPropagation()"
         (keydown.enter)="$event.stopPropagation()"
         (keydown.space)="$event.stopPropagation()"
-        (keydown.escape)="$event.stopPropagation()">
+        (keydown.escape)="$event.stopPropagation()"
+      >
         <div class="modal-header">
           <h3>Отмена заявки</h3>
           <button class="close-btn" (click)="closeCancelModal()">&times;</button>
@@ -291,10 +293,12 @@
       <div
         class="modal"
         role="document"
+        tabindex="-1"
         (click)="$event.stopPropagation()"
         (keydown.enter)="$event.stopPropagation()"
         (keydown.space)="$event.stopPropagation()"
-        (keydown.escape)="$event.stopPropagation()">
+        (keydown.escape)="$event.stopPropagation()"
+      >
         <div class="modal-header">
           <h3>Взять в работу</h3>
           <button class="close-btn" (click)="closeVerifyModal()">&times;</button>
@@ -317,10 +321,12 @@
       <div
         class="modal"
         role="document"
+        tabindex="-1"
         (click)="$event.stopPropagation()"
         (keydown.enter)="$event.stopPropagation()"
         (keydown.space)="$event.stopPropagation()"
-        (keydown.escape)="$event.stopPropagation()">
+        (keydown.escape)="$event.stopPropagation()"
+      >
         <div class="modal-header">
           <h3>Завершение заявки</h3>
           <button class="close-btn" (click)="closeCompleteModal()">&times;</button>

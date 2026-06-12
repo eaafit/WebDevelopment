@@ -14,13 +14,17 @@ import { NotificationRepository } from './notification.repository';
 describe('NotificationRepository', () => {
   const createNotification = jest.fn();
   const findUnique = jest.fn();
+  const findMany = jest.fn();
   const update = jest.fn();
+  const updateMany = jest.fn();
   const deleteMany = jest.fn();
   const prisma = {
     notification: {
       create: createNotification,
       findUnique,
+      findMany,
       update,
+      updateMany,
       deleteMany,
     },
     user: {
@@ -33,11 +37,14 @@ describe('NotificationRepository', () => {
   beforeEach(() => {
     createNotification.mockReset();
     findUnique.mockReset();
+    findMany.mockReset();
     update.mockReset();
+    updateMany.mockReset();
     deleteMany.mockReset();
 
     createNotification.mockResolvedValue(notificationRecord() as never);
     update.mockResolvedValue(notificationRecord({ readAt: new Date('2026-05-15T11:00:00.000Z') }));
+    updateMany.mockResolvedValue({ count: 1 });
     deleteMany.mockResolvedValue({ count: 1 });
   });
 
@@ -80,10 +87,11 @@ describe('NotificationRepository', () => {
       where: { id: 'notification-1' },
       data: { readAt: expect.any(Date) },
     });
-    expect(result).toMatchObject({
+    expect(result.notification).toMatchObject({
       id: 'notification-1',
       status: RpcNotificationStatus.SENT,
     });
+    expect(result.updated).toBe(true);
   });
 
   it('keeps existing read timestamp when notification is already read', async () => {
@@ -93,7 +101,22 @@ describe('NotificationRepository', () => {
     const result = await repository.markAsRead('notification-1');
 
     expect(update).not.toHaveBeenCalled();
-    expect(result.readAt).toBeDefined();
+    expect(result.notification.readAt).toBeDefined();
+    expect(result.updated).toBe(false);
+  });
+
+  it('marks all unread notifications as read and returns updated notifications', async () => {
+    findMany.mockResolvedValue([notificationRecord({ readAt: null })]);
+    updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await repository.markAllAsRead('11111111-1111-4111-a111-111111111111');
+
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { userId: '11111111-1111-4111-a111-111111111111', readAt: null },
+      data: { readAt: expect.any(Date) },
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('notification-1');
   });
 
   it('returns a clear not found error when marking a missing notification', async () => {

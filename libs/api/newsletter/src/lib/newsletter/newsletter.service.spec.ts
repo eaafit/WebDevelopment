@@ -379,6 +379,11 @@ describe('NewsletterService', () => {
       2,
       expect.stringContaining('newsletter.campaign.repeat_completed'),
     );
+    expect(metricsService.recordNewsletterCampaignStarted).toHaveBeenCalledWith('selected', 2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenCalledTimes(2);
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(1, 'sent');
+    expect(metricsService.recordNewsletterDelivery).toHaveBeenNthCalledWith(2, 'sent');
+    expect(metricsService.recordNewsletterCampaignCompleted).toHaveBeenCalledWith('selected', 'sent');
     expect(response.campaign?.sentCount).toBe(2);
   });
 

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Dashboard } from './dashboard';
+import { NotaryAssessmentApiService } from '../../services/assessment-api.service';
 
 describe('Dashboard', () => {
   let component: Dashboard;
@@ -9,7 +10,15 @@ describe('Dashboard', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Dashboard],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: NotaryAssessmentApiService,
+          useValue: {
+            getAssessments: jest.fn().mockResolvedValue([]),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Dashboard);
