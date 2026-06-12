@@ -79,8 +79,11 @@ describe('Notary', () => {
         'transactions',
         'assessment',
         'assessment/history',
+        'monitoring',
         'copies',
         'notifications',
+        'support',
+        'faq',
       ]),
     );
   });

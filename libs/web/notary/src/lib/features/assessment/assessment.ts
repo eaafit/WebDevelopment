@@ -212,9 +212,10 @@ export class Assessment implements OnInit {
 
     result = result.filter((a) => this.matchesColumnFilters(a));
 
-    if (this.currentSortColumn && this.currentSortDirection) {
+    const currentSortColumn = this.currentSortColumn;
+    if (currentSortColumn && this.currentSortDirection) {
       result.sort((a, b) =>
-        this.compareByActiveSort(a, b, this.currentSortColumn!, this.currentSortDirection)
+        this.compareByActiveSort(a, b, currentSortColumn, this.currentSortDirection)
       );
     } else {
       result.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
@@ -474,13 +475,14 @@ export class Assessment implements OnInit {
   }
 
   confirmCancel(): void {
-    if (!this.assessmentToCancel) return;
+    const assessmentToCancel = this.assessmentToCancel;
+    if (!assessmentToCancel) return;
     this.mutationInFlight = true;
     setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToCancel!.id);
+      const idx = this.assessments.findIndex((a) => a.id === assessmentToCancel.id);
       if (idx !== -1) {
         this.assessments[idx] = { ...this.assessments[idx], status: 'Cancelled' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToCancel!.id) {
+        if (this.showView && this.selectedAssessment?.id === assessmentToCancel.id) {
           this.selectedAssessment = this.assessments[idx];
         }
       }
@@ -502,13 +504,14 @@ export class Assessment implements OnInit {
   }
 
   confirmVerify(): void {
-    if (!this.assessmentToVerify) return;
+    const assessmentToVerify = this.assessmentToVerify;
+    if (!assessmentToVerify) return;
     this.mutationInFlight = true;
     setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToVerify!.id);
+      const idx = this.assessments.findIndex((a) => a.id === assessmentToVerify.id);
       if (idx !== -1) {
         this.assessments[idx] = { ...this.assessments[idx], status: 'Verified' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToVerify!.id) {
+        if (this.showView && this.selectedAssessment?.id === assessmentToVerify.id) {
           this.selectedAssessment = this.assessments[idx];
         }
       }
@@ -530,13 +533,14 @@ export class Assessment implements OnInit {
   }
 
   confirmStartWork(): void {
-    if (!this.assessmentToStartWork) return;
+    const assessmentToStartWork = this.assessmentToStartWork;
+    if (!assessmentToStartWork) return;
     this.mutationInFlight = true;
     setTimeout(() => {
-      const idx = this.assessments.findIndex((a) => a.id === this.assessmentToStartWork!.id);
+      const idx = this.assessments.findIndex((a) => a.id === assessmentToStartWork.id);
       if (idx !== -1) {
         this.assessments[idx] = { ...this.assessments[idx], status: 'InProgress' };
-        if (this.showView && this.selectedAssessment?.id === this.assessmentToStartWork!.id) {
+        if (this.showView && this.selectedAssessment?.id === assessmentToStartWork.id) {
           this.selectedAssessment = this.assessments[idx];
         }
       }
@@ -562,7 +566,8 @@ export class Assessment implements OnInit {
   }
 
   confirmComplete(): void {
-    if (!this.assessmentToComplete) return;
+    const assessmentToComplete = this.assessmentToComplete;
+    if (!assessmentToComplete) return;
     
     const value = this.finalEstimatedValue.trim();
     if (!value) {
@@ -578,7 +583,7 @@ export class Assessment implements OnInit {
     
     this.mutationInFlight = true;
     
-    const idx = this.assessments.findIndex((a) => a.id === this.assessmentToComplete!.id);
+    const idx = this.assessments.findIndex((a) => a.id === assessmentToComplete.id);
     if (idx !== -1) {
       this.assessments[idx] = {
         ...this.assessments[idx],
@@ -586,7 +591,7 @@ export class Assessment implements OnInit {
         estimatedValue: this.finalEstimatedValue,
       };
       
-      if (this.showView && this.selectedAssessment?.id === this.assessmentToComplete!.id) {
+      if (this.showView && this.selectedAssessment?.id === assessmentToComplete.id) {
         this.selectedAssessment = this.assessments[idx];
       }
     }
