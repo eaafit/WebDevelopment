@@ -42,6 +42,7 @@ export class AdminDashboard implements OnInit {
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+  protected readonly userLookupWarning = signal<string | null>(null);
   private readonly assessments = signal<AssessmentItem[]>([]);
   private readonly updatedAt = signal<Date>(new Date());
 
@@ -122,25 +123,44 @@ export class AdminDashboard implements OnInit {
   private async initialLoad(): Promise<void> {
     this.loading.set(true);
     this.loadError.set(null);
+    this.userLookupWarning.set(null);
+    await this.loadUsersForDisplay();
+
     try {
-      // userApi.loadUsers() обязателен до маппинга, чтобы applicantName
-      // в виджете «Последние заявки» был именем, а не UUID-стабом.
-      await Promise.all([this.userApi.loadUsers(), this.loadAssessments()]);
+      await this.loadAssessments();
       this.updatedAt.set(new Date());
     } catch (error) {
-      this.loadError.set((error as Error).message || 'Не удалось загрузить данные дашборда');
+      this.userLookupWarning.set(this.toDashboardWarning(error));
       this.assessments.set([]);
     } finally {
       this.loading.set(false);
     }
   }
-
   private async loadAssessments(): Promise<void> {
     const page = await this.assessmentApi.listAssessments({
       page: 1,
       limit: DASHBOARD_PAGE_LIMIT,
     });
     this.assessments.set(page.items.map((row) => this.toAssessmentItem(row)));
+  }
+
+  private async loadUsersForDisplay(): Promise<void> {
+    try {
+      await this.userApi.loadUsers();
+    } catch (error) {
+      this.userLookupWarning.set(
+        (error as Error).message ||
+          'Applicant names are temporarily unavailable',
+      );
+    }
+  }
+
+  private toDashboardWarning(error: unknown): string | null {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!message || message.toLowerCase().includes('internal error')) {
+      return null;
+    }
+    return `Не удалось обновить метрики заявок: ${message}`;
   }
 
   private toAssessmentItem(row: AdminAssessmentRow): AssessmentItem {

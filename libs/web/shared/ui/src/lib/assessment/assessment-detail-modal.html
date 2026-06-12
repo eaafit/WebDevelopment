@@ -22,7 +22,7 @@
         <p><strong>Фактическая дата окончания:</strong> {{ order.actualCompletionDate | date:'dd.MM.yyyy' }}</p>
         }
         <p><strong>Статус:</strong> {{ getStatusLabel(order.status) }}</p>
-        <p><strong>Итоговая стоимость:</strong> {{ order.totalAmount }} ₽</p>
+        <p><strong>Итоговая стоимость:</strong> {{ order.totalAmount > 0 ? (order.totalAmount + ' ₽') : 'ещё не назначена' }}</p>
         @if (order.transactionId) {
         <p><strong>ID транзакции:</strong> {{ order.transactionId }}</p>
         }
@@ -56,6 +56,8 @@
         }
       </div>
 
+       <!-- т.к. логика изменения статусов (кроме изменения с Создана на Принята при нажатии Взять в работу Нотариусом) 
+       еще не реализована (не моя часть), сейчас в истории статусов могут отображаться в основном только Создана и Принята -->
       <div class="detail-section">
         <h3>История статусов</h3>
         @for (entry of order.statusHistory; track entry.date) {

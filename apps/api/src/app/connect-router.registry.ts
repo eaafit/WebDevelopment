@@ -12,6 +12,8 @@ import { NewsletterRpcService } from '@internal/newsletter';
 import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
 import { UserRpcService } from '@internal/user';
+import { OrderRpcService } from '@notary-portal/order';
+import { OrderService } from '@notary-portal/api-contracts';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
@@ -40,7 +42,8 @@ export class ConnectRouterRegistry {
     private readonly notificationRpcService: NotificationRpcService,
     private readonly reportRpcService: ReportRpcService,
     private readonly userRpcService: UserRpcService,
-  ) {}
+    private readonly orderRpcService: OrderRpcService,
+  ) { }
 
   register(router: ConnectRouter): void {
     // ─── Audit ───────────────────────────────────────────────
@@ -57,6 +60,10 @@ export class ConnectRouterRegistry {
       logout: this.authRpcService.logout,
       forgotPassword: this.authRpcService.forgotPassword,
       resetPassword: this.authRpcService.resetPassword,
+      getOAuthAuthorizeUrl: this.authRpcService.getOAuthAuthorizeUrl,
+      oAuthLogin: this.authRpcService.oAuthLogin,
+      confirmContact: this.authRpcService.confirmContact,
+      resendContactCode: this.authRpcService.resendContactCode,
     });
 
     // ─── User ────────────────────────────────────────────────
@@ -81,6 +88,7 @@ export class ConnectRouterRegistry {
       getFiasAddressItemByGuid: this.assessmentRpcService.getFiasAddressItemByGuid,
       getFiasAddressDetails: this.assessmentRpcService.getFiasAddressDetails,
       searchFiasAddressByParts: this.assessmentRpcService.searchFiasAddressByParts,
+      logApplicantAssessmentAction: this.assessmentRpcService.logApplicantAssessmentAction,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,
@@ -100,6 +108,8 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+      getNotificationSettings: this.notificationRpcService.getNotificationSettings,
+      updateNotificationSettings: this.notificationRpcService.updateNotificationSettings,
     });
 
     // ─── Newsletter ────────────────────────────────────────
@@ -141,6 +151,14 @@ export class ConnectRouterRegistry {
       syncUsersWithBitrix: this.bitrixRpcService.syncUsersWithBitrix,
       getSyncStatus: this.bitrixRpcService.getSyncStatus,
       getSyncLogs: this.bitrixRpcService.getSyncLogs,
+    });
+
+    // ─── Order ────────────────────────────────────────────────
+    router.service(OrderService, {
+      listOrders: this.orderRpcService.listOrders.bind(this.orderRpcService),
+      getOrder: this.orderRpcService.getOrder.bind(this.orderRpcService),
+      takeOrder: this.orderRpcService.takeOrder.bind(this.orderRpcService),
+      getRecentOrderEvents: this.orderRpcService.getRecentOrderEvents.bind(this.orderRpcService),
     });
   }
 }

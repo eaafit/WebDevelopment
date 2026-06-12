@@ -82,6 +82,12 @@
     color: #6b7280;
   }
 
+  &__action-error {
+    margin: -0.75rem 0 0;
+    font-size: 0.8rem;
+    color: #b91c1c;
+  }
+
   &__filters {
     display: flex;
     gap: 1rem;

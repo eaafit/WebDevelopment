@@ -4,6 +4,11 @@ declare module 'prom-client' {
     inc(labelsOrValue?: Record<TLabel, string> | number, value?: number): void;
   }
 
+  export class Histogram<TLabel extends string = string> {
+    constructor(config: unknown);
+    observe(labelsOrValue?: Record<TLabel, string> | number, value?: number): void;
+  }
+
   export interface Registry {
     contentType: string;
     metrics: () => Promise<string>;

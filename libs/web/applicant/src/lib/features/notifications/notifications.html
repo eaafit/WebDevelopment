@@ -11,6 +11,15 @@
 
     <div class="role-notifications__actions">
       <div class="role-notifications__action-row">
+        <a routerLink="settings" class="role-notifications__btn role-notifications__btn--ghost" (click)="logSettingsClick()">
+          Настройки
+        </a>
+        <button
+          type="button"
+          class="role-notifications__btn role-notifications__btn--ghost"
+          (click)="reloadNotifications()">
+          Обновить
+        </button>
         <button
           type="button"
           class="role-notifications__btn role-notifications__btn--secondary"
@@ -95,11 +104,10 @@
 
         <div class="role-notifications__chips">
           <span class="chip chip--type">
-            {{ item.type === 'application' ? 'Заявка' : item.type === 'document' ? 'Документы' : item.type === 'payment'
-            ? 'Платёж' : 'Система' }}
+            {{ typeLabel(item.type) }}
           </span>
           <span class="chip chip--channel">
-            {{ item.channel === 'email' ? 'Email' : item.channel === 'sms' ? 'SMS' : 'Push' }}
+            {{ channelLabel(item.channel) }}
           </span>
           <span
             class="chip chip--lifecycle"

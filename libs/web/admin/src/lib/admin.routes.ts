@@ -115,6 +115,13 @@ export const adminRoutes: Route[] = [
           import('./features/notifications/notifications').then((m) => m.AdminNotifications),
       },
       {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.AdminNotificationSettings,
+          ),
+      },
+      {
         path: 'statistics',
         ...placeholder('\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430', [
           '\u041c\u0435\u0442\u0440\u0438\u043a\u0438 (\u043a\u043e\u043d\u0432\u0435\u0440\u0441\u0438\u044f/\u0432\u0440\u0435\u043c\u044f)',

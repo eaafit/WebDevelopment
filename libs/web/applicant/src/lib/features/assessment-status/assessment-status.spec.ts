@@ -19,6 +19,7 @@ describe('AssessmentStatus', () => {
           provide: AssessmentApiService,
           useValue: {
             getAssessment: jest.fn(),
+            logApplicantAssessmentAction: jest.fn().mockResolvedValue(undefined),
           },
         },
         {

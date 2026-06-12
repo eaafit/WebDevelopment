@@ -36,6 +36,8 @@ import {
   type Prisma,
 } from '@internal/prisma-client';
 import type { AssessmentQuery } from './assessment.query';
+import { randomUUID } from 'crypto';
+import type { Lead } from '@internal/prisma-client';
 
 export interface AssessmentRealEstateObjectData {
   cityId?: string;
@@ -123,6 +125,10 @@ type PrismaAssessmentRow = Prisma.AssessmentGetPayload<{
   };
 }>;
 
+type PrismaAssessmentSummaryRow = Prisma.AssessmentGetPayload<{
+  select: typeof assessmentSummarySelect;
+}>;
+
 const assessmentInclude = {
   realEstateObject: {
     include: {
@@ -131,6 +137,18 @@ const assessmentInclude = {
     },
   },
 } satisfies Prisma.AssessmentInclude;
+
+const assessmentSummarySelect = {
+  id: true,
+  userId: true,
+  status: true,
+  address: true,
+  description: true,
+  estimatedValue: true,
+  createdAt: true,
+  updatedAt: true,
+  realEstateObjectId: true,
+} satisfies Prisma.AssessmentSelect;
 
 @Injectable()
 export class AssessmentRepository {
@@ -176,49 +194,102 @@ export class AssessmentRepository {
     const limit = query.limit ?? 10;
     const where = this.buildWhere(query);
     const orderBy = this.buildOrderBy(query);
+    const context = {
+      page,
+      limit,
+      userId: query.userId,
+      notaryId: query.notaryId,
+      status: query.status,
+    };
 
-    const [totalItems, assessments] = await this.runDatabaseOperation(
-      'listAssessments',
-      {
-        page,
-        limit,
-        userId: query.userId,
-        notaryId: query.notaryId,
-        status: query.status,
-      },
-      () =>
-        this.prisma.$transaction([
-          this.prisma.assessment.count({ where }),
-          this.prisma.assessment.findMany({
-            where,
-            include: assessmentInclude,
-            orderBy,
-            skip: (page - 1) * limit,
-            take: limit,
-          }),
-        ]),
-    );
+    try {
+      const [totalItems, assessments] = await this.runDatabaseOperation(
+        'listAssessments',
+        context,
+        () =>
+          this.prisma.$transaction([
+            this.prisma.assessment.count({ where }),
+            this.prisma.assessment.findMany({
+              where,
+              include: assessmentInclude,
+              orderBy,
+              skip: (page - 1) * limit,
+              take: limit,
+            }),
+          ]),
+      );
 
-    return create(ListAssessmentsResponseSchema, {
-      assessments: assessments.map((assessment) => this.toMessage(assessment)),
-      meta: create(PaginationMetaSchema, {
-        totalItems,
-        totalPages: Math.max(1, Math.ceil(totalItems / limit)),
-        currentPage: page,
-        perPage: limit,
-      }),
-    });
+      return this.toListResponse(
+        assessments.map((assessment) => this.toMessage(assessment)),
+        {
+          totalItems,
+          page,
+          limit,
+        },
+      );
+    } catch (error) {
+      if (!shouldUseAssessmentSummaryFallback(error)) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Assessment list falling back to summary rows${formatLogFields(context)}: ${errorMessage(error)}`,
+      );
+      const [totalItems, assessments] = await this.runDatabaseOperation(
+        'listAssessmentsSummaryFallback',
+        context,
+        () =>
+          this.prisma.$transaction([
+            this.prisma.assessment.count({ where }),
+            this.prisma.assessment.findMany({
+              where,
+              select: assessmentSummarySelect,
+              orderBy,
+              skip: (page - 1) * limit,
+              take: limit,
+            }),
+          ]),
+      );
+
+      return this.toListResponse(
+        assessments.map((assessment) => this.toSummaryMessage(assessment)),
+        { totalItems, page, limit },
+      );
+    }
   }
 
   async getAssessment(id: string): Promise<GetAssessmentResponse> {
-    const assessment = await this.runDatabaseOperation('getAssessment', { assessmentId: id }, () =>
-      this.prisma.assessment.findUniqueOrThrow({
-        where: { id },
-        include: assessmentInclude,
-      }),
-    );
+    const context = { assessmentId: id };
 
-    return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
+    try {
+      const assessment = await this.runDatabaseOperation('getAssessment', context, () =>
+        this.prisma.assessment.findUniqueOrThrow({
+          where: { id },
+          include: assessmentInclude,
+        }),
+      );
+
+      return create(GetAssessmentResponseSchema, { assessment: this.toMessage(assessment) });
+    } catch (error) {
+      if (!shouldUseAssessmentSummaryFallback(error)) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Assessment details falling back to summary row${formatLogFields(context)}: ${errorMessage(error)}`,
+      );
+      const assessment = await this.runDatabaseOperation(
+        'getAssessmentSummaryFallback',
+        context,
+        () =>
+          this.prisma.assessment.findUniqueOrThrow({
+            where: { id },
+            select: assessmentSummarySelect,
+          }),
+      );
+
+      return create(GetAssessmentResponseSchema, { assessment: this.toSummaryMessage(assessment) });
+    }
   }
 
   async getAssessmentSnapshot(id: string): Promise<AssessmentAuditSnapshot> {
@@ -446,10 +517,10 @@ export class AssessmentRepository {
             status: PrismaAssessmentStatus.InProgress,
             ...(notaryId != null && notaryId !== '' && { notaryId }),
           },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   async completeAssessment(id: string, estimatedValue: string): Promise<RpcAssessment> {
@@ -460,10 +531,10 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: { status: PrismaAssessmentStatus.Completed, estimatedValue },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   async cancelAssessment(id: string, reason?: string): Promise<RpcAssessment> {
@@ -474,10 +545,10 @@ export class AssessmentRepository {
         this.prisma.assessment.update({
           where: { id },
           data: { status: PrismaAssessmentStatus.Cancelled, cancelReason: reason },
-          include: assessmentInclude,
+          select: assessmentSummarySelect,
         }),
     );
-    return this.toMessage(assessment);
+    return this.toSummaryMessage(assessment);
   }
 
   private async runDatabaseOperation<T>(
@@ -546,6 +617,35 @@ export class AssessmentRepository {
       ...(assessment.realEstateObjectId && { realEstateObjectId: assessment.realEstateObjectId }),
       ...(assessment.realEstateObject && {
         realEstateObject: this.toRealEstateObjectMessage(assessment.realEstateObject),
+      }),
+    });
+  }
+
+  private toSummaryMessage(assessment: PrismaAssessmentSummaryRow): RpcAssessment {
+    return create(AssessmentSchema, {
+      id: assessment.id,
+      userId: assessment.userId,
+      status: this.fromPrismaStatus(assessment.status),
+      address: assessment.address,
+      description: assessment.description ?? '',
+      estimatedValue: assessment.estimatedValue?.toString() ?? '',
+      createdAt: timestampFromDate(assessment.createdAt),
+      updatedAt: timestampFromDate(assessment.updatedAt),
+      ...(assessment.realEstateObjectId && { realEstateObjectId: assessment.realEstateObjectId }),
+    });
+  }
+
+  private toListResponse(
+    assessments: RpcAssessment[],
+    pagination: { totalItems: number; page: number; limit: number },
+  ): ListAssessmentsResponse {
+    return create(ListAssessmentsResponseSchema, {
+      assessments,
+      meta: create(PaginationMetaSchema, {
+        totalItems: pagination.totalItems,
+        totalPages: Math.max(1, Math.ceil(pagination.totalItems / pagination.limit)),
+        currentPage: pagination.page,
+        perPage: pagination.limit,
       }),
     });
   }
@@ -816,6 +916,24 @@ export class AssessmentRepository {
     };
     return map[type] ?? RpcElevatorType.UNSPECIFIED;
   }
+
+  async createLeadFromAssessment(assessmentId: string, applicantId: string): Promise<Lead> {
+    const startDate = new Date();
+    const plannedCompletionDate = new Date(startDate);
+    plannedCompletionDate.setDate(startDate.getDate() + 7);
+
+    return this.prisma.lead.create({
+      data: {
+        id: randomUUID(),
+        applicantId,
+        assessmentId,
+        startDate,
+        plannedCompletionDate,
+        createdAt: startDate,
+        updatedAt: startDate,
+      },
+    });
+  }
 }
 
 function requireDefined<T>(value: T | undefined, fieldName: string): T {
@@ -827,6 +945,10 @@ function requireDefined<T>(value: T | undefined, fieldName: string): T {
 
 function isPrismaNotFoundError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2025';
+}
+
+function shouldUseAssessmentSummaryFallback(error: unknown): boolean {
+  return !isPrismaNotFoundError(error);
 }
 
 function errorMessage(error: unknown): string {

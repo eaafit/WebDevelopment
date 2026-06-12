@@ -9,6 +9,7 @@ export interface StatusHistoryEntry {
 
 export interface AssessmentOrder {
   id: string;
+  assessmentId: string;
   objectAddress: string;
   orderDate: Date;
   status: OrderStatus;

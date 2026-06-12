@@ -11,6 +11,7 @@ import type {
   AuditMonitoringMode,
 } from './audit-monitoring.models';
 import { WebLoggerService } from '../logging/web-logger.service';
+import { downloadCsvFile } from '../download/text-download';
 
 const PAGE_SIZE = 20;
 const CSV_BATCH_SIZE = 200;
@@ -229,13 +230,7 @@ export class AuditMonitoringPage {
     try {
       const events = await firstValueFrom(this.api.exportAuditEvents(this.appliedFilters()));
       const csv = await buildCsv(events);
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `audit-events-${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      downloadCsvFile(`audit-events-${new Date().toISOString().slice(0, 10)}.csv`, csv);
       this.logger.info('Audit CSV export completed', {
         event: 'audit_csv_export_completed',
         exportedRows: events.length,

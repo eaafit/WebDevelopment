@@ -14,4 +14,31 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"traceId":"([0-9a-f]{32})"'
+          datasourceUid: tempo
+          url: '$${__value.raw}'
+    editable: false
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+  - name: PostgreSQL Profitability Demo
+    uid: postgres-profitability
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: admin
+    isDefault: false
+    jsonData:
+      database: db
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: admin
     editable: false

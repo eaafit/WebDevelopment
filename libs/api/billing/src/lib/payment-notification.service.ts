@@ -62,6 +62,22 @@ export class PaymentNotificationService {
     });
   }
 
+  async notifyPaymentProviderIssue(
+    payment: PaymentNotificationSnapshot,
+    provider: string,
+    errorMessage: string,
+  ): Promise<void> {
+    const summary = buildPaymentSummary(payment);
+
+    await this.notifyAdminsBestEffort(
+      `${provider}: ошибка платежа`,
+      `Платёж требует проверки: ${summary}. Ошибка ${provider}: ${errorMessage}.`,
+      {
+        excludeUserIds: payment.userId ? [payment.userId] : [],
+      },
+    );
+  }
+
   async notifyPaymentCompleted(payment: PaymentNotificationSnapshot): Promise<void> {
     const summary = buildPaymentSummary(payment);
 
@@ -133,16 +149,10 @@ export class PaymentNotificationService {
     message: string,
   ): Promise<void> {
     try {
-      await this.notificationService.createInternalNotification({
-        userId,
-        title,
-        message,
-        category: RpcNotificationCategory.PAYMENT,
-        type: RpcNotificationType.IN_APP,
-      });
+      await this.createPaymentNotification({ userId, title, message });
     } catch (error) {
       this.logger.warn(
-        `Failed to create payment notification for user ${userId}: ${getErrorMessage(error)}`,
+        `Payment notification failed; operation=notification.create_payment; recipient=user; result=error; error=${safeErrorName(error)}`,
       );
     }
   }
@@ -153,35 +163,61 @@ export class PaymentNotificationService {
     options: { excludeUserIds?: string[] } = {},
   ): Promise<void> {
     try {
-      const excluded = new Set(options.excludeUserIds ?? []);
-      const admins = await this.prisma.user.findMany({
-        where: {
-          role: PrismaRole.Admin,
-          isActive: true,
-          ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
-        },
-        select: { id: true },
-      });
+      const adminUserIds = await this.listActiveAdminRecipientIds(options.excludeUserIds ?? []);
+
+      if (!adminUserIds.length) {
+        return;
+      }
 
       const results = await Promise.allSettled(
-        admins.map((admin) =>
-          this.notificationService.createInternalNotification({
-            userId: admin.id,
+        adminUserIds.map((userId) =>
+          this.createPaymentNotification({
+            userId,
             title,
             message,
-            category: RpcNotificationCategory.PAYMENT,
-            type: RpcNotificationType.IN_APP,
           }),
         ),
       );
       const failedCount = results.filter((result) => result.status === 'rejected').length;
 
       if (failedCount) {
-        this.logger.warn(`Failed to create ${failedCount} admin payment notification(s)`);
+        this.logger.warn(
+          `Payment notification failed; operation=notification.create_payment; recipient=admin; result=partial_failure; failedCount=${failedCount}`,
+        );
       }
     } catch (error) {
-      this.logger.warn(`Failed to create admin payment notifications: ${getErrorMessage(error)}`);
+      this.logger.warn(
+        `Payment notification failed; operation=notification.create_payment; recipient=admin; result=error; error=${safeErrorName(error)}`,
+      );
     }
+  }
+
+  private async listActiveAdminRecipientIds(excludeUserIds: string[]): Promise<string[]> {
+    const excluded = new Set(excludeUserIds);
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: PrismaRole.Admin,
+        isActive: true,
+        ...(excluded.size ? { id: { notIn: [...excluded] } } : {}),
+      },
+      select: { id: true },
+    });
+
+    return [...new Set(admins.map((admin) => admin.id).filter((id) => !excluded.has(id)))];
+  }
+
+  private createPaymentNotification(params: {
+    userId: string;
+    title: string;
+    message: string;
+  }): Promise<void> {
+    return this.notificationService.createInternalNotification({
+      userId: params.userId,
+      title: params.title,
+      message: params.message,
+      category: RpcNotificationCategory.PAYMENT,
+      type: RpcNotificationType.IN_APP,
+    });
   }
 }
 
@@ -246,6 +282,6 @@ function formatUser(userId: string | null | undefined): string {
   return userId ? shortId(userId) : 'не указан';
 }
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'unknown error';
+function safeErrorName(error: unknown): string {
+  return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
 }

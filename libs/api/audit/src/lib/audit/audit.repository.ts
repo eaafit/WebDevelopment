@@ -45,7 +45,7 @@ export interface CreateAuditLogInput {
 
 @Injectable()
 export class AuditRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async listAuditEvents(query: AuditListQuery): Promise<ListAuditEventsResponse> {
     const where = await this.buildWhere(query.filters, query.scope);
@@ -176,12 +176,32 @@ export class AuditRepository {
     }
 
     if (scope.kind === 'notary') {
-      const assessmentIds = await this.findNotaryAssessmentIds(scope.notaryId);
+      const assessmentIds = new Set(await this.findNotaryAssessmentIds(scope.notaryId));
+
       where.entityName = 'Assessment';
-      where.entityId =
-        filters.targetId && assessmentIds.includes(filters.targetId)
-          ? filters.targetId
-          : { in: filters.targetId ? [] : assessmentIds };
+      where.entityId = resolveNotaryAssessmentEntityFilter(filters.targetId, assessmentIds);
+    }
+
+    if (scope.kind === 'applicant') {
+      const assessmentIds = await this.findApplicantAssessmentIds(scope.applicantId);
+      const scopedOr: Prisma.AuditLogWhereInput[] = [{ userId: scope.applicantId }];
+
+      if (assessmentIds.length) {
+        scopedOr.push({
+          entityName: 'Assessment',
+          entityId: filters.targetId
+            ? assessmentIds.includes(filters.targetId)
+              ? filters.targetId
+              : { in: [] }
+            : { in: assessmentIds },
+        });
+      }
+
+      if (filters.targetId) {
+        where.AND = [{ OR: scopedOr }, { entityId: filters.targetId }];
+      } else {
+        where.OR = scopedOr;
+      }
     }
 
     return where;
@@ -191,6 +211,19 @@ export class AuditRepository {
     const assessments = await this.prisma.assessment.findMany({
       where: {
         notaryId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return assessments.map((assessment) => assessment.id);
+  }
+
+  private async findApplicantAssessmentIds(applicantId: string): Promise<string[]> {
+    const assessments = await this.prisma.assessment.findMany({
+      where: {
+        userId: applicantId,
       },
       select: {
         id: true,
@@ -280,6 +313,12 @@ function humanizeActionType(value: string): string {
       return 'Заявка завершена';
     case 'assessment.cancelled':
       return 'Заявка отменена';
+    case 'order.created':
+      return 'Создан заказ';
+    case 'order.taken':
+      return 'Заказ взят в работу';
+    case 'order.completed':
+      return 'Заказ завершён';
     case 'payment.created':
       return 'Создан платёж';
     case 'payment.completed':
@@ -336,4 +375,15 @@ function toRpcUserRole(role: PrismaRole | null | undefined): RpcUserRole {
     default:
       return RpcUserRole.UNSPECIFIED;
   }
+}
+
+function resolveNotaryAssessmentEntityFilter(
+  targetId: string | undefined,
+  assessmentIds: Set<string>,
+): string | { in: string[] } {
+  if (targetId) {
+    return assessmentIds.has(targetId) ? targetId : { in: [] };
+  }
+
+  return { in: [...assessmentIds] };
 }

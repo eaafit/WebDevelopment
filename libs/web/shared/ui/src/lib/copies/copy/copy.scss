@@ -1,0 +1,218 @@
+:host {
+  --primary: #6366f1;
+  --primary-light: #e0e7ff;
+  --success: #10b981;
+  --bg-main: #ffffff;
+  --text-dark: #1f2937;
+  --text-muted: #6b7280;
+  --border-color: #f3f4f6;
+  --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  display: block;
+  min-height: 100vh;      /* Добавлено: чтобы host занимал всю высоту экрана */
+  padding: 40px 20px;     /* Изменено: отступы сверху/снизу как в new.scss */
+  box-sizing: border-box; /* Добавлено: чтобы padding не раздувал ширину */
+}
+
+.page-overlay {
+  cursor: pointer;
+}
+
+.status-container {
+  max-width: 600px;
+  width: 100%;            /* Добавлено: чтобы контейнер был адаптивным */
+  margin: 0 auto;         /* Добавлено: это и центрирует элемент по горизонтали */
+  background: var(--bg-main);
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  transition: transform 0.2s ease;
+  cursor: default;
+  
+  &:hover {
+    transform: translateY(-2px);
+    border-color: #6366f1;
+  }
+}
+
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+
+  .status-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin: 0;
+    letter-spacing: -0.025em;
+  }
+
+  .status-subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin: 4px 0 0;
+  }
+
+  .id-badge {
+    background: var(--border-color);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 0.75rem;
+  }
+}
+
+.action-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.timer-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  color: #92400e;
+  border-radius: 12px;
+  font-size: 0.938rem;
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: #f59e0b;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+}
+
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.5);
+    filter: brightness(1.1);
+  }
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #f8fafc;
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+
+    .info-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .info-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      word-break: break-all;
+    }
+
+    // Стилизация карточки комментария для визуального отличия
+    &.comment-item {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+
+      .comment-text {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text-dark);
+        line-height: 1.5;
+        word-break: break-word;
+      }
+    }
+  }
+}
+
+/* --- БЕЙДЖИ СТАТУСОВ --- */
+.status-badge-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 99px; // Делает края идеально круглыми
+  font-size: 0.938rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: all 0.3s ease;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* 1. Ожидает оплаты (Желтый) */
+.status-pending {
+  background: #fef3c7;
+  color: #d97706;
+  .status-dot { background: #d97706; }
+}
+
+/* 2. В обработке (Синий) */
+.status-processing {
+  background: #dbeafe;
+  color: #2563eb;
+  .status-dot { background: #2563eb; }
+}
+
+/* 3. Готово (Зеленый) */
+.status-ready {
+  background: #d1fae5;
+  color: #059669;
+  .status-dot { background: #059669; }
+}
+
+/* 4. Выдано (Серый) */
+.status-delivered {
+  background: #f3f4f6;
+  color: #4b5563;
+  .status-dot { background: #4b5563; }
+}
