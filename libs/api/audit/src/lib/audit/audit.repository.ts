@@ -45,7 +45,7 @@ export interface CreateAuditLogInput {
 
 @Injectable()
 export class AuditRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async listAuditEvents(query: AuditListQuery): Promise<ListAuditEventsResponse> {
     const where = await this.buildWhere(query.filters, query.scope);
@@ -313,6 +313,12 @@ function humanizeActionType(value: string): string {
       return 'Заявка завершена';
     case 'assessment.cancelled':
       return 'Заявка отменена';
+    case 'order.created':
+      return 'Создан заказ';
+    case 'order.taken':
+      return 'Заказ взят в работу';
+    case 'order.completed':
+      return 'Заказ завершён';
     case 'payment.created':
       return 'Создан платёж';
     case 'payment.completed':

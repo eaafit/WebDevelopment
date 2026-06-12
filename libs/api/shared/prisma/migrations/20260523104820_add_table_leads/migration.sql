@@ -80,21 +80,6 @@ CREATE UNIQUE INDEX "client_sync_user_id_key" ON "client_sync"("user_id");
 -- CreateIndex
 CREATE UNIQUE INDEX "leads_assessment_id_key" ON "leads"("assessment_id");
 
---добавляем в leads записи на основе уже имеющихся заявок
-INSERT INTO leads (id, applicant_id, executor_id, assessment_id, start_date, planned_completion_date, created_at, updated_at)
-SELECT 
-    gen_random_uuid()::text,
-    a.user_id,
-    a.notary_id,               
-    a.id,
-    a.created_at,
-    a.created_at + INTERVAL '7 days',  -- пример
-    a.created_at,
-    a.updated_at
-FROM assessments a
-LEFT JOIN leads l ON l.assessment_id = a.id
-WHERE l.id IS NULL;
-
 
 -- CreateIndex
 CREATE INDEX "leads_applicant_id_idx" ON "leads"("applicant_id");

@@ -85,8 +85,8 @@ function makeReceiptHtml(params: {
   const dateStr =
     params.paymentDate instanceof Date
       ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(
-          params.paymentDate,
-        )
+        params.paymentDate,
+      )
       : params.paymentDate;
 
   const typeLabel =
@@ -168,6 +168,7 @@ async function main(): Promise<void> {
   const promoIds = await upsertPromos(SEED_COUNT);
   await upsertSales(SEED_COUNT, promoIds);
   const assessmentIds = await upsertAssessments(SEED_COUNT, userIds);
+  await syncLeadsFromAssessments(assessmentIds);
   await upsertDocuments(SEED_COUNT, assessmentIds, userIds);
   const subscriptionIds = await upsertSubscriptions(SEED_COUNT, userIds);
   const paymentRefs = await upsertPayments(
@@ -1342,6 +1343,45 @@ async function upsertAssessmentProcessingHistory(
           details: { source: 'seed', assessmentIndex: a, step, cancelled: isCancelled },
         },
       });
+    }
+  }
+}
+
+async function syncLeadsFromAssessments(assessmentIds: string[]) {
+  const allAssessments = await prisma.assessment.findMany({
+    where: { id: { in: assessmentIds } },
+    include: { lead: true },
+  });
+
+  for (const assessment of allAssessments) {
+    // Если лида нет – создаём
+    if (!assessment.lead) {
+      const startDate = assessment.createdAt;
+      const plannedCompletionDate = new Date(startDate);
+      plannedCompletionDate.setDate(startDate.getDate() + 7);
+
+      await prisma.lead.create({
+        data: {
+          id: crypto.randomUUID(),
+          applicantId: assessment.userId,
+          assessmentId: assessment.id,
+          startDate,
+          plannedCompletionDate,
+          executorId: assessment.notaryId || undefined,
+          createdAt: startDate,
+          updatedAt: assessment.updatedAt,
+        },
+      });
+      console.log(`Created lead for assessment ${assessment.id}`);
+    }
+
+    // Исправление артефакта: если есть executorId, а статус 'New' → меняем на 'Verified'
+    if (assessment.notaryId && assessment.status === 'New') {
+      await prisma.assessment.update({
+        where: { id: assessment.id },
+        data: { status: 'Verified' },
+      });
+      console.log(`Fixed status for assessment ${assessment.id} from New to Verified`);
     }
   }
 }

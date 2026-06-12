@@ -1,10 +1,15 @@
 <div class="assessment-history" [class.notary-role]="role === 'notary'">
   <div class="card">
     <div class="card-header">
-      <h1>История заказов оценки</h1>
-      <p class="card-subtitle">
-        {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
-      </p>
+      <div>
+        <h1>История заказов оценки</h1>
+        <p class="card-subtitle">
+          {{ role === 'applicant' ? 'Ваши заявки на оценку недвижимости' : 'Все заказы на оценку, требующие внимания' }}
+        </p>
+      </div>
+      <button class="btn btn-outline btn-sm refresh-btn" (click)="refresh()">
+        🔄 Обновить
+      </button>
     </div>
     @if (notifications().length) {
     <!-- <div class="notifications-block card">
@@ -19,6 +24,26 @@
         }
       </div>
     </div> -->
+    }
+
+    @if (recentEvents().length) {
+    <div class="recent-events card">
+      <div class="card-title">📢 Последние изменения</div>
+      <div class="events-list">
+        @for (event of recentEvents(); track $index) {
+        <button
+          type="button"
+          class="event-item"
+          [disabled]="!event.orderId"
+          (click)="event.orderId && openModal(event.orderId)"
+        >
+          <span class="event-icon">{{ eventIcon(event.eventType) }}</span>
+          <span class="event-text">{{ formatEventText(event) }}</span>
+          <span class="event-date">{{ formatEventDate(event.eventDate) | date: 'dd.MM.yyyy HH:mm' }}</span>
+        </button>
+        }
+      </div>
+    </div>
     }
     <!-- Блок фильтров -->
     <div class="filters-section">
