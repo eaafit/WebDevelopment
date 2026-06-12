@@ -33,3 +33,11 @@ export function mapCopyStatus(status: number | undefined): CopyStatusView {
   if (status === undefined) return DEFAULT_VIEW;
   return STATUS_MAP[status] ?? DEFAULT_VIEW;
 }
+
+// Фолбэк стоимости копии, если у заказа не задан price (напр. старые/сид-данные
+// без цены). Гарантирует положительную сумму к оплате (createPayment требует > 0).
+export const DEFAULT_COPY_PRICE = 300;
+
+export function resolveCopyPrice(price: number | undefined): number {
+  return price && price > 0 ? price : DEFAULT_COPY_PRICE;
+}

@@ -25,6 +25,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { MetricsService, type PromoValidationMetricStatus } from '@internal/metrics';
 import {
+  DocumentStatus as PrismaDocumentStatus,
   PaymentReceiptStatus as PrismaPaymentReceiptStatus,
   PaymentStatus as PrismaPaymentStatus,
   SubscriptionPlan as PrismaSubscriptionPlan,
@@ -50,6 +51,9 @@ import {
   type PaymentAuditSnapshotInput,
 } from '../payment-audit';
 import { PaymentNotificationService } from '../payment-notification.service';
+
+const DOCUMENT_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const PAYMENT_RETURN_PATH_BY_TYPE: Record<PrismaPaymentType, string> = {
   [PrismaPaymentType.Subscription]: '/notary/subscription/checkout/success',
@@ -165,6 +169,11 @@ export class PaymentCreateService {
           subscriptionId: resolved.subscriptionId,
           assessmentId: resolved.assessmentId,
         });
+
+        // Копия нотариального документа: при создании платежа переводим сам заказ
+        // (Document) в статус «Оплачено». targetId = id заказа. Сервер-сайд переход,
+        // чтобы заявитель не звал нотариус-онли UpdateDocumentStatus (иначе 403).
+        await this.markDocumentCopyPaid(prismaType, request.targetId);
 
         this.metrics.recordPayment('pending');
         this.metrics.recordBillingPayment('pending', metricContext);
@@ -499,6 +508,32 @@ export class PaymentCreateService {
         }
       },
     );
+  }
+
+  // Перевод заказа копии в «Оплачено» при создании DocumentCopy-платежа.
+  // Идемпотентно (updateMany, только из PendingPayment), ошибки не валят оплату.
+  private async markDocumentCopyPaid(
+    prismaType: PrismaPaymentType,
+    targetId: string,
+  ): Promise<void> {
+    if (prismaType !== PrismaPaymentType.DocumentCopy) {
+      return;
+    }
+    const documentId = targetId?.trim();
+    if (!documentId || !DOCUMENT_UUID_PATTERN.test(documentId)) {
+      return;
+    }
+
+    try {
+      await this.prisma.document.updateMany({
+        where: { id: documentId, status: PrismaDocumentStatus.PendingPayment },
+        data: { status: PrismaDocumentStatus.Paid },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to mark document copy ${documentId} as paid: ${safeErrorName(error)}`,
+      );
+    }
   }
 
   async validateSubscriptionPromo(

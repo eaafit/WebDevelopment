@@ -9,7 +9,7 @@ import {
   PaymentType,
 } from '@notary-portal/api-contracts';
 import { Document } from '../services/document.service';
-import { mapCopyStatus } from '../services/document-status';
+import { mapCopyStatus, resolveCopyPrice } from '../services/document-status';
 import { CommonModule } from '@angular/common';
 import { createClient } from '@connectrpc/connect';
 import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
@@ -121,21 +121,28 @@ export class Copy implements OnInit, OnDestroy {
 
   // ─── Действия заявителя ──────────────────────────────────────────────
 
-  // Оплата копии: реальный createPayment + перевод заказа в статус «Оплачено».
+  // Оплата копии: только createPayment. Статус PAID выставляет бэкенд billing при
+  // создании DocumentCopy-платежа (targetId = id заказа), поэтому клиент НЕ зовёт
+  // нотариус-онли updateDocumentStatus (иначе 403 на чужих/сид-копиях).
   async payForCopy(): Promise<void> {
     const currentDoc = this.doc();
     if (!currentDoc || this.busy()) return;
 
+    const amount = resolveCopyPrice(currentDoc.price);
+    if (amount <= 0) {
+      console.error('Некорректная сумма копии');
+      return;
+    }
+
     try {
       this.busy.set(true);
       await this.paymentClient.createPayment({
-        userId: currentDoc.uploadedById,
-        amount: (currentDoc.price ?? 0).toString(),
+        userId: this.tokenStore.user()?.id ?? currentDoc.uploadedById,
+        amount: amount.toString(),
         type: PaymentType.DOCUMENT_COPY,
-        targetId: currentDoc.assessmentId,
+        targetId: currentDoc.id,
         paymentProvider: 'yookassa',
       });
-      await this.documentService.updateDocumentStatus(currentDoc.id, DocumentStatus.PAID);
       await this.loadDoc();
     } catch (err) {
       console.error('Ошибка оплаты копии:', err);
