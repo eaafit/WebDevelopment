@@ -11,8 +11,7 @@ import { AssessmentApiService } from '../../estimation-form/assessment-api.servi
 import type { NewOrderFormValues, NewOrderPropertyData } from './new-order-form.models';
 import { normalizeFormText } from './new-order-form.utils';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable({ providedIn: 'root' })
 export class NewOrderFormApiService {
@@ -38,7 +37,8 @@ export class NewOrderFormApiService {
 
     const normalizedAddress = normalizeAddressMatchKey(address);
     const matchedHint =
-      hints.find((hint) => normalizeAddressMatchKey(hint.fullName) === normalizedAddress) ?? hints[0];
+      hints.find((hint) => normalizeAddressMatchKey(hint.fullName) === normalizedAddress) ??
+      hints[0];
     const selectedAddress = await this.assessmentApi.getFiasAddressItemById(matchedHint.objectId);
     const resolvedCityId = normalizeFormText(selectedAddress.cityId);
 
@@ -59,6 +59,7 @@ export class NewOrderFormApiService {
 
   async createAssessment(userId: string, form: NewOrderFormValues): Promise<Assessment> {
     const property = await this.resolvePropertyGeography(form.property);
+    const inheritance = form.inheritance;
     const address = normalizeFormText(property.address);
     const description = normalizeFormText(property.description);
     const area = normalizeFormText(property.area);
@@ -66,10 +67,14 @@ export class NewOrderFormApiService {
     const cityId = normalizeFormText(property.cityId);
     const districtId = normalizeFormText(property.districtId);
 
+    // Include inheritance data in description for now (proto doesn't have dedicated fields yet)
+    const inheritanceInfo = `Наследодатель: ${normalizeFormText(inheritance.deceasedFullName)}, Дата смерти: ${normalizeFormText(inheritance.deathDate)}, Номер дела: ${normalizeFormText(inheritance.inheritanceCaseNumber)}`;
+    const fullDescription = description ? `${description}. ${inheritanceInfo}` : inheritanceInfo;
+
     const response = await this.assessmentClient.createAssessment({
       userId,
       address,
-      description,
+      description: fullDescription,
       realEstateObject: {
         cityId,
         districtId: districtId || undefined,
@@ -77,7 +82,7 @@ export class NewOrderFormApiService {
         area,
         cadastralNumber,
         objectType: Number(property.propertyType),
-        description,
+        description: fullDescription,
       },
     });
 
@@ -94,6 +99,7 @@ export class NewOrderFormApiService {
     fileType: string;
     documentType: DocumentType;
     uploadedById: string;
+    fileContent: Uint8Array;
   }): Promise<void> {
     await this.documentClient.createDocument({
       assessmentId: params.assessmentId,
@@ -101,7 +107,7 @@ export class NewOrderFormApiService {
       fileType: params.fileType,
       uploadedById: params.uploadedById,
       documentType: params.documentType,
-      fileContent: new Uint8Array(),
+      fileContent: params.fileContent,
     });
   }
 }
@@ -111,9 +117,5 @@ function isValidUuid(value: string): boolean {
 }
 
 function normalizeAddressMatchKey(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[.,]/g, '')
-    .trim();
+  return value.toLowerCase().replace(/\s+/g, ' ').replace(/[.,]/g, '').trim();
 }

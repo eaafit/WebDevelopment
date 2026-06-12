@@ -25,22 +25,32 @@ import { NewOrderFormApiService } from './new-order-form-api.service';
 import { NewOrderFormDraftService } from './new-order-form-draft.service';
 import {
   INITIAL_CONFIRM_VALUE,
+  INITIAL_INHERITANCE_VALUE,
   INITIAL_PROPERTY_VALUE,
   ORDER_FORM_STEPS,
   type NewOrderDocumentRow,
   type NewOrderFormValues,
+  type NewOrderInheritanceData,
   type NewOrderPropertyData,
   type OrderFormStep,
 } from './new-order-form.models';
 import { StepConfirm } from './steps/step-confirm/step-confirm';
 import { StepDocuments } from './steps/step-documents/step-documents';
+import { StepInheritance } from './steps/step-inheritance/step-inheritance';
 import { StepProperty } from './steps/step-property/step-property';
 import { fileRequiredValidator, fileValidator } from './new-order-form.validators';
 
 @Component({
   selector: 'lib-new-order-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, StepProperty, StepDocuments, StepConfirm],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    StepInheritance,
+    StepProperty,
+    StepDocuments,
+    StepConfirm,
+  ],
   templateUrl: './new-order-form.html',
   styleUrl: './new-order-form.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -63,9 +73,15 @@ export class NewOrderForm implements OnInit {
 
   readonly isSuccess = computed(() => Boolean(this.submittedAssessmentId()));
   readonly isFirstStep = computed(() => this.currentStep() === 1);
-  readonly isLastStep = computed(() => this.currentStep() === 3);
+  readonly isLastStep = computed(() => this.currentStep() === 4);
 
   readonly orderForm = this.fb.nonNullable.group({
+    inheritance: this.fb.nonNullable.group({
+      deceasedFullName: ['', [Validators.required, Validators.minLength(3)]],
+      deathDate: ['', [Validators.required, validYearValidator]],
+      notary: [''],
+      inheritanceCaseNumber: ['', Validators.required],
+    }),
     property: this.fb.nonNullable.group({
       propertyType: ['', Validators.required],
       cityId: ['', trimmedRequiredValidator],
@@ -84,6 +100,10 @@ export class NewOrderForm implements OnInit {
 
   private userId = '';
 
+  get inheritanceGroup(): FormGroup {
+    return this.orderForm.controls.inheritance;
+  }
+
   get propertyGroup(): FormGroup {
     return this.orderForm.controls.property;
   }
@@ -94,6 +114,10 @@ export class NewOrderForm implements OnInit {
 
   get confirmGroup(): FormGroup {
     return this.orderForm.controls.confirm;
+  }
+
+  get inheritanceSummary(): NewOrderInheritanceData {
+    return this.inheritanceGroup.getRawValue() as NewOrderInheritanceData;
   }
 
   get propertySummary(): NewOrderPropertyData {
@@ -143,18 +167,23 @@ export class NewOrderForm implements OnInit {
     this.submitError.set(null);
 
     const step = this.currentStep();
-    if (step === 1 && this.propertyGroup.invalid) {
+    if (step === 1 && this.inheritanceGroup.invalid) {
+      this.inheritanceGroup.markAllAsTouched();
+      return;
+    }
+
+    if (step === 2 && this.propertyGroup.invalid) {
       this.propertyGroup.markAllAsTouched();
       return;
     }
 
-    if (step === 2 && this.documentsArray.invalid) {
+    if (step === 3 && this.documentsArray.invalid) {
       this.documentsArray.markAllAsTouched();
       this.documentsArray.controls.forEach((group) => group.markAllAsTouched());
       return;
     }
 
-    if (step === 3) {
+    if (step === 4) {
       return;
     }
 
@@ -169,11 +198,14 @@ export class NewOrderForm implements OnInit {
     this.confirmGroup.markAllAsTouched();
 
     if (this.orderForm.invalid) {
-      if (this.propertyGroup.invalid) {
+      if (this.inheritanceGroup.invalid) {
         this.currentStep.set(1);
+        this.inheritanceGroup.markAllAsTouched();
+      } else if (this.propertyGroup.invalid) {
+        this.currentStep.set(2);
         this.propertyGroup.markAllAsTouched();
       } else if (this.documentsArray.invalid) {
-        this.currentStep.set(2);
+        this.currentStep.set(3);
         this.documentsArray.markAllAsTouched();
       }
       return;
@@ -193,19 +225,23 @@ export class NewOrderForm implements OnInit {
       for (const [index, group] of this.documentsArray.controls.entries()) {
         const file = group.get('file')?.value as File | null;
         const documentType = Number(group.get('documentType')?.value) as DocumentType;
+        const fileContent = file ? await fileToUint8Array(file) : new Uint8Array();
         await this.api.createDocumentMock({
           assessmentId: assessment.id,
           fileName: file?.name ?? group.get('fileName')?.value ?? `document-${index + 1}`,
           fileType: file?.type || 'application/octet-stream',
           documentType,
           uploadedById: this.userId,
+          fileContent,
         });
       }
 
       this.draftService.clear(this.userId);
       this.submittedAssessmentId.set(assessment.id);
     } catch (error) {
-      this.submitError.set(extractErrorMessage(error, 'Не удалось отправить заявку. Попробуйте ещё раз.'));
+      this.submitError.set(
+        extractErrorMessage(error, 'Не удалось отправить заявку. Попробуйте ещё раз.'),
+      );
     } finally {
       this.submitting.set(false);
     }
@@ -224,6 +260,10 @@ export class NewOrderForm implements OnInit {
     }
 
     this.currentStep.set(draft.currentStep);
+    this.inheritanceGroup.patchValue({
+      ...INITIAL_INHERITANCE_VALUE,
+      ...draft.form.inheritance,
+    });
     this.propertyGroup.patchValue({
       ...INITIAL_PROPERTY_VALUE,
       ...draft.form.property,
@@ -262,6 +302,7 @@ export class NewOrderForm implements OnInit {
 
   private toFormValues(): NewOrderFormValues {
     return {
+      inheritance: this.inheritanceGroup.getRawValue() as NewOrderInheritanceData,
       property: this.propertyGroup.getRawValue() as NewOrderPropertyData,
       documents: this.documentsSummary,
       confirm: this.confirmGroup.getRawValue(),
@@ -302,6 +343,20 @@ function minArrayLengthValidator(minLength: number): ValidatorFn {
   };
 }
 
+function validYearValidator(control: AbstractControl): Record<string, true> | null {
+  const value = control.value;
+  if (!value) return null;
+
+  const date = new Date(value);
+  const currentYear = new Date().getFullYear();
+
+  if (date.getFullYear() < 1900 || date.getFullYear() > currentYear) {
+    return { invalidYear: true };
+  }
+
+  return null;
+}
+
 function extractErrorMessage(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) {
@@ -313,4 +368,9 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   }
 
   return message;
+}
+
+async function fileToUint8Array(file: File): Promise<Uint8Array> {
+  const arrayBuffer = await file.arrayBuffer();
+  return new Uint8Array(arrayBuffer);
 }

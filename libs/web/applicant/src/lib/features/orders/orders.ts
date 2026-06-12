@@ -1,23 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-<<<<<<< Updated upstream
-
-interface Order {
-  id: number;
-  address: string;
-  addressHint: string;
-  propertyType: string;
-  area: number;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
-=======
 import { Router } from '@angular/router';
+import { ApplicantOrdersApiService, ApplicantOrderView } from './orders-api.service';
 import { EstimationFormSessionService } from '../estimation-form/estimation-form-session.service';
-import { ApplicantOrdersApiService, type ApplicantOrderView } from './orders-api.service';
->>>>>>> Stashed changes
 
 @Component({
   selector: 'lib-orders',
@@ -104,6 +90,24 @@ export class Orders implements OnInit {
 
   canEdit(status: string): boolean {
     return status === 'new';
+  }
+
+  canDelete(status: string): boolean {
+    return status === 'new';
+  }
+
+  async deleteOrder(id: string): Promise<void> {
+    const confirmed = confirm('Вы уверены, что хотите удалить этот заказ?');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await this.ordersApi.deleteOrder(id);
+      await this.loadOrders();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Не удалось удалить заказ.');
+    }
   }
 
   viewOrder(id: string): void {

@@ -4,6 +4,7 @@ import {
   DOCUMENT_TYPE_OPTIONS,
   ORDER_PROPERTY_TYPE_OPTIONS,
   type NewOrderDocumentRow,
+  type NewOrderInheritanceData,
   type NewOrderPropertyData,
 } from '../../new-order-form.models';
 
@@ -17,6 +18,7 @@ import {
 })
 export class StepConfirm {
   @Input({ required: true }) group!: FormGroup;
+  @Input({ required: true }) inheritance!: NewOrderInheritanceData;
   @Input({ required: true }) property!: NewOrderPropertyData;
   @Input({ required: true }) documents: NewOrderDocumentRow[] = [];
   @Input() showValidationErrors = false;

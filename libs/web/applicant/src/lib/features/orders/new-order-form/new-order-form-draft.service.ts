@@ -1,13 +1,14 @@
 import { Injectable } from '@angular/core';
 import {
   INITIAL_CONFIRM_VALUE,
+  INITIAL_INHERITANCE_VALUE,
   INITIAL_PROPERTY_VALUE,
   SESSION_STORAGE_KEY,
   type NewOrderFormValues,
 } from './new-order-form.models';
 
 interface StoredDraft {
-  currentStep: 1 | 2 | 3;
+  currentStep: 1 | 2 | 3 | 4;
   form: NewOrderFormValues;
 }
 
@@ -48,6 +49,7 @@ export class NewOrderFormDraftService {
 
   createEmptyForm(): NewOrderFormValues {
     return {
+      inheritance: { ...INITIAL_INHERITANCE_VALUE },
       property: { ...INITIAL_PROPERTY_VALUE },
       documents: [],
       confirm: { ...INITIAL_CONFIRM_VALUE },

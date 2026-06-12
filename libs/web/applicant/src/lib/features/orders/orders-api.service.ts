@@ -38,6 +38,13 @@ export class ApplicantOrdersApiService {
     return response.assessments.map((assessment) => this.toOrderView(assessment));
   }
 
+  async deleteOrder(orderId: string): Promise<void> {
+    await this.client.cancelAssessment({
+      id: orderId,
+      reason: 'Удалено заявителем',
+    });
+  }
+
   private toOrderView(assessment: Assessment): ApplicantOrderView {
     const realEstateObject = assessment.realEstateObject;
     const address = realEstateObject?.address?.trim() || assessment.address?.trim() || '—';

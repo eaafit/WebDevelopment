@@ -14,9 +14,9 @@
   } @else {
   <section class="card">
     <header class="card-header new-order-form-header">
-      <h1>Подача заявки на оценку</h1>
+      <h1>Подача заявки на оценку наследственного имущества</h1>
       <p class="card-subtitle new-order-form-subtitle">
-        Заполните данные об объекте наследства, прикрепите документы и подтвердите отправку.
+        Заполните данные о наследстве, параметры объекта, прикрепите документы и подтвердите отправку.
       </p>
     </header>
 
@@ -36,46 +36,34 @@
     <p class="form-banner">Загрузка формы...</p>
     } @else if (loadError()) {
     <p class="form-banner form-banner-error">{{ loadError() }}</p>
-    } @else {
-    @if (submitError()) {
+    } @else { @if (submitError()) {
     <p class="form-banner form-banner-error">{{ submitError() }}</p>
     }
 
     <form class="form" [formGroup]="orderForm" (ngSubmit)="submit()">
-      @switch (currentStep()) {
-      @case (1) {
+      @switch (currentStep()) { @case (1) {
+      <lib-step-inheritance [group]="inheritanceGroup" [showValidationErrors]="showValidationErrors()" />
+      } @case (2) {
       <lib-step-property [group]="propertyGroup" [showValidationErrors]="showValidationErrors()" />
-      }
-      @case (2) {
+      } @case (3) {
       <lib-step-documents [array]="documentsArray" [showValidationErrors]="showValidationErrors()" />
-      }
-      @case (3) {
+      } @case (4) {
       <lib-step-confirm
         [group]="confirmGroup"
+        [inheritance]="inheritanceSummary"
         [property]="propertySummary"
         [documents]="documentsSummary"
         [showValidationErrors]="showValidationErrors()" />
-      }
-      }
+      } }
 
       <div class="form-actions">
         @if (!isFirstStep()) {
-        <button type="button" class="btn btn-secondary" [disabled]="submitting()" (click)="goBack()">
-          Назад
-        </button>
-        }
-
-        @if (!isLastStep()) {
-        <button type="button" class="btn btn-primary" [disabled]="submitting()" (click)="goNext()">
-          Далее
-        </button>
+        <button type="button" class="btn btn-secondary" [disabled]="submitting()" (click)="goBack()">Назад</button>
+        } @if (!isLastStep()) {
+        <button type="button" class="btn btn-primary" [disabled]="submitting()" (click)="goNext()">Далее</button>
         } @else {
         <button type="submit" class="btn btn-primary" [disabled]="submitting()">
-          @if (submitting()) {
-          Отправка...
-          } @else {
-          Отправить заявку
-          }
+          @if (submitting()) { Отправка... } @else { Отправить заявку }
         </button>
         }
       </div>

@@ -78,6 +78,8 @@
             <button class="action-btn view" title="Просмотр" (click)="viewOrder(order.id)">👁</button>
             @if (canEdit(order.status)) {
             <button class="action-btn edit" title="Редактировать" (click)="editOrder(order.id)">✏️</button>
+            } @if (canDelete(order.status)) {
+            <button class="action-btn delete" title="Удалить" (click)="deleteOrder(order.id)">🗑️</button>
             }
           </td>
         </tr>

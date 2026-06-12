@@ -1,5 +1,29 @@
 <section class="summary-card">
   <h2 class="summary-title">Сводка заявки</h2>
+
+  <h3 class="summary-subtitle">Данные о наследстве</h3>
+  <dl class="summary-list">
+    <div class="summary-item">
+      <dt>ФИО наследодателя</dt>
+      <dd>{{ inheritance.deceasedFullName }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Дата смерти</dt>
+      <dd>{{ inheritance.deathDate }}</dd>
+    </div>
+    @if (inheritance.notary) {
+    <div class="summary-item">
+      <dt>Нотариус</dt>
+      <dd>{{ inheritance.notary }}</dd>
+    </div>
+    }
+    <div class="summary-item">
+      <dt>Номер наследственного дела</dt>
+      <dd>{{ inheritance.inheritanceCaseNumber }}</dd>
+    </div>
+  </dl>
+
+  <h3 class="summary-subtitle">Параметры объекта</h3>
   <dl class="summary-list">
     <div class="summary-item">
       <dt>Тип имущества</dt>
@@ -18,8 +42,7 @@
       <dt>Кадастровый номер</dt>
       <dd>{{ property.cadastralNumber }}</dd>
     </div>
-    }
-    @if (property.description) {
+    } @if (property.description) {
     <div class="summary-item">
       <dt>Описание</dt>
       <dd>{{ property.description }}</dd>
@@ -51,15 +74,12 @@
 
   <div class="consent-list">
     <label class="consent-card" [class.consent-card-invalid]="isInvalid('dataAccuracyConfirmed')">
-      <input
-        type="checkbox"
-        class="form-check-input"
-        formControlName="dataAccuracyConfirmed" />
+      <input type="checkbox" class="form-check-input" formControlName="dataAccuracyConfirmed" />
       <span class="consent-card-content">
         <span class="consent-card-title">Достоверность данных</span>
         <span class="consent-card-text">
-          Я подтверждаю, что все указанные сведения об объекте и приложенные документы являются
-          достоверными. <span class="required-mark">*</span>
+          Я подтверждаю, что все указанные сведения об объекте и приложенные документы являются достоверными.
+          <span class="required-mark">*</span>
         </span>
       </span>
     </label>
@@ -68,17 +88,14 @@
     }
 
     <label class="consent-card" [class.consent-card-invalid]="isInvalid('personalDataConsent')">
-      <input
-        type="checkbox"
-        class="form-check-input"
-        formControlName="personalDataConsent" />
+      <input type="checkbox" class="form-check-input" formControlName="personalDataConsent" />
       <span class="consent-card-content">
         <span class="consent-card-title">Обработка персональных данных</span>
         <span class="consent-card-text">
           Согласен с условиями обработки персональных данных в соответствии с
           <a href="/privacy" target="_blank" rel="noopener noreferrer" class="consent-link">
-            Политикой конфиденциальности
-          </a>.
+            Политикой конфиденциальности </a
+          >.
           <span class="required-mark">*</span>
         </span>
       </span>
