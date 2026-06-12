@@ -723,6 +723,9 @@ async function upsertDocuments(
     const objectPrefix = resolveSeedDocumentPrefix(docType);
     const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
     const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
+    // Стоимость копии по прайсу (Выписка/Акт/Отчёт = 150/300/500), чтобы у сид-копий
+    // была положительная сумма к оплате (иначе createPayment падает 400).
+    const price = [150, 300, 500][i % 3];
     await prisma.document.upsert({
       where: { id },
       update: {
@@ -731,6 +734,7 @@ async function upsertDocuments(
         fileType: 'application/pdf',
         fileSize: 0,
         documentType: docType,
+        price,
         bucketName,
         objectKey,
         version: (i % 3) + 1,
@@ -743,6 +747,7 @@ async function upsertDocuments(
         fileType: 'application/pdf',
         fileSize: 0,
         documentType: docType,
+        price,
         bucketName,
         objectKey,
         version: (i % 3) + 1,
