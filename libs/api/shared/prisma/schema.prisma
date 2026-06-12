@@ -386,6 +386,11 @@ model Document {
   price        Int            @default(0) // стоимость копии в рублях
   bucketName   String         @map("bucket_name") @db.VarChar
   objectKey    String         @map("object_key") @db.VarChar
+  // Готовая копия (скан-результат нотариуса), отдельно от файла-основания (доверенности).
+  resultBucketName String?    @map("result_bucket_name") @db.VarChar
+  resultObjectKey  String?    @map("result_object_key") @db.VarChar
+  resultFileName   String?    @map("result_file_name") @db.VarChar
+  resultFileSize   Int?       @map("result_file_size")
   version      Int            @default(1)
   uploadedAt   DateTime       @default(now()) @map("uploaded_at") @db.Timestamp()
   uploadedById String         @map("uploaded_by") @db.Uuid

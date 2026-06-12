@@ -114,9 +114,9 @@
         </button>
       }
 
-      <!-- Скачивание готовой/выданной копии -->
-      @if (statusView().canDownload && doc()?.downloadUrl) {
-        <a [href]="doc()?.downloadUrl" class="download-button" target="_blank" rel="noopener" download>
+      <!-- Скачивание готовой/выданной копии: версия нотариуса (result), иначе исходный файл -->
+      @if (statusView().canDownload && (doc()?.resultDownloadUrl || doc()?.downloadUrl)) {
+        <a [href]="doc()?.resultDownloadUrl || doc()?.downloadUrl" class="download-button" target="_blank" rel="noopener" download>
           ⬇ Скачать копию документа
         </a>
       }

@@ -18,6 +18,9 @@ export type Document = {
   status?: number;
   // Стоимость копии в рублях.
   price?: number;
+  // Ссылка на готовую копию нотариуса (если приложена). При READY/DELIVERED
+  // скачивать следует именно её.
+  resultDownloadUrl?: string;
 };
 export type PageInfo = {
   totalItems: number,
@@ -59,14 +62,36 @@ export class DocumentService {
   async getDocument(id: string): Promise<Document> {
     const res = await this.client.getDocument({ id });
     if (!res.document) throw new Error('Несуществующий документ');
-    return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
+    return this.normalizeUrls(res.document);
   }
 
   // Сменить статус заказа копии (жизненный цикл DocumentStatus).
   async updateDocumentStatus(id: string, status: number): Promise<Document> {
     const res = await this.client.updateDocumentStatus({ id, status });
     if (!res.document) throw new Error('Не удалось обновить статус заказа');
-    return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
+    return this.normalizeUrls(res.document);
+  }
+
+  // Нотариус прикладывает готовую копию к заказу (статус становится READY на бэке).
+  async uploadCopyResult(id: string, file: File): Promise<Document> {
+    const res = await this.client.uploadCopyResult({
+      id,
+      fileName: file.name,
+      fileType: file.type || 'application/octet-stream',
+      fileContent: new Uint8Array(await file.arrayBuffer()),
+    });
+    if (!res.document) throw new Error('Не удалось приложить готовую копию');
+    return this.normalizeUrls(res.document);
+  }
+
+  private normalizeUrls(doc: { downloadUrl: string; resultDownloadUrl?: string }): Document {
+    return {
+      ...doc,
+      downloadUrl: resolveStoredDocumentUrl(doc.downloadUrl),
+      resultDownloadUrl: doc.resultDownloadUrl
+        ? resolveStoredDocumentUrl(doc.resultDownloadUrl)
+        : '',
+    } as Document;
   }
 
 async listDocumentsByAssessment(
@@ -92,7 +117,7 @@ async listDocumentsByAssessment(
     } as any);
 
     return {
-      documents: res.documents.map((v: any) => ({ ...v, downloadUrl: resolveStoredDocumentUrl(v.downloadUrl) })),
+      documents: res.documents.map((v) => this.normalizeUrls(v)),
       meta: res.meta
     }
   }

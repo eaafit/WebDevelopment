@@ -6,6 +6,7 @@ import {
   DocumentStatus as RpcDocumentStatus,
   DocumentType as RpcDocumentType,
   UpdateDocumentStatusResponseSchema,
+  UploadCopyResultResponseSchema,
   type CreateDocumentRequest,
   type CreateDocumentResponse,
   type DeleteDocumentRequest,
@@ -16,6 +17,8 @@ import {
   type ListDocumentsByAssessmentResponse,
   type UpdateDocumentStatusRequest,
   type UpdateDocumentStatusResponse,
+  type UploadCopyResultRequest,
+  type UploadCopyResultResponse,
 } from '@notary-portal/api-contracts';
 import { getCurrentUser, requireAuth, requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
 import {
@@ -271,7 +274,55 @@ export class DocumentService {
     );
   }
 
-  async getDocumentFile(documentId: string): Promise<{
+  // Нотариус прикладывает готовую копию к заказу: файл сохраняется в result-поля
+  // (отдельно от доверенности), статус заказа переходит в READY.
+  async uploadCopyResult(request: UploadCopyResultRequest): Promise<UploadCopyResultResponse> {
+    return runInSpan(
+      'DocumentService.uploadCopyResult',
+      {
+        [NotarySpanAttributes.operation]: 'document.result_upload',
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async () => {
+        requireRole(Role.Notary);
+        validateUuid(request.id, 'id');
+
+        const fileName = normalizeDisplayFileName(request.fileName);
+        const fileContent = request.fileContent.length ? request.fileContent : undefined;
+        if (!fileName) throw invalid('file_name', 'is required');
+        if (!fileContent) throw invalid('file_content', 'is required');
+
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+
+        const fileType = request.fileType?.trim() || 'application/octet-stream';
+        const storedFile = await this.documentStorageService.saveFile({
+          assessmentId: document.assessmentId,
+          fileName,
+          content: fileContent,
+          contentType: fileType,
+          documentType: document.documentType,
+        });
+
+        const updated = await this.documentRepository.attachResult(request.id, {
+          bucketName: storedFile.bucketName,
+          objectKey: storedFile.objectKey,
+          fileName,
+          fileSize: storedFile.fileSize,
+        });
+
+        return create(UploadCopyResultResponseSchema, { document: updated });
+      },
+    );
+  }
+
+  async getDocumentFile(
+    documentId: string,
+    variant?: string,
+  ): Promise<{
     body: Readable;
     fileName: string;
     fileType: string;
@@ -290,22 +341,31 @@ export class DocumentService {
         if (!document) {
           return null;
         }
+
+        // variant=result → отдаём готовую копию нотариуса, если она приложена.
+        const useResult = variant === 'result' && !!document.resultObjectKey;
+        const location =
+          useResult && document.resultBucketName && document.resultObjectKey
+            ? { bucketName: document.resultBucketName, objectKey: document.resultObjectKey }
+            : { bucketName: document.bucketName, objectKey: document.objectKey };
+        const fileName = useResult
+          ? document.resultFileName ?? document.fileName
+          : document.fileName;
+        const fallbackSize = useResult ? document.resultFileSize ?? 0 : document.fileSize;
+
         setSpanAttributes(span, {
           'document.type': document.documentType,
           'document.content_type': normalizeSpanContentType(document.fileType),
-          'document.size_bucket': spanSizeBucket(document.fileSize),
+          'document.size_bucket': spanSizeBucket(fallbackSize),
         });
 
-        const storedFile = await this.documentStorageService.getFile({
-          bucketName: document.bucketName,
-          objectKey: document.objectKey,
-        });
+        const storedFile = await this.documentStorageService.getFile(location);
 
         return {
           body: storedFile.body,
-          fileName: document.fileName,
+          fileName,
           fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
-          fileSize: storedFile.contentLength ?? document.fileSize,
+          fileSize: storedFile.contentLength ?? fallbackSize,
         };
       },
     );

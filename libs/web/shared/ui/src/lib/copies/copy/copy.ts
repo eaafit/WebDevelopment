@@ -168,7 +168,9 @@ export class Copy implements OnInit, OnDestroy {
     this.selectedScan = input.files?.[0] ?? null;
   }
 
-  // Нотариус прикладывает готовый скан (в документы заявки) и отмечает заказ готовым.
+  // Нотариус прикладывает готовую копию к ЭТОМУ заказу (result-файл) и отмечает
+  // заказ готовым. Новый Document при этом НЕ создаётся (иначе появлялся лишний
+  // платный заказ); скачивание готовой копии резолвится на версию нотариуса.
   async markReady(): Promise<void> {
     const currentDoc = this.doc();
     if (!currentDoc || this.busy()) return;
@@ -176,19 +178,12 @@ export class Copy implements OnInit, OnDestroy {
     try {
       this.busy.set(true);
       if (this.selectedScan) {
-        // Скан загружает нотариус, поэтому uploaded_by_id — текущий пользователь
-        // (бэкенд требует совпадения с аутентифицированным).
-        await this.documentService.createDocument(
-          currentDoc.assessmentId,
-          this.selectedScan.name,
-          this.selectedScan.type || 'application/octet-stream',
-          this.tokenStore.user()?.id ?? '',
-          new Uint8Array(await this.selectedScan.arrayBuffer()),
-          { comment: 'Готовая копия', price: currentDoc.price ?? 0 },
-        );
+        // uploadCopyResult сам переводит заказ в READY на бэке.
+        await this.documentService.uploadCopyResult(currentDoc.id, this.selectedScan);
         this.selectedScan = null;
+      } else {
+        await this.documentService.updateDocumentStatus(currentDoc.id, DocumentStatus.READY);
       }
-      await this.documentService.updateDocumentStatus(currentDoc.id, DocumentStatus.READY);
       await this.loadDoc();
     } catch (err) {
       console.error('Ошибка при завершении заказа:', err);

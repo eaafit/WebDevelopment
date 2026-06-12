@@ -25,6 +25,10 @@ service DocumentService {
   // доступны только нотариусу; оплата (PENDING_PAYMENT->PAID) и получение
   // (READY->DELIVERED) — владельцу заказа.
   rpc UpdateDocumentStatus(UpdateDocumentStatusRequest) returns (UpdateDocumentStatusResponse);
+  // Нотариус прикладывает готовую копию (скан-результат) к заказу и переводит его
+  // в статус READY. Файл сохраняется в result-поля заказа (отдельно от
+  // доверенности-основания), скачивание готовой копии резолвится на эту версию.
+  rpc UploadCopyResult(UploadCopyResultRequest) returns (UploadCopyResultResponse);
 }
 
 // Тип документа-основания (вид прикреплённого файла).
@@ -99,6 +103,9 @@ message Document {
   string comment = 15;
   // Стоимость копии в рублях (фиксируется при создании заказа).
   int32 price = 16;
+  // Ссылка скачивания готовой копии (скан-результат нотариуса). Пусто, пока копия
+  // не приложена. При статусе READY/DELIVERED скачивать следует именно её.
+  string result_download_url = 17;
 }
 
 // Запрос на создание документа/заказа копии.
@@ -172,5 +179,22 @@ message UpdateDocumentStatusRequest {
 
 // Ответ со статусом заказа после смены.
 message UpdateDocumentStatusResponse {
+  Document document = 1;
+}
+
+// Запрос загрузки готовой копии (скана-результата) к заказу.
+message UploadCopyResultRequest {
+  // Идентификатор заказа копии (Document).
+  string id = 1;
+  // Имя файла готовой копии.
+  string file_name = 2;
+  // MIME-тип файла.
+  string file_type = 3;
+  // Содержимое файла готовой копии.
+  bytes file_content = 4;
+}
+
+// Ответ с обновлённым заказом (статус READY, проставлен result-файл).
+message UploadCopyResultResponse {
   Document document = 1;
 }

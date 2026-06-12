@@ -122,6 +122,24 @@ export class DocumentRepository {
     return this.toMessage(document);
   }
 
+  // Прикрепление готовой копии (скан-результата нотариуса) к заказу + перевод в READY.
+  async attachResult(
+    id: string,
+    result: { bucketName: string; objectKey: string; fileName: string; fileSize: number },
+  ): Promise<RpcDocument> {
+    const document = await this.prisma.document.update({
+      where: { id },
+      data: {
+        resultBucketName: result.bucketName,
+        resultObjectKey: result.objectKey,
+        resultFileName: result.fileName,
+        resultFileSize: result.fileSize,
+        status: PrismaDocumentStatus.Ready,
+      },
+    });
+    return this.toMessage(document);
+  }
+
   async deleteDocument(id: string): Promise<void> {
     await this.prisma.document.delete({ where: { id } });
   }
@@ -157,6 +175,9 @@ export class DocumentRepository {
       price: d.price,
       previewUrl: this.documentFileUrlService.buildPreviewUrl(d.id),
       downloadUrl: this.documentFileUrlService.buildDownloadUrl(d.id),
+      resultDownloadUrl: d.resultObjectKey
+        ? this.documentFileUrlService.buildResultDownloadUrl(d.id)
+        : '',
     });
   }
 }

@@ -50,8 +50,8 @@
     </span>
   </div>
 
-  @if (statusView().canDownload && document().downloadUrl) {
-    <a [href]="document().downloadUrl" class="row-download" target="_blank" rel="noopener" download>
+  @if (statusView().canDownload && (document().resultDownloadUrl || document().downloadUrl)) {
+    <a [href]="document().resultDownloadUrl || document().downloadUrl" class="row-download" target="_blank" rel="noopener" download>
       ⬇ Скачать копию
     </a>
   }

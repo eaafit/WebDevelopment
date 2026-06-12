@@ -11,6 +11,8 @@ import type {
   ListDocumentsByAssessmentResponse,
   UpdateDocumentStatusRequest,
   UpdateDocumentStatusResponse,
+  UploadCopyResultRequest,
+  UploadCopyResultResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
@@ -30,4 +32,7 @@ export class DocumentRpcService {
   readonly updateDocumentStatus = (
     r: UpdateDocumentStatusRequest,
   ): Promise<UpdateDocumentStatusResponse> => this.documentService.updateDocumentStatus(r);
+  readonly uploadCopyResult = (
+    r: UploadCopyResultRequest,
+  ): Promise<UploadCopyResultResponse> => this.documentService.uploadCopyResult(r);
 }
