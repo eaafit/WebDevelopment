@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { buildRpcBaseUrl } from '@notary-portal/ui';
 
-/** Промокод из таблицы `promocodes` (REST `/api/promocodes`). */
+/** Promocode DTO from REST `/api/promocodes`. */
 export interface PromocodeDto {
   id: number;
   code: string;
@@ -63,9 +63,9 @@ export class PromocodeService {
     let httpParams = new HttpParams();
     if (params) {
       (Object.keys(params) as (keyof PromocodeQueryParams)[]).forEach((key) => {
-        const v = params[key];
-        if (v !== undefined && v !== null && v !== '') {
-          httpParams = httpParams.set(key, String(v));
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== '') {
+          httpParams = httpParams.set(key, String(value));
         }
       });
     }

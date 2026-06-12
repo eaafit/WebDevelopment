@@ -1,34 +1,37 @@
 <section class="admin-page payments-page plans-page">
   <header class="admin-page__hero">
     <div class="admin-page__hero-copy">
-      <p class="admin-page__eyebrow">Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР° / РўР°СЂРёС„С‹</p>
-      <h2>РЈРїСЂР°РІР»РµРЅРёРµ С‚Р°СЂРёС„РЅС‹РјРё РїР»Р°РЅР°РјРё</h2>
+      <p class="admin-page__eyebrow">{{ ui.eyebrow }}</p>
+      <h2>{{ ui.heading }}</h2>
       <p class="admin-page__lead">
-        РџСЂРѕСЃРјРѕС‚СЂ Р°РєС‚РёРІРЅС‹С… РїР»Р°РЅРѕРІ, СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РїР°СЂР°РјРµС‚СЂРѕРІ Рё
-        СЃРѕР·РґР°РЅРёРµ РЅРѕРІС‹С… РїСЂРµРґР»РѕР¶РµРЅРёР№.
+        {{ ui.lead }}
       </p>
     </div>
     <div class="admin-page__actions">
       <button class="admin-btn admin-btn--primary" type="button" (click)="openCreateModal()">
-        + Р”РѕР±Р°РІРёС‚СЊ РїР»Р°РЅ
+        + {{ ui.addPlan }}
       </button>
     </div>
   </header>
 
+  @if (error()) {
+    <p class="promo-page__error">{{ error() }}</p>
+  }
+
   <article class="admin-card">
     <div class="admin-card__header">
       <div>
-        <h3>РљР°СЂС‚РѕС‡РєРё РїР»Р°РЅРѕРІ</h3>
-        <p>РљСЂР°С‚РєРёР№ РѕР±Р·РѕСЂ РѕСЃРЅРѕРІРЅС‹С… РїСЂРµРґР»РѕР¶РµРЅРёР№ РїРѕ РїРѕРґРїРёСЃРєР°Рј.</p>
+        <h3>{{ ui.cardsTitle }}</h3>
+        <p>{{ ui.cardsLead }}</p>
       </div>
-      <span class="admin-badge admin-badge--neutral">РџРѕРєР°Р·Р°РЅРѕ: {{ plans().length }}</span>
+      <span class="admin-badge admin-badge--neutral">{{ ui.shown }}: {{ plans().length }}</span>
     </div>
     <div class="plans-grid">
-      @for (plan of plans(); track plan.key) {
+      @for (plan of plans(); track plan.id) {
         <div class="plan-card">
           <div class="plan-card__top">
             <strong>{{ plan.title }}</strong>
-            <span>{{ plan.pricePerMonth }} в‚Ѕ/РјРµСЃ</span>
+            <span>{{ plan.pricePerMonth }} {{ ui.ruble }}/{{ ui.perMonthShort }}</span>
           </div>
           <p class="plan-card__desc">{{ plan.description }}</p>
           <ul>
@@ -44,8 +47,8 @@
   <article class="admin-card">
     <div class="admin-card__header">
       <div>
-        <h3>РЎРїРёСЃРѕРє С‚Р°СЂРёС„РѕРІ</h3>
-        <p>Р”Р°РЅРЅС‹Рµ РёР· Р±Р°Р·С‹ СЃ Р±С‹СЃС‚СЂС‹Рј РїРµСЂРµС…РѕРґРѕРј Рє СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЋ.</p>
+        <h3>{{ ui.listTitle }}</h3>
+        <p>{{ ui.listLead }}</p>
       </div>
     </div>
     <div class="payments-table-shell">
@@ -55,11 +58,12 @@
             <thead>
               <tr>
                 <th>ID</th>
-                <th>РќР°Р·РІР°РЅРёРµ</th>
-                <th>Р¦РµРЅР°</th>
-                <th>РђРєС‚РёРІРµРЅ</th>
-                <th>РџРµСЂРёРѕРґ</th>
-                <th>Р”РµР№СЃС‚РІРёСЏ</th>
+                <th>{{ ui.name }}</th>
+                <th>{{ ui.price }}</th>
+                <th>{{ ui.description }}</th>
+                <th>{{ ui.active }}</th>
+                <th>{{ ui.period }}</th>
+                <th>{{ ui.actions }}</th>
               </tr>
             </thead>
             <tbody>
@@ -67,22 +71,20 @@
                 <tr>
                   <td>{{ plan.id }}</td>
                   <td>{{ plan.name }}</td>
-                  <td>{{ plan.price }} в‚Ѕ</td>
+                  <td>{{ plan.price }} {{ ui.ruble }}</td>
+                  <td>{{ splitPlanDescription(plan.description).description || ui.noDescription }}</td>
                   <td>
                     <span
                       class="admin-badge"
                       [class.admin-badge--success]="plan.isActive"
                       [class.admin-badge--neutral]="!plan.isActive">
-                      {{ plan.isActive ? 'Р”Р°' : 'РќРµС‚' }}
+                      {{ plan.isActive ? ui.yes : ui.no }}
                     </span>
                   </td>
                   <td>{{ plan.validFrom | date: 'dd.MM.yyyy' }} - {{ plan.validTo | date: 'dd.MM.yyyy' }}</td>
                   <td>
-                    <button
-                      class="admin-btn admin-btn--ghost"
-                      type="button"
-                      (click)="openEditModal(plan)">
-                      РР·РјРµРЅРёС‚СЊ
+                    <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(plan)">
+                      {{ ui.edit }}
                     </button>
                   </td>
                 </tr>
@@ -91,7 +93,7 @@
           </table>
         } @else {
           <div class="payments-table__empty">
-            РџРѕРєР° РЅРµС‚ С‚Р°СЂРёС„РЅС‹С… РїР»Р°РЅРѕРІ. РќР°Р¶РјРёС‚Рµ В«Р”РѕР±Р°РІРёС‚СЊ РїР»Р°РЅВ».
+            {{ ui.emptyState }}
           </div>
         }
       </div>

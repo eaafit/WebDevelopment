@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { buildRpcBaseUrl } from '@notary-portal/ui';
 
-/** DTO скидки (REST `/api/discounts`). */
+/** Discount DTO from REST `/api/discounts`. */
 export interface Discount {
   id: number;
   name: string;
@@ -62,9 +62,9 @@ export class DiscountService {
     let httpParams = new HttpParams();
     if (params) {
       (Object.keys(params) as (keyof DiscountQueryParams)[]).forEach((key) => {
-        const v = params[key];
-        if (v !== undefined && v !== null && v !== '') {
-          httpParams = httpParams.set(key, String(v));
+        const value = params[key];
+        if (value !== undefined && value !== null && value !== '') {
+          httpParams = httpParams.set(key, String(value));
         }
       });
     }

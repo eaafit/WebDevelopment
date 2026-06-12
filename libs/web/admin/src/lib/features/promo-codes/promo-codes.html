@@ -1,200 +1,199 @@
 <section class="admin-page payments-page promo-page">
   <header class="admin-page__hero">
     <div class="admin-page__hero-copy">
-      <p class="admin-page__eyebrow">Личный кабинет администратора / Промокоды</p>
-      <h2>Управление промокодами</h2>
-      <p class="admin-page__lead">Промокоды из базы: тип скидки, сроки, лимиты использования.</p>
+      <p class="admin-page__eyebrow">{{ ui.eyebrow }}</p>
+      <h2>{{ ui.heading }}</h2>
+      <p class="admin-page__lead">{{ ui.lead }}</p>
     </div>
     <div class="admin-page__actions">
-      <button class="admin-btn admin-btn--primary" type="button" (click)="openAddModal()">+ Добавить промокод</button>
+      <button class="admin-btn admin-btn--primary" type="button" (click)="openAddModal()">+ {{ ui.addPromo }}</button>
     </div>
   </header>
 
   <section class="admin-toolbar">
     <div class="admin-toolbar__copy">
-      <p>Поиск по коду среди загруженных записей.</p>
-      <small class="admin-toolbar__status">Найдено: {{ filteredRows().length }}</small>
+      <p>{{ ui.searchLead }}</p>
+      <small class="admin-toolbar__status">{{ ui.found }}: {{ filteredRows().length }}</small>
     </div>
     <label class="admin-field">
-      <span>Поиск по коду</span>
-      <input placeholder="Введите код…" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
+      <span>{{ ui.searchByCode }}</span>
+      <input [placeholder]="ui.searchPlaceholder" [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
     </label>
   </section>
 
   @if (error()) {
-  <p class="promo-page__error">{{ error() }}</p>
+    <p class="promo-page__error">{{ error() }}</p>
   }
 
   <article class="admin-card">
     <div class="admin-card__header">
       <div>
-        <h3>Список промокодов</h3>
-        <p>Данные из таблицы promocodes: активация и срок действия.</p>
+        <h3>{{ ui.listTitle }}</h3>
+        <p>{{ ui.listLead }}</p>
       </div>
       @if (loading()) {
-      <span class="admin-badge admin-badge--neutral">Загрузка…</span>
+        <span class="admin-badge admin-badge--neutral">{{ ui.loading }}</span>
       }
     </div>
     <div class="payments-table-shell">
       <div class="table-responsive">
         @if (filteredRows().length > 0) {
-        <table class="payments-table">
-          <thead>
-            <tr>
-              <th>Код</th>
-              <th>Скидка</th>
-              <th>Лимит</th>
-              <th>Использовано</th>
-              <th>Период</th>
-              <th>Статус</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (r of filteredRows(); track r.id) {
-            <tr>
-              <td class="promo-page__mono">{{ r.code }}</td>
-              <td>{{ discountLabel(r) }}</td>
-              <td>{{ r.maxUses }}</td>
-              <td>{{ r.usedCount }}</td>
-              <td>{{ r.validFrom | date: 'dd.MM.yyyy' }} — {{ r.validTo | date: 'dd.MM.yyyy' }}</td>
-              <td>
-                @let st = rowStatus(r);
-                <span
-                  class="admin-badge"
-                  [class.admin-badge--success]="st === 'Active'"
-                  [class.admin-badge--warning]="st === 'Inactive'"
-                  [class.admin-badge--neutral]="st === 'Expired'">
-                  {{ st === 'Active' ? 'Активен' : st === 'Inactive' ? 'Неактивен' : 'Истёк' }}
-                </span>
-              </td>
-              <td class="sale-page__actions">
-                <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(r)">Изменить</button>
-                @if (rowStatus(r) !== 'Expired') {
-                <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(r)">
-                  {{ r.isActive ? 'Деактивировать' : 'Активировать' }}
-                </button>
-                } @else {
-                <span class="promo-page__muted">—</span>
-                }
-                <button class="admin-btn admin-btn--ghost" type="button" (click)="confirmDelete(r)">Удалить</button>
-              </td>
-            </tr>
-            }
-          </tbody>
-        </table>
+          <table class="payments-table">
+            <thead>
+              <tr>
+                <th>{{ ui.code }}</th>
+                <th>{{ ui.discount }}</th>
+                <th>{{ ui.limit }}</th>
+                <th>{{ ui.used }}</th>
+                <th>{{ ui.period }}</th>
+                <th>{{ ui.status }}</th>
+                <th>{{ ui.actions }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredRows(); track row.id) {
+                <tr>
+                  <td class="promo-page__mono">{{ row.code }}</td>
+                  <td>{{ discountLabel(row) }}</td>
+                  <td>{{ row.maxUses }}</td>
+                  <td>{{ row.usedCount }}</td>
+                  <td>{{ row.validFrom | date: 'dd.MM.yyyy' }} - {{ row.validTo | date: 'dd.MM.yyyy' }}</td>
+                  <td>
+                    @let statusValue = rowStatus(row);
+                    <span
+                      class="admin-badge"
+                      [class.admin-badge--success]="statusValue === 'Active'"
+                      [class.admin-badge--warning]="statusValue === 'Inactive'"
+                      [class.admin-badge--neutral]="statusValue === 'Expired'">
+                      {{ statusLabel(statusValue) }}
+                    </span>
+                  </td>
+                  <td class="sale-page__actions">
+                    <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(row)">{{ ui.edit }}</button>
+                    @if (rowStatus(row) !== 'Expired') {
+                      <button class="admin-btn admin-btn--ghost" type="button" (click)="toggleActive(row)">
+                        {{ row.isActive ? ui.deactivate : ui.activate }}
+                      </button>
+                    } @else {
+                      <span class="promo-page__muted">{{ ui.dash }}</span>
+                    }
+                    <button class="admin-btn admin-btn--ghost" type="button" (click)="confirmDelete(row)">{{ ui.delete }}</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
         } @else if (!loading()) {
-        <div class="payments-table__empty">Промокоды не найдены. Создайте первый через «Добавить промокод».</div>
+          <div class="payments-table__empty">{{ ui.emptyState }}</div>
         }
       </div>
     </div>
   </article>
 
   @if (showModal()) {
-  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="closeModal()"></button>
-  <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
-    <div class="entity-modal__head">
-      <div>
-        <h3 id="promo-modal-title">{{ modalMode() === 'create' ? 'Новый промокод' : 'Редактирование промокода' }}</h3>
-        <p class="entity-modal__subtitle">
-          {{ modalMode() === 'create' ? 'Код, тип скидки, период действия и лимит применений.' : 'Измените параметры и
-          сохраните.' }}
-        </p>
+    <button type="button" class="entity-modal-overlay" [attr.aria-label]="ui.closeAria" (click)="closeModal()"></button>
+    <div class="entity-modal" role="dialog" aria-modal="true" aria-labelledby="promo-modal-title">
+      <div class="entity-modal__head">
+        <div>
+          <h3 id="promo-modal-title">{{ modalTitle() }}</h3>
+          <p class="entity-modal__subtitle">{{ modalSubtitle() }}</p>
+        </div>
+        <button type="button" class="entity-modal__close" (click)="closeModal()">{{ ui.close }}</button>
       </div>
-      <button type="button" class="entity-modal__close" (click)="closeModal()">Закрыть</button>
+
+      @if (error()) {
+        <p class="entity-modal__error">{{ error() }}</p>
+      }
+
+      <form class="entity-modal__form" (ngSubmit)="savePromo()">
+        <label class="entity-field">
+          <span class="entity-field__label">{{ ui.code }} *</span>
+          <input class="entity-input promo-page__mono" name="code" [(ngModel)]="form.code" autocomplete="off" />
+        </label>
+
+        <div class="entity-modal__row">
+          <label class="entity-field">
+            <span class="entity-field__label">{{ ui.discountType }}</span>
+            <select class="entity-input" name="discountType" [(ngModel)]="form.discountType">
+              <option value="percentage">{{ ui.percentage }}</option>
+              <option value="fixed">{{ ui.fixedAmount }}</option>
+            </select>
+          </label>
+          <label class="entity-field">
+            <span class="entity-field__label">{{ ui.value }} *</span>
+            <input
+              class="entity-input"
+              type="number"
+              name="discountValue"
+              [(ngModel)]="form.discountValue"
+              min="0"
+              step="0.01" />
+          </label>
+        </div>
+
+        <label class="entity-field">
+          <span class="entity-field__label">{{ ui.description }}</span>
+          <textarea
+            class="entity-textarea"
+            name="description"
+            rows="2"
+            [(ngModel)]="form.description"
+            [placeholder]="ui.descriptionPlaceholder"></textarea>
+        </label>
+
+        <div class="entity-modal__row">
+          <label class="entity-field">
+            <span class="entity-field__label">{{ ui.validFrom }} *</span>
+            <input class="entity-input" type="date" name="validFrom" [(ngModel)]="form.validFrom" required />
+          </label>
+          <label class="entity-field">
+            <span class="entity-field__label">{{ ui.validTo }} *</span>
+            <input
+              class="entity-input"
+              type="date"
+              name="validTo"
+              [(ngModel)]="form.validTo"
+              required
+              [min]="form.validFrom" />
+          </label>
+        </div>
+
+        <label class="entity-field">
+          <span class="entity-field__label">{{ ui.usageLimit }} *</span>
+          <input class="entity-input" type="number" name="usageLimit" [(ngModel)]="form.usageLimit" min="1" step="1" />
+        </label>
+
+        <label class="entity-check">
+          <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+          <span>{{ ui.enabledPromo }}</span>
+        </label>
+
+        <div class="entity-modal__actions">
+          <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">{{ ui.cancel }}</button>
+          <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
+            {{ saving() ? ui.saving : (modalMode() === 'edit' ? ui.saveChanges : ui.save) }}
+          </button>
+        </div>
+      </form>
     </div>
+  }
 
-    @if (error()) {
-    <p class="entity-modal__error">{{ error() }}</p>
-    }
-
-    <form class="entity-modal__form" (ngSubmit)="savePromo()">
-      <label class="entity-field">
-        <span class="entity-field__label">Код *</span>
-        <input class="entity-input promo-page__mono" name="code" [(ngModel)]="form.code" autocomplete="off" />
-      </label>
-
-      <div class="entity-modal__row">
-        <label class="entity-field">
-          <span class="entity-field__label">Тип скидки</span>
-          <select class="entity-input" name="discountType" [(ngModel)]="form.discountType">
-            <option value="percentage">Процент</option>
-            <option value="fixed">Фиксированная сумма (₽)</option>
-          </select>
-        </label>
-        <label class="entity-field">
-          <span class="entity-field__label">Значение *</span>
-          <input
-            class="entity-input"
-            type="number"
-            name="discountValue"
-            [(ngModel)]="form.discountValue"
-            min="0"
-            step="0.01" />
-        </label>
+  @if (showDeleteModal()) {
+    <button type="button" class="entity-modal-overlay" [attr.aria-label]="ui.closeAria" (click)="cancelDelete()"></button>
+    <div class="entity-modal" role="dialog" aria-modal="true">
+      <div class="entity-modal__head">
+        <div>
+          <h3>{{ ui.confirmDeleteTitle }}</h3>
+          <p class="entity-modal__subtitle">{{ ui.confirmDeleteSubtitle }} &#171;{{ promoToDelete()?.code }}&#187;.</p>
+        </div>
+        <button type="button" class="entity-modal__close" (click)="cancelDelete()">{{ ui.close }}</button>
       </div>
-
-      <label class="entity-field">
-        <span class="entity-field__label">Описание</span>
-        <textarea
-          class="entity-textarea"
-          name="description"
-          rows="2"
-          [(ngModel)]="form.description"
-          placeholder="Необязательно — иначе подставится автоматический текст"></textarea>
-      </label>
-
-      <div class="entity-modal__row">
-        <label class="entity-field">
-          <span class="entity-field__label">Действует с *</span>
-          <input class="entity-input" type="date" name="validFrom" [(ngModel)]="form.validFrom" required />
-        </label>
-        <label class="entity-field">
-          <span class="entity-field__label">Действует по *</span>
-          <input
-            class="entity-input"
-            type="date"
-            name="validTo"
-            [(ngModel)]="form.validTo"
-            required
-            [min]="form.validFrom" />
-        </label>
-      </div>
-
-      <label class="entity-field">
-        <span class="entity-field__label">Максимум использований *</span>
-        <input class="entity-input" type="number" name="usageLimit" [(ngModel)]="form.usageLimit" min="1" step="1" />
-      </label>
-
-      <label class="entity-check">
-        <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
-        <span>Промокод активен</span>
-      </label>
-
+      <p>{{ ui.confirmDeleteQuestion }} &#171;{{ promoToDelete()?.code }}&#187;?</p>
+      <p class="warning">{{ ui.deleteWarning }}</p>
       <div class="entity-modal__actions">
-        <button class="admin-btn admin-btn--ghost" type="button" (click)="closeModal()">Отмена</button>
-        <button class="admin-btn admin-btn--primary" type="submit" [disabled]="saving()">
-          {{ saving() ? 'Сохранение…' : (modalMode() === 'edit' ? 'Сохранить изменения' : 'Сохранить') }}
-        </button>
+        <button class="admin-btn admin-btn--ghost" type="button" (click)="cancelDelete()">{{ ui.cancel }}</button>
+        <button class="admin-btn admin-btn--primary" type="button" (click)="deletePromo()">{{ ui.delete }}</button>
       </div>
-    </form>
-  </div>
-  } @if (showDeleteModal()) {
-  <button type="button" class="entity-modal-overlay" aria-label="Закрыть" (click)="cancelDelete()"></button>
-  <div class="entity-modal" role="dialog" aria-modal="true">
-    <div class="entity-modal__head">
-      <div>
-        <h3>Подтверждение удаления</h3>
-        <p class="entity-modal__subtitle">Удаление промокода &#171;{{ promoToDelete()?.code }}&#187;.</p>
-      </div>
-      <button type="button" class="entity-modal__close" (click)="cancelDelete()">Закрыть</button>
     </div>
-    <p>Вы уверены, что хотите удалить промокод &#171;{{ promoToDelete()?.code }}&#187;?</p>
-    <p class="warning">Это действие нельзя отменить.</p>
-    <div class="entity-modal__actions">
-      <button class="admin-btn admin-btn--ghost" type="button" (click)="cancelDelete()">Отмена</button>
-      <button class="admin-btn admin-btn--primary" type="button" (click)="deletePromo()">Удалить</button>
-    </div>
-  </div>
   }
 </section>

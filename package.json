@@ -3,6 +3,15 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "nx": "node ./node_modules/nx/bin/nx.js",
+    "dev:infra": "docker compose up -d",
+    "dev:prisma:generate": "node ./node_modules/nx/bin/nx.js run prisma:generate",
+    "dev:prisma:deploy": "node ./node_modules/nx/bin/nx.js run prisma:deploy",
+    "dev:prisma:seed": "node ./node_modules/nx/bin/nx.js run prisma:seed",
+    "dev:setup": "npm run dev:prisma:generate && npm run dev:prisma:deploy && npm run dev:prisma:seed",
+    "dev:api": "node ./node_modules/nx/bin/nx.js run api:serve",
+    "dev:web": "node ./node_modules/nx/bin/nx.js run web:serve",
+    "build:api:dev": "node ./node_modules/nx/bin/nx.js run api:build:development",
     "lint-staged": "lint-staged",
     "prepare": "husky",
     "db:seed": "cd libs/api/shared/prisma && prisma db seed"
