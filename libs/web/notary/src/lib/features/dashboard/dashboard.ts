@@ -1,13 +1,19 @@
 import { Component, computed, signal, OnInit, OnDestroy, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DashboardUpdateService } from '../../services/dashboard-update.service';
+import { NotaryAssessmentApiService } from '../../services/assessment-api.service';
+import { UserApiService } from '../../services/user.service';
 import { Subscription } from 'rxjs';
 
-// Импортируем мок-данные из assessment.ts
-import { MOCK_ASSESSMENTS } from '../assessment/assessment';
-import type { AssessmentItem } from '../assessment/assessment';
+type Status = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
 
-type Status = AssessmentItem['status'];
+interface AssessmentItem {
+  id: string;
+  applicantName: string;
+  status: Status;
+  address: string;
+  createdAt: string;
+}
 
 @Component({
   selector: 'lib-notary-dashboard',
@@ -18,19 +24,15 @@ type Status = AssessmentItem['status'];
 })
 export class Dashboard implements OnInit, OnDestroy {
   private dashboardUpdateService = inject(DashboardUpdateService);
+  private assessmentApi = inject(NotaryAssessmentApiService);
+  private userApi = inject(UserApiService);
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
   private readonly updatedAt = signal<Date>(new Date());
-  private readonly assessments = signal<AssessmentItem[]>(MOCK_ASSESSMENTS);
+  private readonly assessments = signal<AssessmentItem[]>([]);
 
   private metricsSubscription?: Subscription;
-
-  // Метрики из мок-данных
-  private totalCount = signal(this.assessments().length);
-  private inProgressCount = signal(this.assessments().filter(a => a.status === 'InProgress').length);
-  private completedCount = signal(this.assessments().filter(a => a.status === 'Completed').length);
-  private cancelledCount = signal(this.assessments().filter(a => a.status === 'Cancelled').length);
 
   ngOnInit(): void {
     this.metricsSubscription = this.dashboardUpdateService.metrics$.subscribe(metrics => {
@@ -41,11 +43,49 @@ export class Dashboard implements OnInit, OnDestroy {
         this.cancelledCount.set(metrics.cancelled);
       }
     });
+    this.loadAssessments();
   }
 
   ngOnDestroy(): void {
     this.metricsSubscription?.unsubscribe();
   }
+
+  private async loadAssessments(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      await this.userApi.loadUsers().catch(() => undefined);
+      const data = await this.assessmentApi.listAssessments();
+      const typedData: AssessmentItem[] = data.map(item => ({
+        id: item.id,
+        applicantName: this.userApi.getUserName(item.userId),
+        status: item.status as Status,
+        address: item.address,
+        createdAt: item.createdAt,
+      }));
+      this.assessments.set(typedData);
+      this.updatedAt.set(new Date());
+      this.updateMetricsFromData(typedData);
+    } catch (error) {
+      this.loadError.set('Не удалось загрузить заявки');
+      console.error(error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private updateMetricsFromData(data: AssessmentItem[]): void {
+    this.totalCount.set(data.length);
+    this.inProgressCount.set(data.filter(a => a.status === 'InProgress').length);
+    this.completedCount.set(data.filter(a => a.status === 'Completed').length);
+    this.cancelledCount.set(data.filter(a => a.status === 'Cancelled').length);
+  }
+
+  // Метрики
+  private totalCount = signal(0);
+  private inProgressCount = signal(0);
+  private completedCount = signal(0);
+  private cancelledCount = signal(0);
 
   protected readonly total = computed(() => this.totalCount());
   protected readonly inProgress = computed(() => this.inProgressCount());
@@ -94,10 +134,6 @@ export class Dashboard implements OnInit, OnDestroy {
   });
 
   refresh(): void {
-    this.updatedAt.set(new Date());
-    this.totalCount.set(this.assessments().length);
-    this.inProgressCount.set(this.assessments().filter(a => a.status === 'InProgress').length);
-    this.completedCount.set(this.assessments().filter(a => a.status === 'Completed').length);
-    this.cancelledCount.set(this.assessments().filter(a => a.status === 'Cancelled').length);
+    this.loadAssessments();
   }
 }

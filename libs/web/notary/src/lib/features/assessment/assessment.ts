@@ -1,11 +1,14 @@
-import { Component, HostListener, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { inject } from '@angular/core';
+import { NotificationCounterService } from '@notary-portal/ui';
 import { BitrixOrderService } from '../../services/bitrix-order.service';
-export { MOCK_ASSESSMENTS };
+import {
+  NotaryAssessmentApiService,
+  type NotaryAssessmentRow,
+} from '../../services/assessment-api.service';
+import { UserApiService } from '../../services/user.service';
 
-// ========== ТИПЫ ==========
 export type AssessmentStatus = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
 
 export interface AssessmentItem {
@@ -23,38 +26,7 @@ export interface AssessmentItem {
 
 type FilterColumn = 'id' | 'address' | 'applicantName' | 'status' | 'estimatedValue' | 'createdAt';
 
-// ========== МОКОВЫЕ ДАННЫЕ ==========
-const MOCK_ASSESSMENTS: AssessmentItem[] = [
-  { id: 'ast-001', userId: 'user-1', applicantName: 'Иванов Иван Иванович', status: 'New', address: 'г. Москва, ул. Тверская, д. 15, кв. 45', description: '3-комнатная квартира, 5 этаж', estimatedValue: '', createdAt: '2026-06-01T10:00:00Z', updatedAt: '2026-06-01T10:00:00Z' },
-  { id: 'ast-002', userId: 'user-2', applicantName: 'Петрова Мария Сергеевна', status: 'InProgress', address: 'г. Санкт-Петербург, Невский пр., д. 100', description: 'Коммерческое помещение, 150 м²', estimatedValue: '', createdAt: '2026-06-02T11:30:00Z', updatedAt: '2026-06-03T09:00:00Z' },
-  { id: 'ast-003', userId: 'user-3', applicantName: 'Сидоров Алексей Викторович', status: 'Completed', address: 'г. Екатеринбург, ул. Ленина, д. 10', description: '5-комнатный дом, 220 м²', estimatedValue: '8500000', createdAt: '2026-05-28T14:20:00Z', updatedAt: '2026-06-02T16:45:00Z' },
-  { id: 'ast-004', userId: 'user-4', applicantName: 'Кузнецова Анна Владимировна', status: 'Verified', address: 'г. Казань, ул. Баумана, д. 25', description: '2-этажный дом, 185 м²', estimatedValue: '', createdAt: '2026-05-20T09:15:00Z', updatedAt: '2026-05-30T11:00:00Z' },
-  { id: 'ast-005', userId: 'user-5', applicantName: 'Михайлов Дмитрий Андреевич', status: 'Cancelled', address: 'г. Новосибирск, Красный пр., д. 50', description: '2-комнатная квартира, 45.2 м²', estimatedValue: '', cancelReason: 'Заявитель передумал', createdAt: '2026-05-15T08:00:00Z', updatedAt: '2026-05-25T12:30:00Z' },
-  { id: 'ast-006', userId: 'user-6', applicantName: 'Соколова Елена Дмитриевна', status: 'New', address: 'г. Краснодар, ул. Красная, д. 20', description: '1-комнатная квартира', estimatedValue: '', createdAt: '2026-06-04T09:00:00Z', updatedAt: '2026-06-04T09:00:00Z' },
-  { id: 'ast-007', userId: 'user-7', applicantName: 'Морозов Андрей Сергеевич', status: 'InProgress', address: 'г. Сочи, ул. Навагинская, д. 5', description: 'Таунхаус, 120 м²', estimatedValue: '', createdAt: '2026-06-05T14:00:00Z', updatedAt: '2026-06-06T10:00:00Z' },
-  { id: 'ast-008', userId: 'user-8', applicantName: 'Волкова Татьяна Павловна', status: 'Completed', address: 'г. Нижний Новгород, ул. Большая Покровская, д. 30', description: 'Офисное помещение, 80 м²', estimatedValue: '4200000', createdAt: '2026-06-01T08:00:00Z', updatedAt: '2026-06-04T15:00:00Z' },
-  { id: 'ast-009', userId: 'user-9', applicantName: 'Зайцев Константин Игоревич', status: 'Verified', address: 'г. Ростов-на-Дону, пр. Будённовский, д. 45', description: '3-комнатная квартира', estimatedValue: '', createdAt: '2026-05-30T12:00:00Z', updatedAt: '2026-06-05T11:00:00Z' },
-  { id: 'ast-010', userId: 'user-10', applicantName: 'Николаева Ольга Владимировна', status: 'Cancelled', address: 'г. Самара, ул. Ленинградская, д. 12', description: 'Земельный участок', estimatedValue: '', cancelReason: 'Не сошлись в цене', createdAt: '2026-05-25T10:00:00Z', updatedAt: '2026-06-03T09:00:00Z' },
-  { id: 'ast-011', userId: 'user-11', applicantName: 'Павлов Сергей Николаевич', status: 'New', address: 'г. Уфа, пр. Октября, д. 88', description: 'Склад 500 м²', estimatedValue: '', createdAt: '2026-05-22T16:00:00Z', updatedAt: '2026-06-01T14:00:00Z' },
-  { id: 'ast-012', userId: 'user-12', applicantName: 'Егорова Анастасия Дмитриевна', status: 'InProgress', address: 'г. Воронеж, ул. Плехановская, д. 7', description: '2-комнатная квартира', estimatedValue: '', createdAt: '2026-05-18T11:00:00Z', updatedAt: '2026-05-28T09:00:00Z' },
-  { id: 'ast-013', userId: 'user-13', applicantName: 'Тимофеев Алексей Петрович', status: 'Completed', address: 'г. Волгоград, ул. Мира, д. 15', description: 'Частный дом, 150 м²', estimatedValue: '12500000', createdAt: '2026-06-06T09:00:00Z', updatedAt: '2026-06-06T09:00:00Z' },
-  { id: 'ast-014', userId: 'user-14', applicantName: 'Фёдорова Мария Игоревна', status: 'Verified', address: 'г. Челябинск, ул. Кирова, д. 22', description: '3-комнатная квартира', estimatedValue: '', createdAt: '2026-06-07T13:00:00Z', updatedAt: '2026-06-08T10:00:00Z' },
-  { id: 'ast-015', userId: 'user-1', applicantName: 'Иванов Иван Иванович', status: 'New', address: 'г. Москва, ул. Арбат, д. 12, кв. 8', description: '2-комнатная квартира, центр', estimatedValue: '', createdAt: '2026-06-03T13:00:00Z', updatedAt: '2026-06-03T13:00:00Z' },
-];
-
-// ========== СЕРВИС АУДИТА (заглушка) ==========
-class AuditService {
-  log(data: { action: string; entity: string; entityId: string; details: any }) {
-    console.log('[AUDIT]', { timestamp: new Date().toISOString(), ...data });
-  }
-}
-
-// ========== СЕРВИС УВЕДОМЛЕНИЙ (заглушка) ==========
-class NotificationService {
-  send(userId: string, message: string, type: string) {
-    console.log(`[NOTIFICATION] Пользователю ${userId} отправлено: ${message} (тип: ${type})`);
-  }
-}
+const DECIMAL_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 @Component({
   selector: 'lib-assessment',
@@ -64,9 +36,10 @@ class NotificationService {
   styleUrl: './assessment.scss',
 })
 export class Assessment implements OnInit {
-  private bitrixPublisher = inject(BitrixOrderService);
-  private audit = new AuditService();
-  private notifications = new NotificationService();
+  private readonly bitrixPublisher = inject(BitrixOrderService);
+  private readonly assessmentApi = inject(NotaryAssessmentApiService);
+  private readonly userApi = inject(UserApiService);
+  private readonly notificationCounter = inject(NotificationCounterService);
 
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
@@ -111,9 +84,7 @@ export class Assessment implements OnInit {
 
   showVerifyModal = false;
   assessmentToVerify: AssessmentItem | null = null;
-
-  showStartWorkModal = false;
-  assessmentToStartWork: AssessmentItem | null = null;
+  verifyError = '';
 
   showCompleteModal = false;
   assessmentToComplete: AssessmentItem | null = null;
@@ -129,14 +100,51 @@ export class Assessment implements OnInit {
   };
 
   ngOnInit(): void {
-    this.loadAssessments();
+    void this.loadAssessments();
   }
 
-  loadAssessments(): void {
+  async loadAssessments(): Promise<void> {
     this.loading = true;
-    this.assessments = JSON.parse(JSON.stringify(MOCK_ASSESSMENTS));
-    this.applyFilters();
-    this.loading = false;
+    this.loadError = null;
+    try {
+      await this.userApi.loadUsers().catch(() => undefined);
+      const data = await this.assessmentApi.listAssessments();
+      this.assessments = data.map((item) => this.toAssessmentItem(item));
+      this.applyFilters();
+    } catch (error) {
+      console.error('Ошибка загрузки заявок:', error);
+      this.loadError = (error as Error).message || 'Не удалось загрузить заявки';
+      this.assessments = [];
+      this.applyFilters();
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private toAssessmentItem(row: NotaryAssessmentRow): AssessmentItem {
+    return {
+      id: row.id,
+      userId: row.userId,
+      applicantName: this.userApi.getUserName(row.userId),
+      status: row.status,
+      address: row.address,
+      description: row.description,
+      estimatedValue: row.estimatedValue,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private async refreshAfterMutation(touchedId: string): Promise<void> {
+    await this.loadAssessments();
+    if (this.showView && this.selectedAssessment?.id === touchedId) {
+      const fresh = this.assessments.find((a) => a.id === touchedId);
+      this.selectedAssessment = fresh ?? null;
+      if (!fresh) {
+        this.showView = false;
+      }
+    }
+    void this.notificationCounter.refresh();
   }
 
   applyFilters(): void {
@@ -280,84 +288,80 @@ export class Assessment implements OnInit {
   openCancelModal(item: AssessmentItem): void { this.assessmentToCancel = item; this.cancelReason = ''; this.cancelReasonError = ''; this.showCancelModal = true; }
   closeCancelModal(): void { this.showCancelModal = false; this.assessmentToCancel = null; this.cancelReason = ''; this.cancelReasonError = ''; }
 
-  confirmCancel(): void {
-    if (!this.assessmentToCancel) return;
+  async confirmCancel(): Promise<void> {
+    if (!this.assessmentToCancel || this.mutationInFlight) return;
+    const id = this.assessmentToCancel.id;
+    const reason = this.cancelReason.trim();
     this.mutationInFlight = true;
-    this.audit.log({ action: 'ORDER_CANCELLED', entity: 'Assessment', entityId: this.assessmentToCancel.id, details: { reason: this.cancelReason } });
-    this.notifications.send(this.assessmentToCancel.userId, `Ваша заявка отменена. Причина: ${this.cancelReason}`, 'order_cancelled');
-    const index = this.assessments.findIndex(a => a.id === this.assessmentToCancel!.id);
-    if (index !== -1) {
-      this.assessments[index].status = 'Cancelled';
-      this.assessments[index].cancelReason = this.cancelReason;
-      if (this.showView && this.selectedAssessment?.id === this.assessmentToCancel!.id) this.selectedAssessment = this.assessments[index];
-      this.applyFilters();
+    this.cancelReasonError = '';
+    try {
+      await this.assessmentApi.cancelAssessment(id, reason);
+      this.closeCancelModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.cancelReasonError = (error as Error).message || 'Не удалось отменить заявку';
+    } finally {
+      this.mutationInFlight = false;
     }
-    this.closeCancelModal();
-    this.mutationInFlight = false;
   }
 
-  openVerifyModal(item: AssessmentItem): void { this.assessmentToVerify = item; this.showVerifyModal = true; }
-  closeVerifyModal(): void { this.showVerifyModal = false; this.assessmentToVerify = null; }
+  openVerifyModal(item: AssessmentItem): void {
+    this.assessmentToVerify = item;
+    this.verifyError = '';
+    this.showVerifyModal = true;
+  }
+  closeVerifyModal(): void { this.showVerifyModal = false; this.assessmentToVerify = null; this.verifyError = ''; }
 
-  confirmVerify(): void {
-    if (!this.assessmentToVerify) return;
+  async confirmVerify(): Promise<void> {
+    if (!this.assessmentToVerify || this.mutationInFlight) return;
+    const id = this.assessmentToVerify.id;
     this.mutationInFlight = true;
-    this.audit.log({ action: 'ORDER_TAKEN', entity: 'Assessment', entityId: this.assessmentToVerify.id, details: { status: 'Verified' } });
-    this.notifications.send(this.assessmentToVerify.userId, 'Ваша заявка принята нотариусом в работу', 'order_taken');
-    const index = this.assessments.findIndex(a => a.id === this.assessmentToVerify!.id);
-    if (index !== -1) {
-      this.assessments[index].status = 'Verified';
-      if (this.showView && this.selectedAssessment?.id === this.assessmentToVerify!.id) this.selectedAssessment = this.assessments[index];
-      this.applyFilters();
+    this.verifyError = '';
+    try {
+      await this.assessmentApi.verifyAssessment(id);
+      this.bitrixPublisher.publishOrder(id).catch(err => console.error('Ошибка отправки в Bitrix:', err));
+      this.closeVerifyModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.verifyError = (error as Error).message || 'Не удалось взять заявку в работу';
+    } finally {
+      this.mutationInFlight = false;
     }
-    const orderId = this.assessmentToVerify!.id;
-    this.bitrixPublisher.publishOrder(orderId).catch(err => console.error('❌ Ошибка отправки в Bitrix:', err));
-    this.closeVerifyModal();
-    this.mutationInFlight = false;
   }
 
-  openStartWorkModal(item: AssessmentItem): void { this.assessmentToStartWork = item; this.showStartWorkModal = true; }
-  closeStartWorkModal(): void { this.showStartWorkModal = false; this.assessmentToStartWork = null; }
-
-  confirmStartWork(): void {
-    if (!this.assessmentToStartWork) return;
-    this.mutationInFlight = true;
-    this.audit.log({ action: 'ORDER_STARTED', entity: 'Assessment', entityId: this.assessmentToStartWork.id, details: { status: 'InProgress' } });
-    this.notifications.send(this.assessmentToStartWork.userId, 'Нотариус начал работу над вашей заявкой', 'order_started');
-    const index = this.assessments.findIndex(a => a.id === this.assessmentToStartWork!.id);
-    if (index !== -1) {
-      this.assessments[index].status = 'InProgress';
-      if (this.showView && this.selectedAssessment?.id === this.assessmentToStartWork!.id) this.selectedAssessment = this.assessments[index];
-      this.applyFilters();
-    }
-    this.closeStartWorkModal();
-    this.mutationInFlight = false;
+  openCompleteModal(item: AssessmentItem): void {
+    this.assessmentToComplete = item;
+    this.finalEstimatedValue = item.estimatedValue ?? '';
+    this.finalEstimatedValueError = '';
+    this.showCompleteModal = true;
   }
-
-  openCompleteModal(item: AssessmentItem): void { this.assessmentToComplete = item; this.finalEstimatedValue = ''; this.finalEstimatedValueError = ''; this.showCompleteModal = true; }
   closeCompleteModal(): void { this.showCompleteModal = false; this.assessmentToComplete = null; }
 
-  confirmComplete(): void {
-    if (!this.assessmentToComplete) return;
+  async confirmComplete(): Promise<void> {
+    if (!this.assessmentToComplete || this.mutationInFlight) return;
     const value = String(this.finalEstimatedValue).trim();
     if (!value) { this.finalEstimatedValueError = 'Укажите итоговую стоимость'; return; }
-    const num = parseFloat(value);
-    if (isNaN(num) || num <= 0) { this.finalEstimatedValueError = 'Введите положительное число'; return; }
-    this.mutationInFlight = true;
-    this.audit.log({ action: 'ORDER_COMPLETED', entity: 'Assessment', entityId: this.assessmentToComplete.id, details: { finalValue: this.finalEstimatedValue } });
-    this.notifications.send(this.assessmentToComplete.userId, 'Ваша заявка успешно завершена. Отчёт готов к скачиванию.', 'order_completed');
-    const index = this.assessments.findIndex(a => a.id === this.assessmentToComplete!.id);
-    if (index !== -1) {
-      this.assessments[index].status = 'Completed';
-      this.assessments[index].estimatedValue = value;
-      if (this.showView && this.selectedAssessment?.id === this.assessmentToComplete!.id) this.selectedAssessment = this.assessments[index];
-      this.applyFilters();
+    if (!DECIMAL_PATTERN.test(value) || Number(value) <= 0) {
+      this.finalEstimatedValueError = 'Введите положительное число (до двух знаков после точки)';
+      return;
     }
-    this.closeCompleteModal();
-    this.mutationInFlight = false;
+    const id = this.assessmentToComplete.id;
+    this.mutationInFlight = true;
+    this.finalEstimatedValueError = '';
+    try {
+      await this.assessmentApi.completeAssessment(id, value);
+      this.closeCompleteModal();
+      await this.refreshAfterMutation(id);
+    } catch (error) {
+      this.finalEstimatedValueError = (error as Error).message || 'Не удалось завершить заявку';
+    } finally {
+      this.mutationInFlight = false;
+    }
   }
 
-  reload(): void { this.assessments = JSON.parse(JSON.stringify(MOCK_ASSESSMENTS)); this.applyFilters(); }
+  reload(): void {
+    void this.loadAssessments();
+  }
 
   @HostListener('document:click') onDocumentClick(): void { this.closeColumnFilter(); }
   @HostListener('window:resize') onWindowResize(): void { this.closeColumnFilter(); }

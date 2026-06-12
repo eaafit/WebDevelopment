@@ -60,6 +60,7 @@ describe('AssessmentService audit events', () => {
   };
   const notificationService = {
     createInternalNotificationsForRole: jest.fn(),
+    createInternalNotification: jest.fn(),
   };
   const bitrixLeadPublisher = {
     publishLead: jest.fn(),
@@ -80,6 +81,7 @@ describe('AssessmentService audit events', () => {
     assessmentRepository.resolveGeographyIds.mockResolvedValue({});
     fiasProvider.searchAddressItems.mockResolvedValue([]);
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
+    notificationService.createInternalNotification.mockResolvedValue(undefined);
     bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
     jest.mocked(runInSpan).mockClear();
     jest.mocked(setSpanAttributes).mockClear();
@@ -363,6 +365,13 @@ describe('AssessmentService audit events', () => {
       expect.objectContaining({
         title: 'Заявка взята в работу',
         message: 'Нотариус 1 начал работу по заявке #11111111.',
+      }),
+    );
+    expect(notificationService.createInternalNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: before.userId,
+        title: 'Заявка принята в работу',
+        message: 'Ваша заявка принята нотариусом в работу.',
       }),
     );
   });
