@@ -50,6 +50,16 @@
     </span>
   </div>
 
+  @if (statusView().key === 'pending') {
+    <button type="button" class="pay-button" [disabled]="isProcessing()" (click)="payForDocument($event)">
+      @if (isProcessing()) {
+        <span>Обработка…</span>
+      } @else {
+        <span>💳 Оплатить {{ document().price || 300 }} ₽</span>
+      }
+    </button>
+  }
+
   @if (statusView().canDownload && (document().resultDownloadUrl || document().downloadUrl)) {
     <a [href]="document().resultDownloadUrl || document().downloadUrl" class="row-download" target="_blank" rel="noopener" download>
       ⬇ Скачать копию

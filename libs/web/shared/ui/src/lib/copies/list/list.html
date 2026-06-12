@@ -64,6 +64,7 @@
       <lib-document-row
       [document]="item"
       [status]="item.status"
+      (paid)="fetchDocuments()"
       />
     } @empty {
       <div class="empty-dashboard-state">

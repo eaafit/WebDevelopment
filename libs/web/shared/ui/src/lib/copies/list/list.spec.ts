@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 import { Document, DocumentService } from '../services/document.service';
 import { List } from './list';
 
@@ -49,6 +51,8 @@ describe('List', () => {
           },
         },
         { provide: DocumentService, useValue: documentService },
+        { provide: RPC_TRANSPORT, useValue: {} },
+        { provide: TokenStore, useValue: { user: () => ({ id: 'applicant-1' }) } },
       ],
     }).compileComponents();
 

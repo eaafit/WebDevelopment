@@ -133,3 +133,24 @@
 
   &:hover { background: #047857; }
 }
+
+.pay-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, filter 0.2s ease;
+
+  &:hover:not(:disabled) { background: #d97706; }
+  &:disabled { opacity: 0.65; cursor: not-allowed; }
+}
