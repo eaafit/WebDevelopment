@@ -117,22 +117,64 @@
           <thead>
             <tr>
               <th class="th-n">#</th>
-              <th class="th-s" [class.th-active]="isSortActive('address')" (click)="sortBy('address')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('address')"
+                (click)="sortBy('address')"
+                (keydown.enter)="sortBy('address')"
+                (keydown.space)="sortBy('address'); $event.preventDefault()">
                 Адрес <span class="sort-ic">{{ sortIcon('address') }}</span>
               </th>
-              <th class="th-s" [class.th-active]="isSortActive('objectType')" (click)="sortBy('objectType')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('objectType')"
+                (click)="sortBy('objectType')"
+                (keydown.enter)="sortBy('objectType')"
+                (keydown.space)="sortBy('objectType'); $event.preventDefault()">
                 Тип <span class="sort-ic">{{ sortIcon('objectType') }}</span>
               </th>
-              <th class="th-s" [class.th-active]="isSortActive('area')" (click)="sortBy('area')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('area')"
+                (click)="sortBy('area')"
+                (keydown.enter)="sortBy('area')"
+                (keydown.space)="sortBy('area'); $event.preventDefault()">
                 Площадь <span class="sort-ic">{{ sortIcon('area') }}</span>
               </th>
-              <th class="th-s" [class.th-active]="isSortActive('status')" (click)="sortBy('status')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('status')"
+                (click)="sortBy('status')"
+                (keydown.enter)="sortBy('status')"
+                (keydown.space)="sortBy('status'); $event.preventDefault()">
                 Статус <span class="sort-ic">{{ sortIcon('status') }}</span>
               </th>
-              <th class="th-s" [class.th-active]="isSortActive('createdAt')" (click)="sortBy('createdAt')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('createdAt')"
+                (click)="sortBy('createdAt')"
+                (keydown.enter)="sortBy('createdAt')"
+                (keydown.space)="sortBy('createdAt'); $event.preventDefault()">
                 Дата <span class="sort-ic">{{ sortIcon('createdAt') }}</span>
               </th>
-              <th class="th-s" [class.th-active]="isSortActive('estimatedValue')" (click)="sortBy('estimatedValue')">
+              <th
+                class="th-s"
+                role="button"
+                tabindex="0"
+                [class.th-active]="isSortActive('estimatedValue')"
+                (click)="sortBy('estimatedValue')"
+                (keydown.enter)="sortBy('estimatedValue')"
+                (keydown.space)="sortBy('estimatedValue'); $event.preventDefault()">
                 Стоимость <span class="sort-ic">{{ sortIcon('estimatedValue') }}</span>
               </th>
               <th class="th-act">Действия</th>
@@ -785,8 +827,16 @@
   role="button"
   tabindex="0"
   (click)="closeDeleteModal()"
-  (keydown.escape)="closeDeleteModal()">
-  <div class="modal" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+  (keydown.escape)="closeDeleteModal()"
+  (keydown.enter)="closeDeleteModal()"
+  (keydown.space)="closeDeleteModal(); $event.preventDefault()">
+  <div
+    class="modal"
+    tabindex="-1"
+    (click)="$event.stopPropagation()"
+    (keydown.enter)="$event.stopPropagation()"
+    (keydown.space)="$event.stopPropagation()"
+    (keydown.escape)="$event.stopPropagation()">
     <header class="modal-hdr">
       <h2 class="modal-title">Удалить заявку</h2>
       <button class="modal-close" type="button" (click)="closeDeleteModal()">

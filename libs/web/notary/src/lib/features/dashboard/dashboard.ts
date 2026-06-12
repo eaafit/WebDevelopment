@@ -1,5 +1,8 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, signal, OnInit, OnDestroy, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { DashboardUpdateService } from '../../services/dashboard-update.service';
+import { NotaryAssessmentApiService } from '../../services/assessment-api.service';
+import { Subscription } from 'rxjs';
 
 type Status = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
 
@@ -18,19 +21,53 @@ interface AssessmentItem {
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
-export class Dashboard {
+export class Dashboard implements OnInit, OnDestroy {
+  private dashboardUpdateService = inject(DashboardUpdateService);
+  private assessmentApi = inject(NotaryAssessmentApiService);
+
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
   private readonly updatedAt = signal<Date>(new Date());
+  private readonly assessments = signal<AssessmentItem[]>([]);
 
-  // Мок-данные для демонстрации
-  private readonly assessments = signal<AssessmentItem[]>([
-    { id: '1', applicantName: 'Иванов Иван', status: 'InProgress', address: 'г. Екатеринбург, ул. Малышева, 18', createdAt: '2024-06-01T10:00:00Z' },
-    { id: '2', applicantName: 'Петрова Анна', status: 'New', address: 'г. Екатеринбург, ул. Бориса Ельцина, 3', createdAt: '2024-06-02T10:00:00Z' },
-    { id: '3', applicantName: 'Сидоров Сергей', status: 'Completed', address: 'г. Екатеринбург, ул. Ленина, 25', createdAt: '2024-05-30T10:00:00Z' },
-    { id: '4', applicantName: 'Кузнецова Ольга', status: 'Cancelled', address: 'г. Екатеринбург, ул. Мира, 10', createdAt: '2024-05-28T10:00:00Z' },
-    { id: '5', applicantName: 'Морозов Дмитрий', status: 'Verified', address: 'г. Екатеринбург, ул. Тверитина, 5', createdAt: '2024-06-03T10:00:00Z' },
-  ]);
+  private metricsSubscription?: Subscription;
+  private totalAssessments = signal(0);
+  private inProgressAssessments = signal(0);
+  private completedAssessments = signal(0);
+  private cancelledAssessments = signal(0);
+
+  ngOnInit(): void {
+    this.metricsSubscription = this.dashboardUpdateService.metrics$.subscribe(metrics => {
+      this.totalAssessments.set(metrics.total);
+      this.inProgressAssessments.set(metrics.inProgress);
+      this.completedAssessments.set(metrics.completed);
+      this.cancelledAssessments.set(metrics.cancelled);
+    });
+    this.loadAssessments();
+  }
+
+  ngOnDestroy(): void {
+    this.metricsSubscription?.unsubscribe();
+  }
+
+  private async loadAssessments(): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      const data = await this.assessmentApi.getAssessments();
+      const typedData: AssessmentItem[] = data.map(item => ({
+        ...item,
+        status: item.status as Status
+      }));
+      this.assessments.set(typedData);
+      this.updatedAt.set(new Date());
+    } catch (error) {
+      this.loadError.set('Не удалось загрузить заявки');
+      console.error(error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
   protected readonly statusLabel: Record<Status, string> = {
     New: 'Новая',
@@ -48,10 +85,10 @@ export class Dashboard {
     Cancelled: 'notary-badge--critical',
   };
 
-  protected readonly total = computed(() => this.assessments().length);
-  protected readonly inProgressCount = computed(() => this.countByStatus('InProgress'));
-  protected readonly completedCount = computed(() => this.countByStatus('Completed'));
-  protected readonly cancelledCount = computed(() => this.countByStatus('Cancelled'));
+  protected readonly total = computed(() => this.totalAssessments());
+  protected readonly inProgressCount = computed(() => this.inProgressAssessments());
+  protected readonly completedCount = computed(() => this.completedAssessments());
+  protected readonly cancelledCount = computed(() => this.cancelledAssessments());
 
   protected readonly metrics = computed(() => [
     { key: 'total', label: 'Заявок всего', value: this.total(), hint: 'Все ваши заявки на текущий момент.' },
@@ -79,10 +116,6 @@ export class Dashboard {
   });
 
   refresh(): void {
-    this.updatedAt.set(new Date());
-  }
-
-  private countByStatus(status: Status): number {
-    return this.assessments().filter(a => a.status === status).length;
+    this.loadAssessments();
   }
 }
