@@ -4,9 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts';
-import { createClient } from '@connectrpc/connect';
-import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { AssessmentStatus } from '@notary-portal/api-contracts';
 
 @Component({
   selector: 'lib-new',
@@ -20,9 +18,6 @@ export class New implements OnInit {
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  
-  // Создаем клиент для работы с платежами напрямую через gRPC
-  private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   // Список типов документов строго по ТЗ (по возрастанию цены)
   readonly documentTypes = [
@@ -107,34 +102,22 @@ export class New implements OnInit {
 
     try {
       this.isSubmitting.set(true);
-      
-      // 1. Сначала загружаем документ
+
+      // Создаём заказ копии (статус по умолчанию — «Ожидает оплаты»).
+      // Оплата перенесена на карточку заказа (Copy), здесь оплата не инициируется.
       await this.documentService.createDocument(
         this.selectedAssesmentID(),
         this.selectedFile.name,
         this.selectedFile.type || 'application/octet-stream',
         this.getCurrentUserId(),
         new Uint8Array(await this.selectedFile.arrayBuffer()),
+        { comment: this.comment(), price: this.price() },
       );
 
-      // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
-      const paymentResponse = await this.paymentClient.createPayment({
-        userId: this.getCurrentUserId(),
-        amount: this.price().toString(), 
-        type: PaymentType.DOCUMENT_COPY, 
-        targetId: this.selectedAssesmentID(), 
-        paymentProvider: 'yookassa' 
-      });
-
-      // 3. Редирект на оплату
-      if (paymentResponse.paymentUrl) {
-        window.location.href = paymentResponse.paymentUrl;
-      } else {
-        this.router.navigate(['../'], { relativeTo: this.route });
-      }
-
+      // Возврат к списку — оплатить заказ можно из его карточки.
+      this.router.navigate(['../'], { relativeTo: this.route });
     } catch (err) {
-      console.error('Ошибка при сохранении или создании платежа:', err);
+      console.error('Ошибка при создании заказа копии:', err);
     } finally {
       this.isSubmitting.set(false);
     }

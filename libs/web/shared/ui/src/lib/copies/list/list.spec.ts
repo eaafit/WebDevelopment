@@ -1,6 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { AssessmentService } from '../services/assesment.service';
 import { Document, DocumentService } from '../services/document.service';
 import { List } from './list';
 
@@ -8,7 +7,6 @@ describe('List', () => {
   let component: List;
   let fixture: ComponentFixture<List>;
   let documentService: { listDocumentsByAssessment: jest.Mock };
-  let assessmentService: { getAssessment: jest.Mock };
 
   const documents: Document[] = [
     {
@@ -37,9 +35,6 @@ describe('List', () => {
     documentService = {
       listDocumentsByAssessment: jest.fn().mockResolvedValue({ documents }),
     };
-    assessmentService = {
-      getAssessment: jest.fn().mockResolvedValue({ status: 4 }),
-    };
 
     await TestBed.configureTestingModule({
       imports: [List],
@@ -54,7 +49,6 @@ describe('List', () => {
           },
         },
         { provide: DocumentService, useValue: documentService },
-        { provide: AssessmentService, useValue: assessmentService },
       ],
     }).compileComponents();
 
@@ -69,7 +63,7 @@ describe('List', () => {
     expect(component.role).toBe('notary');
   });
 
-  it('should load documents and assessment statuses', async () => {
+  it('should load documents', async () => {
     await component.fetchDocuments();
 
     expect(documentService.listDocumentsByAssessment).toHaveBeenCalledWith(undefined, {
@@ -77,10 +71,6 @@ describe('List', () => {
       limit: 1000,
     });
     expect(component.rawDocuments()).toEqual(documents);
-    expect(component.assessmentStatuses()).toEqual({
-      'assessment-1': 4,
-      'assessment-2': 4,
-    });
   });
 
   it('should filter documents by file name and upload date', () => {
