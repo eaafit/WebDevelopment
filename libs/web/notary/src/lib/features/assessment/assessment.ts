@@ -163,8 +163,10 @@ export class Assessment implements OnInit {
     if (this.dateFrom) result = result.filter(a => a.createdAt.slice(0, 10) >= this.dateFrom);
     if (this.dateTo) result = result.filter(a => a.createdAt.slice(0, 10) <= this.dateTo);
     result = result.filter(a => this.matchesColumnFilters(a));
-    if (this.currentSortColumn && this.currentSortDirection) {
-      result.sort((a, b) => this.compareByActiveSort(a, b, this.currentSortColumn!, this.currentSortDirection));
+    const sortColumn = this.currentSortColumn;
+    const sortDirection = this.currentSortDirection;
+    if (sortColumn && sortDirection) {
+      result.sort((a, b) => this.compareByActiveSort(a, b, sortColumn, sortDirection));
     } else {
       result.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
     }
@@ -249,12 +251,22 @@ export class Assessment implements OnInit {
 
   onToggleAllChange(event: Event): void {
     const checked = !!(event.target as HTMLInputElement)?.checked;
-    for (const v of this.filterValues) checked ? this.filterSelectedDraft.add(v) : this.filterSelectedDraft.delete(v);
+    for (const v of this.filterValues) {
+      if (checked) {
+        this.filterSelectedDraft.add(v);
+      } else {
+        this.filterSelectedDraft.delete(v);
+      }
+    }
   }
 
   onToggleValueChange(value: string, event: Event): void {
     const checked = !!(event.target as HTMLInputElement)?.checked;
-    checked ? this.filterSelectedDraft.add(value) : this.filterSelectedDraft.delete(value);
+    if (checked) {
+      this.filterSelectedDraft.add(value);
+    } else {
+      this.filterSelectedDraft.delete(value);
+    }
   }
 
   applyColumnFilter(): void {

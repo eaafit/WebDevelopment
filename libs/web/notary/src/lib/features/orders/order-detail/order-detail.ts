@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
 
@@ -90,11 +90,11 @@ const MOCK_ASSESSMENTS: AssessmentItem[] = [
   `]
 })
 export class OrderDetail implements OnInit {
+  private readonly route = inject(ActivatedRoute);
+
   order: AssessmentItem | null = null;
-  orderId: string = '';
-  
-  constructor(private route: ActivatedRoute) {}
-  
+  orderId = '';
+
   ngOnInit(): void {
     this.orderId = this.route.snapshot.paramMap.get('id') || '';
     this.order = MOCK_ASSESSMENTS.find(a => a.id === this.orderId) || null;
