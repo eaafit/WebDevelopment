@@ -104,3 +104,32 @@
   color: #4b5563;
   .status-dot { background: #4b5563; }
 }
+
+.status-paid {
+  background: #e0e7ff;
+  color: #4338ca;
+  .status-dot { background: #4338ca; }
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+  .status-dot { background: #dc2626; }
+}
+
+.row-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover { background: #047857; }
+}

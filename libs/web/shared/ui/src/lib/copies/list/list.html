@@ -63,7 +63,7 @@
     @for (item of documents(); track item.id) {
       <lib-document-row
       [document]="item"
-      [status]="assessmentStatuses()[item.assessmentId]"
+      [status]="item.status"
       />
     } @empty {
       <div class="empty-dashboard-state">

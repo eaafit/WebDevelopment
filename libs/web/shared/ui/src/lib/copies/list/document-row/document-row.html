@@ -44,11 +44,17 @@
   </div>
 
   <div class="row title-row">
-    <span class="status-badge" [ngClass]="'status-' + getMappedStatus(status())">
+    <span class="status-badge" [ngClass]="'status-' + statusView().key">
       <span class="status-dot"></span>
-      {{ getStatusText(status()) }}
+      {{ statusView().label }}
     </span>
   </div>
+
+  @if (statusView().canDownload && document().downloadUrl) {
+    <a [href]="document().downloadUrl" class="row-download" target="_blank" rel="noopener" download>
+      ⬇ Скачать копию
+    </a>
+  }
 
   <button type="button" class="card-footer" (click)="navigateToDocumentPage()">
     <span class="action-text">Открыть детали</span>
