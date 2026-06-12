@@ -136,12 +136,12 @@ export class Copy implements OnInit, OnDestroy {
 
     try {
       this.busy.set(true);
+      // paymentProvider не задаём — берётся из конфига бэкенда (PAYMENT_PROVIDER).
       await this.paymentClient.createPayment({
         userId: this.tokenStore.user()?.id ?? currentDoc.uploadedById,
         amount: amount.toString(),
         type: PaymentType.DOCUMENT_COPY,
         targetId: currentDoc.id,
-        paymentProvider: 'yookassa',
       });
       await this.loadDoc();
     } catch (err) {

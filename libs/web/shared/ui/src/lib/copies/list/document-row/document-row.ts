@@ -77,12 +77,12 @@ export class DocumentRow {
 
     try {
       this.isProcessing.set(true);
+      // paymentProvider не задаём — берётся из конфига бэкенда (PAYMENT_PROVIDER).
       await this.paymentClient.createPayment({
         userId: this.tokenStore.user()?.id ?? doc.uploadedById,
         amount: amount.toString(),
         type: PaymentType.DOCUMENT_COPY,
         targetId: doc.id,
-        paymentProvider: 'yookassa',
       });
       this.paid.emit();
     } catch (err) {
