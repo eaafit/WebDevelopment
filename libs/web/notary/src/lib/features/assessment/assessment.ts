@@ -1,6 +1,7 @@
 import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NotificationCounterService } from '@notary-portal/ui';
 import { BitrixOrderService } from '../../services/bitrix-order.service';
 import {
@@ -40,6 +41,8 @@ export class Assessment implements OnInit {
   private readonly assessmentApi = inject(NotaryAssessmentApiService);
   private readonly userApi = inject(UserApiService);
   private readonly notificationCounter = inject(NotificationCounterService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
@@ -101,6 +104,9 @@ export class Assessment implements OnInit {
 
   ngOnInit(): void {
     void this.loadAssessments();
+    this.route.paramMap.subscribe(() => {
+      this.openAssessmentFromRoute();
+    });
   }
 
   async loadAssessments(): Promise<void> {
@@ -111,6 +117,7 @@ export class Assessment implements OnInit {
       const data = await this.assessmentApi.listAssessments();
       this.assessments = data.map((item) => this.toAssessmentItem(item));
       this.applyFilters();
+      this.openAssessmentFromRoute();
     } catch (error) {
       console.error('Ошибка загрузки заявок:', error);
       this.loadError = (error as Error).message || 'Не удалось загрузить заявки';
@@ -282,8 +289,32 @@ export class Assessment implements OnInit {
   getStatusLabel(status: string): string { return this.statusLabels[status] || status; }
   getStatusBadgeClass(status: string): string { return this.statusBadgeClasses[status] || 'badge-primary'; }
 
-  viewAssessment(item: AssessmentItem): void { this.selectedAssessment = item; this.showView = true; }
-  closeView(): void { this.selectedAssessment = null; this.showView = false; }
+  viewAssessment(item: AssessmentItem): void {
+    void this.router.navigate(['/notary/orders', item.id]);
+  }
+
+  closeView(): void {
+    void this.router.navigate(['/notary/orders']);
+    this.selectedAssessment = null;
+    this.showView = false;
+  }
+
+  private openAssessmentFromRoute(): void {
+    const routeId = this.route.snapshot.paramMap.get('id');
+    if (!routeId) {
+      this.selectedAssessment = null;
+      this.showView = false;
+      return;
+    }
+    const item = this.assessments.find((assessment) => assessment.id === routeId);
+    if (item) {
+      this.selectedAssessment = item;
+      this.showView = true;
+      return;
+    }
+    this.selectedAssessment = null;
+    this.showView = false;
+  }
 
   openCancelModal(item: AssessmentItem): void { this.assessmentToCancel = item; this.cancelReason = ''; this.cancelReasonError = ''; this.showCancelModal = true; }
   closeCancelModal(): void { this.showCancelModal = false; this.assessmentToCancel = null; this.cancelReason = ''; this.cancelReasonError = ''; }

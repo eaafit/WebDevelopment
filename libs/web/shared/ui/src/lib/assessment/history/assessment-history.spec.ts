@@ -7,11 +7,12 @@ import { TokenStore } from '../../rpc/token-store';
 describe('AssessmentHistoryComponent', () => {
   let component: AssessmentHistoryComponent;
   let fixture: ComponentFixture<AssessmentHistoryComponent>;
-  let orderApiService: { listOrders: jest.Mock };
+  let orderApiService: { listOrders: jest.Mock; getRecentEvents: jest.Mock };
 
   beforeEach(async () => {
     orderApiService = {
       listOrders: jest.fn().mockResolvedValue({ orders: [], totalPages: 1 }),
+      getRecentEvents: jest.fn().mockResolvedValue([]),
     };
 
     await TestBed.configureTestingModule({
@@ -96,7 +97,15 @@ describe('AssessmentHistoryComponent', () => {
 
     await component.repeatOrder('ORD-404');
 
-    expect(errorSpy).toHaveBeenCalledWith('Order not found');
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'order.history.repeat_order_failed',
+        context: expect.objectContaining({
+          orderId: 'ORD-404',
+          reason: 'Order not found',
+        }),
+      }),
+    );
     expect(navigateSpy).not.toHaveBeenCalled();
 
     errorSpy.mockRestore();

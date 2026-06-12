@@ -22,7 +22,7 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'orders/:id',
-        loadComponent: () => import('./features/orders/order-detail/order-detail').then((m) => m.OrderDetail),
+        loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
       },
       {
         path: 'subscription',

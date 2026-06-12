@@ -158,6 +158,7 @@ export class ConnectRouterRegistry {
       listOrders: this.orderRpcService.listOrders.bind(this.orderRpcService),
       getOrder: this.orderRpcService.getOrder.bind(this.orderRpcService),
       takeOrder: this.orderRpcService.takeOrder.bind(this.orderRpcService),
+      getRecentOrderEvents: this.orderRpcService.getRecentOrderEvents.bind(this.orderRpcService),
     });
   }
 }

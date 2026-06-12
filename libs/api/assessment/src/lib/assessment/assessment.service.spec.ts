@@ -27,8 +27,8 @@ jest.mock('@internal/tracing', () => {
 
   return {
     ...actual,
-    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
-      action(span),
+    runInSpan: jest.fn(
+      (_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) => action(span),
     ),
     setSpanAttributes: jest.fn(),
   };
@@ -65,6 +65,11 @@ describe('AssessmentService audit events', () => {
   const bitrixLeadPublisher = {
     publishLead: jest.fn(),
   };
+  const orderService = {
+    createOrder: jest.fn(),
+    publishOrderToBitrix: jest.fn(),
+    completeOrderForAssessment: jest.fn(),
+  };
 
   const service = new AssessmentService(
     assessmentRepository as never,
@@ -73,6 +78,7 @@ describe('AssessmentService audit events', () => {
     fiasProvider as never,
     notificationService as never,
     bitrixLeadPublisher as never,
+    orderService as never,
   );
 
   beforeEach(() => {
@@ -83,6 +89,9 @@ describe('AssessmentService audit events', () => {
     notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
     notificationService.createInternalNotification.mockResolvedValue(undefined);
     bitrixLeadPublisher.publishLead.mockResolvedValue(undefined);
+    orderService.createOrder.mockResolvedValue({ id: 'lead-1' });
+    orderService.publishOrderToBitrix.mockResolvedValue(undefined);
+    orderService.completeOrderForAssessment.mockResolvedValue(undefined);
     jest.mocked(runInSpan).mockClear();
     jest.mocked(setSpanAttributes).mockClear();
   });
@@ -412,8 +421,7 @@ describe('AssessmentService audit events', () => {
       'Admin',
       expect.objectContaining({
         title: 'Оценка заявки завершена',
-        message:
-          'По заявке #11111111 завершена оценка объекта. Итоговая стоимость: 1 500 000 ₽.',
+        message: 'По заявке #11111111 завершена оценка объекта. Итоговая стоимость: 1 500 000 ₽.',
       }),
     );
   });
