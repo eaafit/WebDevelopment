@@ -13,6 +13,18 @@
    pnpm install
    ```
 
+### Windows / PowerShell
+
+Если в PowerShell блокируется запуск `pnpm.ps1` или `npx.ps1`, используйте `npm run ...`-скрипты из корня проекта.
+Они запускают локальный Nx через `node` и не зависят от execution policy:
+
+```bash
+npm run dev:infra
+npm run dev:setup
+npm run dev:api
+npm run dev:web
+```
+
 ## Запуск приложения
 
 Используйте команды **строго в указанном порядке**:
@@ -45,6 +57,12 @@ docker info
 
 ```bash
 pnpm nx serve web
+```
+
+Альтернатива для Windows / PowerShell:
+
+```bash
+npm run dev:web
 ```
 
 ## Примечания

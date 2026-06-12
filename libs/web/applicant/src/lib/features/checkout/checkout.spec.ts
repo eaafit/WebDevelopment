@@ -229,6 +229,13 @@ describe('Checkout', () => {
     expect(checkoutApi.createPayment).not.toHaveBeenCalled();
     expect(localCheckout.state()).toBe('error');
     expect(localCheckout.errorMessage()).toContain('не хватает идентификатора заказа');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'payment.checkout.applicant.start_blocked_missing_target',
+      expect.objectContaining({
+        area: 'applicant_checkout',
+        targetId: null,
+      }),
+    );
   });
 
   it('should use balance mode for direct checkout visits', async () => {

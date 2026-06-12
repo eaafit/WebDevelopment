@@ -66,9 +66,7 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
-        "proxyConfig": "apps/web/proxy.conf.json"
-      },
-      "options": {
+        "host": "0.0.0.0",
         "proxyConfig": "apps/web/proxy.conf.json"
       },
       "configurations": {

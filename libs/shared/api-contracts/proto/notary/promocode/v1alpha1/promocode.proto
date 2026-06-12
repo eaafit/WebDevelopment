@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package notary.promocode.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+// Админские операции над промокодами (таблица promocodes; страница «Промокоды»).
+service PromocodeAdminService {
+  rpc ListPromocodes(ListPromocodesRequest) returns (ListPromocodesResponse);
+  rpc GetPromocode(GetPromocodeRequest) returns (GetPromocodeResponse);
+  rpc CreatePromocode(CreatePromocodeRequest) returns (CreatePromocodeResponse);
+  rpc UpdatePromocode(UpdatePromocodeRequest) returns (UpdatePromocodeResponse);
+  rpc DeletePromocode(DeletePromocodeRequest) returns (DeletePromocodeResponse);
+}
+
+enum PromocodeDiscountType {
+  PROMOCODE_DISCOUNT_TYPE_UNSPECIFIED = 0;
+  PROMOCODE_DISCOUNT_TYPE_PERCENTAGE = 1;
+  PROMOCODE_DISCOUNT_TYPE_FIXED = 2;
+}
+
+enum PromocodeStatusFilter {
+  PROMOCODE_STATUS_FILTER_UNSPECIFIED = 0;
+  PROMOCODE_STATUS_FILTER_ACTIVE = 1;
+  PROMOCODE_STATUS_FILTER_INACTIVE = 2;
+}
+
+message Promocode {
+  int32 id = 1;
+  string code = 2;
+  PromocodeDiscountType discount_type = 3;
+  double discount_value = 4;
+  optional string description = 5;
+  bool is_active = 6;
+  google.protobuf.Timestamp valid_from = 7;
+  google.protobuf.Timestamp valid_to = 8;
+  int32 max_uses = 9;
+  int32 used_count = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message PromocodeListFilters {
+  optional string code_contains = 1 [(buf.validate.field).string.max_len = 64];
+  PromocodeStatusFilter status = 2;
+  optional google.protobuf.Timestamp valid_from_gte = 3;
+  optional google.protobuf.Timestamp valid_to_lte = 4;
+  optional string sort_field = 5 [(buf.validate.field).string.max_len = 64];
+  optional string sort_direction = 6 [(buf.validate.field).string = {
+    in: [
+      "asc",
+      "desc"
+    ]
+  }];
+}
+
+message ListPromocodesRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1 [(buf.validate.field).required = true];
+  PromocodeListFilters filters = 2;
+}
+
+message ListPromocodesResponse {
+  repeated Promocode promocodes = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message GetPromocodeRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+}
+
+message GetPromocodeResponse {
+  Promocode promocode = 1;
+}
+
+message CreatePromocodeRequest {
+  string code = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  PromocodeDiscountType discount_type = 2 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  double discount_value = 3;
+  optional string description = 4 [(buf.validate.field).string.max_len = 4000];
+  bool is_active = 5;
+  google.protobuf.Timestamp valid_from = 6 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp valid_to = 7 [(buf.validate.field).required = true];
+  int32 max_uses = 8 [(buf.validate.field).int32.gte = 0];
+}
+
+message CreatePromocodeResponse {
+  Promocode promocode = 1;
+}
+
+message UpdatePromocodeRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+  optional string code = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  optional PromocodeDiscountType discount_type = 3;
+  optional double discount_value = 4;
+  optional string description = 5 [(buf.validate.field).string.max_len = 4000];
+  optional bool is_active = 6;
+  optional google.protobuf.Timestamp valid_from = 7;
+  optional google.protobuf.Timestamp valid_to = 8;
+  optional int32 max_uses = 9 [(buf.validate.field).int32.gte = 0];
+}
+
+message UpdatePromocodeResponse {
+  Promocode promocode = 1;
+}
+
+message DeletePromocodeRequest {
+  int32 id = 1 [(buf.validate.field).int32.gt = 0];
+}
+
+message DeletePromocodeResponse {}

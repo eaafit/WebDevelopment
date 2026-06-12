@@ -1,0 +1,65 @@
+<button class="overlay" type="button" [attr.aria-label]="ui.closeWindow" (click)="onClose()"></button>
+
+<div class="modal" role="dialog" aria-modal="true">
+  <div class="modal__head">
+    <div>
+      <h3>{{ title }}</h3>
+      @if (mode === 'create') {
+        <div class="muted small">{{ ui.createHint }}</div>
+      }
+      @if (mode === 'edit') {
+        <div class="muted small">{{ ui.editHint }}</div>
+      }
+    </div>
+    <button class="btn" type="button" (click)="onClose()">{{ ui.close }}</button>
+  </div>
+
+  @if (error) {
+    <div class="error">{{ error }}</div>
+  }
+
+  <form (ngSubmit)="save()" class="form">
+    <label class="field">
+      <div class="field__label">{{ ui.name }}</div>
+      <input class="input" name="name" [(ngModel)]="form.name" required />
+    </label>
+
+    <label class="field">
+      <div class="field__label">{{ ui.description }}</div>
+      <textarea class="textarea" name="description" rows="3" [(ngModel)]="form.description"></textarea>
+    </label>
+
+    <label class="field">
+      <div class="field__label">{{ ui.pricePerMonth }}</div>
+      <input class="input" type="number" name="price" [(ngModel)]="form.price" min="0" />
+    </label>
+
+    <label class="field">
+      <div class="field__label">{{ ui.featuresPerLine }}</div>
+      <textarea class="textarea" name="featuresText" rows="4" [(ngModel)]="form.featuresText"></textarea>
+    </label>
+
+    <div class="row">
+      <label class="field">
+        <div class="field__label">{{ ui.validFrom }}</div>
+        <input class="input" type="date" name="validFrom" [(ngModel)]="form.validFrom" />
+      </label>
+      <label class="field">
+        <div class="field__label">{{ ui.validTo }}</div>
+        <input class="input" type="date" name="validTo" [(ngModel)]="form.validTo" />
+      </label>
+    </div>
+
+    <label class="check">
+      <input type="checkbox" name="isActive" [(ngModel)]="form.isActive" />
+      <span>{{ ui.active }}</span>
+    </label>
+
+    <div class="modal__actions">
+      <button class="btn" type="button" (click)="onClose()">{{ ui.cancel }}</button>
+      <button class="btn btn-primary" type="submit" [disabled]="saving">
+        {{ saving ? ui.saving : ui.save }}
+      </button>
+    </div>
+  </form>
+</div>

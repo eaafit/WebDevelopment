@@ -3,6 +3,9 @@ import { Admin } from './admin/admin';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Payments } from './features/payments/payments';
 import { PaymentFormComponent } from './features/payments/payment-form.component';
+import { PlansListComponent } from './features/plans/plans-list/plans-list';
+import { PromoCodesComponent } from './features/promo-codes/promo-codes';
+import { SubscriptionsListComponent } from './features/subscriptions/subscriptions-list/subscriptions-list';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -19,34 +22,29 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.AdminDashboard),
       } as Route,
       {
-        path: 'users',
+        path: 'applications',
         loadComponent: () =>
           import('./features/RequestAssessment/RequestAssessment').then((m) => m.RequestAssessment),
-      } as Route,
-      {
-        path: 'orders',
-        loadComponent: () =>
-          import('./features/RequestAssessment/requests/requests').then((m) => m.RequestsComponent),
-      } as Route,
+      },
       {
         path: 'orders/statuses',
-        ...placeholder('Управление статусами', [
-          'Изменение статусов заказов',
-          'Отслеживание переходов между этапами',
+        ...placeholder('\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u0430\u043c\u0438', [
+          '\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u0441\u0442\u0430\u0442\u0443\u0441\u043e\u0432 \u0437\u0430\u043a\u0430\u0437\u043e\u0432',
+          '\u041e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u043d\u0438\u0435 \u043f\u0435\u0440\u0435\u0445\u043e\u0434\u043e\u0432 \u043c\u0435\u0436\u0434\u0443 \u044d\u0442\u0430\u043f\u0430\u043c\u0438',
         ]),
       } as Route,
       {
         path: 'orders/queue',
-        ...placeholder('Очередь оценок', [
-          'Список заявок, ожидающих оценки',
-          'Распределение по нотариусам',
+        ...placeholder('\u041e\u0447\u0435\u0440\u0435\u0434\u044c \u043e\u0446\u0435\u043d\u043e\u043a', [
+          '\u0421\u043f\u0438\u0441\u043e\u043a \u0437\u0430\u044f\u0432\u043e\u043a, \u043e\u0436\u0438\u0434\u0430\u044e\u0449\u0438\u0445 \u043e\u0446\u0435\u043d\u043a\u0438',
+          '\u0420\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0438\u0435 \u043f\u043e \u043d\u043e\u0442\u0430\u0440\u0438\u0443\u0441\u0430\u043c',
         ]),
       } as Route,
       {
         path: 'orders/moderation',
-        ...placeholder('Ручная модерация', [
-          'Проверка и модерация спорных заявок',
-          'Ручные корректировки',
+        ...placeholder('\u0420\u0443\u0447\u043d\u0430\u044f \u043c\u043e\u0434\u0435\u0440\u0430\u0446\u0438\u044f', [
+          '\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0438 \u043c\u043e\u0434\u0435\u0440\u0430\u0446\u0438\u044f \u0441\u043f\u043e\u0440\u043d\u044b\u0445 \u0437\u0430\u044f\u0432\u043e\u043a',
+          '\u0420\u0443\u0447\u043d\u044b\u0435 \u043a\u043e\u0440\u0440\u0435\u043a\u0442\u0438\u0440\u043e\u0432\u043a\u0438',
         ]),
       } as Route,
       {
@@ -68,20 +66,27 @@ export const adminRoutes: Route[] = [
         path: 'payments',
         component: Payments,
       },
-
       {
         path: 'subscriptions',
-        ...placeholder('Подписки', ['Просмотр списка подписок']),
-      } as Route,
+        component: SubscriptionsListComponent,
+      },
       {
         path: 'plans',
-        ...placeholder('Тарифные планы', ['Просмотр тарифных планов', 'Скидки', 'Промокоды']),
+        component: PlansListComponent,
+      },
+      {
+        path: 'discounts',
+        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
       } as Route,
       {
+        path: 'promocodes',
+        component: PromoCodesComponent,
+      },
+      {
         path: 'files',
-        ...placeholder('Модерация файлов', [
-          'Модерация загруженных файлов',
-          'Статусы «принято/на проверке»',
+        ...placeholder('\u041c\u043e\u0434\u0435\u0440\u0430\u0446\u0438\u044f \u0444\u0430\u0439\u043b\u043e\u0432', [
+          '\u041c\u043e\u0434\u0435\u0440\u0430\u0446\u0438\u044f \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u044b\u0445 \u0444\u0430\u0439\u043b\u043e\u0432',
+          '\u0421\u0442\u0430\u0442\u0443\u0441\u044b \u00ab\u043f\u0440\u0438\u043d\u044f\u0442\u043e/\u043d\u0430 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0435\u00bb',
         ]),
       } as Route,
       {
@@ -105,14 +110,6 @@ export const adminRoutes: Route[] = [
         loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
       },
       {
-        path: 'discounts',
-        loadComponent: () => import('./features/sale/sale').then((m) => m.SaleComponent),
-      },
-      {
-        path: 'promocodes',
-        loadComponent: () => import('./features/promo/promo').then((m) => m.PromoComponent),
-      },
-      {
         path: 'notifications',
         loadComponent: () =>
           import('./features/notifications/notifications').then((m) => m.AdminNotifications),
@@ -126,7 +123,11 @@ export const adminRoutes: Route[] = [
       },
       {
         path: 'statistics',
-        ...placeholder('Статистика', ['Метрики (конверсия/время)', 'Отчёты', 'Выгрузки']),
+        ...placeholder('\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430', [
+          '\u041c\u0435\u0442\u0440\u0438\u043a\u0438 (\u043a\u043e\u043d\u0432\u0435\u0440\u0441\u0438\u044f/\u0432\u0440\u0435\u043c\u044f)',
+          '\u041e\u0442\u0447\u0451\u0442\u044b',
+          '\u0412\u044b\u0433\u0440\u0443\u0437\u043a\u0438',
+        ]),
       } as Route,
       {
         path: 'geography',

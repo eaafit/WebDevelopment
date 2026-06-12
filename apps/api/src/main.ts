@@ -35,6 +35,7 @@ async function bootstrap() {
   const expressInstance = httpAdapter.getInstance();
   const metricsService = app.get(MetricsService);
   expressInstance.use(createHttpLoggingMiddleware());
+  expressInstance.use('/api', express.json());
   expressInstance.use(createHttpRequestDurationMetricsMiddleware(metricsService));
   expressInstance.use(createFailedAccessMetricsMiddleware(metricsService));
 
@@ -56,7 +57,7 @@ async function bootstrap() {
           : (requestOrigin: string | undefined, cb) => {
               cb(null, requestOrigin ? requestOrigin : true);
             },
-      methods: [...connectCors.allowedMethods],
+      methods: [...connectCors.allowedMethods, 'PUT', 'DELETE', 'PATCH'],
       allowedHeaders: [
         ...connectCors.allowedHeaders,
         'Authorization',
@@ -189,6 +190,7 @@ async function bootstrap() {
   );
 
   app.use(
+    '/rpc',
     connectNodeAdapter({
       connect: true,
       grpc: false,

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { AssessmentUploadStepComponent } from './upload-step';
 
-describe('UploadStep', () => {
+describe('AssessmentUploadStepComponent', () => {
   let component: AssessmentUploadStepComponent;
   let fixture: ComponentFixture<AssessmentUploadStepComponent>;
 
@@ -12,10 +12,11 @@ describe('UploadStep', () => {
 
     fixture = TestBed.createComponent(AssessmentUploadStepComponent);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    component.assessmentId = 'assessment-1';
+    fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('creates the component', () => {
     expect(component).toBeTruthy();
   });
 });

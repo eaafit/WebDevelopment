@@ -1,0 +1,111 @@
+<section class="admin-page payments-page plans-page">
+  <header class="admin-page__hero">
+    <div class="admin-page__hero-copy">
+      <p class="admin-page__eyebrow">{{ ui.eyebrow }}</p>
+      <h2>{{ ui.heading }}</h2>
+      <p class="admin-page__lead">
+        {{ ui.lead }}
+      </p>
+    </div>
+    <div class="admin-page__actions">
+      <button class="admin-btn admin-btn--primary" type="button" (click)="openCreateModal()">
+        + {{ ui.addPlan }}
+      </button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="promo-page__error">{{ error() }}</p>
+  }
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>{{ ui.cardsTitle }}</h3>
+        <p>{{ ui.cardsLead }}</p>
+      </div>
+      <span class="admin-badge admin-badge--neutral">{{ ui.shown }}: {{ plans().length }}</span>
+    </div>
+    <div class="plans-grid">
+      @for (plan of plans(); track plan.id) {
+        <div class="plan-card">
+          <div class="plan-card__top">
+            <strong>{{ plan.title }}</strong>
+            <span>{{ plan.pricePerMonth }} {{ ui.ruble }}/{{ ui.perMonthShort }}</span>
+          </div>
+          <p class="plan-card__desc">{{ plan.description }}</p>
+          <ul>
+            @for (feature of plan.features; track feature) {
+              <li>{{ feature }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </article>
+
+  <article class="admin-card">
+    <div class="admin-card__header">
+      <div>
+        <h3>{{ ui.listTitle }}</h3>
+        <p>{{ ui.listLead }}</p>
+      </div>
+    </div>
+    <div class="payments-table-shell">
+      <div class="table-responsive">
+        @if (tariffPlans().length > 0) {
+          <table class="payments-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>{{ ui.name }}</th>
+                <th>{{ ui.price }}</th>
+                <th>{{ ui.description }}</th>
+                <th>{{ ui.active }}</th>
+                <th>{{ ui.period }}</th>
+                <th>{{ ui.actions }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (plan of tariffPlans(); track plan.id) {
+                <tr>
+                  <td>{{ plan.id }}</td>
+                  <td>{{ plan.name }}</td>
+                  <td>{{ plan.price }} {{ ui.ruble }}</td>
+                  <td>{{ splitPlanDescription(plan.description).description || ui.noDescription }}</td>
+                  <td>
+                    <span
+                      class="admin-badge"
+                      [class.admin-badge--success]="plan.isActive"
+                      [class.admin-badge--neutral]="!plan.isActive">
+                      {{ plan.isActive ? ui.yes : ui.no }}
+                    </span>
+                  </td>
+                  <td>{{ plan.validFrom | date: 'dd.MM.yyyy' }} - {{ plan.validTo | date: 'dd.MM.yyyy' }}</td>
+                  <td>
+                    <button class="admin-btn admin-btn--ghost" type="button" (click)="openEditModal(plan)">
+                      {{ ui.edit }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <div class="payments-table__empty">
+            {{ ui.emptyState }}
+          </div>
+        }
+      </div>
+    </div>
+  </article>
+
+  @if (isModalOpen()) {
+    <lib-plan-modal
+      [title]="modalTitle()"
+      [mode]="modalMode()"
+      [plan]="selectedTariffPlan()"
+      (closed)="closeModal()"
+      (saved)="handleSaved()" />
+  }
+</section>

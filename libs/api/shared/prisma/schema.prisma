@@ -243,19 +243,19 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp()
 
   // [FIX] Именованные relations для двух FK из Assessment
-  assessments       Assessment[]       @relation("ApplicantAssessments")
-  notaryAssessments Assessment[]       @relation("NotaryAssessments")
-  subscriptions     Subscription[]
-  payments          Payment[]
-  uploadedDocuments Document[]         @relation("UploadedBy")
-  signedReports     AssessmentReport[] @relation("SignedBy")
-  notifications           Notification[]
+  assessments            Assessment[]            @relation("ApplicantAssessments")
+  notaryAssessments      Assessment[]            @relation("NotaryAssessments")
+  subscriptions          Subscription[]
+  payments               Payment[]
+  uploadedDocuments      Document[]              @relation("UploadedBy")
+  signedReports          AssessmentReport[]      @relation("SignedBy")
+  notifications          Notification[]
   notificationPreferences NotificationPreference[]
-  refreshTokens     RefreshToken[]
-  passwordResets    PasswordReset[]
-  auditLogs         AuditLog[]
-  bitrixSyncLogs    BitrixSyncLog[]
-  clientSync        ClientSync?
+  refreshTokens          RefreshToken[]
+  passwordResets         PasswordReset[]
+  auditLogs              AuditLog[]
+  bitrixSyncLogs         BitrixSyncLog[]
+  clientSync             ClientSync?
   newsletterSubscription NewsletterSubscription?
   newsletterCampaigns    NewsletterCampaign[]    @relation("NewsletterCampaignCreatedBy")
   newsletterDeliveries   NewsletterDelivery[]
@@ -304,30 +304,30 @@ model District {
 }
 
 model RealEstateObject {
-  id                  String                @id @default(uuid()) @db.Uuid
-  cityId              String                @map("city_id") @db.Uuid
-  districtId          String?               @map("district_id") @db.Uuid
-  address             String                @db.VarChar
-  cadastralNumber     String?               @map("cadastral_number") @db.VarChar
-  area                Decimal               @db.Decimal(10, 2)
-  objectType          RealEstateObjectType  @map("object_type")
-  roomsCount          Int?                  @map("rooms_count")
-  floorsTotal         Int?                  @map("floors_total")
-  floor               Int?
-  condition           RealEstateCondition?  @map("condition")
-  yearBuilt           Int?                  @map("year_built")
-  wallMaterial        WallMaterial?         @map("wall_material")
-  elevatorType        ElevatorType?         @map("elevator_type")
-  hasBalconyOrLoggia  Boolean?              @map("has_balcony_or_loggia")
-  landCategory        String?               @map("land_category") @db.VarChar
-  permittedUse        String?               @map("permitted_use") @db.VarChar
-  utilities           String?               @db.Text
-  description         String?               @db.Text
-  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamp()
-  updatedAt           DateTime              @updatedAt @map("updated_at") @db.Timestamp()
+  id                 String               @id @default(uuid()) @db.Uuid
+  cityId             String               @map("city_id") @db.Uuid
+  districtId         String?              @map("district_id") @db.Uuid
+  address            String               @db.VarChar
+  cadastralNumber    String?              @map("cadastral_number") @db.VarChar
+  area               Decimal              @db.Decimal(10, 2)
+  objectType         RealEstateObjectType @map("object_type")
+  roomsCount         Int?                 @map("rooms_count")
+  floorsTotal        Int?                 @map("floors_total")
+  floor              Int?
+  condition          RealEstateCondition? @map("condition")
+  yearBuilt          Int?                 @map("year_built")
+  wallMaterial       WallMaterial?        @map("wall_material")
+  elevatorType       ElevatorType?        @map("elevator_type")
+  hasBalconyOrLoggia Boolean?             @map("has_balcony_or_loggia")
+  landCategory       String?              @map("land_category") @db.VarChar
+  permittedUse       String?              @map("permitted_use") @db.VarChar
+  utilities          String?              @db.Text
+  description        String?              @db.Text
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamp()
 
-  city       City       @relation(fields: [cityId], references: [id])
-  district   District?  @relation(fields: [districtId], references: [id])
+  city       City        @relation(fields: [cityId], references: [id])
+  district   District?   @relation(fields: [districtId], references: [id])
   assessment Assessment?
 
   @@index([cityId])
@@ -339,10 +339,10 @@ model RealEstateObject {
 model Assessment {
   id                 String           @id @default(uuid()) @db.Uuid
   userId             String           @map("user_id") @db.Uuid
-  notaryId           String?          @map("notary_id") @db.Uuid               // [FIX] назначенный нотариус
+  notaryId           String?          @map("notary_id") @db.Uuid // [FIX] назначенный нотариус
   realEstateObjectId String?          @unique @map("real_estate_object_id") @db.Uuid
   status             AssessmentStatus @default(New)
-  cancelReason       String?          @map("cancel_reason") @db.Text           // [FIX] причина отмены
+  cancelReason       String?          @map("cancel_reason") @db.Text // [FIX] причина отмены
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamp()
   updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamp()
   address            String           @db.VarChar
@@ -350,9 +350,9 @@ model Assessment {
   estimatedValue     Decimal?         @map("estimated_value") @db.Decimal(15, 2)
   bitrixLeadId       String?          @map("bitrix_lead_id") @db.VarChar(50)
 
-  user             User              @relation("ApplicantAssessments", fields: [userId], references: [id])
-  notary           User?             @relation("NotaryAssessments", fields: [notaryId], references: [id])
-  realEstateObject RealEstateObject? @relation(fields: [realEstateObjectId], references: [id])
+  user             User               @relation("ApplicantAssessments", fields: [userId], references: [id])
+  notary           User?              @relation("NotaryAssessments", fields: [notaryId], references: [id])
+  realEstateObject RealEstateObject?  @relation(fields: [realEstateObjectId], references: [id])
   documents        Document[]
   reports          AssessmentReport[]
   payments         Payment[]
@@ -631,12 +631,53 @@ model Sale {
   @@map("sales")
 }
 
+model TariffPlan {
+  id          Int      @id @default(autoincrement())
+  name        String
+  price       Float
+  description String?
+  isActive    Boolean  @default(true)
+  validFrom   DateTime
+  validTo     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Discount {
+  id                Int      @id @default(autoincrement())
+  name              String
+  percentage        Float
+  description       String?
+  isActive          Boolean  @default(true)
+  validFrom         DateTime
+  validTo           DateTime
+  minOrderAmount    Float?
+  maxDiscountAmount Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Promocode {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  discountType  String // "percentage" or "fixed"
+  discountValue Float
+  description   String?
+  isActive      Boolean  @default(true)
+  validFrom     DateTime
+  validTo       DateTime
+  maxUses       Int
+  usedCount     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // ─── Bitrix Integration ──────────────────────────────────────────────────────
 
 model BitrixConfig {
   id          String   @id @default(uuid()) @db.Uuid
-  portalUrl   String   @map("portal_url")   @db.VarChar(255)
-  memberId    String   @map("member_id")    @db.VarChar(100)
+  portalUrl   String   @map("portal_url") @db.VarChar(255)
+  memberId    String   @map("member_id") @db.VarChar(100)
   accessToken String   @map("access_token") @db.Text
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp()
@@ -646,17 +687,17 @@ model BitrixConfig {
 }
 
 model BitrixSync {
-  id                String   @id @default(uuid()) @db.Uuid
-  jobId             String   @map("job_id") @db.VarChar(100)
-  status            String   @db.VarChar(20) // "pending", "running", "completed", "failed"
-  totalUsers        Int      @default(0) @map("total_users")
-  processedUsers    Int      @default(0) @map("processed_users")
-  successfulSyncs   Int      @default(0) @map("successful_syncs")
-  failedSyncs       Int      @default(0) @map("failed_syncs")
-  errorMessage      String?  @map("error_message") @db.Text
-  startedAt         DateTime @map("started_at") @db.Timestamp()
-  completedAt       DateTime? @map("completed_at") @db.Timestamp()
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
+  id              String    @id @default(uuid()) @db.Uuid
+  jobId           String    @map("job_id") @db.VarChar(100)
+  status          String    @db.VarChar(20) // "pending", "running", "completed", "failed"
+  totalUsers      Int       @default(0) @map("total_users")
+  processedUsers  Int       @default(0) @map("processed_users")
+  successfulSyncs Int       @default(0) @map("successful_syncs")
+  failedSyncs     Int       @default(0) @map("failed_syncs")
+  errorMessage    String?   @map("error_message") @db.Text
+  startedAt       DateTime  @map("started_at") @db.Timestamp()
+  completedAt     DateTime? @map("completed_at") @db.Timestamp()
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp()
 
   logs BitrixSyncLog[]
 
@@ -664,34 +705,34 @@ model BitrixSync {
 }
 
 model BitrixSyncLog {
-  id                String   @id @default(uuid()) @db.Uuid
-  syncId            String   @map("sync_id") @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
-  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
-  action            String   @db.VarChar(20) // "created", "updated", "skipped", "error"
-  status            String   @db.VarChar(10) // "success", "error"
-  message           String?  @db.Text
-  timestamp         DateTime @default(now()) @db.Timestamp()
+  id              String   @id @default(uuid()) @db.Uuid
+  syncId          String   @map("sync_id") @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  bitrixContactId String?  @map("bitrix_contact_id") @db.VarChar(50)
+  action          String   @db.VarChar(20) // "created", "updated", "skipped", "error"
+  status          String   @db.VarChar(10) // "success", "error"
+  message         String?  @db.Text
+  timestamp       DateTime @default(now()) @db.Timestamp()
 
-  sync              BitrixSync @relation(fields: [syncId], references: [id])
-  user              User       @relation(fields: [userId], references: [id])
+  sync BitrixSync @relation(fields: [syncId], references: [id])
+  user User       @relation(fields: [userId], references: [id])
 
   @@map("bitrix_sync_log")
 }
 
 model ClientSync {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @unique @map("user_id") @db.Uuid
-  bitrixContactId   String?  @map("bitrix_contact_id") @db.VarChar(50)
-  syncDirection     String   @default("notary") @map("sync_direction") @db.VarChar(10)
-  lastSyncedAt      DateTime? @map("last_synced_at") @db.Timestamp()
-  lastNotaryHash    String?  @map("last_notary_hash") @db.VarChar(64)
-  lastBitrixHash    String?  @map("last_bitrix_hash") @db.VarChar(64)
-  conflictCount     Int      @default(0) @map("conflict_count")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp()
-  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamp()
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @unique @map("user_id") @db.Uuid
+  bitrixContactId String?   @map("bitrix_contact_id") @db.VarChar(50)
+  syncDirection   String    @default("notary") @map("sync_direction") @db.VarChar(10)
+  lastSyncedAt    DateTime? @map("last_synced_at") @db.Timestamp()
+  lastNotaryHash  String?   @map("last_notary_hash") @db.VarChar(64)
+  lastBitrixHash  String?   @map("last_bitrix_hash") @db.VarChar(64)
+  conflictCount   Int       @default(0) @map("conflict_count")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamp()
 
-  user              User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("client_sync")
 }

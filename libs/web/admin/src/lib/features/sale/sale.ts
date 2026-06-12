@@ -1,18 +1,78 @@
-import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { catchError, EMPTY } from 'rxjs';
+import {
+  DiscountService,
+  type Discount,
+  type DiscountCreatePayload,
+} from '../../../services/discount.service';
 
-interface Discount {
-  id: number;
-  name: string;
-  percentage: number;
-  validFrom: Date;
-  validTo: Date;
-  isActive: boolean;
-  description: string;
-  minOrderAmount?: number;
-  maxDiscountAmount?: number;
-}
+const UI = {
+  eyebrow:
+    '\u041b\u0438\u0447\u043d\u044b\u0439 \u043a\u0430\u0431\u0438\u043d\u0435\u0442 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440\u0430 / \u0421\u043a\u0438\u0434\u043a\u0438',
+  heading: '\u0423\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0441\u043a\u0438\u0434\u043a\u0430\u043c\u0438',
+  lead:
+    '\u0426\u0435\u043d\u0442\u0440\u0430\u043b\u0438\u0437\u043e\u0432\u0430\u043d\u043d\u043e\u0435 \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u043f\u0440\u0430\u0432\u0438\u043b\u0430\u043c\u0438 \u0441\u043a\u0438\u0434\u043e\u043a \u0438 \u0441\u0440\u043e\u043a\u0430\u043c\u0438 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044f.',
+  addDiscount: '\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443',
+  filterLead:
+    '\u0424\u0438\u043b\u044c\u0442\u0440\u0430\u0446\u0438\u044f \u043f\u043e \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044e, \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u044e \u0438 \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u0443.',
+  shown: '\u041f\u043e\u043a\u0430\u0437\u0430\u043d\u043e',
+  search: '\u041f\u043e\u0438\u0441\u043a',
+  searchPlaceholder:
+    '\u041f\u043e\u0438\u0441\u043a \u043f\u043e \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u044e / \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u044e / %',
+  tableTitle: '\u0421\u043f\u0438\u0441\u043e\u043a \u0441\u043a\u0438\u0434\u043e\u043a',
+  tableLead:
+    '\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435, \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0438 \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u0438 \u043f\u0440\u044f\u043c\u043e \u0438\u0437 \u0442\u0430\u0431\u043b\u0438\u0446\u044b.',
+  name: '\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435',
+  discount: '\u0421\u043a\u0438\u0434\u043a\u0430',
+  period: '\u041f\u0435\u0440\u0438\u043e\u0434',
+  constraints: '\u041e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u044f',
+  status: '\u0421\u0442\u0430\u0442\u0443\u0441',
+  actions: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u044f',
+  from: '\u043e\u0442',
+  maxShort: '\u043c\u0430\u043a\u0441.',
+  noConstraints: '\u0431\u0435\u0437 \u043e\u0433\u0440\u0430\u043d\u0438\u0447\u0435\u043d\u0438\u0439',
+  ruble: '\u20bd',
+  active: '\u0410\u043a\u0442\u0438\u0432\u043d\u0430',
+  inactive: '\u041d\u0435\u0430\u043a\u0442\u0438\u0432\u043d\u0430',
+  edit: '\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c',
+  deactivate: '\u0414\u0435\u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c',
+  activate: '\u0410\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c',
+  emptyState:
+    '\u041d\u0435\u0442 \u0441\u043a\u0438\u0434\u043e\u043a \u043f\u043e \u0442\u0435\u043a\u0443\u0449\u0435\u043c\u0443 \u0444\u0438\u043b\u044c\u0442\u0440\u0443. \u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u00ab\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443\u00bb.',
+  modalCreateTitle: '\u041d\u043e\u0432\u0430\u044f \u0441\u043a\u0438\u0434\u043a\u0430',
+  modalEditTitle: '\u0420\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435 \u0441\u043a\u0438\u0434\u043a\u0438',
+  modalCreateSubtitle:
+    '\u0417\u0430\u043f\u043e\u043b\u043d\u0438\u0442\u0435 \u043f\u043e\u043b\u044f \u0438 \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u0435 \u043f\u0440\u0430\u0432\u0438\u043b\u043e.',
+  modalEditSubtitle:
+    '\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u0435 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u0438 \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u0435.',
+  close: '\u0417\u0430\u043a\u0440\u044b\u0442\u044c',
+  closeAria: '\u0417\u0430\u043a\u0440\u044b\u0442\u044c',
+  percentage: '\u041f\u0440\u043e\u0446\u0435\u043d\u0442 \u0441\u043a\u0438\u0434\u043a\u0438',
+  description: '\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435',
+  descriptionPlaceholder:
+    '\u041a\u0440\u0430\u0442\u043a\u043e \u043e\u043f\u0438\u0448\u0438\u0442\u0435 \u0443\u0441\u043b\u043e\u0432\u0438\u0435 \u043f\u0440\u0438\u043c\u0435\u043d\u0435\u043d\u0438\u044f',
+  validFrom: '\u0414\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u0441',
+  validTo: '\u0414\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u043f\u043e',
+  minOrder: '\u041c\u0438\u043d. \u0441\u0443\u043c\u043c\u0430 \u0437\u0430\u043a\u0430\u0437\u0430 (\u20bd)',
+  minOrderHint:
+    '\u041e\u043f\u0446\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u043e: \u0441\u043a\u0438\u0434\u043a\u0430 \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u0442 \u044d\u0442\u043e\u0439 \u0441\u0443\u043c\u043c\u044b',
+  maxDiscount: '\u041c\u0430\u043a\u0441. \u0440\u0430\u0437\u043c\u0435\u0440 \u0441\u043a\u0438\u0434\u043a\u0438 (\u20bd)',
+  maxDiscountHint: '\u041e\u043f\u0446\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u043e: \u043f\u043e\u0442\u043e\u043b\u043e\u043a \u0432\u044b\u0433\u043e\u0434\u044b',
+  enabledRule: '\u041f\u0440\u0430\u0432\u0438\u043b\u043e \u0430\u043a\u0442\u0438\u0432\u043d\u043e',
+  cancel: '\u041e\u0442\u043c\u0435\u043d\u0430',
+  save: '\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c',
+  saving: '\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u0438\u0435...',
+  loadError: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0438',
+  nameRequired: '\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u043d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u0441\u043a\u0438\u0434\u043a\u0438',
+  invalidPercentage:
+    '\u041f\u0440\u043e\u0446\u0435\u043d\u0442 \u0441\u043a\u0438\u0434\u043a\u0438 \u0434\u043e\u043b\u0436\u0435\u043d \u0431\u044b\u0442\u044c \u0431\u043e\u043b\u044c\u0448\u0435 0 \u0438 \u043d\u0435 \u043f\u0440\u0435\u0432\u044b\u0448\u0430\u0442\u044c 100',
+  invalidDates:
+    '\u0414\u0430\u0442\u0430 \u043e\u043a\u043e\u043d\u0447\u0430\u043d\u0438\u044f \u043d\u0435 \u043c\u043e\u0436\u0435\u0442 \u0431\u044b\u0442\u044c \u0440\u0430\u043d\u044c\u0448\u0435 \u0434\u0430\u0442\u044b \u043d\u0430\u0447\u0430\u043b\u0430',
+  saveError: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443',
+  updateError: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u043a\u0438\u0434\u043a\u0443',
+} as const;
 
 @Component({
   selector: 'lib-sale',
@@ -21,275 +81,183 @@ interface Discount {
   templateUrl: './sale.html',
   styleUrls: ['./sale.scss'],
 })
-export class SaleComponent {
-  allDiscounts: Discount[] = [
-    {
-      id: 1,
-      name: 'Скидка новым клиентам',
-      percentage: 10,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setMonth(new Date().getMonth() + 6)),
-      isActive: true,
-      description: 'Для всех новых клиентов при первой сделке',
-      minOrderAmount: 1000,
-      maxDiscountAmount: 5000,
-    },
-    {
-      id: 2,
-      name: 'Летняя акция',
-      percentage: 15,
-      validFrom: new Date(new Date().setMonth(5, 1)),
-      validTo: new Date(new Date().setMonth(8, 31)),
-      isActive: true,
-      description: 'Скидка на все нотариальные действия',
-      minOrderAmount: 2000,
-      maxDiscountAmount: 3000,
-    },
-    {
-      id: 3,
-      name: 'Скидка пенсионерам',
-      percentage: 20,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
-      isActive: false,
-      description: 'Для пенсионеров по предъявлению удостоверения',
-      maxDiscountAmount: 2000,
-    },
-    {
-      id: 4,
-      name: 'Скидка на доверенности',
-      percentage: 5,
-      validFrom: new Date(),
-      validTo: new Date(new Date().setMonth(new Date().getMonth() + 3)),
-      isActive: true,
-      description: 'Скидка на оформление доверенностей',
-    },
-  ];
+export class SaleComponent implements OnInit {
+  private readonly discountService = inject(DiscountService);
 
-  showDeleteModal = false;
-  discountToDelete: Discount | null = null;
-  showForm = false;
-  showView = false;
-  selectedDiscount: Discount | null = null;
-  isEditMode = false;
+  readonly ui = UI;
+  readonly discounts = signal<Discount[]>([]);
+  readonly filterName = signal('');
+  readonly error = signal<string | null>(null);
+  readonly showModal = signal(false);
+  readonly modalMode = signal<'create' | 'edit'>('create');
+  readonly saving = signal(false);
+  readonly selectedDiscount = signal<Discount | null>(null);
 
-  currentPage = 1;
-  pageSize = 5;
-
-  sortField: keyof Discount = 'id';
-  sortDirection: 'asc' | 'desc' = 'asc';
-
-  filterName = '';
-  filterStatus: 'all' | 'active' | 'inactive' = 'all';
-  filterDateFrom = '';
-  filterDateTo = '';
-
-  get filteredAndSortedDiscounts(): Discount[] {
-    let result = [...this.allDiscounts];
-
-    if (this.filterName) {
-      result = result.filter((d) => d.name.toLowerCase().includes(this.filterName.toLowerCase()));
-    }
-    if (this.filterStatus !== 'all') {
-      const active = this.filterStatus === 'active';
-      result = result.filter((d) => d.isActive === active);
-    }
-    if (this.filterDateFrom) {
-      const from = new Date(this.filterDateFrom);
-      result = result.filter((d) => d.validFrom.getTime() >= from.getTime());
-    }
-    if (this.filterDateTo) {
-      const to = new Date(this.filterDateTo);
-      result = result.filter((d) => d.validTo.getTime() <= to.getTime());
-    }
-
-    result.sort((a, b) => {
-      let aVal: string | number | boolean | Date | undefined = a[this.sortField as keyof Discount];
-      let bVal: string | number | boolean | Date | undefined = b[this.sortField as keyof Discount];
-
-      // Если поле — дата, сравниваем по числовому значению
-      if (aVal instanceof Date && bVal instanceof Date) {
-        aVal = aVal.getTime();
-        bVal = bVal.getTime();
-      }
-
-      // Обработка undefined/null (считаем их меньше любого значения)
-      if (aVal == null && bVal == null) return 0;
-      if (aVal == null) return 1; // null/undefined считаем бОльшими (чтобы шли вниз)
-      if (bVal == null) return -1;
-
-      // Сравнение
-      if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return result;
-  }
-
-  get paginatedDiscounts(): Discount[] {
-    const start = (this.currentPage - 1) * this.pageSize;
-    return this.filteredAndSortedDiscounts.slice(start, start + this.pageSize);
-  }
-
-  get totalPages(): number {
-    return Math.ceil(this.filteredAndSortedDiscounts.length / this.pageSize);
-  }
-
-  prevPage(): void {
-    if (this.currentPage > 1) this.currentPage--;
-  }
-
-  nextPage(): void {
-    if (this.currentPage < this.totalPages) this.currentPage++;
-  }
-
-  sortBy(field: keyof Discount): void {
-    if (this.sortField === field) {
-      this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortField = field;
-      this.sortDirection = 'asc';
-    }
-    this.currentPage = 1;
-  }
-
-  resetFilters(): void {
-    this.filterName = '';
-    this.filterStatus = 'all';
-    this.filterDateFrom = '';
-    this.filterDateTo = '';
-    this.currentPage = 1;
-  }
-
-  formData = {
+  form = {
     name: '',
-    percentage: 0,
-    validFrom: new Date().toISOString().split('T')[0],
-    validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-    isActive: true,
+    percentage: 10,
     description: '',
+    validFrom: '',
+    validTo: '',
     minOrderAmount: null as number | null,
     maxDiscountAmount: null as number | null,
+    isActive: true,
   };
 
-  createDiscount(): void {
-    this.isEditMode = false;
-    this.formData = {
-      name: '',
-      percentage: 0,
-      validFrom: new Date().toISOString().split('T')[0],
-      validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
-      isActive: true,
-      description: '',
-      minOrderAmount: null,
-      maxDiscountAmount: null,
-    };
-    this.showForm = true;
-    this.showView = false;
+  ngOnInit(): void {
+    this.loadDiscounts();
   }
 
-  editDiscount(discount: Discount): void {
-    this.isEditMode = true;
-    this.selectedDiscount = discount;
-    this.formData = {
-      name: discount.name,
-      percentage: discount.percentage,
-      validFrom: new Date(discount.validFrom).toISOString().split('T')[0],
-      validTo: new Date(discount.validTo).toISOString().split('T')[0],
-      isActive: discount.isActive,
-      description: discount.description,
-      minOrderAmount: discount.minOrderAmount ?? null,
-      maxDiscountAmount: discount.maxDiscountAmount ?? null,
-    };
-    this.showForm = true;
-    this.showView = false;
+  loadDiscounts(): void {
+    this.error.set(null);
+    this.discountService
+      .getAll({ sortField: 'id', sortDirection: 'desc', limit: 200 })
+      .pipe(
+        catchError((err) => {
+          this.error.set(err?.error?.message || err?.message || this.ui.loadError);
+          return EMPTY;
+        }),
+      )
+      .subscribe((rows) => this.discounts.set(rows));
   }
 
-  viewDiscount(discount: Discount): void {
-    this.selectedDiscount = discount;
-    this.showView = true;
-    this.showForm = false;
-  }
-
-  saveDiscount(): void {
-    if (this.isEditMode && this.selectedDiscount) {
-      const index = this.allDiscounts.findIndex((d) => d.id === this.selectedDiscount?.id);
-      if (index !== -1) {
-        this.allDiscounts[index] = {
-          ...this.selectedDiscount,
-          name: this.formData.name,
-          percentage: this.formData.percentage,
-          validFrom: new Date(this.formData.validFrom),
-          validTo: new Date(this.formData.validTo),
-          isActive: this.formData.isActive,
-          description: this.formData.description,
-          minOrderAmount: this.formData.minOrderAmount || undefined,
-          maxDiscountAmount: this.formData.maxDiscountAmount || undefined,
-        };
-      }
-      console.log('Обновлена скидка:', this.formData);
-    } else {
-      const newDiscount: Discount = {
-        id: Math.max(...this.allDiscounts.map((d) => d.id), 0) + 1,
-        name: this.formData.name,
-        percentage: this.formData.percentage,
-        validFrom: new Date(this.formData.validFrom),
-        validTo: new Date(this.formData.validTo),
-        isActive: this.formData.isActive,
-        description: this.formData.description,
-        minOrderAmount: this.formData.minOrderAmount || undefined,
-        maxDiscountAmount: this.formData.maxDiscountAmount || undefined,
-      };
-      this.allDiscounts.push(newDiscount);
-      console.log('Создана скидка:', newDiscount);
-    }
-    this.showForm = false;
-    this.selectedDiscount = null;
-    this.currentPage = 1;
-  }
-
-  confirmDelete(discount: Discount): void {
-    this.discountToDelete = discount;
-    this.showDeleteModal = true;
-  }
-
-  deleteDiscount(): void {
-    if (this.discountToDelete) {
-      this.allDiscounts = this.allDiscounts.filter((d) => d.id !== this.discountToDelete?.id);
-      console.log('Удалена скидка:', this.discountToDelete);
-      this.showDeleteModal = false;
-      this.discountToDelete = null;
-    }
-  }
-
-  cancelDelete(): void {
-    this.showDeleteModal = false;
-    this.discountToDelete = null;
-  }
-
-  cancelForm(): void {
-    this.showForm = false;
-    this.selectedDiscount = null;
-  }
-
-  closeView(): void {
-    this.showView = false;
-    this.selectedDiscount = null;
-  }
-
-  isDiscountActive(discount: Discount): boolean {
-    const now = new Date();
-    return (
-      discount.isActive &&
-      discount.validFrom.getTime() <= now.getTime() &&
-      discount.validTo.getTime() >= now.getTime()
+  visibleDiscounts(): Discount[] {
+    const term = this.filterName().trim().toLowerCase();
+    const list = this.discounts();
+    if (!term) return list;
+    return list.filter(
+      (discount) =>
+        discount.name.toLowerCase().includes(term) ||
+        (discount.description ?? '').toLowerCase().includes(term) ||
+        String(discount.percentage).includes(term),
     );
   }
 
-  getDiscountLimits(discount: Discount): string {
-    const limits = [];
-    if (discount.minOrderAmount) limits.push(`от ${discount.minOrderAmount}₽`);
-    if (discount.maxDiscountAmount) limits.push(`макс. скидка ${discount.maxDiscountAmount}₽`);
-    return limits.length ? limits.join(', ') : 'нет';
+  openCreateModal(): void {
+    this.error.set(null);
+    this.modalMode.set('create');
+    this.selectedDiscount.set(null);
+    this.resetForm();
+    this.showModal.set(true);
+  }
+
+  openEditModal(discount: Discount): void {
+    this.error.set(null);
+    this.modalMode.set('edit');
+    this.selectedDiscount.set(discount);
+    this.form = {
+      name: discount.name,
+      percentage: discount.percentage,
+      description: discount.description ?? '',
+      validFrom: new Date(discount.validFrom).toISOString().split('T')[0],
+      validTo: new Date(discount.validTo).toISOString().split('T')[0],
+      minOrderAmount: discount.minOrderAmount ?? null,
+      maxDiscountAmount: discount.maxDiscountAmount ?? null,
+      isActive: discount.isActive,
+    };
+    this.showModal.set(true);
+  }
+
+  closeModal(): void {
+    this.showModal.set(false);
+    this.selectedDiscount.set(null);
+  }
+
+  modalTitle(): string {
+    return this.modalMode() === 'create' ? this.ui.modalCreateTitle : this.ui.modalEditTitle;
+  }
+
+  modalSubtitle(): string {
+    return this.modalMode() === 'create' ? this.ui.modalCreateSubtitle : this.ui.modalEditSubtitle;
+  }
+
+  statusLabel(discount: Discount): string {
+    return discount.isActive ? this.ui.active : this.ui.inactive;
+  }
+
+  private resetForm(): void {
+    this.form = {
+      name: '',
+      percentage: 10,
+      description: '',
+      validFrom: new Date().toISOString().split('T')[0],
+      validTo: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0],
+      minOrderAmount: null,
+      maxDiscountAmount: null,
+      isActive: true,
+    };
+  }
+
+  saveDiscount(): void {
+    if (!this.form.name.trim()) {
+      this.error.set(this.ui.nameRequired);
+      return;
+    }
+
+    if (Number(this.form.percentage) <= 0 || Number(this.form.percentage) > 100) {
+      this.error.set(this.ui.invalidPercentage);
+      return;
+    }
+
+    if (this.form.validFrom && this.form.validTo && this.form.validTo < this.form.validFrom) {
+      this.error.set(this.ui.invalidDates);
+      return;
+    }
+
+    this.saving.set(true);
+    this.error.set(null);
+
+    const payload: DiscountCreatePayload = {
+      name: this.form.name.trim(),
+      percentage: Number(this.form.percentage),
+      description: this.form.description.trim() || null,
+      isActive: this.form.isActive,
+      validFrom: this.form.validFrom,
+      validTo: this.form.validTo,
+      minOrderAmount: this.form.minOrderAmount,
+      maxDiscountAmount: this.form.maxDiscountAmount,
+    };
+
+    const editId = this.selectedDiscount()?.id;
+    const request$ =
+      this.modalMode() === 'edit' && editId != null
+        ? this.discountService.update(editId, payload)
+        : this.discountService.create(payload);
+
+    request$
+      .pipe(
+        catchError((err) => {
+          this.error.set(err?.error?.message || err?.message || this.ui.saveError);
+          this.saving.set(false);
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => {
+        this.saving.set(false);
+        this.showModal.set(false);
+        this.selectedDiscount.set(null);
+        this.loadDiscounts();
+      });
+  }
+
+  toggleActive(discount: Discount): void {
+    this.discountService
+      .update(discount.id, {
+        name: discount.name,
+        percentage: Number(discount.percentage),
+        description: discount.description ?? null,
+        isActive: !discount.isActive,
+        validFrom: discount.validFrom,
+        validTo: discount.validTo,
+        minOrderAmount: discount.minOrderAmount ?? null,
+        maxDiscountAmount: discount.maxDiscountAmount ?? null,
+      })
+      .pipe(
+        catchError((err) => {
+          this.error.set(err?.error?.message || err?.message || this.ui.updateError);
+          return EMPTY;
+        }),
+      )
+      .subscribe(() => this.loadDiscounts());
   }
 }

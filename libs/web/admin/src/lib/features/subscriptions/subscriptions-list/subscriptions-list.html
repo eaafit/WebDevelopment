@@ -1,0 +1,67 @@
+<div class="page">
+  <div class="header">
+    <div>
+      <h2>РџРѕРґРїРёСЃРєРё</h2>
+      <p class="muted">РђРґРјРёРЅ-РІРёРґ РїРѕРґРїРёСЃРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ (РґР°РЅРЅС‹Рµ РёР· Р±Р°Р·С‹).</p>
+    </div>
+    <button class="btn" type="button" (click)="refresh()">РћР±РЅРѕРІРёС‚СЊ</button>
+  </div>
+
+  @if (loading()) {
+    <div class="muted">Р—Р°РіСЂСѓР·РєР°...</div>
+  }
+
+  @if (error()) {
+    <div class="error">{{ error() }}</div>
+  }
+
+  @if (!loading()) {
+    <div class="table-wrap">
+      @if (rows().length > 0) {
+        <table class="table">
+          <thead>
+            <tr>
+              <th>User ID</th>
+              <th>Plan</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr>
+                <td class="mono">{{ row.userId }}</td>
+                <td>{{ row.plan }}</td>
+                <td>{{ row.startDate | date: 'dd.MM.yyyy' }}</td>
+                <td>{{ row.endDate | date: 'dd.MM.yyyy' }}</td>
+                <td>
+                  <span
+                    class="pill"
+                    [class.pill--green]="row.status === 'Active'"
+                    [class.pill--gray]="row.status !== 'Active'">
+                    {{ row.status }}
+                  </span>
+                </td>
+                <td class="actions">
+                  <button
+                    class="btn btn-secondary"
+                    type="button"
+                    (click)="cancel(row)"
+                    [disabled]="row.status !== 'Active'">
+                    Cancel
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="muted">РџРѕРґРїРёСЃРѕРє РїРѕРєР° РЅРµС‚ (РёР»Рё РЅРµ РїРѕРґРѕС€С‘Р» С„РёР»СЊС‚СЂ).</div>
+      }
+    </div>
+  }
+
+  <div class="muted small">Р”Р°РЅРЅС‹Рµ Р·Р°РіСЂСѓР¶Р°СЋС‚СЃСЏ СЃ `GET /api/subscriptions`.</div>
+</div>

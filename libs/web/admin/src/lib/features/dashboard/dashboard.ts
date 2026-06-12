@@ -5,7 +5,17 @@ import {
   type AdminAssessmentRow,
 } from '../RequestAssessment/services/assessment-api.service';
 import { AdminUserApiService } from '../RequestAssessment/services/user-api.service';
-import { AssessmentItem } from '../RequestAssessment/requests/requests';
+export interface AssessmentItem {
+  id: string;
+  userId: string;
+  applicantName: string;
+  status: 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
+  address: string;
+  description: string;
+  estimatedValue: string;
+  createdAt: string;
+  updatedAt: string;
+}
 import { QUICK_LINKS, QuickLink } from './dashboard.data';
 
 const DASHBOARD_PAGE_LIMIT = 200;
