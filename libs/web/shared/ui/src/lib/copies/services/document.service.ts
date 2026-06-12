@@ -14,6 +14,10 @@ export type Document = {
   uploadedById: string;
   downloadUrl: string;
   comment?: string;
+  // Собственный статус заказа копии (DocumentStatus: 1..6), не статус заявки.
+  status?: number;
+  // Стоимость копии в рублях.
+  price?: number;
 };
 export type PageInfo = {
   totalItems: number,
@@ -30,8 +34,24 @@ export class DocumentService {
 
   readonly role = this.tokenStore.role;
 
-  async createDocument(assessmentId: string, fileName: string, fileType: string, uploadedById: string, fileContent: Uint8Array<ArrayBuffer>): Promise<Document> {
-    const res = await this.client.createDocument({ assessmentId, fileName, fileType, uploadedById, fileContent });
+  async createDocument(
+    assessmentId: string,
+    fileName: string,
+    fileType: string,
+    uploadedById: string,
+    fileContent: Uint8Array<ArrayBuffer>,
+    options?: { comment?: string; price?: number; documentType?: number },
+  ): Promise<Document> {
+    const res = await this.client.createDocument({
+      assessmentId,
+      fileName,
+      fileType,
+      uploadedById,
+      fileContent,
+      comment: options?.comment ?? '',
+      price: options?.price ?? 0,
+      documentType: options?.documentType ?? 0,
+    });
     if (!res.document) throw new Error('Не удалось создать документ');
     return res.document
   }
@@ -39,6 +59,13 @@ export class DocumentService {
   async getDocument(id: string): Promise<Document> {
     const res = await this.client.getDocument({ id });
     if (!res.document) throw new Error('Несуществующий документ');
+    return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
+  }
+
+  // Сменить статус заказа копии (жизненный цикл DocumentStatus).
+  async updateDocumentStatus(id: string, status: number): Promise<Document> {
+    const res = await this.client.updateDocumentStatus({ id, status });
+    if (!res.document) throw new Error('Не удалось обновить статус заказа');
     return { ...res.document, downloadUrl: resolveStoredDocumentUrl(res.document.downloadUrl) }
   }
 
