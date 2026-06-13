@@ -62,6 +62,7 @@ export class DocumentApiService {
       version: document.version,
       uploadedAt: document.uploadedAt ? timestampDate(document.uploadedAt).toISOString() : null,
       kind: resolveStoredDocumentKind(document.documentType),
+      documentType: document.documentType,
     };
   }
 }

@@ -1,0 +1,74 @@
+<main class="container page new-order-form-page">
+  @if (isSuccess()) {
+  <section class="card success-card">
+    <header class="card-header">
+      <h1>Заявка отправлена</h1>
+      <p class="card-subtitle m-0">
+        Ваша заявка № <strong>{{ submittedAssessmentId() }}</strong> принята и передана в обработку.
+      </p>
+    </header>
+    <div class="success-actions">
+      <a routerLink="/applicant/orders" class="btn btn-primary">К списку заявок</a>
+    </div>
+  </section>
+  } @else {
+  <section class="card">
+    <header class="card-header new-order-form-header">
+      <h1>Подача заявки на оценку наследственного имущества</h1>
+      <p class="card-subtitle new-order-form-subtitle">
+        Заполните данные о наследстве, параметры объекта, прикрепите документы и подтвердите отправку.
+      </p>
+    </header>
+
+    <ol class="step-indicator" aria-label="Шаги формы">
+      @for (step of steps; track step.step) {
+      <li
+        class="step-indicator-item"
+        [class.step-indicator-item-active]="isStepActive(step.step)"
+        [class.step-indicator-item-done]="isStepCompleted(step.step)">
+        <span class="step-indicator-dot" aria-hidden="true">{{ step.step }}</span>
+        <span class="step-indicator-label">{{ step.label }}</span>
+      </li>
+      }
+    </ol>
+
+    @if (loading()) {
+    <p class="form-banner">Загрузка формы...</p>
+    } @else if (loadError()) {
+    <p class="form-banner form-banner-error">{{ loadError() }}</p>
+    } @else { @if (submitError()) {
+    <p class="form-banner form-banner-error">{{ submitError() }}</p>
+    }
+
+    <form class="form" [formGroup]="orderForm" (ngSubmit)="submit()">
+      @switch (currentStep()) { @case (1) {
+      <lib-step-inheritance [group]="inheritanceGroup" [showValidationErrors]="showValidationErrors()" />
+      } @case (2) {
+      <lib-step-property [group]="propertyGroup" [showValidationErrors]="showValidationErrors()" />
+      } @case (3) {
+      <lib-step-documents [array]="documentsArray" [showValidationErrors]="showValidationErrors()" />
+      } @case (4) {
+      <lib-step-confirm
+        [group]="confirmGroup"
+        [inheritance]="inheritanceSummary"
+        [property]="propertySummary"
+        [documents]="documentsSummary"
+        [showValidationErrors]="showValidationErrors()" />
+      } }
+
+      <div class="form-actions">
+        @if (!isFirstStep()) {
+        <button type="button" class="btn btn-secondary" [disabled]="submitting()" (click)="goBack()">Назад</button>
+        } @if (!isLastStep()) {
+        <button type="button" class="btn btn-primary" [disabled]="submitting()" (click)="goNext()">Далее</button>
+        } @else {
+        <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+          @if (submitting()) { Отправка... } @else { Отправить заявку }
+        </button>
+        }
+      </div>
+    </form>
+    }
+  </section>
+  }
+</main>
