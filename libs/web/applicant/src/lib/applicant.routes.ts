@@ -2,7 +2,7 @@ import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
-import { Copy, List } from '@notary-portal/ui';
+import { Copy, List, New, roleGuard, UserRole } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -78,6 +78,7 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'copies',
+        canActivate: [roleGuard(UserRole.Applicant)],
         children: [
           {
             path: '',
@@ -86,8 +87,15 @@ export const applicantRoutes: Route[] = [
             data: { role: 'applicant' },
           },
           {
+            // Заказ копии инициирует заявитель (issue-20: /applicant/copies/new).
+            path: 'new',
+            component: New,
+            data: { role: 'applicant' },
+          },
+          {
             path: ':id',
             component: Copy,
+            data: { role: 'applicant' },
           },
         ],
       },

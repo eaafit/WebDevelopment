@@ -187,6 +187,18 @@ enum DocumentType {
   @@map("document_type")
 }
 
+// Жизненный цикл заказа копии нотариального документа (собственный статус заказа).
+enum DocumentStatus {
+  PendingPayment @map("pending_payment") // создан, ожидает оплаты
+  Paid           @map("paid") // оплачен, в очереди на обработку
+  InProgress     @map("in_progress") // нотариус взял в работу
+  Ready          @map("ready") // копия готова, доступна для скачивания
+  Delivered      @map("delivered") // копия выдана/получена заявителем
+  Cancelled      @map("cancelled") // заказ отменён
+
+  @@map("document_status")
+}
+
 enum RealEstateObjectType {
   Apartment          @map("apartment")
   House              @map("house")
@@ -368,12 +380,20 @@ model Document {
   fileName     String       @map("file_name") @db.VarChar
   fileType     String       @map("file_type") @db.VarChar
   fileSize     Int          @map("file_size")
-  documentType DocumentType @default(Other) @map("document_type") // [FIX] добавлен enum-тип
-  bucketName   String       @map("bucket_name") @db.VarChar
-  objectKey    String       @map("object_key") @db.VarChar
-  version      Int          @default(1)
-  uploadedAt   DateTime     @default(now()) @map("uploaded_at") @db.Timestamp()
-  uploadedById String       @map("uploaded_by") @db.Uuid
+  documentType DocumentType   @default(Other) @map("document_type") // [FIX] добавлен enum-тип
+  status       DocumentStatus @default(PendingPayment) // собственный статус заказа копии
+  comment      String?        @db.Text // комментарий заявителя к заказу копии
+  price        Int            @default(0) // стоимость копии в рублях
+  bucketName   String         @map("bucket_name") @db.VarChar
+  objectKey    String         @map("object_key") @db.VarChar
+  // Готовая копия (скан-результат нотариуса), отдельно от файла-основания (доверенности).
+  resultBucketName String?    @map("result_bucket_name") @db.VarChar
+  resultObjectKey  String?    @map("result_object_key") @db.VarChar
+  resultFileName   String?    @map("result_file_name") @db.VarChar
+  resultFileSize   Int?       @map("result_file_size")
+  version      Int            @default(1)
+  uploadedAt   DateTime       @default(now()) @map("uploaded_at") @db.Timestamp()
+  uploadedById String         @map("uploaded_by") @db.Uuid
 
   assessment Assessment @relation(fields: [assessmentId], references: [id])
   uploadedBy User       @relation("UploadedBy", fields: [uploadedById], references: [id])

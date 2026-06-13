@@ -12,13 +12,14 @@ import {
   type ListDocumentsByAssessmentResponse,
 } from '@notary-portal/api-contracts';
 import {
+  DocumentStatus as PrismaDocumentStatus,
   DocumentType as PrismaDocumentType,
   type Document as PrismaDocumentRecord,
   type Prisma,
 } from '@internal/prisma-client';
 import type { DocumentQuery } from './document.query';
 import { DocumentFileUrlService } from './document-file-url.service';
-import { fromPrismaDocumentType } from './document-type.mapper';
+import { fromPrismaDocumentStatus, fromPrismaDocumentType } from './document-type.mapper';
 
 export class DocumentRecordNotFoundError extends Error {
   constructor(id: string) {
@@ -87,6 +88,8 @@ export class DocumentRepository {
     bucketName: string;
     objectKey: string;
     uploadedById: string;
+    comment?: string;
+    price?: number;
   }): Promise<RpcDocument> {
     const lastVersion = await this.prisma.document.findFirst({
       where: { assessmentId: data.assessmentId, fileName: data.fileName },
@@ -101,6 +104,8 @@ export class DocumentRepository {
         fileType: data.fileType,
         fileSize: data.fileSize,
         documentType: data.documentType,
+        comment: data.comment ?? null,
+        price: data.price ?? 0,
         bucketName: data.bucketName,
         objectKey: data.objectKey,
         uploadedById: data.uploadedById,
@@ -108,6 +113,30 @@ export class DocumentRepository {
       },
     });
 
+    return this.toMessage(document);
+  }
+
+  // Смена собственного статуса заказа копии.
+  async updateDocumentStatus(id: string, status: PrismaDocumentStatus): Promise<RpcDocument> {
+    const document = await this.prisma.document.update({ where: { id }, data: { status } });
+    return this.toMessage(document);
+  }
+
+  // Прикрепление готовой копии (скан-результата нотариуса) к заказу + перевод в READY.
+  async attachResult(
+    id: string,
+    result: { bucketName: string; objectKey: string; fileName: string; fileSize: number },
+  ): Promise<RpcDocument> {
+    const document = await this.prisma.document.update({
+      where: { id },
+      data: {
+        resultBucketName: result.bucketName,
+        resultObjectKey: result.objectKey,
+        resultFileName: result.fileName,
+        resultFileSize: result.fileSize,
+        status: PrismaDocumentStatus.Ready,
+      },
+    });
     return this.toMessage(document);
   }
 
@@ -128,19 +157,7 @@ export class DocumentRepository {
     return query.sortField === 'version' ? { version: direction } : { uploadedAt: 'desc' };
   }
 
-  private toMessage(d: {
-    id: string;
-    assessmentId: string;
-    fileName: string;
-    fileType: string;
-    fileSize: number;
-    bucketName: string;
-    objectKey: string;
-    version: number;
-    uploadedAt: Date;
-    uploadedById: string;
-    documentType: PrismaDocumentType;
-  }): RpcDocument {
+  private toMessage(d: PrismaDocumentRecord): RpcDocument {
     return create(DocumentSchema, {
       id: d.id,
       assessmentId: d.assessmentId,
@@ -153,8 +170,14 @@ export class DocumentRepository {
       uploadedAt: timestampFromDate(d.uploadedAt),
       uploadedById: d.uploadedById,
       documentType: fromPrismaDocumentType(d.documentType),
+      status: fromPrismaDocumentStatus(d.status),
+      comment: d.comment ?? '',
+      price: d.price,
       previewUrl: this.documentFileUrlService.buildPreviewUrl(d.id),
       downloadUrl: this.documentFileUrlService.buildDownloadUrl(d.id),
+      resultDownloadUrl: d.resultObjectKey
+        ? this.documentFileUrlService.buildResultDownloadUrl(d.id)
+        : '',
     });
   }
 }

@@ -4,9 +4,18 @@ import { FormsModule } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
-import { AssessmentStatus, PaymentService, PaymentType } from '@notary-portal/api-contracts';
-import { createClient } from '@connectrpc/connect';
-import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { AssessmentStatus } from '@notary-portal/api-contracts';
+import { TokenStore } from '../../rpc/token-store';
+
+// Минимально необходимый набор полей заявки для формы заказа копии.
+interface AssessmentOption {
+  id: string;
+  description?: string;
+  address?: string;
+  userId?: string;
+  applicantId?: string;
+  clientId?: string;
+}
 
 @Component({
   selector: 'lib-new',
@@ -20,9 +29,7 @@ export class New implements OnInit {
   private readonly documentService = inject(DocumentService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  
-  // Создаем клиент для работы с платежами напрямую через gRPC
-  private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
+  private readonly tokenStore = inject(TokenStore);
 
   // Список типов документов строго по ТЗ (по возрастанию цены)
   readonly documentTypes = [
@@ -40,10 +47,24 @@ export class New implements OnInit {
 
   selectedDocType = signal<number>(1);
   selectedAssesmentID = signal<string>('');
-  assesments = signal<any[]>([]);
+  assesments = signal<AssessmentOption[]>([]);
   isSubmitting = signal<boolean>(false);
   comment = signal<string>('');
   selectedFile: File | null = null;
+
+  // ─── Поиск заявки (typeahead) ────────────────────────────────────────
+  searchQuery = signal<string>('');
+  showSuggestions = signal<boolean>(false);
+
+  // Отфильтрованный список заявок по строке поиска (по описанию/адресу/ID).
+  readonly filteredAssessments = computed<AssessmentOption[]>(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const all = this.assesments();
+    if (!query) return all.slice(0, 50);
+    return all
+      .filter((a) => this.assessmentLabel(a).toLowerCase().includes(query) || a.id.toLowerCase().includes(query))
+      .slice(0, 50);
+  });
 
   readonly price = computed(() => {
     const type = this.selectedDocType();
@@ -52,6 +73,11 @@ export class New implements OnInit {
 
   ngOnInit(): void {
     this.loadActiveAssessments();
+  }
+
+  // Человекочитаемая подпись заявки для дропдауна.
+  assessmentLabel(a: AssessmentOption): string {
+    return a.description || a.address || `Заявка #${a.id}`;
   }
 
   goBackToList() {
@@ -65,7 +91,7 @@ export class New implements OnInit {
   }
 
   onOverlayKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' || event.key === ' ') {
+    if (event.key === 'Escape') {
       event.preventDefault();
       this.goBackToList();
     }
@@ -79,62 +105,68 @@ export class New implements OnInit {
     try {
       const data = await this.assessmentService.listAssessments(AssessmentStatus.IN_PROGRESS, { page: 1, limit: 1000 });
       if (data && data.assesments && data.assesments.length > 0) {
-        this.assesments.set(data.assesments);
-        this.selectedAssesmentID.set(data.assesments[0].id);
+        this.assesments.set(data.assesments as AssessmentOption[]);
       }
     } catch (error) {
       console.error('Ошибка загрузки заявок:', error);
     }
   }
 
-  onDocumentUpload(event: any) {
-    const file = event.target!.files[0];
+  // ─── Обработчики typeahead ───────────────────────────────────────────
+  onSearchInput(value: string): void {
+    this.searchQuery.set(value);
+    this.showSuggestions.set(true);
+    // Сбрасываем выбор, если текст больше не соответствует выбранной заявке.
+    const selected = this.assesments().find((a) => a.id === this.selectedAssesmentID());
+    if (!selected || this.assessmentLabel(selected) !== value) {
+      this.selectedAssesmentID.set('');
+    }
+  }
+
+  onSearchFocus(): void {
+    this.showSuggestions.set(true);
+  }
+
+  selectAssessment(a: AssessmentOption): void {
+    this.selectedAssesmentID.set(a.id);
+    this.searchQuery.set(this.assessmentLabel(a));
+    this.showSuggestions.set(false);
+  }
+
+  onDocumentUpload(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (file) this.selectedFile = file;
   }
 
   getCurrentUserId(): string {
-    const currentAssesment = this.assesments().find(a => a.id === this.selectedAssesmentID());
-    
-    // Пытаемся взять userId или applicantId или clientId из объекта заявки
-    return currentAssesment?.userId || 
-           (currentAssesment as any)?.applicantId || 
-           (currentAssesment as any)?.clientId || 
-           '00000000-0000-0000-0000-000000000000';
+    // uploaded_by_id обязан совпадать с аутентифицированным пользователем
+    // (бэкенд отклоняет иное). Заказ создаёт текущий заявитель, поэтому берём
+    // его id из TokenStore, а не владельца выбранной заявки.
+    return this.tokenStore.user()?.id ?? '';
   }
-  
+
   async onSubmit() {
     if (!this.selectedFile) return;
 
     try {
       this.isSubmitting.set(true);
-      
-      // 1. Сначала загружаем документ
+
+      // Создаём заказ копии (статус по умолчанию — «Ожидает оплаты»).
+      // Оплата перенесена на карточку заказа (Copy), здесь оплата не инициируется.
       await this.documentService.createDocument(
         this.selectedAssesmentID(),
         this.selectedFile.name,
         this.selectedFile.type || 'application/octet-stream',
         this.getCurrentUserId(),
         new Uint8Array(await this.selectedFile.arrayBuffer()),
+        { comment: this.comment(), price: this.price() },
       );
 
-      // 2. Создаем запрос на оплату с правильной ценой и реальным ID юзера
-      const paymentResponse = await this.paymentClient.createPayment({
-        userId: this.getCurrentUserId(),
-        amount: this.price().toString(), 
-        type: PaymentType.DOCUMENT_COPY, 
-        targetId: this.selectedAssesmentID(), 
-        paymentProvider: 'yookassa' 
-      });
-
-      // 3. Редирект на оплату
-      if (paymentResponse.paymentUrl) {
-        window.location.href = paymentResponse.paymentUrl;
-      } else {
-        this.router.navigate(['../'], { relativeTo: this.route });
-      }
-
+      // Возврат к списку — оплатить заказ можно из его карточки.
+      this.router.navigate(['../'], { relativeTo: this.route });
     } catch (err) {
-      console.error('Ошибка при сохранении или создании платежа:', err);
+      console.error('Ошибка при создании заказа копии:', err);
     } finally {
       this.isSubmitting.set(false);
     }

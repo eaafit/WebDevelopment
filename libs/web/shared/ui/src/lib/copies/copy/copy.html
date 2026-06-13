@@ -5,33 +5,37 @@
   (click)="onOverlayClick($event)"
   (keydown)="onOverlayKeydown($event)"
 >
-  <div class="status-container">
+  <div class="status-container" role="dialog" aria-modal="true">
+    <button type="button" class="close-button" aria-label="Закрыть" (click)="goBackToList()">✕</button>
+
     <div class="status-header">
       <div class="header-content">
-        <h3 class="status-title">Информация о заявке</h3>
-        <p class="status-subtitle">Отслеживание состояния в реальном времени</p>
+        <h3 class="status-title">Заказ копии · {{ typeLabel() }}</h3>
+        <p class="status-subtitle">
+          {{ isNotary() ? 'Обработка заказа нотариусом' : 'Отслеживание состояния заказа' }}
+        </p>
       </div>
       @if (doc() !== null) {
         <span class="id-badge">#{{ doc()!.id.split('-')[0] }}</span>
       }
     </div>
 
+    @if (hasError()) {
+      <p class="error-text">Не удалось загрузить заказ.</p>
+    }
+
     <div class="info-list">
       <div class="info-item">
-        <span class="info-label">Имя файла</span>
+        <span class="info-label">Тип копии</span>
+        <span class="info-value">{{ typeLabel() }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Стоимость</span>
+        <span class="info-value">{{ doc()?.price || 0 }} ₽</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Файл-основание</span>
         <span class="info-value">{{ doc()?.fileName || '—' }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Тип документа</span>
-        <span class="info-value">{{ doc()?.fileType || '—' }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Версия файла</span>
-        <span class="info-value">v{{ doc()?.version || '1' }}</span>
-      </div>
-      <div class="info-item">
-        <span class="info-label">Связанная заявка (ID)</span>
-        <span class="info-value">{{ doc()?.assessmentId || '—' }}</span>
       </div>
       <div class="info-item">
         <span class="info-label">Дата создания</span>
@@ -40,40 +44,89 @@
 
       <div class="info-item comment-item">
         <span class="info-label">Комментарий к запросу</span>
-        @if ($any(doc())?.comment) {
-          <p class="comment-text">{{ $any(doc())?.comment }}</p>
+        @if (doc()?.comment) {
+          <p class="comment-text">{{ doc()?.comment }}</p>
         } @else {
           <span class="no-comment">—</span>
         }
       </div>
     </div>
 
+    <!-- Данные связанной заявки — контекст обработки для нотариуса. -->
+    @if (isNotary() && assesment() !== null) {
+      <div class="assessment-card">
+        <h4 class="assessment-title">Связанная заявка</h4>
+        <div class="info-item">
+          <span class="info-label">Заявитель (ID)</span>
+          <span class="info-value">{{ assesment()?.userId || doc()?.uploadedById || '—' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Адрес объекта</span>
+          <span class="info-value">{{ assesment()?.address || '—' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Описание</span>
+          <span class="info-value">{{ assesment()?.description || '—' }}</span>
+        </div>
+        <div class="assessment-actions">
+          @if (doc()?.downloadUrl) {
+            <a [href]="doc()?.downloadUrl" class="link-button" target="_blank" rel="noopener" download>
+              ⬇ Скачать доверенность
+            </a>
+          }
+          <button type="button" class="link-button" (click)="goToAssessment()">
+            Документы заявки →
+          </button>
+        </div>
+      </div>
+    }
+
     <div class="status-badge-container">
-      <span class="status-badge" [ngClass]="'status-' + getMappedStatus(assesment()?.status)">
+      <span class="status-badge" [ngClass]="'status-' + statusView().key">
         <span class="status-dot"></span>
-        {{ getStatusText(assesment()?.status) }}
+        {{ statusView().label }}
       </span>
     </div>
 
-    @if (assesment() !== null && doc() !== null) {
-      <div class="action-footer">
-        @if (assesment()?.status !== 4) {
-          <div class="timer-display">
-            <span class="pulse-dot"></span>
-            Осталось времени: <strong>{{ timer() }} мин.</strong>
-          </div>
-        } @else {
-          <a [href]="doc()?.downloadUrl" class="download-button" target="_blank" download>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Скачать копию документа
-          </a>
-        }
-      </div>
-    }
+    <div class="action-footer">
+      <!-- Заявитель: оплата ожидающего заказа -->
+      @if (isApplicant() && isPendingPayment()) {
+        <button type="button" class="primary-button" [disabled]="busy()" (click)="payForCopy()">
+          Оплатить {{ doc()?.price || 0 }} ₽
+        </button>
+      }
+
+      <!-- Нотариус: взять оплаченный заказ в работу -->
+      @if (isNotary() && isPaid()) {
+        <button type="button" class="primary-button" [disabled]="busy()" (click)="takeInWork()">
+          Взять в работу
+        </button>
+      }
+
+      <!-- Нотариус: приложить готовый скан и отметить готовым -->
+      @if (isNotary() && isInProgress()) {
+        <div class="scan-upload">
+          <label class="label" for="scanFile">Готовая копия (скан)</label>
+          <input id="scanFile" class="file-input" type="file" (change)="onScanUpload($event)" />
+        </div>
+        <button type="button" class="primary-button" [disabled]="busy()" (click)="markReady()">
+          Готово
+        </button>
+      }
+
+      <!-- Скачивание готовой/выданной копии: версия нотариуса (result), иначе исходный файл -->
+      @if (statusView().canDownload && (doc()?.resultDownloadUrl || doc()?.downloadUrl)) {
+        <a [href]="doc()?.resultDownloadUrl || doc()?.downloadUrl" class="download-button" target="_blank" rel="noopener" download>
+          ⬇ Скачать копию документа
+        </a>
+      }
+
+      <!-- Заявитель: подтвердить получение готовой копии -->
+      @if (isApplicant() && isReady()) {
+        <button type="button" class="secondary-button" [disabled]="busy()" (click)="markDelivered()">
+          Подтвердить получение
+        </button>
+      }
+    </div>
   </div>
 </div>

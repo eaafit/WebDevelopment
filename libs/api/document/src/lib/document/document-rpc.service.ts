@@ -9,6 +9,10 @@ import type {
   GetDocumentResponse,
   ListDocumentsByAssessmentRequest,
   ListDocumentsByAssessmentResponse,
+  UpdateDocumentStatusRequest,
+  UpdateDocumentStatusResponse,
+  UploadCopyResultRequest,
+  UploadCopyResultResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
@@ -25,4 +29,10 @@ export class DocumentRpcService {
     this.documentService.createDocument(r);
   readonly deleteDocument = (r: DeleteDocumentRequest): Promise<DeleteDocumentResponse> =>
     this.documentService.deleteDocument(r);
+  readonly updateDocumentStatus = (
+    r: UpdateDocumentStatusRequest,
+  ): Promise<UpdateDocumentStatusResponse> => this.documentService.updateDocumentStatus(r);
+  readonly uploadCopyResult = (
+    r: UploadCopyResultRequest,
+  ): Promise<UploadCopyResultResponse> => this.documentService.uploadCopyResult(r);
 }

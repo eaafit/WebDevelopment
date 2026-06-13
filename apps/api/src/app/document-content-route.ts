@@ -55,7 +55,10 @@ export async function handleDocumentContentRequest(
       }
 
       try {
-        const file = await services.documentService.getDocumentFile(documentId);
+        const file = await services.documentService.getDocumentFile(
+          documentId,
+          asString(req.query['variant']),
+        );
         if (!file) {
           markSpanFailure(span, new Error('Document content not found'));
           setSpanAttributes(span, { 'document.content.prepare_result': 'not_found' });

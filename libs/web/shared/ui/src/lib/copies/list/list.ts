@@ -5,7 +5,6 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DocumentService, Document, PageInfo } from '../services/document.service';
-import { AssessmentService } from '../services/assesment.service';
 import { DocumentRow } from './document-row/document-row';
 import { Pagination } from './pagination/pagination';
 
@@ -34,9 +33,7 @@ export class List implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly documentService = inject(DocumentService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly assessmentService = inject(AssessmentService);
 
-  readonly assessmentStatuses = signal<Record<string, number>>({});
   readonly rawDocuments = signal<Document[]>([]);
   readonly page = signal<number>(1);
 
@@ -155,26 +152,6 @@ export class List implements OnInit {
       const docs = data.documents || [];
       this.rawDocuments.set(docs);
       this.page.set(1);
-
-      if (docs.length > 0) {
-        // Получаем уникальные ID заявок из всех документов
-        const uniqueAssessmentIds = [...new Set(docs.map(d => d.assessmentId).filter(Boolean))];
-        
-        const statuses: Record<string, number> = {};
-        
-        await Promise.all(uniqueAssessmentIds.map(async (id) => {
-          try {
-            const assessment = await this.assessmentService.getAssessment(id);
-            if (assessment) {
-              statuses[id] = assessment.status;
-            }
-          } catch {
-            console.warn(`Не удалось загрузить статус для заявки ${id}`);
-          }
-        }));
-
-        this.assessmentStatuses.set(statuses);
-      }
     } catch (err) {
       console.error('Ошибка при получении документов:', err);
       this.rawDocuments.set([]);

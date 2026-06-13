@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, provideRouter, Router } from '@angular/router';
-import { AssessmentStatus } from '@notary-portal/api-contracts';
+import { AssessmentStatus, DocumentStatus } from '@notary-portal/api-contracts';
+import { RPC_TRANSPORT } from '../../rpc/rpc-transport';
+import { TokenStore } from '../../rpc/token-store';
 import { AssessmentService } from '../services/assesment.service';
 import { DocumentService } from '../services/document.service';
 import { Copy } from './copy';
@@ -8,7 +10,7 @@ import { Copy } from './copy';
 describe('Copy', () => {
   let component: Copy;
   let fixture: ComponentFixture<Copy>;
-  let documentService: { getDocument: jest.Mock };
+  let documentService: { getDocument: jest.Mock; updateDocumentStatus: jest.Mock };
   let assessmentService: { getAssessment: jest.Mock };
 
   const document = {
@@ -20,11 +22,14 @@ describe('Copy', () => {
     uploadedAt: { seconds: BigInt(Math.floor(Date.now() / 1000)), nanos: 0 },
     uploadedById: 'user-1',
     downloadUrl: '/files/copy.pdf',
+    status: DocumentStatus.READY,
+    price: 300,
   };
 
   beforeEach(async () => {
     documentService = {
       getDocument: jest.fn().mockResolvedValue(document),
+      updateDocumentStatus: jest.fn().mockResolvedValue(document),
     };
     assessmentService = {
       getAssessment: jest.fn().mockResolvedValue({ id: 'assessment-1', status: AssessmentStatus.COMPLETED }),
@@ -34,10 +39,13 @@ describe('Copy', () => {
       imports: [Copy],
       providers: [
         provideRouter([]),
+        { provide: RPC_TRANSPORT, useValue: {} },
+        { provide: TokenStore, useValue: { user: () => ({ id: 'notary-1' }) } },
         {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
+              data: { role: 'applicant' },
               paramMap: {
                 get: jest.fn().mockReturnValue('document-1'),
               },
@@ -58,16 +66,16 @@ describe('Copy', () => {
   it('should create and load the requested document', () => {
     expect(component).toBeTruthy();
     expect(documentService.getDocument).toHaveBeenCalledWith('document-1');
-    expect(assessmentService.getAssessment).toHaveBeenCalledWith('assessment-1');
     expect(component.doc()).toEqual(document);
   });
 
-  it('should map assessment statuses to copy display states', () => {
-    expect(component.getMappedStatus(undefined)).toBe('pending');
-    expect(component.getMappedStatus(1)).toBe('pending');
-    expect(component.getMappedStatus(2)).toBe('processing');
-    expect(component.getMappedStatus(4)).toBe('ready');
-    expect(component.getMappedStatus(5)).toBe('delivered');
+  it('derives the status view from the document own status', () => {
+    expect(component.statusView().key).toBe('ready');
+    expect(component.statusView().canDownload).toBe(true);
+  });
+
+  it('derives the copy type label from the price', () => {
+    expect(component.typeLabel()).toBe('Нотариальный акт');
   });
 
   it('should navigate back to the list relative to the current route', () => {

@@ -1,7 +1,12 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { createClient } from '@connectrpc/connect';
+import { PaymentService, PaymentType } from '@notary-portal/api-contracts';
 import { Document } from '../../services/document.service';
+import { mapCopyStatus, resolveCopyPrice } from '../../services/document-status';
+import { RPC_TRANSPORT } from '../../../rpc/rpc-transport';
+import { TokenStore } from '../../../rpc/token-store';
 
 @Component({
   selector: 'lib-document-row',
@@ -12,9 +17,20 @@ import { Document } from '../../services/document.service';
 export class DocumentRow {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly tokenStore = inject(TokenStore);
+  private readonly paymentClient = createClient(PaymentService, inject(RPC_TRANSPORT));
 
   document = input.required<Document>()
+  // Статус заказа копии (Document.status), не статус заявки.
   status = input<number | undefined>();
+
+  // Сообщаем списку об успешной оплате, чтобы он перезагрузил данные (статус → «Оплачено»).
+  readonly paid = output<void>();
+
+  readonly isProcessing = signal<boolean>(false);
+
+  // Единый маппинг статуса в лейбл/цвет/доступность скачивания.
+  readonly statusView = computed(() => mapCopyStatus(this.status() ?? this.document().status));
 
   private readonly dateFormatter = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
@@ -46,22 +62,33 @@ export class DocumentRow {
     this.router.navigate([this.document().id], { relativeTo: this.route });
   }
 
-  getMappedStatus(statusValue: number | undefined): string {
-    if (statusValue === undefined) return 'pending';
-    if (statusValue === 1) return 'pending';
-    if (statusValue === 4) return 'ready';
-    if (statusValue === 5) return 'delivered';
-    return 'processing';
-  }
+  // Оплата прямо из строки списка. Только createPayment (статус PAID ставит бэк
+  // billing), targetId = id заказа, прайс-фолбэк + гард. Клик не открывает деталь.
+  async payForDocument(event: Event): Promise<void> {
+    event.stopPropagation();
+    const doc = this.document();
+    if (this.isProcessing()) return;
 
-  getStatusText(statusValue: number | undefined): string {
-    const mapped = this.getMappedStatus(statusValue);
-    const texts: Record<string, string> = {
-      'pending': 'Ожидает оплаты',
-      'processing': 'В обработке',
-      'ready': 'Готово',
-      'delivered': 'Выдано'
-    };
-    return texts[mapped] || 'В обработке';
+    const amount = resolveCopyPrice(doc.price);
+    if (amount <= 0) {
+      console.error('Некорректная сумма копии');
+      return;
+    }
+
+    try {
+      this.isProcessing.set(true);
+      // paymentProvider не задаём — берётся из конфига бэкенда (PAYMENT_PROVIDER).
+      await this.paymentClient.createPayment({
+        userId: this.tokenStore.user()?.id ?? doc.uploadedById,
+        amount: amount.toString(),
+        type: PaymentType.DOCUMENT_COPY,
+        targetId: doc.id,
+      });
+      this.paid.emit();
+    } catch (err) {
+      console.error('Ошибка оплаты копии:', err);
+    } finally {
+      this.isProcessing.set(false);
+    }
   }
 }

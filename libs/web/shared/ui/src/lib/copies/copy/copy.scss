@@ -19,6 +19,7 @@
 }
 
 .status-container {
+  position: relative;     /* для кнопки закрытия */
   max-width: 600px;
   width: 100%;            /* Добавлено: чтобы контейнер был адаптивным */
   margin: 0 auto;         /* Добавлено: это и центрирует элемент по горизонтали */
@@ -27,13 +28,33 @@
   border: 1px solid #e2e8f0;
   box-shadow: var(--shadow);
   padding: 24px;
-  transition: transform 0.2s ease;
   cursor: default;
-  
-  &:hover {
-    transform: translateY(-2px);
-    border-color: #6366f1;
-  }
+}
+
+.close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover { background: #e5e7eb; color: #111827; }
+}
+
+.error-text {
+  color: #dc2626;
+  text-align: center;
+  font-weight: 600;
 }
 
 .status-header {
@@ -68,8 +89,122 @@
 
 .action-footer {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   margin-top: 16px;
+}
+
+.primary-button,
+.secondary-button {
+  width: 100%;
+  max-width: 320px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+.primary-button {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.4);
+
+  &:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+}
+
+.secondary-button {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+
+  &:hover:not(:disabled) { background: #d1fae5; }
+}
+
+.scan-upload {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  .file-input { font-size: 0.85rem; }
+}
+
+.assessment-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  .assessment-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-dark);
+  }
+
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    .info-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .info-value {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-dark);
+      word-break: break-word;
+    }
+  }
+
+  .assessment-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover { background: #e0e7ff; }
 }
 
 .timer-display {
@@ -215,4 +350,18 @@
   background: #f3f4f6;
   color: #4b5563;
   .status-dot { background: #4b5563; }
+}
+
+/* 5. Оплачено (Индиго) */
+.status-paid {
+  background: #e0e7ff;
+  color: #4338ca;
+  .status-dot { background: #4338ca; }
+}
+
+/* 6. Отменено (Красный) */
+.status-cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+  .status-dot { background: #dc2626; }
 }

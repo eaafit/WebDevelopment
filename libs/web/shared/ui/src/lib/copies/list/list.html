@@ -5,7 +5,7 @@
       <p class="page-subtitle">Управляйте запросами на создание копий нотариальных документов</p>
     </div>
 
-    @if (role === 'notary') {
+    @if (role === 'applicant') {
       <button class="btn-create-action" (click)="navigateToNew()">
         <span class="icon-plus">+</span> Заказать новую копию
       </button>
@@ -63,13 +63,14 @@
     @for (item of documents(); track item.id) {
       <lib-document-row
       [document]="item"
-      [status]="assessmentStatuses()[item.assessmentId]"
+      [status]="item.status"
+      (paid)="fetchDocuments()"
       />
     } @empty {
       <div class="empty-dashboard-state">
         <div class="empty-icon">📂</div>
         <h3>У вас пока нет заказов</h3>
-        @if (role === 'notary') {
+        @if (role === 'applicant') {
           <p>Нажмите кнопку выше, чтобы заказать копию первого документа.</p>
         }
       </div>

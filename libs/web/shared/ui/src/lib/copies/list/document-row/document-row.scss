@@ -104,3 +104,53 @@
   color: #4b5563;
   .status-dot { background: #4b5563; }
 }
+
+.status-paid {
+  background: #e0e7ff;
+  color: #4338ca;
+  .status-dot { background: #4338ca; }
+}
+
+.status-cancelled {
+  background: #fee2e2;
+  color: #dc2626;
+  .status-dot { background: #dc2626; }
+}
+
+.row-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover { background: #047857; }
+}
+
+.pay-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, filter 0.2s ease;
+
+  &:hover:not(:disabled) { background: #d97706; }
+  &:disabled { opacity: 0.65; cursor: not-allowed; }
+}

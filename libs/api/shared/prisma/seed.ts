@@ -714,6 +714,7 @@ async function upsertDocuments(
     'photo.jpg',
     'other.pdf',
   ];
+  const documentPlaceholder = makeMinimalPdf();
   for (let i = 0; i < count; i++) {
     const id = seedId('document', i);
     const assessmentId = assessmentIds[i % assessmentIds.length];
@@ -723,14 +724,34 @@ async function upsertDocuments(
     const objectPrefix = resolveSeedDocumentPrefix(docType);
     const extension = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
     const objectKey = `${objectPrefix}/${assessmentId}/seed-${id}.${extension}`;
+    // Стоимость копии по прайсу (Выписка/Акт/Отчёт = 150/300/500), чтобы у сид-копий
+    // была положительная сумма к оплате (иначе createPayment падает 400).
+    const price = [150, 300, 500][i % 3];
+    // Заливаем плейсхолдер-файл в MinIO по bucket/objectKey, иначе скачивание
+    // сид-копии падает «document file not found». fileSize ставим только при успехе.
+    let fileSize = 0;
+    try {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucketName,
+          Key: objectKey,
+          Body: documentPlaceholder,
+          ContentType: 'application/pdf',
+        }),
+      );
+      fileSize = documentPlaceholder.length;
+    } catch (err) {
+      console.warn(`Seed: не удалось залить файл документа ${objectKey} в MinIO`, err);
+    }
     await prisma.document.upsert({
       where: { id },
       update: {
         assessmentId,
         fileName,
         fileType: 'application/pdf',
-        fileSize: 0,
+        fileSize,
         documentType: docType,
+        price,
         bucketName,
         objectKey,
         version: (i % 3) + 1,
@@ -741,8 +762,9 @@ async function upsertDocuments(
         assessmentId,
         fileName,
         fileType: 'application/pdf',
-        fileSize: 0,
+        fileSize,
         documentType: docType,
+        price,
         bucketName,
         objectKey,
         version: (i % 3) + 1,

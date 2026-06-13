@@ -3,7 +3,7 @@ import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { Dashboard } from './features/dashboard/dashboard';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
-import { Copy, List, New } from '@notary-portal/ui';
+import { Copy, List, roleGuard, UserRole } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -43,6 +43,7 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'copies',
+        canActivate: [roleGuard(UserRole.Notary)],
         children: [
           {
             path: '',
@@ -51,12 +52,10 @@ export const notaryRoutes: Route[] = [
             data: { role: 'notary' },
           },
           {
-            path: 'new',
-            component: New,
-          },
-          {
+            // Нотариус обрабатывает заказ копии, но не инициирует его (см. issue-20).
             path: ':id',
             component: Copy,
+            data: { role: 'notary' },
           },
         ],
       },

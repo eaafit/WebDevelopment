@@ -3,7 +3,10 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import {
   CreateDocumentResponseSchema,
   DeleteDocumentResponseSchema,
+  DocumentStatus as RpcDocumentStatus,
   DocumentType as RpcDocumentType,
+  UpdateDocumentStatusResponseSchema,
+  UploadCopyResultResponseSchema,
   type CreateDocumentRequest,
   type CreateDocumentResponse,
   type DeleteDocumentRequest,
@@ -12,9 +15,16 @@ import {
   type GetDocumentResponse,
   type ListDocumentsByAssessmentRequest,
   type ListDocumentsByAssessmentResponse,
+  type UpdateDocumentStatusRequest,
+  type UpdateDocumentStatusResponse,
+  type UploadCopyResultRequest,
+  type UploadCopyResultResponse,
 } from '@notary-portal/api-contracts';
-import { getCurrentUser, requireAuth } from '@internal/auth-shared';
-import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
+import { getCurrentUser, requireAuth, requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
+import {
+  DocumentStatus as PrismaDocumentStatus,
+  DocumentType as PrismaDocumentType,
+} from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
 import {
   BusinessOperations,
@@ -35,7 +45,7 @@ import {
   DocumentStorageService,
   DocumentStorageUnavailableError,
 } from './document-storage.service';
-import { toPrismaDocumentType } from './document-type.mapper';
+import { toPrismaDocumentStatus, toPrismaDocumentType } from './document-type.mapper';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -149,6 +159,8 @@ export class DocumentService {
                 fileType,
                 fileSize: savedFile.fileSize,
                 documentType,
+                comment: normalizeComment(request.comment),
+                price: normalizePrice(request.price),
                 bucketName: savedFile.bucketName,
                 objectKey: savedFile.objectKey,
                 uploadedById,
@@ -221,7 +233,96 @@ export class DocumentService {
     );
   }
 
-  async getDocumentFile(documentId: string): Promise<{
+  // Сменить собственный статус заказа копии. Переходы валидируются по правилам
+  // жизненного цикла и роли: «Взять в работу»/«Готово» — только нотариус,
+  // оплата/получение/отмена — владелец заказа или нотариус.
+  async updateDocumentStatus(
+    request: UpdateDocumentStatusRequest,
+  ): Promise<UpdateDocumentStatusResponse> {
+    return runInSpan(
+      'DocumentService.updateDocumentStatus',
+      {
+        [NotarySpanAttributes.operation]: 'document.status_update',
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        validateUuid(request.id, 'id');
+        if (request.status === RpcDocumentStatus.UNSPECIFIED) {
+          throw invalid('status', 'must be specified');
+        }
+
+        const targetStatus = toPrismaDocumentStatus(
+          request.status,
+          PrismaDocumentStatus.PendingPayment,
+        );
+
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+
+        assertStatusTransition(document.status, targetStatus, document.uploadedById);
+        setSpanAttributes(span, {
+          'document.status_from': document.status,
+          'document.status_to': targetStatus,
+        });
+
+        const updated = await this.documentRepository.updateDocumentStatus(request.id, targetStatus);
+        return create(UpdateDocumentStatusResponseSchema, { document: updated });
+      },
+    );
+  }
+
+  // Нотариус прикладывает готовую копию к заказу: файл сохраняется в result-поля
+  // (отдельно от доверенности), статус заказа переходит в READY.
+  async uploadCopyResult(request: UploadCopyResultRequest): Promise<UploadCopyResultResponse> {
+    return runInSpan(
+      'DocumentService.uploadCopyResult',
+      {
+        [NotarySpanAttributes.operation]: 'document.result_upload',
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async () => {
+        requireRole(Role.Notary);
+        validateUuid(request.id, 'id');
+
+        const fileName = normalizeDisplayFileName(request.fileName);
+        const fileContent = request.fileContent.length ? request.fileContent : undefined;
+        if (!fileName) throw invalid('file_name', 'is required');
+        if (!fileContent) throw invalid('file_content', 'is required');
+
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+
+        const fileType = request.fileType?.trim() || 'application/octet-stream';
+        const storedFile = await this.documentStorageService.saveFile({
+          assessmentId: document.assessmentId,
+          fileName,
+          content: fileContent,
+          contentType: fileType,
+          documentType: document.documentType,
+        });
+
+        const updated = await this.documentRepository.attachResult(request.id, {
+          bucketName: storedFile.bucketName,
+          objectKey: storedFile.objectKey,
+          fileName,
+          fileSize: storedFile.fileSize,
+        });
+
+        return create(UploadCopyResultResponseSchema, { document: updated });
+      },
+    );
+  }
+
+  async getDocumentFile(
+    documentId: string,
+    variant?: string,
+  ): Promise<{
     body: Readable;
     fileName: string;
     fileType: string;
@@ -240,22 +341,31 @@ export class DocumentService {
         if (!document) {
           return null;
         }
+
+        // variant=result → отдаём готовую копию нотариуса, если она приложена.
+        const useResult = variant === 'result' && !!document.resultObjectKey;
+        const location =
+          useResult && document.resultBucketName && document.resultObjectKey
+            ? { bucketName: document.resultBucketName, objectKey: document.resultObjectKey }
+            : { bucketName: document.bucketName, objectKey: document.objectKey };
+        const fileName = useResult
+          ? document.resultFileName ?? document.fileName
+          : document.fileName;
+        const fallbackSize = useResult ? document.resultFileSize ?? 0 : document.fileSize;
+
         setSpanAttributes(span, {
           'document.type': document.documentType,
           'document.content_type': normalizeSpanContentType(document.fileType),
-          'document.size_bucket': spanSizeBucket(document.fileSize),
+          'document.size_bucket': spanSizeBucket(fallbackSize),
         });
 
-        const storedFile = await this.documentStorageService.getFile({
-          bucketName: document.bucketName,
-          objectKey: document.objectKey,
-        });
+        const storedFile = await this.documentStorageService.getFile(location);
 
         return {
           body: storedFile.body,
-          fileName: document.fileName,
+          fileName,
           fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
-          fileSize: storedFile.contentLength ?? document.fileSize,
+          fileSize: storedFile.contentLength ?? fallbackSize,
         };
       },
     );
@@ -321,6 +431,57 @@ function invalid(field: string, msg: string): ConnectError {
 function normalizeDisplayFileName(value: string): string {
   const normalized = path.basename(value).trim().slice(0, 255);
   return normalized || 'document.bin';
+}
+
+function normalizeComment(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 2000) : undefined;
+}
+
+function normalizePrice(value: number | undefined): number {
+  if (!value || !Number.isFinite(value) || value < 0) return 0;
+  return Math.floor(value);
+}
+
+// Переходы статуса, доступные только нотариусу.
+const NOTARY_ONLY_TRANSITIONS: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]> = [
+  [PrismaDocumentStatus.Paid, PrismaDocumentStatus.InProgress], // «Взять в работу»
+  [PrismaDocumentStatus.InProgress, PrismaDocumentStatus.Ready], // «Готово»
+];
+
+// Переходы статуса, доступные владельцу заказа или нотариусу.
+const OWNER_OR_NOTARY_TRANSITIONS: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]> = [
+  [PrismaDocumentStatus.PendingPayment, PrismaDocumentStatus.Paid], // оплата
+  [PrismaDocumentStatus.Ready, PrismaDocumentStatus.Delivered], // получение
+  [PrismaDocumentStatus.PendingPayment, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.Paid, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.InProgress, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.Ready, PrismaDocumentStatus.Cancelled],
+];
+
+function matches(
+  list: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]>,
+  from: PrismaDocumentStatus,
+  to: PrismaDocumentStatus,
+): boolean {
+  return list.some(([f, t]) => f === from && t === to);
+}
+
+// Проверяет допустимость перехода статуса и права роли (бросает ConnectError при нарушении).
+function assertStatusTransition(
+  from: PrismaDocumentStatus,
+  to: PrismaDocumentStatus,
+  ownerId: string,
+): void {
+  if (matches(NOTARY_ONLY_TRANSITIONS, from, to)) {
+    requireRole(Role.Notary);
+    return;
+  }
+  if (matches(OWNER_OR_NOTARY_TRANSITIONS, from, to)) {
+    requireSelfOrRole(ownerId, Role.Notary);
+    return;
+  }
+  throw new ConnectError(`invalid status transition ${from} -> ${to}`, Code.FailedPrecondition);
 }
 
 function toConnectStorageError(error: unknown): never {
