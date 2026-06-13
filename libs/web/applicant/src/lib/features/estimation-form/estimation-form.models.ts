@@ -65,6 +65,7 @@ export interface AssessmentDocumentModel {
   version: number;
   uploadedAt: string | null;
   kind: 'document' | 'photo' | 'additional';
+  documentType?: number; // Add documentType from API
 }
 
 export const INITIAL_ESTIMATION_FORM_VALUE: EstimationFormDraftData = {

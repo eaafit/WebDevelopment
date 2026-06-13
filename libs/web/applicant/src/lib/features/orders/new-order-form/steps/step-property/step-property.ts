@@ -12,7 +12,12 @@ import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, filter, from, switchMap } from 'rxjs';
 import { AssessmentApiService } from '../../../../estimation-form/assessment-api.service';
 import type { FiasAddressSuggestion } from '../../../../estimation-form/estimation-form.models';
-import { ORDER_PROPERTY_TYPE_OPTIONS } from '../../new-order-form.models';
+import {
+  CONDITION_OPTIONS,
+  ELEVATOR_OPTIONS,
+  HOUSE_TYPE_OPTIONS,
+  ORDER_PROPERTY_TYPE_OPTIONS,
+} from '../../new-order-form.models';
 
 @Component({
   selector: 'lib-step-property',
@@ -30,6 +35,9 @@ export class StepProperty implements OnInit {
   @Input() showValidationErrors = false;
 
   readonly propertyTypeOptions = ORDER_PROPERTY_TYPE_OPTIONS;
+  readonly houseTypeOptions = HOUSE_TYPE_OPTIONS;
+  readonly conditionOptions = CONDITION_OPTIONS;
+  readonly elevatorOptions = ELEVATOR_OPTIONS;
   readonly addressSuggestions = signal<FiasAddressSuggestion[]>([]);
   readonly addressSuggestLoading = signal(false);
   readonly addressLookupError = signal<string | null>(null);
@@ -47,7 +55,8 @@ export class StepProperty implements OnInit {
         filter((address) => {
           const normalizedAddress = `${address ?? ''}`.trim();
           return (
-            !this.selectedFiasAddressFullName || normalizedAddress !== this.selectedFiasAddressFullName
+            !this.selectedFiasAddressFullName ||
+            normalizedAddress !== this.selectedFiasAddressFullName
           );
         }),
         takeUntilDestroyed(this.destroyRef),
@@ -89,7 +98,8 @@ export class StepProperty implements OnInit {
         districtId: selectedAddress.districtId,
         address: selectedAddress.fullName,
         cadastralNumber:
-          `${this.group.get('cadastralNumber')?.value ?? ''}`.trim() || selectedAddress.cadastralNumber,
+          `${this.group.get('cadastralNumber')?.value ?? ''}`.trim() ||
+          selectedAddress.cadastralNumber,
       });
       this.group.get('cityId')?.updateValueAndValidity();
       this.addressSuggestions.set([]);

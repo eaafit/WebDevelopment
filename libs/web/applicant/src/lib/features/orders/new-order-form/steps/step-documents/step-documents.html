@@ -4,8 +4,8 @@
     <div>
       <h2 class="documents-step-title">Документы</h2>
       <p class="documents-step-description">
-        Прикрепите минимум один документ. Допустимые форматы: PDF, JPG, PNG. Максимальный размер —
-        {{ maxFileSizeMb }} МБ.
+        Прикрепите минимум один документ. Допустимые форматы: PDF, JPG, PNG. Максимальный размер — {{ maxFileSizeMb }}
+        МБ.
       </p>
     </div>
   </div>
@@ -46,9 +46,7 @@
         </div>
 
         <div class="form-group no-mb">
-          <label class="form-label" [for]="'documentFile-' + i">
-            Файл <span class="required-mark">*</span>
-          </label>
+          <label class="form-label" [for]="'documentFile-' + i"> Файл <span class="required-mark">*</span> </label>
           <input
             [id]="'documentFile-' + i"
             type="file"
@@ -58,13 +56,9 @@
             [class.form-input-invalid]="isRowInvalid(i, 'file')" />
           @if (isRowInvalid(i, 'file')) {
           <p class="field-error">
-            @if (row.get('file')?.hasError('fileType')) {
-            Допустимы только PDF, JPG и PNG.
-            } @else if (row.get('file')?.hasError('fileSize')) {
-            Размер файла не должен превышать {{ maxFileSizeMb }} МБ.
-            } @else {
-            Выберите файл для загрузки.
-            }
+            @if (row.get('file')?.hasError('fileType')) { Допустимы только PDF, JPG и PNG. } @else if
+            (row.get('file')?.hasError('fileSize')) { Размер файла не должен превышать {{ maxFileSizeMb }} МБ. } @else {
+            Выберите файл для загрузки. }
           </p>
           } @else {
           <p class="form-help">PDF, JPG или PNG до {{ maxFileSizeMb }} МБ</p>
@@ -74,10 +68,80 @@
 
       @if (getFile(row); as file) {
       <div class="upload-file-preview">
+        @if (isImageFile(file)) {
+        <button
+          class="upload-file-preview-image-btn"
+          type="button"
+          [attr.aria-label]="'Открыть превью файла ' + file.name"
+          (click)="openImagePreview(file)">
+          <img class="upload-file-preview-image" [src]="getFileObjectUrl(file)" [alt]="file.name" />
+        </button>
+        } @else {
         <span class="upload-file-icon" aria-hidden="true">{{ getFileCategoryLabel(file) }}</span>
+        }
         <div class="upload-file-meta">
           <span class="upload-file-name" [title]="file.name">{{ file.name }}</span>
           <span class="upload-file-size">{{ formatFileSize(file.size) }}</span>
+        </div>
+        <div class="upload-file-actions">
+          @if (canPreviewFile(file)) {
+          <button class="btn btn-ghost btn-sm" type="button" (click)="previewFile(file)">Просмотреть</button>
+          } @else if (canOpenFile(file)) {
+          <button class="btn btn-ghost btn-sm" type="button" (click)="openFile(file)">Открыть</button>
+          }
+          <button class="btn btn-outline btn-sm" type="button" (click)="downloadFile(file)">Скачать</button>
+        </div>
+      </div>
+      } @if (row.get('isUploaded')?.value && !getFile(row)) {
+      <div class="upload-file-preview">
+        @if (row.get('previewUrl')?.value && isImageTypeFromUrl(row.get('previewUrl')?.value)) {
+        <button
+          class="upload-file-preview-image-btn"
+          type="button"
+          [attr.aria-label]="'Открыть превью файла ' + row.get('fileName')?.value"
+          (click)="openUploadedPreview(row.get('previewUrl')?.value)">
+          <img
+            class="upload-file-preview-image"
+            [src]="row.get('previewUrl')?.value"
+            [alt]="row.get('fileName')?.value" />
+        </button>
+        } @else {
+        <span class="upload-file-icon" aria-hidden="true">📄</span>
+        }
+        <div class="upload-file-meta">
+          <span class="upload-file-name" [title]="row.get('fileName')?.value">{{ row.get('fileName')?.value }}</span>
+        </div>
+        <div class="upload-file-actions">
+          @if (row.get('previewUrl')?.value && isImageTypeFromUrl(row.get('previewUrl')?.value)) {
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            (click)="openUploadedPreview(row.get('previewUrl')?.value)">
+            Просмотреть
+          </button>
+          } @else if (row.get('downloadUrl')?.value && isImageTypeFromUrl(row.get('downloadUrl')?.value)) {
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            (click)="openUploadedPreview(row.get('downloadUrl')?.value)">
+            Просмотреть
+          </button>
+          } @else if (row.get('previewUrl')?.value) {
+          <button class="btn btn-ghost btn-sm" type="button" (click)="openUploadedFile(row.get('previewUrl')?.value)">
+            Просмотреть
+          </button>
+          } @else if (row.get('downloadUrl')?.value) {
+          <button class="btn btn-ghost btn-sm" type="button" (click)="openUploadedFile(row.get('downloadUrl')?.value)">
+            Просмотреть
+          </button>
+          } @if (row.get('downloadUrl')?.value) {
+          <button
+            class="btn btn-outline btn-sm"
+            type="button"
+            (click)="openUploadedDownload(row.get('downloadUrl')?.value, row.get('fileName')?.value)">
+            Скачать
+          </button>
+          }
         </div>
       </div>
       }
@@ -89,7 +153,30 @@
   <p class="field-error documents-array-error">Добавьте хотя бы один документ.</p>
   }
 
-  <button type="button" class="btn btn-outline add-document-btn" (click)="addDocumentRow()">
-    + Добавить документ
-  </button>
+  <button type="button" class="btn btn-outline add-document-btn" (click)="addDocumentRow()">+ Добавить документ</button>
+
+  @if (imagePreviewState(); as preview) {
+  <div
+    class="lightbox"
+    role="dialog"
+    aria-modal="true"
+    tabindex="0"
+    [attr.aria-label]="'Просмотр изображения ' + preview.fileName"
+    (click)="closeImagePreview()"
+    (keydown.enter)="closeImagePreview()"
+    (keydown.space)="closeImagePreview()">
+    <div
+      class="lightbox-dialog"
+      tabindex="0"
+      (click)="$event.stopPropagation()"
+      (keydown.enter)="$event.stopPropagation()"
+      (keydown.space)="$event.stopPropagation()">
+      <button class="lightbox-close" type="button" aria-label="Закрыть просмотр" (click)="closeImagePreview()">
+        ×
+      </button>
+      <img class="lightbox-image" [src]="preview.previewUrl" [alt]="preview.fileName" />
+      <p class="lightbox-caption">{{ preview.fileName }}</p>
+    </div>
+  </div>
+  }
 </div>

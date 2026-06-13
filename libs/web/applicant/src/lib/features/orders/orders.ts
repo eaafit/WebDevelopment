@@ -117,8 +117,8 @@ export class Orders implements OnInit {
   }
 
   editOrder(id: string): void {
-    void this.router.navigate(['/applicant/assessment'], {
-      queryParams: { assessmentId: id },
+    void this.router.navigate(['/applicant/orders/new'], {
+      queryParams: { orderId: id },
     });
   }
 

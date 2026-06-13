@@ -37,6 +37,38 @@
       <dt>Площадь</dt>
       <dd>{{ property.area }} м²</dd>
     </div>
+    <div class="summary-item">
+      <dt>Количество комнат</dt>
+      <dd>{{ property.rooms }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Этажность здания</dt>
+      <dd>{{ property.buildingFloors }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Этаж</dt>
+      <dd>{{ property.floor }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Год постройки</dt>
+      <dd>{{ property.constructionYear }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Тип дома</dt>
+      <dd>{{ getHouseTypeLabel(property.houseType) }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Состояние</dt>
+      <dd>{{ getConditionLabel(property.condition) }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Лифт</dt>
+      <dd>{{ getElevatorLabel(property.elevator) }}</dd>
+    </div>
+    <div class="summary-item">
+      <dt>Балкон/лоджия</dt>
+      <dd>{{ property.hasBalcony ? 'Да' : 'Нет' }}</dd>
+    </div>
     @if (property.cadastralNumber) {
     <div class="summary-item">
       <dt>Кадастровый номер</dt>

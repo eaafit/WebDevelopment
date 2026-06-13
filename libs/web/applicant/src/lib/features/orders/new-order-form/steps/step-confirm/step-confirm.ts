@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import {
+  CONDITION_OPTIONS,
   DOCUMENT_TYPE_OPTIONS,
+  ELEVATOR_OPTIONS,
+  HOUSE_TYPE_OPTIONS,
   ORDER_PROPERTY_TYPE_OPTIONS,
   type NewOrderDocumentRow,
   type NewOrderInheritanceData,
@@ -30,6 +33,18 @@ export class StepConfirm {
 
   getPropertyTypeLabel(value: string): string {
     return ORDER_PROPERTY_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  }
+
+  getHouseTypeLabel(value: string): string {
+    return HOUSE_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  }
+
+  getConditionLabel(value: string): string {
+    return CONDITION_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  }
+
+  getElevatorLabel(value: string): string {
+    return ELEVATOR_OPTIONS.find((option) => option.value === value)?.label ?? value;
   }
 
   getDocumentTypeLabel(value: string): string {

@@ -22,11 +22,22 @@ export interface NewOrderPropertyData {
   area: string;
   cadastralNumber: string;
   description: string;
+  rooms: string;
+  buildingFloors: string;
+  floor: string;
+  condition: string;
+  constructionYear: string;
+  houseType: string;
+  elevator: string;
+  hasBalcony: boolean;
 }
 
 export interface NewOrderDocumentRow {
   documentType: string;
   fileName: string;
+  isUploaded?: boolean; // Flag to indicate if file was already uploaded (for editing)
+  previewUrl?: string; // Preview URL for already uploaded files
+  downloadUrl?: string; // Download URL for already uploaded files
 }
 
 export interface NewOrderConfirmData {
@@ -47,6 +58,31 @@ export const ORDER_PROPERTY_TYPE_OPTIONS: ReadonlyArray<SelectOption> = [
   { value: String(RealEstateObjectType.LAND_PLOT), label: 'Земельный участок' },
   { value: String(RealEstateObjectType.COMMERCIAL_PROPERTY), label: 'Гараж' },
   { value: String(RealEstateObjectType.OTHER), label: 'Иное' },
+];
+
+export const HOUSE_TYPE_OPTIONS: ReadonlyArray<SelectOption> = [
+  { value: 'brick', label: 'Кирпичный' },
+  { value: 'panel', label: 'Панельный' },
+  { value: 'block', label: 'Блочный' },
+  { value: 'monolithic', label: 'Монолитный' },
+  { value: 'monolithic_brick', label: 'Монолитно-кирпичный' },
+  { value: 'wooden', label: 'Деревянный' },
+  { value: 'aerated_concrete', label: 'Газобетонный' },
+];
+
+export const CONDITION_OPTIONS: ReadonlyArray<SelectOption> = [
+  { value: 'new', label: 'Новостройка' },
+  { value: 'good', label: 'Хорошее' },
+  { value: 'satisfactory', label: 'Удовлетворительное' },
+  { value: 'requires_repair', label: 'Требует ремонта' },
+  { value: 'emergency', label: 'Аварийное' },
+];
+
+export const ELEVATOR_OPTIONS: ReadonlyArray<SelectOption> = [
+  { value: 'none', label: 'Нет' },
+  { value: 'passenger', label: 'Пассажирский' },
+  { value: 'freight', label: 'Грузовой' },
+  { value: 'passenger_freight', label: 'Пассажирско-грузовой' },
 ];
 
 export const DOCUMENT_TYPE_OPTIONS: ReadonlyArray<SelectOption> = [
@@ -84,6 +120,14 @@ export const INITIAL_PROPERTY_VALUE: NewOrderPropertyData = {
   area: '',
   cadastralNumber: '',
   description: '',
+  rooms: '',
+  buildingFloors: '',
+  floor: '',
+  condition: '',
+  constructionYear: '',
+  houseType: '',
+  elevator: '',
+  hasBalcony: false,
 };
 
 export const INITIAL_CONFIRM_VALUE: NewOrderConfirmData = {

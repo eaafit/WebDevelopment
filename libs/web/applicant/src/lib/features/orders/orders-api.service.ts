@@ -45,6 +45,14 @@ export class ApplicantOrdersApiService {
     });
   }
 
+  async getOrderById(orderId: string): Promise<Assessment> {
+    const response = await this.client.getAssessment({ id: orderId });
+    if (!response.assessment) {
+      throw new Error('Заявка не найдена');
+    }
+    return response.assessment;
+  }
+
   private toOrderView(assessment: Assessment): ApplicantOrderView {
     const realEstateObject = assessment.realEstateObject;
     const address = realEstateObject?.address?.trim() || assessment.address?.trim() || '—';
