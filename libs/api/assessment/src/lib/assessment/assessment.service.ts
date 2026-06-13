@@ -80,6 +80,7 @@ import {
 } from './assessment.repository';
 import type { AssessmentQuery } from './assessment.query';
 import { FIAS_PROVIDER, type FiasProvider } from '../fias/fias-provider';
+import { OrderService } from '@notary-portal/order';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -114,6 +115,7 @@ export class AssessmentService {
     @Inject(FIAS_PROVIDER) private readonly fiasProvider: FiasProvider,
     private readonly notificationService: NotificationService,
     private readonly bitrixLeadPublisher: BitrixLeadPublisherService,
+    private readonly orderService: OrderService,
   ) {}
 
   listCities(request: ListCitiesRequest): Promise<ListCitiesResponse> {
@@ -217,7 +219,9 @@ export class AssessmentService {
       async () => {
         const objectId = normalizeRequiredText(request.objectId, 'object_id');
         const startedAt = Date.now();
-        this.logger.log('Starting FIAS address item lookup; operation=assessment.fias.lookup_by_id');
+        this.logger.log(
+          'Starting FIAS address item lookup; operation=assessment.fias.lookup_by_id',
+        );
 
         try {
           const item = await this.resolveFiasItemGeography(
@@ -439,22 +443,22 @@ export class AssessmentService {
                 realEstateObject: normalized.realEstateObject,
               }),
           );
+          let leadId: string | undefined;
           await runInSpan(
-            'AssessmentRepository.createLeadFromAssessment side effect',
+            'OrderService.createOrder side effect',
             {
-              'notary.operation': 'assessment.lead.create_side_effect',
-              'notary.entity': 'Lead',
+              'notary.operation': BusinessOperations.orderCreate,
+              'notary.entity': 'Order',
             },
-            async (leadSpan) => {
+            async (orderSpan) => {
               try {
-                await this.assessmentRepository.createLeadFromAssessment(
-                  assessment.id,
-                  assessment.userId,
-                );
+                const lead = await this.orderService.createOrder(assessment.id, assessment.userId);
+                leadId = lead.id;
+                setSpanAttributes(orderSpan, { 'order.created': true });
               } catch (error) {
-                markSpanFailure(leadSpan, error);
+                markSpanFailure(orderSpan, error);
                 this.logger.warn(
-                  `Assessment lead creation failed; operation=assessment.lead.create_side_effect; result=error; error=${safeErrorName(error)}`,
+                  `Assessment order creation failed; operation=order.create; result=error; error=${safeErrorName(error)}`,
                 );
               }
             },
@@ -488,6 +492,14 @@ export class AssessmentService {
               assessment.id,
             )}: ${formatAssessmentAddress(snapshot.address)}.`,
           });
+
+          if (leadId) {
+            this.orderService.publishOrderToBitrix(leadId).catch((error: unknown) => {
+              this.logger.warn(
+                `Bitrix order publish failed; operation=bitrix.order.publish; result=error; error=${safeErrorName(error)}`,
+              );
+            });
+          }
 
           // Публикация заявки как лида в Bitrix24 — fire-and-forget,
           // не блокирует ответ заявителю; ошибки логируются и не пробрасываются.
@@ -808,6 +820,27 @@ export class AssessmentService {
             title: 'Оценка заявки завершена',
             message: buildCompletedMessage(assessment.id, after.estimatedValue),
           });
+          await runInSpan(
+            'OrderService.completeOrderForAssessment side effect',
+            {
+              'notary.operation': BusinessOperations.orderComplete,
+              'notary.entity': 'Order',
+              'order.complete.source': 'assessment',
+            },
+            async (orderSpan) => {
+              try {
+                await this.orderService.completeOrderForAssessment(
+                  assessment.id,
+                  request.finalEstimatedValue,
+                );
+              } catch (error) {
+                markSpanFailure(orderSpan, error);
+                this.logger.warn(
+                  `Assessment order completion failed; operation=order.complete; result=error; error=${safeErrorName(error)}`,
+                );
+              }
+            },
+          );
 
           this.logger.log(
             `Completed assessment; operation=assessment.complete; result=success; status=${assessment.status}`,

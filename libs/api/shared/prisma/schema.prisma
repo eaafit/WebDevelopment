@@ -711,6 +711,7 @@ model Lead {
   applicant   User   @relation("ApplicantLeads", fields: [applicantId], references: [id], onDelete: Cascade)
   executor    User?  @relation("ExecutorLeads", fields: [executorId], references: [id])
   assessment  Assessment @relation(fields: [assessmentId], references: [id])
+  bitrixOrderId String? @map("bitrix_order_id") @db.VarChar(50)
 
   @@index([applicantId])
   @@index([executorId])

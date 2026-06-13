@@ -1,12 +1,22 @@
 import { create } from '@bufbuild/protobuf';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
+import { requireAuth } from '@internal/auth-shared';
+import { AuditService } from '@internal/audit';
+import { MetricsService, type NotificationChannel } from '@internal/metrics';
 import {
   NotificationStatus as PrismaNotificationStatus,
   NotificationType as PrismaNotificationType,
   Role as PrismaRole,
 } from '@internal/prisma-client';
-import { requireAuth } from '@internal/auth-shared';
-import { MetricsService, type NotificationChannel } from '@internal/metrics';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  normalizeSpanActorRole,
+  runInSpan,
+  setSpanAttributes,
+} from '@internal/tracing';
+import { Injectable } from '@nestjs/common';
 import {
   DeleteNotificationResponseSchema,
   GetNotificationSettingsResponseSchema,
@@ -16,7 +26,6 @@ import {
   NotificationStatus as RpcNotificationStatus,
   NotificationType as RpcNotificationType,
   UpdateNotificationSettingsResponseSchema,
-  type Notification as RpcNotification,
   type DeleteNotificationRequest,
   type DeleteNotificationResponse,
   type GetNotificationSettingsRequest,
@@ -27,24 +36,18 @@ import {
   type MarkAllAsReadResponse,
   type MarkAsReadRequest,
   type MarkAsReadResponse,
+  type Notification as RpcNotification,
   type UpdateNotificationSettingsRequest,
   type UpdateNotificationSettingsResponse,
 } from '@notary-portal/api-contracts';
-import { Injectable } from '@nestjs/common';
-import {
-  BusinessOperations,
-  NotarySpanAttributes,
-  normalizeSpanActorRole,
-  runInSpan,
-  setSpanAttributes,
-} from '@internal/tracing';
 import { NotificationRepository } from './notification.repository';
 import {
   isInAppEnabledForCategory,
   type NotificationPreferenceCategory,
 } from './notification-preferences';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
 const MAX_PAGE_LIMIT = 100;
@@ -65,6 +68,7 @@ export class NotificationService {
   constructor(
     private readonly notificationRepository: NotificationRepository,
     private readonly metricsService: MetricsService,
+    private readonly auditService: AuditService,
   ) {}
 
   async createNotification(request: CreateNotificationInput): Promise<RpcNotification> {
@@ -83,7 +87,7 @@ export class NotificationService {
 
         this.recordNotificationMetricsBestEffort(request.type, request.category);
 
-        return this.notificationRepository.createNotification({
+        const notification = await this.notificationRepository.createNotification({
           userId: request.userId,
           title: normalizeOptionalTitle(request.title),
           type: request.type,
@@ -93,6 +97,10 @@ export class NotificationService {
           sentAt: request.sentAt,
           readAt: request.readAt,
         });
+
+        await this.recordNotificationAuditEvent(notification, false);
+
+        return notification;
       },
     );
   }
@@ -128,7 +136,7 @@ export class NotificationService {
 
         this.recordNotificationMetricsBestEffort(notificationType, params.category);
 
-        await this.notificationRepository.createNotification({
+        const notification = await this.notificationRepository.createNotification({
           userId: params.userId,
           title: normalizeOptionalTitle(params.title),
           category: params.category ?? RpcNotificationCategory.SYSTEM,
@@ -136,6 +144,8 @@ export class NotificationService {
           type: notificationType,
           status: params.status ?? RpcNotificationStatus.SENT,
         });
+
+        await this.recordNotificationAuditEvent(notification, false);
       },
     );
   }
@@ -196,6 +206,10 @@ export class NotificationService {
         );
         setSpanAttributes(span, { 'notification.recipient_count': enabledUserIds.length });
 
+        if (!enabledUserIds.length) {
+          return;
+        }
+
         const notificationType = params.type ?? RpcNotificationType.PUSH;
         enabledUserIds.forEach(() =>
           this.recordNotificationMetricsBestEffort(notificationType, params.category),
@@ -208,6 +222,20 @@ export class NotificationService {
           category: params.category ?? RpcNotificationCategory.SYSTEM,
           type: toPrismaType(params.type),
           status: toPrismaStatus(params.status),
+        });
+
+        await this.auditService.record({
+          eventType: 'notification.created',
+          targetType: 'notification',
+          actionTitle: 'Уведомления созданы',
+          actionContext: 'Массовая отправка уведомлений для роли',
+          targetTitle: params.title,
+          targetContext: formatNotificationCategory(params.category),
+          after: {
+            createdCount: enabledUserIds.length,
+            type: params.type,
+            category: params.category,
+          },
         });
       },
     );
@@ -255,7 +283,12 @@ export class NotificationService {
       },
       async () => {
         validateUuid(request.id, 'id');
-        const notification = await this.notificationRepository.markAsRead(request.id);
+        const { notification, updated } = await this.notificationRepository.markAsRead(request.id);
+
+        if (updated) {
+          await this.recordNotificationAuditEvent(notification, true);
+        }
+
         return create(MarkAsReadResponseSchema, { notification });
       },
     );
@@ -279,9 +312,16 @@ export class NotificationService {
         [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(currentUser.role),
       },
       async (span) => {
-        const updatedCount = await this.notificationRepository.markAllAsRead(request.userId);
-        setSpanAttributes(span, { 'notification.updated_count': updatedCount });
-        return create(MarkAllAsReadResponseSchema, { updatedCount });
+        const notifications = await this.notificationRepository.markAllAsRead(request.userId);
+        setSpanAttributes(span, { 'notification.updated_count': notifications.length });
+
+        await Promise.all(
+          notifications.map((notification) =>
+            this.recordNotificationAuditEvent(notification, true),
+          ),
+        );
+
+        return create(MarkAllAsReadResponseSchema, { updatedCount: notifications.length });
       },
     );
   }
@@ -354,6 +394,39 @@ export class NotificationService {
         });
       },
     );
+  }
+
+  private async recordNotificationAuditEvent(
+    notification: RpcNotification,
+    isRead: boolean,
+  ): Promise<void> {
+    const readAt = isRead
+      ? notification.readAt
+        ? timestampDate(notification.readAt).toISOString()
+        : new Date().toISOString()
+      : null;
+
+    await this.auditService.record({
+      eventType: isRead ? 'notification.read' : 'notification.created',
+      targetType: 'notification',
+      targetId: notification.id,
+      actionTitle: isRead ? 'Уведомление прочитано' : 'Уведомление создано',
+      actionContext: isRead
+        ? 'Уведомление помечено как прочитанное'
+        : 'Создано новое уведомление',
+      targetTitle: notification.title,
+      targetContext: String(notification.category),
+      after: {
+        status: isRead ? 'read' : 'unread',
+        type: notification.type,
+        category: notification.category,
+        title: notification.title,
+        readAt,
+        sentAt: notification.sentAt
+          ? timestampDate(notification.sentAt).toISOString()
+          : undefined,
+      },
+    });
   }
 
   private recordNotificationMetricsBestEffort(

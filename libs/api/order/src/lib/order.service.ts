@@ -1,6 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@internal/prisma';
 import { getCurrentUser } from '@internal/auth-shared';
+import { BitrixOrderPublisherService } from '@notary-portal/bitrix-orders';
+import { AuditService } from '@internal/audit';
+import { NotificationService } from '@internal/notification';
+import {
+  NotificationCategory as RpcNotificationCategory,
+  NotificationType as RpcNotificationType,
+} from '@notary-portal/api-contracts';
+import { Role as PrismaRole, type Lead } from '@internal/prisma-client';
 import {
   BusinessOperations,
   NotarySpanAttributes,
@@ -8,12 +16,18 @@ import {
   runInSpan,
   setSpanAttributes,
 } from '@internal/tracing';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private bitrixOrderPublisher: BitrixOrderPublisherService,
+    private auditService: AuditService,
+    private notificationService: NotificationService,
+  ) {}
 
   // Получение списка заказов с фильтрацией и пагинацией
   async findMany(params: {
@@ -153,8 +167,8 @@ export class OrderService {
         [NotarySpanAttributes.entity]: 'Order',
         [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
       },
-      async (span) =>
-        this.prisma.$transaction(async (tx) => {
+      async (span) => {
+        const updatedLead = await this.prisma.$transaction(async (tx) => {
           // 1. Найти lead вместе с assessment
           const lead = await tx.lead.findUnique({
             where: { id: orderId },
@@ -195,8 +209,12 @@ export class OrderService {
           setSpanAttributes(span, {
             'assessment.status.to': updatedLead.assessment.status,
           });
-          return this.mapLeadToOrder(updatedLead);
-        }),
+          return updatedLead;
+        });
+
+        await this.recordOrderTaken(updatedLead, notaryId);
+        return this.mapLeadToOrder(updatedLead);
+      },
     );
   }
 
@@ -231,6 +249,38 @@ export class OrderService {
 
       const rawStatus = lead.assessment?.status;
       const mappedStatus = this.mapAssessmentStatusToOrderStatus(rawStatus);
+
+      statusHistory.push({
+        status: 'created',
+        date: lead.startDate,
+        comment: '',
+      });
+
+      if (lead.executorId) {
+        const acceptedDate =
+          lead.updatedAt && lead.updatedAt > lead.startDate ? lead.updatedAt : lead.startDate;
+        statusHistory.push({
+          status: 'accepted',
+          date: acceptedDate,
+          comment: 'Заказ взят в работу',
+        });
+      }
+
+      if (lead.actualCompletionDate) {
+        statusHistory.push({
+          status: 'completed',
+          date: lead.actualCompletionDate,
+          comment: 'Заказ завершён',
+        });
+      }
+
+      if (lead.assessment?.status === 'Cancelled') {
+        statusHistory.push({
+          status: 'rejected',
+          date: lead.updatedAt || lead.startDate,
+          comment: 'Заказ отклонён',
+        });
+      }
 
       const realEstateObjectMapped = realEstateObject
         ? {
@@ -276,6 +326,283 @@ export class OrderService {
     }
   }
 
+  async createOrder(assessmentId: string, applicantId: string): Promise<Lead> {
+    return runInSpan(
+      'OrderService.createOrder',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.orderCreate,
+        [NotarySpanAttributes.entity]: 'Order',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async () => {
+        this.logger.log('Creating order; operation=order.create; result=start');
+        const startDate = new Date();
+        const plannedCompletionDate = new Date(startDate);
+        plannedCompletionDate.setDate(startDate.getDate() + 7);
+
+        try {
+          const lead = await this.prisma.lead.create({
+            data: {
+              id: randomUUID(),
+              applicantId,
+              assessmentId,
+              startDate,
+              plannedCompletionDate,
+              createdAt: startDate,
+              updatedAt: startDate,
+            },
+          });
+
+          await this.recordOrderCreated(lead);
+          this.logger.log('Created order; operation=order.create; result=success');
+          return lead;
+        } catch (error) {
+          this.logError('createOrder', error);
+          throw error;
+        }
+      },
+    );
+  }
+
+  async completeOrder(orderId: string, finalEstimatedValue?: string): Promise<void> {
+    return runInSpan(
+      'OrderService.completeOrder',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.orderComplete,
+        [NotarySpanAttributes.entity]: 'Order',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'order.has_final_estimated_value': Boolean(finalEstimatedValue?.trim()),
+      },
+      async () => {
+        try {
+          const lead = await this.prisma.lead.findUnique({
+            where: { id: orderId },
+            include: { assessment: true },
+          });
+          if (!lead) throw new Error('Order not found');
+
+          await this.prisma.lead.update({
+            where: { id: orderId },
+            data: { actualCompletionDate: new Date() },
+          });
+
+          await this.recordOrderCompleted(lead, finalEstimatedValue);
+          this.logger.log('Completed order; operation=order.complete; result=success');
+        } catch (error) {
+          this.logError('completeOrder', error);
+          throw error;
+        }
+      },
+    );
+  }
+
+  async completeOrderForAssessment(
+    assessmentId: string,
+    finalEstimatedValue?: string,
+  ): Promise<void> {
+    return runInSpan(
+      'OrderService.completeOrderForAssessment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.orderComplete,
+        [NotarySpanAttributes.entity]: 'Order',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(getCurrentUser()?.role),
+        'order.complete.source': 'assessment',
+      },
+      async (span) => {
+        const lead = await this.prisma.lead.findUnique({
+          where: { assessmentId },
+          select: { id: true },
+        });
+        setSpanAttributes(span, { 'order.found': Boolean(lead) });
+        if (!lead) {
+          return;
+        }
+
+        await this.completeOrder(lead.id, finalEstimatedValue);
+      },
+    );
+  }
+
+  async publishOrderToBitrix(orderId: string): Promise<void> {
+    return runInSpan(
+      'BitrixOrderPublisherService.publishOrder side effect',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.bitrixOrderPublish,
+        [NotarySpanAttributes.entity]: 'BitrixOrder',
+      },
+      async () => {
+        await this.bitrixOrderPublisher.publishOrder(orderId);
+      },
+    );
+  }
+
+  private async recordOrderCreated(lead: Lead): Promise<void> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: lead.assessmentId },
+      select: { address: true },
+    });
+    const displayId = shortOrderId(lead.id);
+    const address = assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: lead.applicantId,
+      eventType: 'order.created',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Создан заказ',
+      actionContext: `Заказ ${displayId} создан на основе заявки`,
+      targetTitle: `Заказ ${displayId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        assessmentId: lead.assessmentId,
+        startDate: lead.startDate.toISOString(),
+        plannedCompletionDate: lead.plannedCompletionDate.toISOString(),
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Создан новый заказ',
+      message: `Заказ ${displayId} создан на объект: ${address}.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  private async recordOrderTaken(lead: Lead, notaryId: string): Promise<void> {
+    const assessment = await this.prisma.assessment.findUnique({
+      where: { id: lead.assessmentId },
+      select: { address: true },
+    });
+    const displayId = shortOrderId(lead.id);
+    const address = assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: notaryId,
+      eventType: 'order.taken',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Заказ взят в работу',
+      actionContext: `Нотариус взял заказ ${displayId}`,
+      targetTitle: `Заказ ${displayId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        notaryId,
+        takenAt: new Date().toISOString(),
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Заказ взят в работу',
+      message: `Заказ ${displayId} (${address}) взят в работу нотариусом.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  private async recordOrderCompleted(
+    lead: Lead & { assessment?: { address?: string | null } | null },
+    finalEstimatedValue?: string,
+  ): Promise<void> {
+    const displayId = shortOrderId(lead.id);
+    const address = lead.assessment?.address?.trim() || 'адрес не указан';
+
+    await this.auditService.record({
+      actorUserId: getCurrentUser()?.sub,
+      eventType: 'order.completed',
+      targetType: 'Order',
+      targetId: lead.id,
+      actionTitle: 'Заказ завершён',
+      actionContext: `Заказ ${displayId} завершён`,
+      targetTitle: `Заказ ${displayId}`,
+      targetContext: address,
+      after: {
+        orderId: lead.id,
+        completionDate: new Date().toISOString(),
+        finalEstimatedValue,
+      },
+    });
+
+    await this.notificationService.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'Заказ завершён',
+      message: `Заказ ${displayId} (${address}) завершён.`,
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+  }
+
+  async getRecentOrderEvents(userId: string, role: string, limit: number): Promise<any[]> {
+    return runInSpan(
+      'OrderService.getRecentOrderEvents',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.orderRecentEvents,
+        [NotarySpanAttributes.entity]: 'Order',
+        [NotarySpanAttributes.actorRole]: normalizeSpanActorRole(role),
+        'order.events.limit': limit,
+      },
+      async (span) => {
+        const where: any = {
+          actionType: { in: ['order.created', 'order.taken', 'order.completed'] },
+        };
+        let orderIds: string[] = [];
+
+        if (role === 'applicant') {
+          const leads = await this.prisma.lead.findMany({
+            where: { applicantId: userId },
+            select: { id: true },
+          });
+          orderIds = leads.map((lead) => lead.id);
+        } else if (role === 'notary') {
+          const leads = await this.prisma.lead.findMany({
+            where: {
+              OR: [{ executorId: userId }, { executorId: null }],
+            },
+            select: { id: true },
+          });
+          orderIds = leads.map((lead) => lead.id);
+        } else {
+          setSpanAttributes(span, { 'order.events.result_count': 0 });
+          return [];
+        }
+
+        if (orderIds.length === 0) {
+          setSpanAttributes(span, { 'order.events.result_count': 0 });
+          return [];
+        }
+        where.entityId = { in: orderIds };
+
+        const logs = await this.prisma.auditLog.findMany({
+          where,
+          orderBy: { timestamp: 'desc' },
+          take: limit,
+          include: { user: true },
+        });
+
+        const events: any[] = [];
+        for (const log of logs) {
+          if (!log.entityId) continue;
+          const lead = await this.prisma.lead.findUnique({
+            where: { id: log.entityId },
+            include: { assessment: { select: { address: true } } },
+          });
+          if (!lead) continue;
+          events.push({
+            eventId: log.id,
+            orderId: lead.id,
+            orderAddress: lead.assessment?.address?.trim() || 'адрес не указан',
+            eventType: log.actionType,
+            eventDate: log.timestamp,
+            actorName: log.user?.fullName || log.actorName || 'Система',
+          });
+        }
+
+        setSpanAttributes(span, { 'order.events.result_count': events.length });
+        return events;
+      },
+    );
+  }
+
   private logError(operation: string, error: unknown): void {
     this.logger.error({
       operation,
@@ -287,4 +614,8 @@ export class OrderService {
 
 function safeErrorName(error: unknown): string {
   return error instanceof Error && error.name.trim() ? error.name : 'UnknownError';
+}
+
+function shortOrderId(id: string): string {
+  return id.length > 8 ? `#${id.slice(0, 8)}` : `#${id}`;
 }

@@ -75,12 +75,15 @@ describe('Notary', () => {
       expect.arrayContaining([
         '.',
         'orders',
-        'subscription/checkout',
+        'subscription',
         'transactions',
         'assessment',
         'assessment/history',
+        'monitoring',
         'copies',
         'notifications',
+        'support',
+        'faq',
       ]),
     );
   });

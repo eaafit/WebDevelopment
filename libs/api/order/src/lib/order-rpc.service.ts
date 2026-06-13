@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OrderService } from './order.service';
-import { ListOrdersRequest, GetOrderRequest } from '@notary-portal/api-contracts';
+import {
+  GetRecentOrderEventsRequest,
+  ListOrdersRequest,
+  GetOrderRequest,
+} from '@notary-portal/api-contracts';
 import { timestampDate, timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { TakeOrderRequest } from '@notary-portal/api-contracts';
 
@@ -8,7 +12,7 @@ import { TakeOrderRequest } from '@notary-portal/api-contracts';
 export class OrderRpcService {
   private readonly logger = new Logger(OrderRpcService.name);
 
-  constructor(private readonly orderService: OrderService) { }
+  constructor(private readonly orderService: OrderService) {}
 
   async listOrders(request: ListOrdersRequest): Promise<any> {
     try {
@@ -69,9 +73,27 @@ export class OrderRpcService {
   async takeOrder(request: TakeOrderRequest): Promise<any> {
     try {
       const order = await this.orderService.takeOrder(request.orderId, request.notaryId);
-      return { order: this.toOrderProto(order) };   // важно: обёртка { order: ... }
+      return { order: this.toOrderProto(order) }; // важно: обёртка { order: ... }
     } catch (error) {
       this.logError('takeOrder', error);
+      throw error;
+    }
+  }
+
+  async getRecentOrderEvents(request: GetRecentOrderEventsRequest): Promise<any> {
+    try {
+      const events = await this.orderService.getRecentOrderEvents(
+        request.userId,
+        request.role,
+        request.limit || 3,
+      );
+      const mappedEvents = events.map((event) => ({
+        ...event,
+        eventDate: event.eventDate ? timestampFromDate(event.eventDate) : undefined,
+      }));
+      return { events: mappedEvents };
+    } catch (error) {
+      this.logError('getRecentOrderEvents', error);
       throw error;
     }
   }
@@ -100,14 +122,16 @@ export class OrderRpcService {
 
     const realEstateObject = order.realEstateObject
       ? {
-        id: order.realEstateObject.id,
-        address: order.realEstateObject.address,
-        city: order.realEstateObject.city,
-        area: order.realEstateObject.area ? Number(order.realEstateObject.area) : undefined,
-        objectType: order.realEstateObject.objectType,
-        roomsCount: order.realEstateObject.roomsCount ? Number(order.realEstateObject.roomsCount) : undefined,
-        floor: order.realEstateObject.floor ? Number(order.realEstateObject.floor) : undefined,
-      }
+          id: order.realEstateObject.id,
+          address: order.realEstateObject.address,
+          city: order.realEstateObject.city,
+          area: order.realEstateObject.area ? Number(order.realEstateObject.area) : undefined,
+          objectType: order.realEstateObject.objectType,
+          roomsCount: order.realEstateObject.roomsCount
+            ? Number(order.realEstateObject.roomsCount)
+            : undefined,
+          floor: order.realEstateObject.floor ? Number(order.realEstateObject.floor) : undefined,
+        }
       : undefined;
 
     return {

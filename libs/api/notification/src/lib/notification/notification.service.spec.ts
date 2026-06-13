@@ -15,6 +15,7 @@ import type { Span } from '@opentelemetry/api';
 import {
   ListNotificationsRequestSchema,
   MarkAllAsReadRequestSchema,
+  MarkAsReadRequestSchema,
   NotificationCategory as RpcNotificationCategory,
   NotificationSchema,
   NotificationStatus as RpcNotificationStatus,
@@ -57,29 +58,39 @@ describe('NotificationService', () => {
     recordNotificationUnread: jest.fn(),
     recordNotificationError: jest.fn(),
   };
+  const auditService = {
+    record: jest.fn(),
+  };
 
-  const service = new NotificationService(repository as never, metricsService as never);
+  const service = new NotificationService(
+    repository as never,
+    metricsService as never,
+    auditService as never,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    repository.createNotification.mockResolvedValue(
-      create(NotificationSchema, {
-        id: 'notification-1',
-        userId: USER_ID,
-        title: 'Broadcast completed',
-        category: RpcNotificationCategory.SYSTEM,
-        type: RpcNotificationType.PUSH,
-        message: 'Broadcast completed',
-        sentAt: timestampFromDate(new Date('2026-05-15T10:00:00.000Z')),
-        status: RpcNotificationStatus.SENT,
-      }),
-    );
+    repository.createNotification.mockResolvedValue(notificationFixture('notification-1'));
     repository.listNotifications.mockResolvedValue({ notifications: [], unreadCount: 0 });
-    repository.markAllAsRead.mockResolvedValue(2);
+    repository.markAsRead.mockResolvedValue({
+      notification: notificationFixture('notification-1', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+      updated: true,
+    });
+    repository.markAllAsRead.mockResolvedValue([
+      notificationFixture('notification-1', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+      notificationFixture('notification-2', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+    ]);
     repository.getOrCreatePreferenceRows.mockResolvedValue(activePreferenceRows());
     repository.listActiveUserIdsByRoles.mockResolvedValue([USER_ID]);
     repository.filterUserIdsWithInAppEnabled.mockResolvedValue([USER_ID]);
     repository.createManyNotifications.mockResolvedValue(undefined);
+    auditService.record.mockResolvedValue(undefined);
   });
 
   it('normalizes internal notification payloads before creating them', async () => {
@@ -103,6 +114,26 @@ describe('NotificationService', () => {
     });
     expect(metricsService.recordNotificationSent).toHaveBeenCalledWith('push', '4');
     expect(metricsService.recordNotificationUnread).toHaveBeenCalledWith('user');
+  });
+
+  it('records an audit event when a notification is created', async () => {
+    await service.createNotification({
+      userId: USER_ID,
+      title: '  Broadcast completed  ',
+      category: RpcNotificationCategory.SYSTEM,
+      type: RpcNotificationType.PUSH,
+      message: '  Broadcast completed  ',
+    });
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'notification.created',
+        targetType: 'notification',
+        targetId: 'notification-1',
+        actionTitle: 'Уведомление создано',
+        after: expect.objectContaining({ status: 'unread' }),
+      }),
+    );
   });
 
   it('keeps creating notifications when metrics recording fails', async () => {
@@ -174,6 +205,7 @@ describe('NotificationService', () => {
     repository.filterUserIdsWithInAppEnabled.mockResolvedValueOnce(roleUserIds);
 
     await service.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'New application',
       message: 'New application',
       category: RpcNotificationCategory.ASSESSMENT,
       type: RpcNotificationType.IN_APP,
@@ -187,13 +219,39 @@ describe('NotificationService', () => {
     expect(repository.createNotification).not.toHaveBeenCalled();
     expect(repository.createManyNotifications).toHaveBeenCalledWith({
       userIds: roleUserIds,
-      title: undefined,
+      title: 'New application',
       message: 'New application',
       category: RpcNotificationCategory.ASSESSMENT,
       type: PrismaNotificationType.InApp,
       status: undefined,
     });
     expect(metricsService.recordNotificationSent).toHaveBeenCalledTimes(2);
+  });
+
+  it('records one aggregate audit event for role notifications', async () => {
+    const roleUserIds = [USER_ID, SECOND_USER_ID];
+    repository.listActiveUserIdsByRoles.mockResolvedValueOnce(roleUserIds);
+    repository.filterUserIdsWithInAppEnabled.mockResolvedValueOnce(roleUserIds);
+
+    await service.createInternalNotificationsForRole(PrismaRole.Admin, {
+      title: 'New application',
+      message: 'New application',
+      category: RpcNotificationCategory.ASSESSMENT,
+      type: RpcNotificationType.IN_APP,
+    });
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'notification.created',
+        targetType: 'notification',
+        actionTitle: 'Уведомления созданы',
+        after: expect.objectContaining({
+          createdCount: 2,
+          type: RpcNotificationType.IN_APP,
+          category: RpcNotificationCategory.ASSESSMENT,
+        }),
+      }),
+    );
   });
 
   it('keeps the existing multi-role bulk payload and metric behavior', async () => {
@@ -220,24 +278,63 @@ describe('NotificationService', () => {
   });
 
   it('does not claim an actor role for operations without an authorization check', async () => {
-    repository.markAsRead.mockResolvedValue(
-      create(NotificationSchema, {
-        id: '33333333-3333-4333-a333-333333333333',
-        userId: USER_ID,
-        title: 'Notification',
-        type: RpcNotificationType.PUSH,
-        message: 'System notification',
-        sentAt: timestampFromDate(new Date('2026-05-15T10:00:00.000Z')),
-        status: RpcNotificationStatus.SENT,
-      }),
-    );
+    repository.markAsRead.mockResolvedValueOnce({
+      notification: notificationFixture('33333333-3333-4333-a333-333333333333'),
+      updated: true,
+    });
 
     await runAsCurrentUser(() =>
-      service.markAsRead({ id: '33333333-3333-4333-a333-333333333333' } as never),
+      service.markAsRead(
+        create(MarkAsReadRequestSchema, {
+          id: '33333333-3333-4333-a333-333333333333',
+        }),
+      ),
     );
 
     const attributes = jest.mocked(runInSpan).mock.calls[0]?.[1] as Record<string, unknown>;
     expect(attributes).not.toHaveProperty('notary.actor.role');
+  });
+
+  it('records an audit event when a notification is marked as read', async () => {
+    repository.markAsRead.mockResolvedValueOnce({
+      notification: notificationFixture('notification-1', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+      updated: true,
+    });
+
+    await service.markAsRead(
+      create(MarkAsReadRequestSchema, {
+        id: '33333333-3333-4333-a333-333333333333',
+      }),
+    );
+
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'notification.read',
+        targetType: 'notification',
+        targetId: 'notification-1',
+        actionTitle: 'Уведомление прочитано',
+        after: expect.objectContaining({ status: 'read' }),
+      }),
+    );
+  });
+
+  it('does not write read audit when markAsRead is already read', async () => {
+    repository.markAsRead.mockResolvedValueOnce({
+      notification: notificationFixture('notification-1', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+      updated: false,
+    });
+
+    await service.markAsRead(
+      create(MarkAsReadRequestSchema, {
+        id: '33333333-3333-4333-a333-333333333333',
+      }),
+    );
+
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('records actor role only after mark-all authorization succeeds', async () => {
@@ -337,6 +434,32 @@ describe('NotificationService', () => {
     expect(response.updatedCount).toBe(2);
   });
 
+  it('records audit events when markAllAsRead updates notifications', async () => {
+    repository.markAllAsRead.mockResolvedValueOnce([
+      notificationFixture('notification-1', {
+        readAt: new Date('2026-05-15T11:00:00.000Z'),
+      }),
+    ]);
+
+    const response = await runAsCurrentUser(() =>
+      service.markAllAsRead(
+        create(MarkAllAsReadRequestSchema, {
+          userId: USER_ID,
+        }),
+      ),
+    );
+
+    expect(response.updatedCount).toBe(1);
+    expect(auditService.record).toHaveBeenCalledTimes(1);
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'notification.read',
+        targetId: 'notification-1',
+        after: expect.objectContaining({ status: 'read' }),
+      }),
+    );
+  });
+
   it('rejects marking another user notifications as read', async () => {
     await expect(
       runAs(otherNotificationUser(), () =>
@@ -396,6 +519,7 @@ describe('NotificationService', () => {
     expect(repository.getOrCreatePreferenceRows).toHaveBeenCalledWith(USER_ID);
     expect(repository.createNotification).not.toHaveBeenCalled();
     expect(metricsService.recordNotificationSent).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('uses system preferences for default internal notification categories', async () => {
@@ -411,6 +535,7 @@ describe('NotificationService', () => {
     expect(repository.getOrCreatePreferenceRows).toHaveBeenCalledWith(USER_ID);
     expect(repository.createNotification).not.toHaveBeenCalled();
     expect(metricsService.recordNotificationSent).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
   });
 
   it('creates internal notifications when in-app preferences are active', async () => {
@@ -431,6 +556,12 @@ describe('NotificationService', () => {
     });
     expect(metricsService.recordNotificationSent).toHaveBeenCalledWith('push', '4');
     expect(metricsService.recordNotificationUnread).toHaveBeenCalledWith('user');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'notification.created',
+        targetType: 'notification',
+      }),
+    );
   });
 
   it('creates role notifications only for users with active in-app preferences', async () => {
@@ -482,6 +613,23 @@ describe('NotificationService', () => {
     });
   });
 });
+
+function notificationFixture(
+  id: string,
+  options: { readAt?: Date; sentAt?: Date } = {},
+) {
+  return create(NotificationSchema, {
+    id,
+    userId: USER_ID,
+    title: 'Broadcast completed',
+    category: RpcNotificationCategory.SYSTEM,
+    type: RpcNotificationType.PUSH,
+    message: 'Broadcast completed',
+    sentAt: timestampFromDate(options.sentAt ?? new Date('2026-05-15T10:00:00.000Z')),
+    status: RpcNotificationStatus.SENT,
+    ...(options.readAt && { readAt: timestampFromDate(options.readAt) }),
+  });
+}
 
 function notificationUser(): AccessTokenPayload {
   return {

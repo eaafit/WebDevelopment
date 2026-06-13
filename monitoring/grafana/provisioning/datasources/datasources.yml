@@ -27,3 +27,18 @@ datasources:
     access: proxy
     url: http://tempo:3200
     editable: false
+  - name: PostgreSQL Profitability Demo
+    uid: postgres-profitability
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: admin
+    isDefault: false
+    jsonData:
+      database: db
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: admin
+    editable: false

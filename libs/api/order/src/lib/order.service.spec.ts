@@ -34,6 +34,7 @@ type PrismaMock = {
     update: jest.Mock;
   };
   assessment: {
+    findUnique: jest.Mock;
     update: jest.Mock;
   };
   $transaction: jest.Mock;
@@ -45,6 +46,15 @@ describe('OrderService', () => {
   let logSpy: jest.SpyInstance;
   let errorSpy: jest.SpyInstance;
   let loggerErrorSpy: jest.SpyInstance;
+  const bitrixOrderPublisher = {
+    publishOrder: jest.fn(),
+  };
+  const auditService = {
+    record: jest.fn(),
+  };
+  const notificationService = {
+    createInternalNotificationsForRole: jest.fn(),
+  };
 
   const runInSpanMock = jest.mocked(runInSpan);
   const setSpanAttributesMock = jest.mocked(setSpanAttributes);
@@ -58,6 +68,7 @@ describe('OrderService', () => {
         update: jest.fn(),
       },
       assessment: {
+        findUnique: jest.fn(),
         update: jest.fn(),
       },
       $transaction: jest.fn(),
@@ -66,7 +77,16 @@ describe('OrderService', () => {
       callback(prisma),
     );
 
-    service = new OrderService(prisma as unknown as PrismaService);
+    prisma.assessment.findUnique.mockResolvedValue({ address: 'Safe test address' });
+    auditService.record.mockResolvedValue(undefined);
+    notificationService.createInternalNotificationsForRole.mockResolvedValue(undefined);
+
+    service = new OrderService(
+      prisma as unknown as PrismaService,
+      bitrixOrderPublisher as never,
+      auditService as never,
+      notificationService as never,
+    );
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     loggerErrorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
