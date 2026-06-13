@@ -18,7 +18,10 @@
 
   <div class="admin-support__layout">
     <aside class="admin-support__sidebar">
-      <h3 class="sidebar-title">Фильтрация</h3>
+      <div class="sidebar-header">
+        <h3 class="sidebar-title">Фильтрация</h3>
+        <button class="btn-create" (click)="openCreateModal()">+ Создать тикет</button>
+      </div>
       
       <div class="filter-group">
         <label for="status">Статус</label>
@@ -42,11 +45,23 @@
       </div>
 
       <div class="filter-group">
+        <label for="priority">Приоритет SLA</label>
+        <select id="priority" [(ngModel)]="priorityFilter" class="filter-control">
+          <option value="all">Любой приоритет</option>
+          <option value="critical">Критический</option>
+          <option value="high">Высокий</option>
+          <option value="medium">Средний</option>
+          <option value="low">Низкий</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
         <label for="sort">Сортировка</label>
         <select id="sort" [(ngModel)]="sortBy" class="filter-control">
           <option value="date_desc">Сначала новые</option>
           <option value="date_asc">Сначала старые</option>
           <option value="sla_critical">Критичные по SLA</option>
+          <option value="priority_desc">По приоритету</option>
         </select>
       </div>
     </aside>
@@ -56,6 +71,7 @@
         [tickets]="(tickets$ | async) || []"
         [statusFilter]="statusFilter"
         [slaFilter]="slaFilter"
+        [priorityFilter]="priorityFilter"
         [sortBy]="sortBy">
       </lib-ticket-queue>
     </main>
@@ -64,4 +80,10 @@
       <lib-operator-chat [ticket]="selectedTicket$ | async"></lib-operator-chat>
     </aside>
   </div>
+
+  <lib-create-ticket-modal 
+    [isOpen]="showCreateModal"
+    (close)="closeCreateModal()"
+    (create)="onTicketCreated($event)">
+  </lib-create-ticket-modal>
 </div>

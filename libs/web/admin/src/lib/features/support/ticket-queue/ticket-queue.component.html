@@ -6,7 +6,9 @@
         <th>Дата создания</th>
         <th>Статус</th>
         <th>SLA</th>
-        <th>Действие</th>
+        <th>Приоритет</th>
+        <th>Осталось времени</th>
+        <th>Действия</th>
       </tr>
     </thead>
     <tbody>
@@ -31,16 +33,32 @@
           </span>
         </td>
         <td>
+          <span class="priority-badge priority-badge--{{ ticket.slaPriority }}">
+            {{ getPriorityLabel(ticket.slaPriority) }}
+          </span>
+        </td>
+        <td>
+          <span class="time-remaining" [class.breached]="ticket.slaStatus === 'breached'">
+            {{ getRemainingTime(ticket.slaDeadline) }}
+          </span>
+        </td>
+        <td class="actions-cell">
           <button 
             *ngIf="ticket.status === 'open'" 
             class="btn-take" 
             (click)="takeToWork($event, ticket)">
-            Взять в работу
+            Взять
+          </button>
+          <button 
+            class="btn-delete" 
+            (click)="deleteTicket($event, ticket.id)"
+            title="Удалить тикет">
+            🗑️
           </button>
         </td>
       </tr>
       <tr *ngIf="filteredTickets.length === 0">
-        <td colspan="5" class="ticket-table__empty">Нет тикетов, соответствующих фильтрам</td>
+        <td colspan="7" class="ticket-table__empty">Нет тикетов, соответствующих фильтрам</td>
       </tr>
     </tbody>
   </table>

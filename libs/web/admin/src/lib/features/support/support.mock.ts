@@ -2,6 +2,7 @@
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type SlaStatus = 'breached' | 'warning' | 'normal';
+export type SlaPriority = 'low' | 'medium' | 'high' | 'critical';
 export type UserRole = 'user' | 'vip' | 'admin';
 
 export interface TicketAttachment {
@@ -26,6 +27,8 @@ export interface SupportTicket {
   userRegisteredAt: Date;
   status: TicketStatus;
   slaStatus: SlaStatus;
+  slaPriority: SlaPriority;
+  slaDeadline: Date; // Срок выполнения по SLA
   createdAt: Date;
   messages: TicketMessage[];
 }
@@ -46,7 +49,9 @@ export class SupportMockService {
       userRegisteredAt: new Date('2025-01-15'),
       status: 'open',
       slaStatus: 'breached',
-      createdAt: new Date(Date.now() - 4 * 3600000), // 4 часа назад
+      slaPriority: 'critical',
+      slaDeadline: new Date(Date.now() - 2 * 3600000),
+      createdAt: new Date(Date.now() - 4 * 3600000),
       messages: [
         {
           id: 'm1',
@@ -65,7 +70,9 @@ export class SupportMockService {
       userRegisteredAt: new Date('2025-03-10'),
       status: 'in_progress',
       slaStatus: 'warning',
-      createdAt: new Date(Date.now() - 1.5 * 3600000), // 1.5 часа назад
+      slaPriority: 'high',
+      slaDeadline: new Date(Date.now() + 1.5 * 3600000),
+      createdAt: new Date(Date.now() - 1.5 * 3600000),
       messages: [
         {
           id: 'm2',
@@ -127,6 +134,83 @@ export class SupportMockService {
         ...currentSelected,
         messages: [...currentSelected.messages, newMessage]
       });
+    }
+  }
+
+  deleteTicket(ticketId: string): void {
+    this.tickets = this.tickets.filter(t => t.id !== ticketId);
+    this.tickets$.next(this.tickets);
+    
+    const currentSelected = this.selectedTicket$.value;
+    if (currentSelected && currentSelected.id === ticketId) {
+      this.selectedTicket$.next(null);
+    }
+  }
+
+  createTicket(ticketData: Partial<SupportTicket>): void {
+    const slaPriority = ticketData.slaPriority || 'medium';
+    const slaDeadline = this.calculateSlaDeadline(slaPriority);
+    
+    const newTicket: SupportTicket = {
+      id: Date.now().toString(),
+      subject: ticketData.subject || 'Без темы',
+      userEmail: ticketData.userEmail || 'unknown@example.com',
+      userRole: ticketData.userRole || 'user',
+      userRegisteredAt: ticketData.userRegisteredAt || new Date(),
+      status: 'open',
+      slaStatus: 'normal',
+      slaPriority: slaPriority,
+      slaDeadline: slaDeadline,
+      createdAt: new Date(),
+      messages: ticketData.messages || [
+        {
+          id: Math.random().toString(),
+          authorName: ticketData.userEmail?.split('@')[0] || 'Пользователь',
+          authorRole: 'user',
+          text: ticketData.subject || 'Новый тикет',
+          createdAt: new Date()
+        }
+      ]
+    };
+    
+    this.tickets = [newTicket, ...this.tickets];
+    this.tickets$.next(this.tickets);
+  }
+
+  private calculateSlaDeadline(priority: SlaPriority): Date {
+    const now = new Date();
+    switch(priority) {
+      case 'critical': return new Date(now.getTime() + 1 * 3600000); // 1 час
+      case 'high': return new Date(now.getTime() + 4 * 3600000); // 4 часа
+      case 'medium': return new Date(now.getTime() + 24 * 3600000); // 24 часа
+      case 'low': return new Date(now.getTime() + 72 * 3600000); // 72 часа
+      default: return new Date(now.getTime() + 24 * 3600000);
+    }
+  }
+
+  updateSlaStatuses(): void {
+    this.tickets = this.tickets.map(ticket => {
+      const now = new Date();
+      const timeLeft = ticket.slaDeadline.getTime() - now.getTime();
+      const hoursLeft = timeLeft / (3600000);
+      
+      let slaStatus: SlaStatus = 'normal';
+      if (timeLeft < 0) {
+        slaStatus = 'breached';
+      } else if (hoursLeft < 2) {
+        slaStatus = 'warning';
+      }
+      
+      return { ...ticket, slaStatus };
+    });
+    this.tickets$.next(this.tickets);
+    
+    const currentSelected = this.selectedTicket$.value;
+    if (currentSelected) {
+      const updatedSelected = this.tickets.find(t => t.id === currentSelected.id);
+      if (updatedSelected) {
+        this.selectedTicket$.next(updatedSelected);
+      }
     }
   }
 }

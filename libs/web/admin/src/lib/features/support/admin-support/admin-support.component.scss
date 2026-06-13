@@ -14,12 +14,12 @@
 
   &__layout {
     display: grid;
-    grid-template-columns: 240px 1fr 450px;
+    grid-template-columns: 280px 1fr 450px;
     flex: 1;
     overflow: hidden;
 
     @media (max-width: 1200px) {
-      grid-template-columns: 200px 1fr 380px;
+      grid-template-columns: 240px 1fr 380px;
     }
   }
 
@@ -83,10 +83,33 @@
   }
 }
 
+.sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .sidebar-title {
   font-size: 16px;
-  margin: 0 0 10px 0;
+  margin: 0;
   color: #1e293b;
+}
+
+.btn-create {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #2563eb;
+  }
 }
 
 .filter-group {
