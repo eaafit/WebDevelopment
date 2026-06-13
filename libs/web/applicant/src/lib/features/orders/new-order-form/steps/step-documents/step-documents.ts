@@ -91,6 +91,7 @@ export class StepDocuments {
 
   async openUploadedFile(url: string): Promise<void> {
     if (!url) return;
+
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -98,6 +99,30 @@ export class StepDocuments {
       }
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
+
+      // Check if the file is an image based on content type or URL extension
+      const contentType = response.headers.get('content-type');
+      const isImageByContentType = contentType && contentType.startsWith('image/');
+      const isImageByExtension = this.isImageTypeFromUrl(url);
+
+      console.log('openUploadedFile:', {
+        url,
+        contentType,
+        isImageByContentType,
+        isImageByExtension,
+      });
+
+      if (isImageByContentType || isImageByExtension) {
+        console.log('Opening image in modal');
+        this.imagePreviewState.set({
+          fileKey: url,
+          fileName: 'Загруженный файл',
+          previewUrl: objectUrl,
+        });
+        return;
+      }
+
+      console.log('Opening file in new window');
       window.open(objectUrl, '_blank');
       // Clean up the objectUrl after a delay
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);

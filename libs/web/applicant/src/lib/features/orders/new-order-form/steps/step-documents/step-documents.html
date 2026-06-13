@@ -94,12 +94,12 @@
       </div>
       } @if (row.get('isUploaded')?.value && !getFile(row)) {
       <div class="upload-file-preview">
-        @if (row.get('previewUrl')?.value && isImageTypeFromUrl(row.get('previewUrl')?.value)) {
+        @if (row.get('previewUrl')?.value) {
         <button
           class="upload-file-preview-image-btn"
           type="button"
           [attr.aria-label]="'Открыть превью файла ' + row.get('fileName')?.value"
-          (click)="openUploadedPreview(row.get('previewUrl')?.value)">
+          (click)="openUploadedFile(row.get('previewUrl')?.value)">
           <img
             class="upload-file-preview-image"
             [src]="row.get('previewUrl')?.value"
@@ -112,21 +112,7 @@
           <span class="upload-file-name" [title]="row.get('fileName')?.value">{{ row.get('fileName')?.value }}</span>
         </div>
         <div class="upload-file-actions">
-          @if (row.get('previewUrl')?.value && isImageTypeFromUrl(row.get('previewUrl')?.value)) {
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            (click)="openUploadedPreview(row.get('previewUrl')?.value)">
-            Просмотреть
-          </button>
-          } @else if (row.get('downloadUrl')?.value && isImageTypeFromUrl(row.get('downloadUrl')?.value)) {
-          <button
-            class="btn btn-ghost btn-sm"
-            type="button"
-            (click)="openUploadedPreview(row.get('downloadUrl')?.value)">
-            Просмотреть
-          </button>
-          } @else if (row.get('previewUrl')?.value) {
+          @if (row.get('previewUrl')?.value) {
           <button class="btn btn-ghost btn-sm" type="button" (click)="openUploadedFile(row.get('previewUrl')?.value)">
             Просмотреть
           </button>
