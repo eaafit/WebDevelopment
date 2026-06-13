@@ -1,0 +1,65 @@
+<div class="ticket-queue">
+  <table class="ticket-table">
+    <thead>
+      <tr>
+        <th>Тема / Пользователь</th>
+        <th>Дата создания</th>
+        <th>Статус</th>
+        <th>SLA</th>
+        <th>Приоритет</th>
+        <th>Осталось времени</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let ticket of filteredTickets" (click)="selectTicket(ticket)" class="ticket-row">
+        <td>
+          <div class="ticket-info">
+            <span class="ticket-info__subject">{{ ticket.subject }}</span>
+            <span class="ticket-info__email">{{ ticket.userEmail }}</span>
+          </div>
+        </td>
+        <td>
+          <span class="ticket-date">{{ ticket.createdAt | date:'dd.MM.yyyy HH:mm' }}</span>
+        </td>
+        <td>
+          <span class="status-badge status-badge--{{ ticket.status }}">
+            {{ ticket.status }}
+          </span>
+        </td>
+        <td>
+          <span class="sla-badge sla-badge--{{ ticket.slaStatus }}">
+            {{ getSlaLabel(ticket.slaStatus) }}
+          </span>
+        </td>
+        <td>
+          <span class="priority-badge priority-badge--{{ ticket.slaPriority }}">
+            {{ getPriorityLabel(ticket.slaPriority) }}
+          </span>
+        </td>
+        <td>
+          <span class="time-remaining" [class.breached]="ticket.slaStatus === 'breached'">
+            {{ getRemainingTime(ticket.slaDeadline) }}
+          </span>
+        </td>
+        <td class="actions-cell">
+          <button 
+            *ngIf="ticket.status === 'open'" 
+            class="btn-take" 
+            (click)="takeToWork($event, ticket)">
+            Взять
+          </button>
+          <button 
+            class="btn-delete" 
+            (click)="deleteTicket($event, ticket.id)"
+            title="Удалить тикет">
+            🗑️
+          </button>
+        </td>
+      </tr>
+      <tr *ngIf="filteredTickets.length === 0">
+        <td colspan="7" class="ticket-table__empty">Нет тикетов, соответствующих фильтрам</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

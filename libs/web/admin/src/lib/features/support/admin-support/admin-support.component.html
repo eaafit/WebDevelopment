@@ -1,0 +1,89 @@
+<div class="admin-support">
+  <header class="admin-support__header">
+    <div class="sla-monitor">
+      <div class="sla-monitor__card">
+        <span class="sla-monitor__label">Открытых</span>
+        <span class="sla-monitor__value">{{ openCount$ | async }}</span>
+      </div>
+      <div class="sla-monitor__card sla-monitor__card--danger">
+        <span class="sla-monitor__label">Нарушено SLA</span>
+        <span class="sla-monitor__value">{{ breachedCount$ | async }}</span>
+      </div>
+      <div class="sla-monitor__card sla-monitor__card--success">
+        <span class="sla-monitor__label">Решено сегодня</span>
+        <span class="sla-monitor__value">{{ resolvedTodayCount$ | async }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="admin-support__layout">
+    <aside class="admin-support__sidebar">
+      <div class="sidebar-header">
+        <h3 class="sidebar-title">Фильтрация</h3>
+        <button class="btn-create" (click)="openCreateModal()">+ Создать тикет</button>
+      </div>
+      
+      <div class="filter-group">
+        <label for="status">Статус</label>
+        <select id="status" [(ngModel)]="statusFilter" class="filter-control">
+          <option value="all">Все статусы</option>
+          <option value="open">Открыт (Open)</option>
+          <option value="in_progress">В работе (In Progress)</option>
+          <option value="resolved">Решен (Resolved)</option>
+          <option value="closed">Закрыт (Closed)</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="sla">SLA Статус</label>
+        <select id="sla" [(ngModel)]="slaFilter" class="filter-control">
+          <option value="all">Любой SLA</option>
+          <option value="breached">Нарушен</option>
+          <option value="warning">Скоро нарушится (&lt; 2ч)</option>
+          <option value="normal">В норме</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="priority">Приоритет SLA</label>
+        <select id="priority" [(ngModel)]="priorityFilter" class="filter-control">
+          <option value="all">Любой приоритет</option>
+          <option value="critical">Критический</option>
+          <option value="high">Высокий</option>
+          <option value="medium">Средний</option>
+          <option value="low">Низкий</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="sort">Сортировка</label>
+        <select id="sort" [(ngModel)]="sortBy" class="filter-control">
+          <option value="date_desc">Сначала новые</option>
+          <option value="date_asc">Сначала старые</option>
+          <option value="sla_critical">Критичные по SLA</option>
+          <option value="priority_desc">По приоритету</option>
+        </select>
+      </div>
+    </aside>
+
+    <main class="admin-support__content">
+      <lib-ticket-queue 
+        [tickets]="(tickets$ | async) || []"
+        [statusFilter]="statusFilter"
+        [slaFilter]="slaFilter"
+        [priorityFilter]="priorityFilter"
+        [sortBy]="sortBy">
+      </lib-ticket-queue>
+    </main>
+
+    <aside class="admin-support__chat-panel">
+      <lib-operator-chat [ticket]="selectedTicket$ | async"></lib-operator-chat>
+    </aside>
+  </div>
+
+  <lib-create-ticket-modal 
+    [isOpen]="showCreateModal"
+    (close)="closeCreateModal()"
+    (create)="onTicketCreated($event)">
+  </lib-create-ticket-modal>
+</div>
