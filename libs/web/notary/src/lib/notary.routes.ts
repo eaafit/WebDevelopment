@@ -21,6 +21,10 @@ export const notaryRoutes: Route[] = [
         loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
       },
       {
+        path: 'orders/:id',
+        loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
+      },
+      {
         path: 'subscription',
         loadComponent: () => import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
       },

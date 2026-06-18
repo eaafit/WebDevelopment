@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
+import { NotificationCounterService } from '@notary-portal/ui';
 import {
   AdminAssessmentApiService,
   type AdminAssessmentRow,
@@ -121,6 +122,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private readonly assessmentApi = inject(AdminAssessmentApiService);
   private readonly userApi = inject(AdminUserApiService);
+  private readonly notificationCounter = inject(NotificationCounterService);
 
   assessments: AssessmentItem[] = [];
   filteredAssessments: AssessmentItem[] = [];
@@ -319,6 +321,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
       this.selectedAssessment = fresh ?? null;
       if (!fresh) this.showView = false;
     }
+    void this.notificationCounter.refresh();
     this.cdr.detectChanges();
   }
 

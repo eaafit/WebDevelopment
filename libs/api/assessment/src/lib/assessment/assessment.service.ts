@@ -728,6 +728,11 @@ export class AssessmentService {
               await this.getActorDisplayName(actor?.sub ?? after.notaryId ?? undefined),
             ),
           });
+          await this.createApplicantAssessmentNotificationBestEffort({
+            userId: after.userId,
+            title: 'Заявка принята в работу',
+            message: 'Ваша заявка принята нотариусом в работу.',
+          });
 
           this.logger.log(
             `Verified assessment; operation=assessment.verify; result=success; status=${assessment.status}`,
@@ -819,6 +824,11 @@ export class AssessmentService {
           await this.createAdminAssessmentNotificationBestEffort({
             title: 'Оценка заявки завершена',
             message: buildCompletedMessage(assessment.id, after.estimatedValue),
+          });
+          await this.createApplicantAssessmentNotificationBestEffort({
+            userId: after.userId,
+            title: 'Заявка завершена',
+            message: 'Ваша заявка успешно завершена. Отчёт готов к скачиванию.',
           });
           await runInSpan(
             'OrderService.completeOrderForAssessment side effect',
@@ -924,6 +934,13 @@ export class AssessmentService {
             title: 'Заявка на оценку отменена',
             message: buildCancelledMessage(assessment.id, after.cancelReason),
           });
+          await this.createApplicantAssessmentNotificationBestEffort({
+            userId: after.userId,
+            title: 'Заявка отменена',
+            message: after.cancelReason?.trim()
+              ? `Ваша заявка отменена. Причина: ${after.cancelReason.trim()}.`
+              : 'Ваша заявка отменена.',
+          });
 
           this.logger.log(
             `Cancelled assessment; operation=assessment.cancel; result=success; status=${assessment.status}`,
@@ -1008,6 +1025,26 @@ export class AssessmentService {
     } catch (error) {
       this.logger.warn(
         `Assessment notification failed; operation=notification.create_internal_for_role; result=error; error=${safeErrorName(error)}`,
+      );
+    }
+  }
+
+  private async createApplicantAssessmentNotificationBestEffort(input: {
+    userId: string;
+    message: string;
+    title?: string;
+  }): Promise<void> {
+    try {
+      await this.notificationService.createInternalNotification({
+        userId: input.userId,
+        title: input.title,
+        message: input.message,
+        category: RpcNotificationCategory.ASSESSMENT,
+        type: RpcNotificationType.IN_APP,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Assessment notification failed; operation=notification.create_internal; result=error; error=${safeErrorName(error)}`,
       );
     }
   }

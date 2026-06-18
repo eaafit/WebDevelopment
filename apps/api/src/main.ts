@@ -23,7 +23,6 @@ import { DocumentFileUrlService, DocumentService } from '@internal/document';
 import { MetricsService } from '@internal/metrics';
 import { PrismaService } from '@internal/prisma';
 import { handleDocumentContentRequest } from './app/document-content-route';
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,

@@ -138,7 +138,7 @@ function makeReceiptHtml(params: {
   return Buffer.from(html, 'utf8');
 }
 
-const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 100);
+const SEED_COUNT = Number(process.env['SEED_SIZE'] ?? 200);
 const SEED_USERS_PER_ROLE = 10;
 const TOTAL_SEED_USERS = SEED_USERS_PER_ROLE * 3; // 10 Applicant, 10 Notary, 10 Admin
 const PAYMENT_HISTORY_PER_USER = 10;
@@ -201,6 +201,7 @@ async function main(): Promise<void> {
     newsletterCampaignCount,
     cityCount,
     districtCount,
+    leadCount,
   ] = await prisma.$transaction([
     prisma.user.count(),
     prisma.assessment.count(),
@@ -217,6 +218,7 @@ async function main(): Promise<void> {
     prisma.newsletterCampaign.count(),
     prisma.city.count(),
     prisma.district.count(),
+    prisma.lead.count(),
   ]);
 
   console.info(
@@ -237,6 +239,7 @@ async function main(): Promise<void> {
       `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
+      `Leads: ${leadCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
@@ -1326,7 +1329,7 @@ async function upsertAssessmentProcessingHistory(
     Math.max(0, userIds.length - SEED_USERS_PER_ROLE),
   );
   const baseTimestamp = new Date('2026-02-01T08:00:00.000Z');
-  const countToProcess = Math.min(assessmentIds.length, 100);
+  const countToProcess = Math.min(assessmentIds.length, SEED_COUNT);
 
   for (let a = 0; a < countToProcess; a++) {
     const assessmentId = assessmentIds[a];

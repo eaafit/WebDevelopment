@@ -2,6 +2,7 @@ import { Component, computed, signal, OnInit, OnDestroy, inject } from '@angular
 import { RouterLink } from '@angular/router';
 import { DashboardUpdateService } from '../../services/dashboard-update.service';
 import { NotaryAssessmentApiService } from '../../services/assessment-api.service';
+import { UserApiService } from '../../services/user.service';
 import { Subscription } from 'rxjs';
 
 type Status = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
@@ -24,6 +25,7 @@ interface AssessmentItem {
 export class Dashboard implements OnInit, OnDestroy {
   private dashboardUpdateService = inject(DashboardUpdateService);
   private assessmentApi = inject(NotaryAssessmentApiService);
+  private userApi = inject(UserApiService);
 
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
@@ -31,17 +33,15 @@ export class Dashboard implements OnInit, OnDestroy {
   private readonly assessments = signal<AssessmentItem[]>([]);
 
   private metricsSubscription?: Subscription;
-  private totalAssessments = signal(0);
-  private inProgressAssessments = signal(0);
-  private completedAssessments = signal(0);
-  private cancelledAssessments = signal(0);
 
   ngOnInit(): void {
     this.metricsSubscription = this.dashboardUpdateService.metrics$.subscribe(metrics => {
-      this.totalAssessments.set(metrics.total);
-      this.inProgressAssessments.set(metrics.inProgress);
-      this.completedAssessments.set(metrics.completed);
-      this.cancelledAssessments.set(metrics.cancelled);
+      if (metrics.total > 0) {
+        this.totalCount.set(metrics.total);
+        this.inProgressCount.set(metrics.inProgress);
+        this.completedCount.set(metrics.completed);
+        this.cancelledCount.set(metrics.cancelled);
+      }
     });
     this.loadAssessments();
   }
@@ -54,13 +54,18 @@ export class Dashboard implements OnInit, OnDestroy {
     this.loading.set(true);
     this.loadError.set(null);
     try {
-      const data = await this.assessmentApi.getAssessments();
+      await this.userApi.loadUsers().catch(() => undefined);
+      const data = await this.assessmentApi.listAssessments();
       const typedData: AssessmentItem[] = data.map(item => ({
-        ...item,
-        status: item.status as Status
+        id: item.id,
+        applicantName: this.userApi.getUserName(item.userId),
+        status: item.status as Status,
+        address: item.address,
+        createdAt: item.createdAt,
       }));
       this.assessments.set(typedData);
       this.updatedAt.set(new Date());
+      this.updateMetricsFromData(typedData);
     } catch (error) {
       this.loadError.set('Не удалось загрузить заявки');
       console.error(error);
@@ -68,6 +73,37 @@ export class Dashboard implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
+
+  private updateMetricsFromData(data: AssessmentItem[]): void {
+    this.totalCount.set(data.length);
+    this.inProgressCount.set(data.filter(a => a.status === 'InProgress').length);
+    this.completedCount.set(data.filter(a => a.status === 'Completed').length);
+    this.cancelledCount.set(data.filter(a => a.status === 'Cancelled').length);
+  }
+
+  // Метрики
+  private totalCount = signal(0);
+  private inProgressCount = signal(0);
+  private completedCount = signal(0);
+  private cancelledCount = signal(0);
+
+  protected readonly total = computed(() => this.totalCount());
+  protected readonly inProgress = computed(() => this.inProgressCount());
+  protected readonly completed = computed(() => this.completedCount());
+  protected readonly cancelled = computed(() => this.cancelledCount());
+
+  protected readonly metrics = computed(() => [
+    { key: 'total', label: 'Заявок всего', value: this.total(), hint: 'Все ваши заявки на текущий момент.' },
+    { key: 'inProgress', label: 'В работе', value: this.inProgress(), hint: 'Заявки, которые вы сейчас обрабатываете.' },
+    { key: 'completed', label: 'Завершено', value: this.completed(), hint: 'Успешно закрытые вами оценки.' },
+    { key: 'cancelled', label: 'Отменено', value: this.cancelled(), hint: 'Отменённые заявки.' },
+  ]);
+
+  protected readonly latestFive = computed(() =>
+    [...this.assessments()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 5)
+  );
 
   protected readonly statusLabel: Record<Status, string> = {
     New: 'Новая',
@@ -84,24 +120,6 @@ export class Dashboard implements OnInit, OnDestroy {
     Completed: 'notary-badge--success',
     Cancelled: 'notary-badge--critical',
   };
-
-  protected readonly total = computed(() => this.totalAssessments());
-  protected readonly inProgressCount = computed(() => this.inProgressAssessments());
-  protected readonly completedCount = computed(() => this.completedAssessments());
-  protected readonly cancelledCount = computed(() => this.cancelledAssessments());
-
-  protected readonly metrics = computed(() => [
-    { key: 'total', label: 'Заявок всего', value: this.total(), hint: 'Все ваши заявки на текущий момент.' },
-    { key: 'inProgress', label: 'В работе', value: this.inProgressCount(), hint: 'Заявки, которые вы сейчас обрабатываете.' },
-    { key: 'completed', label: 'Завершено', value: this.completedCount(), hint: 'Успешно закрытые вами оценки.' },
-    { key: 'cancelled', label: 'Отменено', value: this.cancelledCount(), hint: 'Отменённые заявки.' },
-  ]);
-
-  protected readonly latestFive = computed(() =>
-    [...this.assessments()]
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 5)
-  );
 
   protected readonly quickLinks = [
     { route: 'orders', icon: '📄', eyebrow: 'Заказы', title: 'Управление заказами', description: 'Полный список заявок, смена статусов, фильтры и поиск.' },

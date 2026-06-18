@@ -151,10 +151,7 @@
                   @if (item.status === 'New') {
                     <button class="btn-icon" (click)="openVerifyModal(item)" title="Взять в работу">✅</button>
                   }
-                  @if (item.status === 'Verified') {
-                    <button class="btn-icon" (click)="openStartWorkModal(item)" title="Начать работу">🔄</button>
-                  }
-                  @if (item.status === 'InProgress') {
+                  @if (item.status === 'Verified' || item.status === 'InProgress') {
                     <button class="btn-icon" (click)="openCompleteModal(item)" title="Завершить">✔️</button>
                   }
                 </div>
@@ -221,6 +218,10 @@
             </div>
           </div>
           <div class="detail-row">
+            <div class="detail-label">Причина отмены:</div>
+            <div class="detail-value">{{ selectedAssessment.cancelReason || '—' }}</div>
+          </div>
+          <div class="detail-row">
             <div class="detail-label">Оценочная стоимость:</div>
             <div class="detail-value">{{ formatValue(selectedAssessment.estimatedValue) }}</div>
           </div>
@@ -240,10 +241,7 @@
           @if (selectedAssessment.status === 'New') {
             <button class="btn btn-primary" (click)="openVerifyModal(selectedAssessment)">✅ Взять в работу</button>
           }
-          @if (selectedAssessment.status === 'Verified') {
-            <button class="btn btn-primary" (click)="openStartWorkModal(selectedAssessment)">🔄 Начать работу</button>
-          }
-          @if (selectedAssessment.status === 'InProgress') {
+          @if (selectedAssessment.status === 'Verified' || selectedAssessment.status === 'InProgress') {
             <button class="btn btn-success" (click)="openCompleteModal(selectedAssessment)">✔️ Завершить</button>
           }
         </div>
@@ -306,34 +304,12 @@
           <button class="close-btn" (click)="closeVerifyModal()">&times;</button>
         </div>
         <p>Взять в работу заявку <strong>{{ getShortId(assessmentToVerify.id) }}</strong>?</p>
+        @if (verifyError) {
+          <div class="form-error active">{{ verifyError }}</div>
+        }
         <div class="form-actions">
           <button class="btn btn-secondary" (click)="closeVerifyModal()">Отмена</button>
           <button class="btn btn-primary" [disabled]="mutationInFlight" (click)="confirmVerify()">✅ Взять в работу</button>
-        </div>
-      </div>
-    </div>
-  }
-
-  <!-- МОДАЛКА НАЧАТЬ РАБОТУ -->
-  @if (showStartWorkModal && assessmentToStartWork) {
-    <div class="modal-overlay" role="dialog" (click)="closeStartWorkModal()" (keydown.escape)="closeStartWorkModal()">
-      <div
-        class="modal"
-        role="document"
-        tabindex="-1"
-        (click)="$event.stopPropagation()"
-        (keydown.enter)="$event.stopPropagation()"
-        (keydown.space)="$event.stopPropagation()"
-        (keydown.escape)="$event.stopPropagation()"
-      >
-        <div class="modal-header">
-          <h3>Начать работу</h3>
-          <button class="close-btn" (click)="closeStartWorkModal()">&times;</button>
-        </div>
-        <p>Перевести заявку <strong>{{ getShortId(assessmentToStartWork.id) }}</strong> в статус «В работе»?</p>
-        <div class="form-actions">
-          <button class="btn btn-secondary" (click)="closeStartWorkModal()">Отмена</button>
-          <button class="btn btn-primary" [disabled]="mutationInFlight" (click)="confirmStartWork()">🔄 Начать работу</button>
         </div>
       </div>
     </div>
