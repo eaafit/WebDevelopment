@@ -49,12 +49,18 @@ export const applicantRoutes: Route[] = [
       } as Route,
       {
         path: 'assessment/results',
-        ...placeholder('Результаты оценки', [
-          'Итоговая стоимость',
-          'Отчёт PDF',
-          'Скачивание копий',
-        ]),
-      },
+        loadComponent: () =>
+          import('./features/assessment/results/results-list/results-list').then(
+            (m) => m.AssessmentResultsComponent,
+          ),
+      } as Route,
+      {
+        path: 'assessment/results/:assessmentId',
+        loadComponent: () =>
+          import('./features/assessment/results/result-detail/result-detail').then(
+            (m) => m.AssessmentResultDetailComponent,
+          ),
+      } as Route,
       {
         path: 'assessment/history',
         component: AssessmentHistoryComponent,

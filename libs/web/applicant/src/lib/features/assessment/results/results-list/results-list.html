@@ -1,0 +1,43 @@
+<main class="container page">
+  <section class="card">
+    <header class="card-header">
+      <h1>Результаты оценки</h1>
+      <p class="card-subtitle m-0">Завершённые оценки ваших объектов недвижимости</p>
+    </header>
+
+    @if (isLoading()) {
+    <p class="state-message">Загрузка результатов…</p>
+    } @else if (loadError()) {
+    <p class="form-banner form-banner-error">{{ loadError() }}</p>
+    } @else if (assessments().length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon" aria-hidden="true">📊</div>
+      <h2>Оценённых объектов пока нет</h2>
+      <p>Когда оценка будет завершена, результат появится в этом разделе.</p>
+    </div>
+    } @else {
+    <div class="results-grid">
+      @for (item of assessments(); track item.id) {
+      <article class="result-card">
+        <h2 class="result-card-title">{{ item.address }}</h2>
+        <dl class="result-card-meta">
+          <div>
+            <dt>Тип имущества</dt>
+            <dd>{{ item.propertyType }}</dd>
+          </div>
+          <div>
+            <dt>Итоговая стоимость</dt>
+            <dd class="result-value">{{ formatValue(item.estimatedValue) }}</dd>
+          </div>
+          <div>
+            <dt>Дата оценки</dt>
+            <dd>{{ formatDate(item.assessedAt) }}</dd>
+          </div>
+        </dl>
+        <a class="btn btn-primary" [routerLink]="['/applicant/assessment/results', item.id]">Подробнее</a>
+      </article>
+      }
+    </div>
+    }
+  </section>
+</main>
