@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package notary.support.v1alpha1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "notary/common/v1alpha1/common.proto";
+
+enum TicketStatus {
+  TICKET_STATUS_UNSPECIFIED = 0;
+  TICKET_STATUS_OPEN = 1;
+  TICKET_STATUS_IN_PROGRESS = 2;
+  TICKET_STATUS_RESOLVED = 3;
+  TICKET_STATUS_CLOSED = 4;
+}
+
+enum TicketPriority {
+  TICKET_PRIORITY_UNSPECIFIED = 0;
+  TICKET_PRIORITY_LOW = 1;
+  TICKET_PRIORITY_MEDIUM = 2;
+  TICKET_PRIORITY_HIGH = 3;
+  TICKET_PRIORITY_URGENT = 4;
+}
+
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_AI = 2;
+  MESSAGE_ROLE_SUPPORT = 3;
+}
+
+message TicketAuthor {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  google.protobuf.Timestamp registered_at = 4;
+}
+
+message Ticket {
+  string id = 1;
+  string subject = 2;
+  TicketStatus status = 3;
+  TicketPriority priority = 4;
+  string author_id = 5;
+  google.protobuf.Timestamp sla_deadline = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  TicketAuthor author = 9;
+  optional string assignee_id = 10;
+  optional string resolution = 11;
+  optional google.protobuf.Timestamp resolved_at = 12;
+}
+
+message TicketMessage {
+  string id = 1;
+  string ticket_id = 2;
+  string author_id = 3;
+  string author_name = 4;
+  MessageRole role = 5;
+  string text = 6;
+  repeated string attachment_ids = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message EscalationHistoryItem {
+  MessageRole role = 1;
+  string text = 2;
+}
+
+message AskSupportAiRequest {
+  string question_text = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message AskSupportAiResponse {
+  string answer_text = 1;
+}
+
+message EscalateToOperatorRequest {
+  string subject = 1 [(buf.validate.field).string.min_len = 1];
+  repeated EscalationHistoryItem history = 2;
+}
+
+message EscalateToOperatorResponse {
+  Ticket ticket = 1;
+}
+
+message CreateTicketRequest {
+  string subject = 1 [(buf.validate.field).string.min_len = 1];
+  string text = 2;
+  TicketPriority priority = 3;
+  optional string author_email = 4;
+}
+
+message CreateTicketResponse {
+  Ticket ticket = 1;
+}
+
+message GetTicketRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetTicketResponse {
+  Ticket ticket = 1;
+}
+
+message ListTicketsRequest {
+  notary.common.v1alpha1.PaginationParams pagination = 1;
+  TicketStatus status_filter = 2;
+}
+
+message ListTicketsResponse {
+  repeated Ticket tickets = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message AddMessageRequest {
+  string ticket_id = 1 [(buf.validate.field).string.uuid = true];
+  string text = 2 [(buf.validate.field).string.min_len = 1];
+  repeated string attachment_ids = 3;
+}
+
+message AddMessageResponse {
+  TicketMessage message = 1;
+  Ticket ticket = 2;
+}
+
+message ListMessagesRequest {
+  string ticket_id = 1 [(buf.validate.field).string.uuid = true];
+  notary.common.v1alpha1.PaginationParams pagination = 2;
+}
+
+message ListMessagesResponse {
+  repeated TicketMessage messages = 1;
+  notary.common.v1alpha1.PaginationMeta meta = 2;
+}
+
+message UpdateTicketStatusRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  TicketStatus status = 2;
+}
+
+message UpdateTicketStatusResponse {
+  Ticket ticket = 1;
+}
+
+message CloseTicketRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string resolution = 2;
+}
+
+message CloseTicketResponse {
+  Ticket ticket = 1;
+}
+
+service SupportService {
+  rpc AskSupportAi(AskSupportAiRequest) returns (AskSupportAiResponse);
+  rpc EscalateToOperator(EscalateToOperatorRequest) returns (EscalateToOperatorResponse);
+  rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
+  rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
+  rpc ListTickets(ListTicketsRequest) returns (ListTicketsResponse);
+  rpc AddMessage(AddMessageRequest) returns (AddMessageResponse);
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse);
+  rpc UpdateTicketStatus(UpdateTicketStatusRequest) returns (UpdateTicketStatusResponse);
+  rpc CloseTicket(CloseTicketRequest) returns (CloseTicketResponse);
+}

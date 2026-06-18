@@ -1,7 +1,8 @@
 import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SupportMockService, SupportTicket } from '../support.mock';
+import { SupportApiService } from '../support-api.service';
+import { SupportTicket } from '../support.types';
 
 @Component({
   selector: 'lib-operator-chat',
@@ -13,23 +14,37 @@ import { SupportMockService, SupportTicket } from '../support.mock';
 export class OperatorChatComponent {
   @Input() ticket: SupportTicket | null = null;
   messageText: string = '';
+  isSending = false;
 
-  constructor(private supportService: SupportMockService) {}
+  constructor(private supportService: SupportApiService) {}
 
   sendMessage(): void {
-    if (!this.messageText.trim() || !this.ticket) return;
-    this.supportService.addMessage(this.ticket.id, this.messageText.trim());
-    this.messageText = '';
+    if (!this.messageText.trim() || !this.ticket || this.isSending) return;
+    this.isSending = true;
+    void this.supportService
+      .addMessage(this.ticket.id, this.messageText.trim())
+      .then(() => {
+        this.messageText = '';
+      })
+      .finally(() => {
+        this.isSending = false;
+      });
   }
 
   changeStatus(status: 'resolved' | 'closed'): void {
     if (!this.ticket) return;
-    
+
     const actionText = status === 'resolved' ? 'отметить как решенный' : 'закрыть';
     const confirmed = confirm(`Вы уверены, что хотите ${actionText} данный тикет?`);
-    
-    if (confirmed) {
-      this.supportService.updateTicketStatus(this.ticket.id, status);
+
+    if (!confirmed) return;
+
+    if (status === 'closed') {
+      const resolution = prompt('Укажите итоговое решение (необязательно):') ?? '';
+      void this.supportService.closeTicket(this.ticket.id, resolution);
+      return;
     }
+
+    void this.supportService.updateTicketStatus(this.ticket.id, status);
   }
 }

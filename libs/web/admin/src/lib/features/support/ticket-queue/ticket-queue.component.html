@@ -49,12 +49,6 @@
             (click)="takeToWork($event, ticket)">
             Взять
           </button>
-          <button 
-            class="btn-delete" 
-            (click)="deleteTicket($event, ticket.id)"
-            title="Удалить тикет">
-            🗑️
-          </button>
         </td>
       </tr>
       <tr *ngIf="filteredTickets.length === 0">
