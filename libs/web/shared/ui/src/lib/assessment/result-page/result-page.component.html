@@ -1,0 +1,104 @@
+<div class="assessment-result-page">
+  <div class="container">
+    <header class="page-header">
+      <h1>Результаты оценки</h1>
+      <p class="subtitle">Детальный отчёт об оценке вашего объекта недвижимости</p>
+    </header>
+
+    <lib-result-value-card [assessment]="assessment"></lib-result-value-card>
+
+    <lib-market-comparison [assessment]="assessment"></lib-market-comparison>
+
+    <!-- Детализация расчёта -->
+    <div class="calculation-details">
+      <button class="toggle-button" (click)="toggleCalculationDetails()">
+        {{ showCalculationDetails ? 'Скрыть' : 'Показать' }} детализацию расчёта
+      </button>
+
+      <div *ngIf="showCalculationDetails" class="calculation-table">
+        <h3>Детализация расчёта</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Фактор</th>
+              <th>Значение</th>
+              <th>Весовой коэффициент</th>
+              <th>Вклад</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let factor of calculationFactors">
+              <td>{{ factor.factor }}</td>
+              <td>{{ factor.value }}</td>
+              <td>{{ factor.weight * 100 }}%</td>
+              <td [class.positive]="factor.contribution > 0"
+                  [class.negative]="factor.contribution < 0">
+                {{ formatCurrency(factor.contribution) }}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="3"><strong>Итого:</strong></td>
+              <td><strong>{{ formatCurrency(assessment?.finalEstimatedValue || 0) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="calculation-disclaimer">
+          <small>⚠️ Детализация является приблизительной</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Блок отчётов -->
+    <div class="reports-section">
+      <h3>Отчёты</h3>
+      <div class="reports-list">
+        <div *ngFor="let report of reports" class="report-item">
+          <div class="report-info">
+            <div class="report-name">{{ report.name }}</div>
+            <div class="report-date">Создан: {{ formatDate(report.createdAt) }}</div>
+            <div class="report-status" [class.signed]="report.status === 'Signed'">
+              {{ report.status === 'Signed' ? 'Подписан' : 'Ожидает подписания нотариусом' }}
+            </div>
+          </div>
+          <div class="report-actions">
+            <button *ngIf="report.status === 'Signed'"
+                    class="btn-download"
+                    (click)="downloadReport(report)">
+              Скачать PDF
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-request-copy" (click)="requestOfficialCopy()">
+        Запросить официальную копию
+      </button>
+    </div>
+
+    <!-- Блок комментариев -->
+    <div class="comments-section">
+      <h3>Комментарии</h3>
+
+      <div class="comments-list">
+        <div *ngFor="let comment of comments" class="comment-item" [class.admin]="comment.isAdmin">
+          <div class="comment-header">
+            <strong>{{ comment.author }}</strong>
+            <span class="comment-date">{{ formatDateTime(comment.createdAt) }}</span>
+          </div>
+          <div class="comment-text">{{ comment.text }}</div>
+        </div>
+      </div>
+
+      <form [formGroup]="commentForm" (ngSubmit)="addComment()" class="comment-form">
+        <textarea
+          formControlName="text"
+          placeholder="Добавить комментарий..."
+          rows="3"
+        ></textarea>
+        <button type="submit" [disabled]="commentForm.invalid">Добавить</button>
+      </form>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,45 @@
+<div class="result-value-card">
+  <div class="card-header">
+    <h2>Итоговая рыночная стоимость</h2>
+  </div>
+
+  <div class="value-container">
+    <div class="final-value">
+      {{ formatCurrency(assessment?.finalEstimatedValue || 0) }}
+    </div>
+
+    <div class="value-range">
+      <span class="range-label">Диапазон стоимости:</span>
+      <span class="range-value">{{ getMinValue() }} – {{ getMaxValue() }}</span>
+    </div>
+
+    <div class="confidence-level">
+      <div class="confidence-header">
+        <span>Уровень уверенности</span>
+        <span class="confidence-percent">{{ confidence }}%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" [style.width.%]="confidence"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="property-details">
+    <div class="detail-item">
+      <span class="detail-label">Адрес:</span>
+      <span class="detail-value">{{ assessment?.address }}</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Тип объекта:</span>
+      <span class="detail-value">{{ assessment?.propertyType }}</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Площадь:</span>
+      <span class="detail-value">{{ assessment?.area }} кв. м</span>
+    </div>
+    <div class="detail-item">
+      <span class="detail-label">Дата оценки:</span>
+      <span class="detail-value">{{ formatDate(assessment?.assessmentDate) }}</span>
+    </div>
+  </div>
+</div>

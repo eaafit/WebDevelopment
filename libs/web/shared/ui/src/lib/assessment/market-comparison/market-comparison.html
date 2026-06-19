@@ -1,0 +1,40 @@
+<div class="market-comparison">
+  <h3>Сравнение с рынком</h3>
+
+  <div class="comparison-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Показатель</th>
+          <th>Ваш объект</th>
+          <th>Средний по рынку</th>
+          <th>Отклонение</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Цена за кв. м</td>
+          <td>{{ formatCurrency(pricePerSquareMeter) }}</td>
+          <td>{{ formatCurrency(marketData.averagePricePerSquareMeter) }}</td>
+          <td [class.positive]="pricePerSquareMeterDeviation > 0"
+              [class.negative]="pricePerSquareMeterDeviation < 0">
+            {{ formatDeviation(pricePerSquareMeterDeviation) }}
+          </td>
+        </tr>
+        <tr>
+          <td>Стоимость</td>
+          <td>{{ formatCurrency(assessment?.finalEstimatedValue || 0) }}</td>
+          <td>{{ formatCurrency(marketData.averageTotalPrice) }}</td>
+          <td [class.positive]="priceDeviation > 0"
+              [class.negative]="priceDeviation < 0">
+            {{ formatDeviation(priceDeviation) }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="disclaimer">
+    <small>⚠️ Данные рыночного анализа носят информационный характер</small>
+  </div>
+</div>

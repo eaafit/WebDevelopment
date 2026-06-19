@@ -1,0 +1,74 @@
+.market-comparison {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+.market-comparison h3 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.comparison-table {
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #666;
+}
+
+td {
+  color: #333;
+}
+
+.positive {
+  color: #28a745;
+}
+
+.positive::before {
+  content: '+';
+}
+
+.negative {
+  color: #dc3545;
+}
+
+.disclaimer {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  border-radius: 4px;
+}
+
+.disclaimer small {
+  color: #856404;
+}
+
+@media (max-width: 768px) {
+  .market-comparison {
+    padding: 16px;
+  }
+
+  th, td {
+    padding: 8px;
+    font-size: 14px;
+  }
+}

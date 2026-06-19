@@ -1,0 +1,289 @@
+.assessment-result-page {
+  background: #f8f9fa;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 32px;
+  color: #333;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 16px;
+}
+
+.calculation-details {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+.toggle-button {
+  width: 100%;
+  padding: 12px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+.toggle-button:hover {
+  background: #0056b3;
+}
+
+.calculation-table {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+.calculation-table h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+}
+
+.calculation-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.calculation-table th,
+.calculation-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.calculation-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #666;
+}
+
+.total-row {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+
+.calculation-disclaimer {
+  margin-top: 16px;
+  padding: 12px;
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  border-radius: 4px;
+}
+
+.positive {
+  color: #28a745;
+}
+
+.negative {
+  color: #dc3545;
+}
+
+.reports-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+.reports-section h3 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+}
+
+.reports-list {
+  margin-bottom: 20px;
+}
+
+.report-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.3s;
+}
+
+.report-item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.report-info {
+  flex: 1;
+}
+
+.report-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.report-date {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.report-status {
+  font-size: 12px;
+  color: #ffc107;
+}
+
+.report-status.signed {
+  color: #28a745;
+}
+
+.btn-download {
+  padding: 8px 16px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-download:hover {
+  background: #218838;
+}
+
+.btn-request-copy {
+  width: 100%;
+  padding: 12px;
+  background: #17a2b8;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.3s;
+}
+
+.btn-request-copy:hover {
+  background: #138496;
+}
+
+.comments-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.comments-section h3 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+}
+
+.comments-list {
+  margin-bottom: 24px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.comment-item {
+  padding: 12px;
+  border-left: 3px solid #007bff;
+  background: #f8f9fa;
+  margin-bottom: 12px;
+  border-radius: 4px;
+}
+
+.comment-item.admin {
+  border-left-color: #dc3545;
+  background: #fff5f5;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.comment-date {
+  font-size: 12px;
+  color: #666;
+}
+
+.comment-text {
+  color: #333;
+  line-height: 1.5;
+}
+
+.comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.comment-form textarea {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.comment-form textarea:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.comment-form button {
+  padding: 10px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.comment-form button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.comment-form button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .assessment-result-page {
+    padding: 16px;
+  }
+
+  .report-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .calculation-table th,
+  .calculation-table td {
+    padding: 8px;
+    font-size: 14px;
+  }
+}
