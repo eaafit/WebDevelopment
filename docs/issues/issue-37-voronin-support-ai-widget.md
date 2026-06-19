@@ -6,9 +6,9 @@ assignees: []
 
 ## Номер issue и конфликты
 
-Файл **`issue-35-voronin-support-ai-widget.md`** — отдельный номер, чтобы **не пересекаться** с:
+Файл **`issue-37-voronin-support-ai-widget.md`** — отдельный номер, чтобы **не пересекаться** с:
 
-- `issue-34-nibylitsin-tempo-tracing.md` (observability, Нибылицын);
+- `issue-34`–`issue-36` (observability, Нибылицын / Черненко);
 - `issue-11-vasorin-support-chat.md` (тикеты/SLA, Васорин);
 - `issue-21-govor-support-faq.md` (FAQ в чате, Говор).
 
@@ -186,7 +186,7 @@ libs/web/guest/src/lib/guest/guest.{ts,html}
 .env.example
 package.json
 tsconfig.base.json                               # @internal/support
-docs/issues/issue-35-voronin-support-ai-widget.md
+docs/issues/issue-37-voronin-support-ai-widget.md
 docs/issues/README.md                            # +строка в таблице
 ```
 
@@ -196,6 +196,6 @@ docs/issues/README.md                            # +строка в таблиц
 
 ## 11. Шпаргалка для защиты (1–2 мин)
 
-1. Оформил **issue-35** (без конфликта с issue-34 и чужими support-задачами).
+1. Оформил **issue-37** (без конфликта с issue-34–36 и чужими support-задачами).
 2. Сделал **виджет** в shared UI и встроил в **guest**.
 3. Добавил **protobuf + Nest support**, **GigaChat/OpenAI** на API, вызов с фронта через **Connect**, **env** в `.env.example`.

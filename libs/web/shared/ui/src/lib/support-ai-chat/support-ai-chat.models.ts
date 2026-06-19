@@ -1,16 +1,17 @@
-// Роль сообщения в ленте чата: пользователь или ассистент (ИИ / ошибка).
-export type SupportChatRole = 'user' | 'assistant';
+// Роль сообщения в ленте: пользователь, ИИ или оператор поддержки.
+export type SupportChatRole = 'user' | 'assistant' | 'support';
+
+// Режим виджета: диалог с ИИ или переписка с оператором по тикету в БД.
+export type SupportChatMode = 'ai' | 'operator';
 
 // Одно сообщение в transcript виджета.
 export interface SupportChatMessage {
-  // Уникальный id для track в @for (crypto.randomUUID или fallback).
   id: string;
-  // Кто отправил сообщение.
   role: SupportChatRole;
-  // Текст вопроса или ответа.
   text: string;
-  // ISO-время для возможной аналитики (MVP — только хранение в памяти).
   createdAt: string;
+  authorName?: string;
+  label?: string;
 }
 
 // Режим вёрстки: плавающий FAB или встроенная панель без кнопки.

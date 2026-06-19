@@ -10,6 +10,7 @@
   <!-- ИИ-чат техподдержки: доступен на главной и во всех разделах ЛК заявителя -->
   <lib-support-ai-chat-widget
     [useBackendAi]="true"
+    [operatorChatEnabled]="true"
     title="Техподдержка"
     subtitle="ИИ-помощник по заявкам, оценке и документам"
     (messageSubmit)="onSupportDraftSubmit($event)" />
