@@ -28,3 +28,7 @@ export * from './lib/assessment/upload-step/upload-step';
 export * from './lib/assessment/photo-item/photo-item';
 export * from './lib/assessment/history/assessment-history';
 export * from './lib/assessment/assessment-detail-modal';
+export * from './lib/assessment/result-page/result-page.component';
+export * from './lib/assessment/result-value-card/result-value-card';
+export * from './lib/assessment/market-comparison/market-comparison';
+export * from './lib/assessment/models/assessment.interface';

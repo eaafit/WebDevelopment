@@ -2,6 +2,7 @@ import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
 import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import { ResultPageComponent } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -52,13 +53,9 @@ export const applicantRoutes: Route[] = [
           import('./features/assessment-status/assessment-status').then((m) => m.AssessmentStatus),
       } as Route,
       {
-        path: 'assessment/results',
-        ...placeholder('Результаты оценки', [
-          'Итоговая стоимость',
-          'Отчёт PDF',
-          'Скачивание копий',
-        ]),
-      },
+      path: 'assessment/results',
+      component: ResultPageComponent,
+      } as Route,
       {
         path: 'assessment/history',
         component: AssessmentHistoryComponent,

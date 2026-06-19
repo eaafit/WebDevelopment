@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package notary.assessment.v1alpha1;
+
+service AssessmentResultService {   // ← поменяла название!
+  rpc GetAssessmentResult (GetAssessmentResultRequest) returns (GetAssessmentResultResponse);
+}
+
+message GetAssessmentResultRequest {
+  string id = 1;
+}
+
+message GetAssessmentResultResponse {
+  AssessmentResult result = 1;
+}
+
+message AssessmentResult {
+  string id = 1;
+  string assessment_id = 2;
+  double market_value = 3;
+  double value_min = 4;
+  double value_max = 5;
+  double confidence_level = 6;
+  string valuation_method = 7;
+  repeated string comparables = 8;
+  string valuation_date = 9;
+  string created_by = 10;
+}

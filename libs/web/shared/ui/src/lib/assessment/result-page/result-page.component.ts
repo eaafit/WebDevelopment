@@ -37,14 +37,13 @@ export class ResultPageComponent implements OnInit {
   }
 
   ngOnInit() {
-    this.assessmentId = this.route.snapshot.paramMap.get('id');
-    if (this.assessmentId) {
-      this.loadAssessment();
-      this.loadMockReports();
-      this.loadMockComments();
-      this.loadCalculationFactors();
-    }
-  }
+  this.assessmentId = this.route.snapshot.paramMap.get('id') || 'mock-123';
+
+  this.loadAssessment();
+  this.loadMockReports();
+  this.loadMockComments();
+  this.loadCalculationFactors();
+}
 
   loadAssessment() {
     // TODO: Replace with actual API call
