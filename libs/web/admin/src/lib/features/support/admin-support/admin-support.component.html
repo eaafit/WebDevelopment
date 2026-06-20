@@ -1,5 +1,7 @@
 <div class="admin-support">
   <header class="admin-support__header">
+    <p *ngIf="loadError" class="admin-support__error">{{ loadError }}</p>
+    <p *ngIf="isLoading" class="admin-support__loading">Загрузка тикетов...</p>
     <div class="sla-monitor">
       <div class="sla-monitor__card">
         <span class="sla-monitor__label">Открытых</span>

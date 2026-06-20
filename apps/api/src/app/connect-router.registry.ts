@@ -13,7 +13,8 @@ import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
 import { UserRpcService } from '@internal/user';
 import { OrderRpcService } from '@notary-portal/order';
-import { OrderService } from '@notary-portal/api-contracts';
+import { SupportRpcService } from '@notary-portal/support';
+import { OrderService, SupportService as SupportRpcContract } from '@notary-portal/api-contracts';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
@@ -43,6 +44,7 @@ export class ConnectRouterRegistry {
     private readonly reportRpcService: ReportRpcService,
     private readonly userRpcService: UserRpcService,
     private readonly orderRpcService: OrderRpcService,
+    private readonly supportRpcService: SupportRpcService,
   ) { }
 
   register(router: ConnectRouter): void {
@@ -161,6 +163,19 @@ export class ConnectRouterRegistry {
       getOrder: this.orderRpcService.getOrder.bind(this.orderRpcService),
       takeOrder: this.orderRpcService.takeOrder.bind(this.orderRpcService),
       getRecentOrderEvents: this.orderRpcService.getRecentOrderEvents.bind(this.orderRpcService),
+    });
+
+    // ─── Support ─────────────────────────────────────────────
+    router.service(SupportRpcContract, {
+      askSupportAi: this.supportRpcService.askSupportAi,
+      escalateToOperator: this.supportRpcService.escalateToOperator,
+      createTicket: this.supportRpcService.createTicket,
+      getTicket: this.supportRpcService.getTicket,
+      listTickets: this.supportRpcService.listTickets,
+      addMessage: this.supportRpcService.addMessage,
+      listMessages: this.supportRpcService.listMessages,
+      updateTicketStatus: this.supportRpcService.updateTicketStatus,
+      closeTicket: this.supportRpcService.closeTicket,
     });
   }
 }

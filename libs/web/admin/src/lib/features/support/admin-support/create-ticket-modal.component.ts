@@ -1,7 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SlaPriority, UserRole } from '../support.mock';
+import { SlaPriority } from '../support.types';
 
 @Component({
   selector: 'lib-create-ticket-modal',
@@ -196,7 +196,7 @@ export class CreateTicketModalComponent {
   ticketData = {
     subject: '',
     userEmail: '',
-    userRole: 'user' as UserRole,
+    userRole: 'user' as const,
     slaPriority: 'medium' as SlaPriority,
     description: ''
   };
@@ -209,20 +209,11 @@ export class CreateTicketModalComponent {
   onCreate(): void {
     if (!this.isValid()) return;
 
-    const messages = this.ticketData.description ? [{
-      id: Math.random().toString(),
-      authorName: this.ticketData.userEmail.split('@')[0],
-      authorRole: 'user' as const,
-      text: this.ticketData.description,
-      createdAt: new Date()
-    }] : [];
-
     this.create.emit({
       subject: this.ticketData.subject,
       userEmail: this.ticketData.userEmail,
-      userRole: this.ticketData.userRole,
       slaPriority: this.ticketData.slaPriority,
-      messages: messages
+      description: this.ticketData.description,
     });
     
     this.resetForm();

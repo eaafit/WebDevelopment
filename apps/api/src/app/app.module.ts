@@ -17,6 +17,7 @@ import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 import { OrderModule } from '@notary-portal/order';
+import { SupportModule } from '@notary-portal/support';
 // import { OrderController } from './order.controller';
 
 @Module({
@@ -36,6 +37,7 @@ import { OrderModule } from '@notary-portal/order';
     ReportModule,
     UserModule,
     OrderModule,
+    SupportModule,
     // OrderController,
   ],
   controllers: [PaymentAttachmentController],

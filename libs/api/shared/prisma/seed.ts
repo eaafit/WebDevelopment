@@ -24,6 +24,9 @@ import {
   Role,
   SaleType,
   SubscriptionPlan,
+  TicketMessageRole,
+  TicketPriority,
+  TicketStatus,
 } from './generated/prisma/client';
 import { RUSSIA_TOP_50_GEOGRAPHY } from './data/russia-top50-geography';
 
@@ -184,6 +187,7 @@ async function main(): Promise<void> {
   await upsertAuditLogs(SEED_COUNT, userIds, assessmentIds, paymentRefs, promoIds);
   await upsertSecurityEvents(userIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
+  await upsertSupportTickets(userIds);
 
   const [
     userCount,
@@ -201,6 +205,7 @@ async function main(): Promise<void> {
     newsletterCampaignCount,
     cityCount,
     districtCount,
+    ticketCount,
   ] = await prisma.$transaction([
     prisma.user.count(),
     prisma.assessment.count(),
@@ -217,6 +222,7 @@ async function main(): Promise<void> {
     prisma.newsletterCampaign.count(),
     prisma.city.count(),
     prisma.district.count(),
+    prisma.ticket.count(),
   ]);
 
   console.info(
@@ -237,6 +243,7 @@ async function main(): Promise<void> {
       `NewsletterCampaigns: ${newsletterCampaignCount}`,
       `Cities: ${cityCount}`,
       `Districts: ${districtCount}`,
+      `SupportTickets: ${ticketCount}`,
       `Seed auth password: ${SEED_USER_PASSWORD}`,
       ...buildSeedCredentialHints(TOTAL_SEED_USERS),
     ].join(' '),
@@ -535,6 +542,85 @@ function buildSeedCredentialHints(count: number): string[] {
 
 function seedUserEmail(index: number): string {
   return `seed-user-${pad(index, 3)}@seed.local`;
+}
+
+async function upsertSupportTickets(userIds: string[]): Promise<void> {
+  const applicantId = userIds[0];
+  const secondApplicantId = userIds[1] ?? applicantId;
+  if (!applicantId) return;
+
+  const now = Date.now();
+  const ticketSeeds = [
+    {
+      id: seedId('support-ticket', 0),
+      subject: 'Не проходит оплата картой МИР',
+      authorId: applicantId,
+      priority: TicketPriority.Urgent,
+      status: TicketStatus.Open,
+      slaDeadline: new Date(now - 2 * 3600000),
+      createdAt: new Date(now - 4 * 3600000),
+      message: {
+        text: 'Здравствуйте! Пытаюсь оплатить подписку, выдает ошибку 500.',
+        role: TicketMessageRole.User,
+      },
+    },
+    {
+      id: seedId('support-ticket', 1),
+      subject: 'Ошибка при рендере графиков',
+      authorId: secondApplicantId,
+      priority: TicketPriority.High,
+      status: TicketStatus.InProgress,
+      slaDeadline: new Date(now + 1.5 * 3600000),
+      createdAt: new Date(now - 1.5 * 3600000),
+      message: {
+        text: 'В личном кабинете не отображаются графики за прошлую неделю.',
+        role: TicketMessageRole.User,
+      },
+    },
+  ];
+
+  for (const seed of ticketSeeds) {
+    await prisma.ticket.upsert({
+      where: { id: seed.id },
+      update: {
+        subject: seed.subject,
+        authorId: seed.authorId,
+        priority: seed.priority,
+        status: seed.status,
+        slaDeadline: seed.slaDeadline,
+        createdAt: seed.createdAt,
+      },
+      create: {
+        id: seed.id,
+        subject: seed.subject,
+        authorId: seed.authorId,
+        priority: seed.priority,
+        status: seed.status,
+        slaDeadline: seed.slaDeadline,
+        createdAt: seed.createdAt,
+      },
+    });
+
+    const messageId = seedId(`support-message-${seed.id}`, 0);
+    await prisma.ticketMessage.upsert({
+      where: { id: messageId },
+      update: {
+        ticketId: seed.id,
+        authorId: seed.authorId,
+        role: seed.message.role,
+        text: seed.message.text,
+        createdAt: seed.createdAt,
+      },
+      create: {
+        id: messageId,
+        ticketId: seed.id,
+        authorId: seed.authorId,
+        role: seed.message.role,
+        text: seed.message.text,
+        createdAt: seed.createdAt,
+      },
+    });
+  }
 }
 
 async function upsertPromos(count: number): Promise<string[]> {

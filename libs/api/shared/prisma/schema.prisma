@@ -241,6 +241,32 @@ enum ElevatorType {
   @@map("elevator_type")
 }
 
+enum TicketStatus {
+  Open        @map("open")
+  InProgress  @map("in_progress")
+  Resolved    @map("resolved")
+  Closed      @map("closed")
+
+  @@map("ticket_status")
+}
+
+enum TicketPriority {
+  Low    @map("low")
+  Medium @map("medium")
+  High   @map("high")
+  Urgent @map("urgent")
+
+  @@map("ticket_priority")
+}
+
+enum TicketMessageRole {
+  User    @map("user")
+  Ai      @map("ai")
+  Support @map("support")
+
+  @@map("ticket_message_role")
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -276,6 +302,9 @@ model User {
   contactVerification    ContactVerification?
   applicantLeads         Lead[] @relation("ApplicantLeads")
   executorLeads          Lead[] @relation("ExecutorLeads")
+  supportTickets         Ticket[] @relation("TicketAuthor")
+  assignedTickets        Ticket[] @relation("TicketAssignee")
+  ticketMessages         TicketMessage[] @relation("TicketMessageAuthor")
 
   @@map("users")
 }
@@ -737,4 +766,44 @@ model Lead {
   @@index([executorId])
   @@index([assessmentId])
   @@map("leads")
+}
+
+model Ticket {
+  id          String         @id @default(uuid()) @db.Uuid
+  subject     String         @db.VarChar
+  status      TicketStatus   @default(Open)
+  priority    TicketPriority @default(Medium)
+  authorId    String         @map("author_id") @db.Uuid
+  assigneeId  String?        @map("assignee_id") @db.Uuid
+  slaDeadline DateTime       @map("sla_deadline") @db.Timestamp()
+  resolvedAt  DateTime?      @map("resolved_at") @db.Timestamp()
+  resolution  String?        @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamp()
+
+  author   User            @relation("TicketAuthor", fields: [authorId], references: [id])
+  assignee User?           @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  messages TicketMessage[]
+
+  @@map("tickets")
+  @@index([authorId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([slaDeadline])
+}
+
+model TicketMessage {
+  id            String            @id @default(uuid()) @db.Uuid
+  ticketId      String            @map("ticket_id") @db.Uuid
+  authorId      String            @map("author_id") @db.Uuid
+  role          TicketMessageRole @default(User)
+  text          String            @db.Text
+  attachmentIds String[]          @default([]) @map("attachment_ids")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp()
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation("TicketMessageAuthor", fields: [authorId], references: [id])
+
+  @@map("ticket_messages")
+  @@index([ticketId])
 }
