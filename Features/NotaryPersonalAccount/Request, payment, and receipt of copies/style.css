@@ -1,0 +1,147 @@
+/* Переменные проекта */
+:root {
+    --primary: #2c3e50;
+    --accent: #d4af37;
+    --blue: #3498db;
+    --success: #27ae60;
+    --bg: #f8f9fa;
+    --white: #ffffff;
+    --shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+/* Общие стили */
+* { box-sizing: border-box; font-family: 'Inter', sans-serif; }
+body { background: var(--bg); color: var(--primary); margin: 0; }
+
+/* Навигация */
+nav { 
+    background: var(--primary); 
+    color: white; 
+    padding: 1rem 2rem; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    position: sticky; 
+    top: 0; 
+    z-index: 100; 
+}
+.logo { font-weight: bold; letter-spacing: 1px; }
+
+/* Переключатель ролей */
+.role-switcher { background: rgba(255,255,255,0.1); padding: 5px; border-radius: 20px; display: flex; }
+.role-btn { 
+    border: none; background: transparent; color: white; 
+    padding: 5px 15px; border-radius: 15px; cursor: pointer; 
+    transition: 0.3s; font-size: 0.85rem; 
+}
+.role-btn.active { background: var(--accent); color: var(--primary); font-weight: bold; }
+
+/* Контейнер и секции */
+.container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+.app-section { display: none; animation: fadeIn 0.4s ease; }
+.app-section.active { display: block; }
+
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
+/* Карточки */
+.card { 
+    background: var(--white); border-radius: 12px; 
+    box-shadow: var(--shadow); padding: 1.5rem; 
+    margin-bottom: 1.5rem; border-top: 4px solid var(--accent); 
+}
+h2 { margin-top: 0; font-size: 1.1rem; border-bottom: 1px solid #eee; padding-bottom: 10px; text-transform: uppercase; }
+
+/* Сетка форм */
+.grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.full-width { grid-column: span 2; }
+
+label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #666; }
+input, select, textarea { 
+    width: 100%; padding: 12px; border: 1px solid #ddd; 
+    border-radius: 8px; font-size: 1rem; transition: border 0.3s;
+}
+input:focus { border-color: var(--blue); outline: none; }
+
+/* Файлы */
+.dropzone { 
+    border: 2px dashed #cbd5e0; padding: 1.5rem; 
+    text-align: center; border-radius: 8px; cursor: pointer; 
+    background: #fafafa; 
+}
+.file-list { margin-top: 10px; font-size: 0.8rem; color: var(--blue); }
+
+/* Кнопки и статусы */
+.btn { 
+    padding: 10px 20px; border: none; border-radius: 8px; 
+    cursor: pointer; font-weight: bold; transition: 0.3s; 
+}
+.btn-primary { background: var(--primary); color: white; width: 100%; }
+.btn-accent { background: var(--accent); color: var(--primary); font-size: 0.8rem; }
+.btn-disabled { background: #eee; color: #aaa; cursor: not-allowed; }
+
+.price-box { 
+    background: #f1f5f9; padding: 1rem; border-radius: 8px; 
+    margin: 1.5rem 0; display: flex; justify-content: space-between; align-items: center; 
+}
+.price-value { font-size: 1.4rem; font-weight: 800; }
+
+.request-item { 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 1rem 0; border-bottom: 1px solid #edf2f7; 
+}
+.status-badge { padding: 4px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+.status-new { background: #ebf8ff; color: #2b6cb0; }
+.status-pay { background: #fffaf0; color: #9c4221; }
+.status-ready { background: #f0fff4; color: #276749; }
+
+/* Мобильная адаптация */
+@media (max-width: 768px) {
+    .grid-form { grid-template-columns: 1fr; }
+    .full-width { grid-column: span 1; }
+    nav { flex-direction: column; gap: 15px; text-align: center; }
+    .request-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+}
+
+.btn-success {
+    background: #27ae60;
+    color: white;
+}
+
+.status-ready {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #2e7d32;
+}
+
+/* Стили для ссылок-переключателей в навигации */
+.role-link {
+    display: inline-block;
+    text-decoration: none;
+    color: #ffffff !important; /* Принудительно белый цвет */
+    background: rgba(255, 255, 255, 0.15); /* Полупрозрачный фон */
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Эффект при наведении */
+.role-link:hover {
+    background: var(--accent); /* Тот самый золотистый цвет */
+    color: var(--primary) !important; /* Текст становится темным для контраста */
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Эффект при нажатии */
+.role-link:active {
+    transform: translateY(0);
+}
