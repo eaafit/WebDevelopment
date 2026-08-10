@@ -1,0 +1,127 @@
+<div class="landing">
+  <header class="header">
+    <a class="brand" href="#" aria-label="Главная">EstateValue</a>
+    <button class="menu-toggle" type="button" (click)="toggleMobileMenu()" aria-label="Открыть меню">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <nav class="nav" [class.nav_open]="isMobileMenuOpen">
+      <a href="#benefits">Преимущества</a>
+      <a href="#how-it-works">Как это работает</a>
+      <a href="#pricing">Тарифы</a>
+      <a href="#faq">FAQ</a>
+      <a class="button button_secondary" href="#lead-form">Оставить заявку</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero__content">
+        <p class="hero__badge">Роль: Гость</p>
+        <h1>Оценка наследственного имущества онлайн</h1>
+        <p class="hero__description">
+          Продающая landing page с быстрым стартом: оставьте заявку, получите консультацию и начните оценку в удобном
+          формате.
+        </p>
+        <div class="hero__actions">
+          <a class="button" href="#lead-form">Начать сейчас</a>
+          <a class="button button_secondary" href="#pricing">Смотреть тарифы</a>
+        </div>
+      </div>
+      <aside class="hero__card" aria-label="Ключевые показатели">
+        <p class="hero__card-title">Почему выбирают нас</p>
+        <ul>
+          <li>95% заявок обрабатываем в день обращения</li>
+          <li>Отчеты принимаются нотариусами по стандарту</li>
+          <li>Онлайн-статусы после регистрации</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section id="benefits" class="section">
+      <h2>Преимущества сервиса</h2>
+      <div class="grid grid_3">
+        @for (benefit of benefits; track benefit.title) {
+        <article class="card">
+          <h3>{{ benefit.title }}</h3>
+          <p>{{ benefit.description }}</p>
+        </article>
+        }
+      </div>
+    </section>
+
+    <section id="how-it-works" class="section section_muted">
+      <h2>Сценарий использования для гостя</h2>
+      <div class="steps">
+        @for (step of steps; track step.title; let idx = $index) {
+        <article class="step">
+          <span class="step__index">0{{ idx + 1 }}</span>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.description }}</p>
+        </article>
+        }
+      </div>
+    </section>
+
+    <section id="pricing" class="section">
+      <div class="section__head">
+        <h2>Тарифы</h2>
+        <p>Выбранный тариф: <strong>{{ selectedPlanTitle }}</strong></p>
+      </div>
+      <div class="grid grid_3">
+        @for (plan of plans; track plan.title) {
+        <article class="card card_pricing" [class.card_active]="selectedPlanTitle === plan.title">
+          <h3>{{ plan.title }}</h3>
+          <p class="price">{{ plan.price }} ₽</p>
+          <p class="period">{{ plan.period }}</p>
+          <ul>
+            @for (feature of plan.features; track feature) {
+            <li>{{ feature }}</li>
+            }
+          </ul>
+          <button class="button" type="button" (click)="selectPlan(plan.title)">{{ plan.cta }}</button>
+        </article>
+        }
+      </div>
+    </section>
+
+    <section id="lead-form" class="section section_muted">
+      <h2>Оставьте заявку</h2>
+      <p>JS-интерактив: форма отправляется как stub, чтобы подготовить место под API-интеграцию.</p>
+      <form class="lead-form" #leadFormRef>
+        <label>
+          Имя
+          <input #nameInput type="text" name="name" placeholder="Ваше имя" />
+        </label>
+        <label>
+          Телефон
+          <input #phoneInput type="tel" name="phone" placeholder="+7 (___) ___-__-__" />
+        </label>
+        <button class="button" type="button" (click)="submitLead(nameInput.value, phoneInput.value)">
+          Отправить заявку
+        </button>
+      </form>
+      @if (leadStatus) {
+      <p class="status" role="status">{{ leadStatus }}</p>
+      }
+    </section>
+
+    <section id="faq" class="section">
+      <h2>FAQ</h2>
+      <div class="faq">
+        @for (item of faq; track item.question; let idx = $index) {
+        <article class="faq__item">
+          <button class="faq__question" type="button" (click)="toggleFaq(idx)">
+            <span>{{ item.question }}</span>
+            <span>{{ isFaqOpen(idx) ? '−' : '+' }}</span>
+          </button>
+          @if (isFaqOpen(idx)) {
+          <p class="faq__answer">{{ item.answer }}</p>
+          }
+        </article>
+        }
+      </div>
+    </section>
+  </main>
+</div>
