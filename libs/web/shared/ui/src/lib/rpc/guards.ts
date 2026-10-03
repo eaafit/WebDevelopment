@@ -5,7 +5,7 @@ import { UserRole } from './token-store';
 
 // ─── Guard: только аутентификация (любая роль) ───────────────────────────────
 
-export const authGuard: CanActivateFn = (_route, _state) => {
+export const authGuard: CanActivateFn = () => {
   const tokenStore = inject(TokenStore);
   const router     = inject(Router);
 
@@ -16,7 +16,7 @@ export const authGuard: CanActivateFn = (_route, _state) => {
 // ─── Guard factory: конкретные роли ──────────────────────────────────────────
 
 export function roleGuard(...allowedRoles: UserRole[]): CanActivateFn {
-  return (_route, _state) => {
+  return () => {
     const tokenStore = inject(TokenStore);
     const router     = inject(Router);
 

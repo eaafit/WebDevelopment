@@ -6,7 +6,13 @@
   "tags": ["scope:backend"],
   "targets": {
     "test": {
-      "dependsOn": ["prisma:generate"]
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "dependsOn": ["^generate-proto", "prisma:generate"],
+      "options": {
+        "jestConfig": "libs/api/assessment/jest.config.cts",
+        "tsConfig": "libs/api/assessment/tsconfig.spec.json"
+      }
     }
   }
 }

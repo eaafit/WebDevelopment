@@ -27,6 +27,12 @@ export class DocumentFileUrlService {
     return this.buildSignedUrl(documentId, 'download');
   }
 
+  // Ссылка на готовую копию (скан-результат нотариуса). variant=result — подвыборка
+  // уже авторизованного подписью документа, поэтому в подпись не входит.
+  buildResultDownloadUrl(documentId: string): string {
+    return `${this.buildSignedUrl(documentId, 'download')}&variant=result`;
+  }
+
   validateAccess(params: DocumentFileAccessParams): DocumentFileAccessGrant | null {
     const mode = normalizeMode(params.mode);
     const expiresAtEpochSec = Number(params.expires);

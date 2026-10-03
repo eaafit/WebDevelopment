@@ -2,19 +2,28 @@ import { type ConnectRouter } from '@connectrpc/connect';
 import { Injectable } from '@nestjs/common';
 
 // RPC-сервисы
+import { AuditRpcService } from '@internal/audit';
 import { AuthRpcService } from '@internal/auth';
 import { AssessmentRpcService } from '@internal/assessment';
+import { BitrixRpcService } from '@internal/bitrix';
 import { PaymentRpcService } from '@internal/billing';
 import { DocumentRpcService } from '@internal/document';
+import { NewsletterRpcService } from '@internal/newsletter';
 import { NotificationRpcService } from '@internal/notification';
 import { ReportRpcService } from '@internal/report';
 import { UserRpcService } from '@internal/user';
+import { OrderRpcService } from '@notary-portal/order';
+import { SupportRpcService } from '@notary-portal/support';
+import { OrderService, SupportService as SupportRpcContract } from '@notary-portal/api-contracts';
 
 // gRPC-контракты (сгенерированные сервисы)
 import {
+  AuditService,
   AuthService,
   AssessmentService,
+  BitrixService,
   DocumentService,
+  NewsletterService,
   NotificationService,
   PaymentService,
   ReportService,
@@ -24,16 +33,27 @@ import {
 @Injectable()
 export class ConnectRouterRegistry {
   constructor(
+    private readonly auditRpcService: AuditRpcService,
     private readonly authRpcService: AuthRpcService,
     private readonly assessmentRpcService: AssessmentRpcService,
+    private readonly bitrixRpcService: BitrixRpcService,
     private readonly paymentRpcService: PaymentRpcService,
     private readonly documentRpcService: DocumentRpcService,
+    private readonly newsletterRpcService: NewsletterRpcService,
     private readonly notificationRpcService: NotificationRpcService,
     private readonly reportRpcService: ReportRpcService,
     private readonly userRpcService: UserRpcService,
-  ) {}
+    private readonly orderRpcService: OrderRpcService,
+    private readonly supportRpcService: SupportRpcService,
+  ) { }
 
   register(router: ConnectRouter): void {
+    // ─── Audit ───────────────────────────────────────────────
+    router.service(AuditService, {
+      listAuditEvents: this.auditRpcService.listAuditEvents,
+      exportAuditEvents: this.auditRpcService.exportAuditEvents,
+    });
+
     // ─── Auth ────────────────────────────────────────────────
     router.service(AuthService, {
       register: this.authRpcService.register,
@@ -42,6 +62,10 @@ export class ConnectRouterRegistry {
       logout: this.authRpcService.logout,
       forgotPassword: this.authRpcService.forgotPassword,
       resetPassword: this.authRpcService.resetPassword,
+      getOAuthAuthorizeUrl: this.authRpcService.getOAuthAuthorizeUrl,
+      oAuthLogin: this.authRpcService.oAuthLogin,
+      confirmContact: this.authRpcService.confirmContact,
+      resendContactCode: this.authRpcService.resendContactCode,
     });
 
     // ─── User ────────────────────────────────────────────────
@@ -60,6 +84,13 @@ export class ConnectRouterRegistry {
       listAssessments: this.assessmentRpcService.listAssessments,
       listCities: this.assessmentRpcService.listCities,
       listDistricts: this.assessmentRpcService.listDistricts,
+      getFiasAddressHints: this.assessmentRpcService.getFiasAddressHints,
+      searchFiasAddressItems: this.assessmentRpcService.searchFiasAddressItems,
+      getFiasAddressItemById: this.assessmentRpcService.getFiasAddressItemById,
+      getFiasAddressItemByGuid: this.assessmentRpcService.getFiasAddressItemByGuid,
+      getFiasAddressDetails: this.assessmentRpcService.getFiasAddressDetails,
+      searchFiasAddressByParts: this.assessmentRpcService.searchFiasAddressByParts,
+      logApplicantAssessmentAction: this.assessmentRpcService.logApplicantAssessmentAction,
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,
@@ -71,6 +102,8 @@ export class ConnectRouterRegistry {
       getDocument: this.documentRpcService.getDocument,
       listDocumentsByAssessment: this.documentRpcService.listDocumentsByAssessment,
       deleteDocument: this.documentRpcService.deleteDocument,
+      updateDocumentStatus: this.documentRpcService.updateDocumentStatus,
+      uploadCopyResult: this.documentRpcService.uploadCopyResult,
     });
 
     // ─── Notification ────────────────────────────────────────
@@ -79,6 +112,18 @@ export class ConnectRouterRegistry {
       markAsRead: this.notificationRpcService.markAsRead,
       markAllAsRead: this.notificationRpcService.markAllAsRead,
       deleteNotification: this.notificationRpcService.deleteNotification,
+      getNotificationSettings: this.notificationRpcService.getNotificationSettings,
+      updateNotificationSettings: this.notificationRpcService.updateNotificationSettings,
+    });
+
+    // ─── Newsletter ────────────────────────────────────────
+    router.service(NewsletterService, {
+      listNewsletterSubscribers: this.newsletterRpcService.listNewsletterSubscribers,
+      estimateNewsletterAudience: this.newsletterRpcService.estimateNewsletterAudience,
+      sendNewsletterCampaign: this.newsletterRpcService.sendNewsletterCampaign,
+      listNewsletterCampaigns: this.newsletterRpcService.listNewsletterCampaigns,
+      getNewsletterCampaign: this.newsletterRpcService.getNewsletterCampaign,
+      repeatNewsletterCampaign: this.newsletterRpcService.repeatNewsletterCampaign,
     });
 
     // ─── Report ──────────────────────────────────────────────
@@ -93,11 +138,44 @@ export class ConnectRouterRegistry {
     // ─── Payment ─────────────────────────────────────────────
     router.service(PaymentService, {
       createPayment: this.paymentRpcService.createPayment,
+      updatePayment: this.paymentRpcService.updatePayment,
+      deletePayment: this.paymentRpcService.deletePayment,
       validateSubscriptionPromo: this.paymentRpcService.validateSubscriptionPromo,
       processWebhook: this.paymentRpcService.processWebhook,
       getPaymentHistory: this.paymentRpcService.getPaymentHistory,
       getSubscription: this.paymentRpcService.getSubscription,
       createSubscription: this.paymentRpcService.createSubscription,
+    });
+
+    // ─── Bitrix ──────────────────────────────────────────────
+    router.service(BitrixService, {
+      getBitrixConfig: this.bitrixRpcService.getBitrixConfig,
+      updateBitrixConfig: this.bitrixRpcService.updateBitrixConfig,
+      testBitrixConnection: this.bitrixRpcService.testBitrixConnection,
+      syncUsersWithBitrix: this.bitrixRpcService.syncUsersWithBitrix,
+      getSyncStatus: this.bitrixRpcService.getSyncStatus,
+      getSyncLogs: this.bitrixRpcService.getSyncLogs,
+    });
+
+    // ─── Order ────────────────────────────────────────────────
+    router.service(OrderService, {
+      listOrders: this.orderRpcService.listOrders.bind(this.orderRpcService),
+      getOrder: this.orderRpcService.getOrder.bind(this.orderRpcService),
+      takeOrder: this.orderRpcService.takeOrder.bind(this.orderRpcService),
+      getRecentOrderEvents: this.orderRpcService.getRecentOrderEvents.bind(this.orderRpcService),
+    });
+
+    // ─── Support ─────────────────────────────────────────────
+    router.service(SupportRpcContract, {
+      askSupportAi: this.supportRpcService.askSupportAi,
+      escalateToOperator: this.supportRpcService.escalateToOperator,
+      createTicket: this.supportRpcService.createTicket,
+      getTicket: this.supportRpcService.getTicket,
+      listTickets: this.supportRpcService.listTickets,
+      addMessage: this.supportRpcService.addMessage,
+      listMessages: this.supportRpcService.listMessages,
+      updateTicketStatus: this.supportRpcService.updateTicketStatus,
+      closeTicket: this.supportRpcService.closeTicket,
     });
   }
 }

@@ -512,6 +512,18 @@ export class RequestPrice implements OnInit {
     this.showEditErrors.set(true);
     if (this.editForm.invalid) return;
     const v = this.editForm.getRawValue();
+    const { address, city, area, objectType, floorsTotal, condition } = v;
+    if (
+      !address ||
+      !city ||
+      area == null ||
+      !objectType ||
+      floorsTotal == null ||
+      !condition
+    ) {
+      return;
+    }
+    const reCondition = condition as RealEstateObject['condition'];
     const now = new Date().toISOString();
     this.isSaving.set(true);
     setTimeout(() => {
@@ -521,21 +533,21 @@ export class RequestPrice implements OnInit {
           assessment: {
             ...item.assessment,
             status: v.status as AssessmentStatus,
-            address: v.address!,
+            address,
             description: v.description || undefined,
             estimatedValue: v.estimatedValue ?? undefined,
             updatedAt: now,
           },
           realEstate: {
             ...item.realEstate,
-            city: v.city!,
+            city,
             district: v.district || undefined,
-            area: v.area!,
-            objectType: v.objectType as ObjectType,
+            area,
+            objectType: objectType as ObjectType,
             roomsCount: v.roomsCount ?? undefined,
-            floorsTotal: v.floorsTotal!,
+            floorsTotal,
             floor: v.floor ?? undefined,
-            condition: v.condition as any,
+            condition: reCondition,
             yearBuilt: v.yearBuilt ?? undefined,
             wallMaterial: v.wallMaterial || undefined,
             elevatorType: v.elevatorType || undefined,
@@ -550,7 +562,7 @@ export class RequestPrice implements OnInit {
           assessment: {
             id,
             status: v.status as AssessmentStatus,
-            address: v.address!,
+            address,
             description: v.description || undefined,
             estimatedValue: v.estimatedValue ?? undefined,
             createdAt: now,
@@ -558,15 +570,15 @@ export class RequestPrice implements OnInit {
           },
           realEstate: {
             id: `re-${id}`,
-            city: v.city!,
+            city,
             district: v.district || undefined,
-            address: v.address!,
-            area: v.area!,
-            objectType: v.objectType as ObjectType,
+            address,
+            area,
+            objectType: objectType as ObjectType,
             roomsCount: v.roomsCount ?? undefined,
-            floorsTotal: v.floorsTotal!,
+            floorsTotal,
             floor: v.floor ?? undefined,
-            condition: v.condition as any,
+            condition: reCondition,
             yearBuilt: v.yearBuilt ?? undefined,
             wallMaterial: v.wallMaterial || undefined,
             elevatorType: v.elevatorType || undefined,

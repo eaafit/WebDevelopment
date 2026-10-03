@@ -9,6 +9,7 @@
   border-radius: var(--radius-sm);
 
   font-size: 0.92rem;
+  text-align: center;
 }
 
 .form-banner-error {
@@ -151,6 +152,53 @@
   margin: 0;
   font-size: 0.8rem;
   color: var(--failed-text);
+}
+
+.address-suggestion-list {
+  overflow: hidden;
+  display: grid;
+  gap: 0;
+
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+
+  list-style: none;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.address-suggestion-item + .address-suggestion-item {
+  border-top: 1px solid var(--border);
+}
+
+.address-suggestion-button {
+  cursor: pointer;
+
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.8rem;
+  border: 0;
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: var(--text-main);
+  text-align: left;
+
+  background: transparent;
+
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+.address-suggestion-button:hover,
+.address-suggestion-button:focus-visible {
+  outline: none;
+  color: var(--primary-hover);
+  background: var(--bg-secondary);
 }
 
 .form-section-error {

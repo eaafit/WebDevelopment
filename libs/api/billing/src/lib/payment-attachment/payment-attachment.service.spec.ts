@@ -6,7 +6,26 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { runInSpan, setSpanAttributes } from '@internal/tracing';
 import { PaymentAttachmentService } from './payment-attachment.service';
+
+jest.mock('@internal/tracing', () => {
+  const actual = jest.requireActual<typeof import('@internal/tracing')>('@internal/tracing');
+  const span = {
+    end: jest.fn(),
+    recordException: jest.fn(),
+    setAttribute: jest.fn(),
+    setStatus: jest.fn(),
+  };
+
+  return {
+    ...actual,
+    runInSpan: jest.fn((_spanName: string, _attributes: unknown, action: (span: unknown) => unknown) =>
+      action(span),
+    ),
+    setSpanAttributes: jest.fn(),
+  };
+});
 
 function pdfFile(buffer: Buffer, name = 'doc.pdf'): Express.Multer.File {
   return {
@@ -28,6 +47,9 @@ describe('PaymentAttachmentService', () => {
   const update = jest.fn();
   const putObject = jest.fn();
   const getObject = jest.fn();
+  const auditService = {
+    record: jest.fn(),
+  };
 
   const prisma = {
     payment: {
@@ -47,11 +69,18 @@ describe('PaymentAttachmentService', () => {
     update.mockReset();
     putObject.mockReset();
     getObject.mockReset();
+    auditService.record.mockReset();
+    jest.mocked(runInSpan).mockClear();
+    jest.mocked(setSpanAttributes).mockClear();
   });
+
+  function createService(): PaymentAttachmentService {
+    return new PaymentAttachmentService(prisma as never, s3 as never, auditService as never);
+  }
 
   it('throws NotFoundException when payment is missing', async () => {
     findUnique.mockResolvedValue(null);
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('%PDF-1.4\n'));
 
     await expect(
@@ -67,7 +96,7 @@ describe('PaymentAttachmentService', () => {
 
   it('throws ForbiddenException when user is not owner and not admin', async () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'other-user' });
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('%PDF-1.4\n'));
 
     await expect(
@@ -85,7 +114,7 @@ describe('PaymentAttachmentService', () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'other-user' });
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const body = Buffer.from('%PDF-1.4\n');
     const file = pdfFile(body);
 
@@ -107,11 +136,25 @@ describe('PaymentAttachmentService', () => {
         receiptStatus: PaymentReceiptStatus.Available,
       },
     });
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'admin-id',
+        eventType: 'payment.receipt.attached',
+        targetType: 'Payment',
+        targetId: 'p1',
+        after: expect.objectContaining({
+          paymentId: 'p1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          attachmentFileName: 'doc.pdf',
+          hasAttachment: true,
+        }),
+      }),
+    );
   });
 
   it('rejects non-PDF payload', async () => {
     findUnique.mockResolvedValue({ id: 'p1', userId: 'u1' });
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const file = pdfFile(Buffer.from('not pdf'));
 
     await expect(
@@ -122,6 +165,38 @@ describe('PaymentAttachmentService', () => {
         file,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(putObject).not.toHaveBeenCalled();
+  });
+
+  it('uses safe content type and size bucket span attributes for rejected receipt uploads', async () => {
+    findUnique.mockResolvedValue({ id: 'p1', userId: 'u1' });
+    const service = createService();
+    const file = {
+      ...pdfFile(Buffer.from('%PDF-1.4\n')),
+      mimetype: 'application/x-private; token=secret-token',
+      size: 2048,
+    };
+
+    await expect(
+      service.attachPdf({
+        paymentId: 'p1',
+        userId: 'u1',
+        role: UserRole.APPLICANT.toString(),
+        file,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const spanAttributes = [
+      ...jest.mocked(runInSpan).mock.calls.map((call) => call[1]),
+      ...jest.mocked(setSpanAttributes).mock.calls.map((call) => call[1]),
+    ];
+    const payload = JSON.stringify(spanAttributes);
+
+    expect(payload).toContain('unsupported');
+    expect(payload).toContain('1kb_100kb');
+    expect(payload).not.toContain('application/x-private');
+    expect(payload).not.toContain('secret-token');
+    expect(payload).not.toContain('document.size_bytes');
     expect(putObject).not.toHaveBeenCalled();
   });
 
@@ -148,24 +223,18 @@ describe('PaymentAttachmentService', () => {
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'succeeded',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
     });
 
     expect(result.fileName).toBe('receipt-yk-payment-1.html');
     expect(result.objectKey).toBe(
-      'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
+      'payment-documents/receipts/user-1/payment-1/receipt.html',
     );
     expect(putObject).toHaveBeenCalledWith(
       result.objectKey,
@@ -205,19 +274,55 @@ describe('PaymentAttachmentService', () => {
     putObject.mockResolvedValue(undefined);
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.storeGeneratedReceipt('payment-1', {
-      id: 'yk-payment-1',
-      status: 'succeeded',
-      paid: true,
-      amountValue: '1350.00',
-      amountCurrency: 'RUB',
       paymentMethodType: 'bank_card',
       paymentMethodTitle: 'Bank card *4477',
       receiptRegistration: 'pending',
       createdAt: '2026-03-06T08:40:00.000Z',
       capturedAt: '2026-03-06T08:45:00.000Z',
-      metadata: { payment_id: 'payment-1' },
+    });
+
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'payment-1' },
+      data: {
+        attachmentFileName: 'receipt-yk-payment-1.html',
+        attachmentFileUrl: result.objectKey,
+        receiptStatus: PaymentReceiptStatus.Pending,
+      },
+    });
+  });
+
+  it('marks a stored local receipt as available when a paid payment has no YooKassa receipt registration', async () => {
+    findUnique.mockResolvedValue({
+      id: 'payment-1',
+      userId: 'user-1',
+      type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1500.00',
+      },
+      paymentDate: new Date('2026-04-25T05:53:54.785Z'),
+      paymentMethod: 'bank_card',
+      transactionId: 'yk-payment-1',
+      user: {
+        email: 'notary@example.com',
+        fullName: 'Иван Иванов',
+      },
+      subscription: {
+        plan: SubscriptionPlan.Basic,
+      },
+      assessment: null,
+    });
+    putObject.mockResolvedValue(undefined);
+    update.mockResolvedValue(undefined);
+
+    const service = createService();
+    const result = await service.storeGeneratedReceipt('payment-1', {
+      paymentMethodType: 'bank_card',
+      paymentMethodTitle: 'Bank card *4477',
+      receiptRegistration: null,
+      createdAt: '2026-04-25T05:52:31.611Z',
+      capturedAt: '2026-04-25T05:53:54.785Z',
     });
 
     expect(update).toHaveBeenCalledWith({
@@ -234,6 +339,14 @@ describe('PaymentAttachmentService', () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1350.00',
+      },
+      status: 'Completed',
+      paymentMethod: 'bank_card',
+      subscriptionId: 'subscription-1',
+      assessmentId: null,
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
@@ -245,7 +358,7 @@ describe('PaymentAttachmentService', () => {
       contentLength: 13,
     });
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
     const result = await service.getReceiptFile({
       paymentId: 'payment-1',
       userId: 'user-1',
@@ -255,19 +368,37 @@ describe('PaymentAttachmentService', () => {
     expect(result.fileName).toBe('receipt-yk-payment-1.html');
     expect(result.contentType).toBe('text/html; charset=utf-8');
     expect(result.body.toString()).toContain('<html>');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.opened',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        actionContext: 'Пользователь открыл чек из истории платежей',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          amount: '1350.00',
+          transactionId: 'yk-payment-1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          attachmentFileName: 'receipt-yk-payment-1.html',
+          contentType: 'text/html; charset=utf-8',
+        }),
+      }),
+    );
   });
 
   it('returns ConflictException when receipt is still pending', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
       receiptStatus: PaymentReceiptStatus.Pending,
     });
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
 
     await expect(
       service.getReceiptFile({
@@ -277,37 +408,72 @@ describe('PaymentAttachmentService', () => {
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(getObject).not.toHaveBeenCalled();
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.failed',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          receiptStatus: PaymentReceiptStatus.Pending,
+          failureReason: 'receipt_pending',
+        }),
+      }),
+    );
   });
 
-  it('marks receipt as failed and clears stale object reference when file is missing in storage', async () => {
+  it('renders an HTML fallback receipt when a stored object reference is stale', async () => {
     findUnique.mockResolvedValue({
       id: 'payment-1',
       userId: 'user-1',
+      type: PaymentType.Subscription,
+      amount: {
+        toString: () => '1350.00',
+      },
+      paymentDate: new Date('2026-03-06T08:45:00.000Z'),
+      paymentMethod: 'bank_card',
       attachmentFileName: 'receipt-yk-payment-1.html',
       attachmentFileUrl: 'payment-documents/receipts/user-1/payment-1/yookassa-receipt.html',
       transactionId: 'yk-payment-1',
       receiptStatus: PaymentReceiptStatus.Available,
+      user: {
+        email: 'notary@example.com',
+        fullName: 'Иван Иванов',
+      },
+      subscription: {
+        plan: SubscriptionPlan.Premium,
+      },
+      assessment: null,
     });
     getObject.mockRejectedValue({ name: 'NoSuchKey' });
     update.mockResolvedValue(undefined);
 
-    const service = new PaymentAttachmentService(prisma as never, s3 as never);
+    const service = createService();
 
-    await expect(
-      service.getReceiptFile({
-        paymentId: 'payment-1',
-        userId: 'user-1',
-        role: UserRole.NOTARY.toString(),
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
-
-    expect(update).toHaveBeenCalledWith({
-      where: { id: 'payment-1' },
-      data: {
-        receiptStatus: PaymentReceiptStatus.Failed,
-        attachmentFileName: null,
-        attachmentFileUrl: null,
-      },
+    const result = await service.getReceiptFile({
+      paymentId: 'payment-1',
+      userId: 'user-1',
+      role: UserRole.NOTARY.toString(),
     });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(result.fileName).toBe('receipt-yk-payment-1.html');
+    expect(result.contentType).toBe('text/html; charset=utf-8');
+    expect(result.body.toString()).toContain('Иван Иванов');
+    expect(auditService.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'user-1',
+        eventType: 'payment.receipt.opened',
+        targetType: 'Payment',
+        targetId: 'payment-1',
+        after: expect.objectContaining({
+          paymentId: 'payment-1',
+          receiptStatus: PaymentReceiptStatus.Available,
+          attachmentFileName: 'receipt-yk-payment-1.html',
+          contentType: 'text/html; charset=utf-8',
+        }),
+      }),
+    );
   });
 });

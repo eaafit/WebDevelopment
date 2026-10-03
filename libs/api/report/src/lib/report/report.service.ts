@@ -18,6 +18,7 @@ import {
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
 import { MetricsService } from '@internal/metrics';
+import { BusinessOperations, NotarySpanAttributes, runInSpan } from '@internal/tracing';
 import { ReportRepository } from './report.repository';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,34 +49,61 @@ export class ReportService {
   }
 
   async createReport(request: CreateReportRequest): Promise<CreateReportResponse> {
-    validateUuid(request.assessmentId, 'assessment_id');
-    validateUuid(request.signedById, 'signed_by_id');
-    if (!request.reportPath?.trim()) throw invalid('report_path', 'is required');
+    return runInSpan(
+      'ReportService.createReport',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.reportCreate,
+        [NotarySpanAttributes.entity]: 'Report',
+      },
+      async () => {
+        validateUuid(request.assessmentId, 'assessment_id');
+        validateUuid(request.signedById, 'signed_by_id');
+        if (!request.reportPath?.trim()) throw invalid('report_path', 'is required');
 
-    const report = await this.reportRepository.createReport({
-      assessmentId: request.assessmentId,
-      reportPath: request.reportPath.trim(),
-      signedById: request.signedById,
-    });
+        const report = await this.reportRepository.createReport({
+          assessmentId: request.assessmentId,
+          reportPath: request.reportPath.trim(),
+          signedById: request.signedById,
+        });
 
-    this.metrics.recordReportGenerated();
+        this.metrics.recordReportGenerated();
 
-    return create(CreateReportResponseSchema, { report });
+        return create(CreateReportResponseSchema, { report });
+      },
+    );
   }
 
   async signReport(request: SignReportRequest): Promise<SignReportResponse> {
-    validateUuid(request.id, 'id');
-    if (!request.signatureData?.length) throw invalid('signature_data', 'is required');
+    return runInSpan(
+      'ReportService.signReport',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.reportSign,
+        [NotarySpanAttributes.entity]: 'Report',
+      },
+      async () => {
+        validateUuid(request.id, 'id');
+        if (!request.signatureData?.length) throw invalid('signature_data', 'is required');
 
-    const report = await this.reportRepository.signReport(request.id, request.signatureData);
+        const report = await this.reportRepository.signReport(request.id, request.signatureData);
 
-    return create(SignReportResponseSchema, { report });
+        return create(SignReportResponseSchema, { report });
+      },
+    );
   }
 
   async deleteReport(request: DeleteReportRequest): Promise<DeleteReportResponse> {
-    validateUuid(request.id, 'id');
-    const success = await this.reportRepository.deleteReport(request.id);
-    return create(DeleteReportResponseSchema, { success });
+    return runInSpan(
+      'ReportService.deleteReport',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.reportDelete,
+        [NotarySpanAttributes.entity]: 'Report',
+      },
+      async () => {
+        validateUuid(request.id, 'id');
+        const success = await this.reportRepository.deleteReport(request.id);
+        return create(DeleteReportResponseSchema, { success });
+      },
+    );
   }
 }
 

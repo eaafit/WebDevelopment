@@ -1,0 +1,234 @@
+<div class="property-step">
+  <div class="property-step-intro">
+    <span class="property-step-icon" aria-hidden="true">🏠</span>
+    <div>
+      <h2 class="property-step-title">Данные об объекте</h2>
+      <p class="property-step-description">Укажите тип имущества, адрес и основные характеристики объекта оценки.</p>
+    </div>
+  </div>
+
+  <fieldset class="fieldset property-fieldset" [formGroup]="group">
+    <legend class="fieldset-legend">Основные параметры</legend>
+
+    <div class="form-grid form-grid-2">
+      <div class="form-group no-mb form-field-full">
+        <label class="form-label" for="propertyType"> Тип имущества <span class="required-mark">*</span> </label>
+        <select
+          id="propertyType"
+          class="form-input form-select"
+          formControlName="propertyType"
+          [class.form-input-invalid]="isInvalid('propertyType')">
+          <option value="" disabled>Выберите тип</option>
+          @for (option of propertyTypeOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        @if (isInvalid('propertyType')) {
+        <p class="field-error">Выберите тип имущества.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb form-field-full">
+        <label class="form-label" for="address"> Адрес <span class="required-mark">*</span> </label>
+        <input
+          id="address"
+          type="text"
+          class="form-input"
+          formControlName="address"
+          autocomplete="off"
+          placeholder="Введите адрес для поиска в ФИАС"
+          [class.form-input-invalid]="isAddressInvalid()" />
+        @if (addressLookupError()) {
+        <p class="field-error">{{ addressLookupError() }}</p>
+        } @else if (addressSuggestLoading()) {
+        <p class="form-help">Ищем адрес в ФИАС...</p>
+        } @if (addressSuggestions().length) {
+        <ul class="address-suggestion-list" role="listbox" aria-label="Подсказки ФИАС">
+          @for (suggestion of addressSuggestions(); track suggestion.objectId) {
+          <li class="address-suggestion-item">
+            <button
+              class="address-suggestion-button"
+              type="button"
+              role="option"
+              (click)="onSelectAddressSuggestion(suggestion)">
+              {{ suggestion.fullName }}
+            </button>
+          </li>
+          }
+        </ul>
+        } @if (isInvalid('address') && group.get('address')?.hasError('required')) {
+        <p class="field-error">Укажите адрес объекта.</p>
+        } @else if (isInvalid('address') && group.get('address')?.hasError('minlength')) {
+        <p class="field-error">Адрес слишком короткий, минимум 5 символов.</p>
+        } @else if (isInvalid('cityId') && group.get('cityId')?.hasError('required')) {
+        <p class="field-error">Выберите адрес из подсказок ФИАС.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="area"> Площадь, м² <span class="required-mark">*</span> </label>
+        <input
+          id="area"
+          type="text"
+          inputmode="decimal"
+          class="form-input"
+          formControlName="area"
+          placeholder="Например: 68.5"
+          [class.form-input-invalid]="isInvalid('area')" />
+        <p class="empty-block"></p>
+        @if (isInvalid('area')) {
+        <p class="field-error">Укажите площадь больше 0.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="cadastralNumber">Кадастровый номер</label>
+        <input
+          id="cadastralNumber"
+          type="text"
+          class="form-input"
+          formControlName="cadastralNumber"
+          placeholder="Необязательно" />
+        <p class="form-help">При наличии укажите кадастровый номер объекта.</p>
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="rooms">Количество комнат <span class="required-mark">*</span></label>
+        <input
+          id="rooms"
+          type="text"
+          inputmode="numeric"
+          class="form-input"
+          formControlName="rooms"
+          placeholder="Например: 2"
+          [class.form-input-invalid]="isInvalid('rooms')" />
+        @if (isInvalid('rooms')) {
+        <p class="field-error">Укажите количество комнат.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="buildingFloors">Этажность здания <span class="required-mark">*</span></label>
+        <input
+          id="buildingFloors"
+          type="text"
+          inputmode="numeric"
+          class="form-input"
+          formControlName="buildingFloors"
+          placeholder="Например: 5"
+          [class.form-input-invalid]="isInvalid('buildingFloors')" />
+        @if (isInvalid('buildingFloors')) {
+        <p class="field-error">Укажите этажность здания.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="floor">Этаж <span class="required-mark">*</span></label>
+        <input
+          id="floor"
+          type="text"
+          inputmode="numeric"
+          class="form-input"
+          formControlName="floor"
+          placeholder="Например: 3"
+          [class.form-input-invalid]="isInvalid('floor')" />
+        @if (isInvalid('floor')) {
+        <p class="field-error">Укажите этаж.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="constructionYear">Год постройки <span class="required-mark">*</span></label>
+        <input
+          id="constructionYear"
+          type="text"
+          inputmode="numeric"
+          class="form-input"
+          formControlName="constructionYear"
+          placeholder="Например: 2010"
+          [class.form-input-invalid]="isInvalid('constructionYear')" />
+        @if (isInvalid('constructionYear') && group.get('constructionYear')?.hasError('required')) {
+        <p class="field-error">Укажите год постройки.</p>
+        } @else if (isInvalid('constructionYear') && group.get('constructionYear')?.hasError('invalidConstructionYear'))
+        {
+        <p class="field-error">Укажите корректный год постройки (от 1800 до текущего года).</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="houseType">Тип дома <span class="required-mark">*</span></label>
+        <select
+          id="houseType"
+          class="form-input form-select"
+          formControlName="houseType"
+          [class.form-input-invalid]="isInvalid('houseType')">
+          <option value="" disabled>Выберите тип</option>
+          @for (option of houseTypeOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        @if (isInvalid('houseType')) {
+        <p class="field-error">Выберите тип дома.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="condition">Состояние <span class="required-mark">*</span></label>
+        <select
+          id="condition"
+          class="form-input form-select"
+          formControlName="condition"
+          [class.form-input-invalid]="isInvalid('condition')">
+          <option value="" disabled>Выберите состояние</option>
+          @for (option of conditionOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        @if (isInvalid('condition')) {
+        <p class="field-error">Выберите состояние объекта.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb">
+        <label class="form-label" for="elevator">Лифт <span class="required-mark">*</span></label>
+        <select
+          id="elevator"
+          class="form-input form-select"
+          formControlName="elevator"
+          [class.form-input-invalid]="isInvalid('elevator')">
+          <option value="" disabled>Выберите тип лифта</option>
+          @for (option of elevatorOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+        @if (isInvalid('elevator')) {
+        <p class="field-error">Выберите тип лифта.</p>
+        }
+      </div>
+
+      <div class="form-group no-mb checkbox-group">
+        <label class="styled-checkbox-label">
+          <input type="checkbox" class="styled-checkbox" formControlName="hasBalcony" />
+          <span class="checkbox-custom"></span>
+          <span class="checkbox-text">Есть балкон или лоджия</span>
+        </label>
+        <p class="empty-block"></p>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="fieldset property-fieldset property-fieldset-secondary" [formGroup]="group">
+    <legend class="fieldset-legend">Дополнительно</legend>
+
+    <div class="form-group no-mb">
+      <label class="form-label" for="description">Описание</label>
+      <textarea
+        id="description"
+        class="form-input form-textarea"
+        rows="4"
+        formControlName="description"
+        placeholder="Дополнительные сведения об объекте (необязательно)"></textarea>
+      <p class="form-help">Кратко опишите особенности объекта, если это поможет оценщику.</p>
+    </div>
+  </fieldset>
+</div>

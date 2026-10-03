@@ -22,8 +22,13 @@
 
 ### Запуск проекта
 
-- `docker-compose up` - запустить PostgreSQL
+- `docker-compose up` - запустить PostgreSQL, MinIO, Prometheus, Loki, Promtail, Tempo и Grafana
 - `pnpm nx prune` - очистка nx
+- `docker system prune` - Глубокая чистка и освободить максимум места
+- `docker container prune` - Удаляет только остановленные контейнеры
+- `docker system prune --volumes` - Добавляет к очистке неиспользуемые тома
+- `docker system prune -a` - Удаляет все неиспользуемые образы, а не только "висячие"
+- `rm -rf node_modules` - удаление node_modules
 - `pnpm store prune` - полная очистка.
 - `nx reset` - очистка текущего проекта.
 - `pnpm nx run prisma:generate` - сгенерировать Prisma Client
@@ -32,135 +37,47 @@
 - `pnpm nx serve api` - запустить Back-end
 - `pnpm nx serve web` - запустить Front-end
 
+- `npx nx test admin --testFile=payments`
+- `npx nx test admin`
+
 ---
 
 ### Docker: портал Angular + API (`portal`)
 
-Основной портал (**Angular** `apps/web` + **Nest** `apps/api`) поднимается отдельным Compose-файлом: один контейнер **edge** (`portal`, nginx) отдаёт статику и проксирует API и Connect-RPC на `api`, чтобы в браузере был **один origin** (как ожидает RPC-клиент). Инструкции, `.env.portal`, миграции и NPM (**Forward Hostname** `portal`, **Forward Port** `80`): [**apps/web/DOCKER.md**](apps/web/DOCKER.md).
+Основной портал (**Angular** `apps/web` + **Nest** `apps/api`) поднимается Compose-стеком [`apps/web/docker-compose.portal.yml`](apps/web/docker-compose.portal.yml): контейнер **edge** (`portal`, nginx) отдаёт статику и проксирует API и Connect-RPC на `api`, чтобы в браузере был **один origin** (как ожидает RPC-клиент).
 
-Стек **`nexus-web`** ([`apps/nexus-web/DOCKER.md`](apps/nexus-web/DOCKER.md)) — это другое приложение (NexusJS); для прод-портала Notary используйте **`portal`**, если не нужен отдельный демо-сайт на Nexus.
+- Полная последовательность (сборка, `.env.portal`, миграции, NPM: **Forward Hostname** `portal`, **Forward Port** `80`): [**apps/web/DOCKER.md**](apps/web/DOCKER.md).
+- **Nginx Proxy Manager** отдельным файлом: [`apps/web/docker-compose.npm.yml`](apps/web/docker-compose.npm.yml) — из каталога `apps/web`: `docker compose -f docker-compose.npm.yml up -d` (сеть `proxy` должна существовать: `docker network create proxy`).
+
+Кратко по типичным проблемам Docker:
+
+| Симптом | Что сделать |
+| ------- | ----------- |
+| **`ENOSPC` / no space left on device** при сборке | `df -h`, `docker system df`, при необходимости `docker builder prune -af` или `docker system prune -af`. |
+| **`i/o timeout`** у `docker compose` | `export COMPOSE_HTTP_TIMEOUT=300` (Linux); отдельно `compose build`, затем `up -d` без `--build`; см. [apps/web/DOCKER.md](apps/web/DOCKER.md). |
+| **`EAI_AGAIN` / registry.npmjs.org** в логах сборки | DNS/сеть хоста или `/etc/docker/daemon.json` → `dns`. |
 
 ---
 
-### Docker: контейнеры `nexus-web`
+### Логи и трассировки в Grafana
 
-Приложение **NexusJS** (`apps/nexus-web`) собирается в образ и поднимается вместе с **PostgreSQL** и **Redis** через Docker Compose. Подробности, переменные окружения и сборка без Compose описаны в [apps/nexus-web/DOCKER.md](apps/nexus-web/DOCKER.md).
+Корневой [`docker-compose.yaml`](docker-compose.yaml) поднимает **Loki** и **Promtail** вместе с Grafana. Promtail читает stdout Docker-контейнеров через `/var/run/docker.sock`, поэтому в Grafana (`http://localhost:3001`, `admin` / `GF_ADMIN_PASSWORD` или `admin`) доступны datasource **Loki** и дашборды **Container logs**, **Security events (Loki)** и **Failed access attempts (Loki)**.
 
-1. Скопируйте [apps/nexus-web/env.example](apps/nexus-web/env.example) в `apps/nexus-web/.env` и задайте `**NEXUS_SECRET`** (обязательно для запуска compose).
-2. **Локально** (сайт на хосте на порту 3000, например `http://localhost:3000`):
-  ```bash
-   cd apps/nexus-web
-   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-  ```
-   Без оверлея `docker-compose.local.yml` порт 3000 на хост не открывается (только внутри сети Docker) — так задумано для продакшена за reverse-proxy.
-3. **На VPS за Nginx Proxy Manager** (домен → NPM на 80/443 → контейнер на 3000): пошаговые команды — в разделе **«VPS: последовательность команд на сервере»** ниже; сгруппированные команды, проверка контейнеров и типичные ошибки — в **«Справочник команд nexus-web»**; настройка хоста и SSL в NPM — в [DOCKER.md](apps/nexus-web/DOCKER.md) (раздел про VPS и NPM).
+API пишет структурированные JSON-логи напрямую в stdout с меткой `service="api"`. Web-приложение отправляет события `WebLoggerService` на `/api/logs/web`, API безопасно редактирует данные события и пишет их в stdout уже с `service="web"`. В Loki оба потока фильтруются по `service`, `environment`, `level` и `requestId`; экспорт CSV из аудит-мониторинга тоже попадает в web-логи.
 
-#### VPS: последовательность команд на сервере
+Tempo доступен на `3200`, принимает OTLP/HTTP на `4318` и OTLP/gRPC на `4317`. Grafana получает источник данных **Tempo** через автоматическую настройку.
 
-На виртуальном сервере должны быть установлены **Docker** и **Docker Compose (v2)**, в фаерволе открыты **80** и **443**, у домена в DNS настроена **A-запись** на IP сервера.
+Дашборд **Failed access attempts (Loki)** предназначен для администратора и показывает фейковые/ботские обращения к серверу: общий счётчик 4xx, отдельные 401/403, неудачные попытки входа на `/notary.auth.v1alpha1.AuthService/Login`, 404-сканы и последние подозрительные запросы с HTTP-кодом и путём. Те же события дополнительно пишутся в Prometheus-метрику `notary_failed_access_total` с низкокардинальными label'ами `reason`, `status_code` и `path_group`.
 
-1. Получить код репозитория (если его ещё нет на сервере):
-  ```bash
-   git clone <URL-репозитория> WebDevelopment
-   cd WebDevelopment
-  ```
-2. Создать `apps/nexus-web/.env` из примера и задать секрет:
-  ```bash
-   cp apps/nexus-web/env.example apps/nexus-web/.env
-  ```
-   Отредактируйте `apps/nexus-web/.env` и укажите надёжное значение `**NEXUS_SECRET**`.
-3. Создать общую Docker-сеть `**proxy**` (один раз). Если сеть уже существует, команда завершится ошибкой — это ожидаемо:
-  ```bash
-   docker network create proxy
-  ```
-4. Запустить **Nginx Proxy Manager**, затем собрать и поднять **nexus-web** с **PostgreSQL** и **Redis**:
-  ```bash
-   cd apps/nexus-web
-   docker compose -f docker-compose.npm.yml up -d
-   docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
-  ```
-5. В веб-интерфейсе NPM (`http://<IP-сервера>:81`) добавьте **Proxy Host**: **Forward Hostname** `nexus-web`, **Forward Port** `3000`, при необходимости SSL (Let's Encrypt).
+Smoke-проверка для этого dashboard описана в [`docs/failed-access-loki-smoke.md`](docs/failed-access-loki-smoke.md): там есть тестовые 401/404 запросы, LogQL-запрос и ожидаемые значения панелей.
 
-**Опционально** — зафиксировать build id перед запуском приложения (реже возникает `BUILD_MISMATCH` после деплоя), из каталога `apps/nexus-web`:
+В Explore можно использовать запрос:
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.vps.yml build --build-arg NEXUS_BUILD_ID="$(git rev-parse --short HEAD)"
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d
+```logql
+{job="docker", service=~"api|web"} | json | requestId="<id запроса>"
 ```
 
-#### Справочник команд `nexus-web` (сводка)
-
-Compose-файлы лежат в `**apps/nexus-web**`. Команды `docker compose` ниже предполагают каталог `**apps/nexus-web**`, если не сказано иное. В `docker-compose.yml` контекст сборки — **корень монорепозитория** (`context: ../..`); не меняйте его на `./nexus-web` — иначе Docker будет искать несуществующий путь `.../apps/nexus-web/nexus-web`.
-
-##### Подготовка `.env`
-
-```bash
-cp apps/nexus-web/env.example apps/nexus-web/.env   # из корня клона
-# или из apps/nexus-web: cp env.example .env
-```
-
-Задайте в `.env` значение `**NEXUS_SECRET**`.
-
-##### Локально (сайт на `http://localhost:3000` и порту из `PORT` в `.env`)
-
-```bash
-cd apps/nexus-web
-docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
-```
-
-Остановка: `Ctrl+C` или в другом терминале из того же каталога: `docker compose -f docker-compose.yml -f docker-compose.local.yml down`.
-
-##### VPS: сеть, NPM и приложение
-
-Из **корня** репозитория (после `git clone` и `cd WebDevelopment`):
-
-```bash
-docker network create proxy
-```
-
-Ошибка «network already exists» при повторном вызове — нормально.
-
-```bash
-cd apps/nexus-web
-docker compose -f docker-compose.npm.yml up -d
-docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d --build
-```
-
-##### Проверка, что контейнеры запущены
-
-```bash
-cd apps/nexus-web
-docker compose -f docker-compose.yml -f docker-compose.vps.yml ps
-docker compose -f docker-compose.yml -f docker-compose.vps.yml logs nexus-web --tail 80
-docker ps --filter "name=nexus-web"
-docker network inspect proxy
-```
-
-В выводе `inspect` в секции **Containers** должен фигурировать контейнер сервиса `nexus-web` (имя может быть с префиксом проекта), иначе NPM не достучится до хоста `nexus-web`.
-
-##### Nginx Proxy Manager (кратко)
-
-- Админка: `http://<IP-сервера>:81` — вход, смена пароля, затем **Hosts → Proxy Hosts → Add**.
-- **Forward Hostname / IP:** `nexus-web` · **Forward Port:** `3000` · **Domain Names:** ваш домен; SSL — по необходимости (Let's Encrypt). Подробнее: [apps/nexus-web/DOCKER.md](apps/nexus-web/DOCKER.md).
-
-##### Сборка образа без Compose (из корня монорепозитория)
-
-```bash
-# текущий каталог — корень клона (где лежат apps/, package.json и т.д.)
-docker build -f apps/nexus-web/Dockerfile -t nexus-web .
-docker run --rm -p 3000:3000 -e NEXUS_SECRET=<секрет> nexus-web
-```
-
-##### Если сборка или запуск падают
-
-
-| Симптом                                                                   | Что сделать                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `**ENOSPC` / `no space left on device**` при `pnpm install` внутри Docker | На хосте закончилось место: `df -h`, затем `docker system df`, `docker builder prune -af`, при необходимости `docker system prune -af` (осторожно с неиспользуемыми образами). На VPS — увеличить диск; в Docker Desktop — лимит диска в Settings → Resources. |
-| `**unable to prepare context: .../nexus-web/nexus-web` not found**        | Убедитесь, что используете актуальный `docker-compose.yml` из репозитория и запускаете compose из `**apps/nexus-web`** (или `-f` указывает на эти файлы). В репозитории `build.context` — `**../..**`, а не вложенная папка `nexus-web`.                       |
-| Логи **`EAI_AGAIN` / `fetch failed` / `registry.npmjs.org`** при старте | Corepack раньше обращался к npm при запуске `pnpm` в контейнере. Пересоберите образ из текущего `Dockerfile` (старт через `node`, без запросов к registry в рантайме). Если проблема останется — почините DNS для Docker (`/etc/docker/daemon.json`, поле `dns`, или DNS у VPS). |
-| Контейнер **Exited**                                                      | `docker compose -f docker-compose.yml -f docker-compose.vps.yml logs nexus-web`                                                                                                                                                                                |
-
+Если API запущен локально через `pnpm nx serve api`, его stdout не читается Promtail; для логов в Grafana запускайте API как контейнер, например через [`apps/web/docker-compose.portal.yml`](apps/web/docker-compose.portal.yml).
 
 ---
 
@@ -176,12 +93,24 @@ docker run --rm -p 3000:3000 -e NEXUS_SECRET=<секрет> nexus-web
 - `YOOKASSA_SECRET_KEY` - secret key для API ЮKassa
 - `PAYMENT_RETURN_URL_BASE` - базовый URL фронтенда для fallback-return routes после внешних шагов (`https://portal.example.com`)
 - `PAYMENT_WEBHOOK_SECRET` - опциональный секрет для webhook. Если задан, добавляйте его в URL webhook как `?secret=<value>` или передавайте в заголовке `x-payment-webhook-secret`
+- `PAYMENT_PROVIDER` - активный провайдер создания платежей (`yookassa` по умолчанию, `robokassa` для Robokassa redirect)
 - `YOOKASSA_RECEIPT_VAT_CODE` - обязательный `vat_code` для строки чека подписки, которую мы передаём в YooKassa; значение нужно задать явно по согласованию с бухгалтерией
+
+**Переменные окружения Robokassa:**
+
+- `ROBOKASSA_MERCHANT_LOGIN` - логин магазина из кабинета Robokassa
+- `ROBOKASSA_PASSWORD_1` - пароль #1 для подписи ссылок оплаты
+- `ROBOKASSA_PASSWORD_2` - пароль #2 для проверки `ResultURL` callback
+- `ROBOKASSA_TEST_MODE` - `true`/`false`, признак тестового режима генерации ссылок оплаты
 
 **Webhook URL для кабинета ЮKassa:**
 
 - `https://<api-host>/api/payments/webhook`
 - если включён `PAYMENT_WEBHOOK_SECRET`: `https://<api-host>/api/payments/webhook?secret=<PAYMENT_WEBHOOK_SECRET>`
+
+**Result URL для Robokassa (callback):**
+
+- `https://<api-host>/api/payments/robokassa/result`
 
 **Fallback routes после внешней авторизации / 3DS:**
 
@@ -208,4 +137,3 @@ docker run --rm -p 3000:3000 -e NEXUS_SECRET=<секрет> nexus-web
 - `netsh int ipv4 show excludedportrange protocol=tcp` - просмотр списка зарезервированных портов.
 - `netsh int ipv4 delete excludedportrange protocol=tcp startport=2182 numberofports=10` - исключение портов.
 - `net stop winnat` | `net start winnat` - остановка и запуск службы winnat для сброза зарезервированных портов.
-

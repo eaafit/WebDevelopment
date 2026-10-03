@@ -1,6 +1,9 @@
 import { Route } from '@angular/router';
 import { Notary } from './notary/notary';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { Dashboard } from './features/dashboard/dashboard';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import { Copy, List, roleGuard, UserRole } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -12,56 +15,54 @@ export const notaryRoutes: Route[] = [
     path: '',
     component: Notary,
     children: [
-      { path: '', ...placeholder('Главная', ['Обзор кабинета нотариуса']) } as Route,
+      { path: '', component: Dashboard },
       {
         path: 'orders',
-        ...placeholder('Заказы', [
-          'Просмотр заказов',
-          'Фильтры и поиск',
-          '«Взять в работу»',
-          'Управление статусами',
-        ]),
-      } as Route,
+        loadComponent: () => import('./features/assessment/assessment').then((m) => m.Assessment),
+      },
       {
         path: 'subscription',
-        ...placeholder('Подписка', ['Оплата подписки', 'Выбор тарифа']),
-      } as Route,
-      {
-        path: 'subscription/checkout/success',
-        loadComponent: () =>
-          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
-      },
-      {
-        path: 'subscription/checkout/cancel',
-        loadComponent: () =>
-          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
-      },
-      {
-        path: 'subscription/checkout',
-        loadComponent: () =>
-          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+        loadComponent: () => import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
       },
       {
         path: 'transactions',
-        loadComponent: () =>
-          import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
+        loadComponent: () => import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
       },
       {
         path: 'assessment',
-        loadComponent: () =>
-          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+        loadComponent: () => import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+      },
+      {
+        path: 'monitoring',
+        loadComponent: () => import('./features/monitoring/monitoring').then((m) => m.Monitoring),
+      },
+      {
+        path: 'assessment/history',
+        component: AssessmentHistoryComponent,
+        data: { role: 'notary' },
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Запрос, оплата и получение копий',
-          'Статус «в обработке/готово»',
-        ]),
-      } as Route,
+        canActivate: [roleGuard(UserRole.Notary)],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            component: List,
+            data: { role: 'notary' },
+          },
+          {
+            // Нотариус обрабатывает заказ копии, но не инициирует его (см. issue-20).
+            path: ':id',
+            component: Copy,
+            data: { role: 'notary' },
+          },
+        ],
+      },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', ['In-app уведомления', 'Настройки каналов (email/push)']),
-      } as Route,
+        loadComponent: () => import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+      },
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения']),

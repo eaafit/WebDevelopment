@@ -1,23 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { OAuthService } from './oauth.service';
 import type {
+  ConfirmContactRequest,
+  ConfirmContactResponse,
   ForgotPasswordRequest,
   ForgotPasswordResponse,
+  GetOAuthAuthorizeUrlRequest,
+  GetOAuthAuthorizeUrlResponse,
   LoginRequest,
   LoginResponse,
   LogoutRequest,
   LogoutResponse,
+  OAuthLoginRequest,
+  OAuthLoginResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
   RegisterRequest,
   RegisterResponse,
+  ResendContactCodeRequest,
+  ResendContactCodeResponse,
   ResetPasswordRequest,
   ResetPasswordResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
 export class AuthRpcService {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly oauthService: OAuthService,
+  ) {}
 
   readonly register     = (r: RegisterRequest):     Promise<RegisterResponse>     =>
     this.authService.register(r);
@@ -36,4 +48,18 @@ export class AuthRpcService {
 
   readonly resetPassword = (r: ResetPasswordRequest): Promise<ResetPasswordResponse> =>
     this.authService.resetPassword(r);
+
+  readonly getOAuthAuthorizeUrl = (
+    r: GetOAuthAuthorizeUrlRequest,
+  ): Promise<GetOAuthAuthorizeUrlResponse> => this.oauthService.getAuthorizeUrl(r);
+
+  readonly oAuthLogin = (r: OAuthLoginRequest): Promise<OAuthLoginResponse> =>
+    this.oauthService.login(r);
+
+  readonly confirmContact = (r: ConfirmContactRequest): Promise<ConfirmContactResponse> =>
+    this.oauthService.confirmContact(r);
+
+  readonly resendContactCode = (
+    r: ResendContactCodeRequest,
+  ): Promise<ResendContactCodeResponse> => this.oauthService.resendContactCode(r);
 }

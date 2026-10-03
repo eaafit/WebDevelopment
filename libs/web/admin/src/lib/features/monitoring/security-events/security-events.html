@@ -1,0 +1,76 @@
+<div class="security-events">
+  <div class="header">
+    <div class="stats">
+      <div class="stat-card">
+        <span class="stat-label">Всего событий</span>
+        <span class="stat-value">{{ events().length }}</span>
+      </div>
+      <div class="stat-card highlight">
+        <span class="stat-label">За последние 24 часа</span>
+        <span class="stat-value">{{ eventsLast24h() }}</span>
+      </div>
+    </div>
+    <button class="export-button" (click)="exportToCsv()" [disabled]="exporting() || events().length === 0">
+      @if (exporting()) {
+      <span class="spinner-small"></span>
+      Экспорт... } @else { Экспорт CSV }
+    </button>
+  </div>
+
+  @if (loading()) {
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>Загрузка событий безопасности...</p>
+  </div>
+  } @if (error()) {
+  <div class="error-state">
+    <p>{{ error() }}</p>
+  </div>
+  } @if (!loading() && !error() && events().length === 0) {
+  <div class="empty-state">
+    <p>События безопасности не найдены</p>
+  </div>
+  } @if (!loading() && !error() && events().length > 0) {
+  <div class="events-table-container">
+    <table class="events-table">
+      <thead>
+        <tr>
+          <th>Дата/Время</th>
+          <th>Тип события</th>
+          <th>Пользователь</th>
+          <th>IP</th>
+          <th>User-Agent</th>
+          <th>Объект</th>
+          <th>Риск</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (event of events(); track event.id) {
+        <tr [class]="getRiskLevelClass(event.riskLevel)">
+          <td class="date-cell">{{ formatDate(event.occurredAt) }}</td>
+          <td class="event-type-cell">
+            <span class="event-type-badge">{{ event.eventType }}</span>
+          </td>
+          <td class="user-cell">
+            <div class="user-info">
+              <div class="user-name">{{ event.actorName || '—' }}</div>
+              <div class="user-email">{{ event.actorEmail || '—' }}</div>
+            </div>
+          </td>
+          <td class="ip-cell">{{ event.ip || '—' }}</td>
+          <td class="user-agent-cell">
+            <span class="user-agent-text" [title]="event.userAgent"> {{ event.userAgent || '—' }} </span>
+          </td>
+          <td class="target-cell">{{ event.targetTitle || '—' }}</td>
+          <td class="risk-cell">
+            <span [class]="'risk-badge ' + getRiskLevelClass(event.riskLevel)">
+              {{ getRiskLevelLabel(event.riskLevel) }}
+            </span>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  }
+</div>

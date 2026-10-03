@@ -1,0 +1,43 @@
+<div class="operator-chat" *ngIf="ticket; else noTicketTemplate">
+  <div class="user-meta">
+    <h4 class="user-meta__title">Информация о пользователе</h4>
+    <div class="user-meta__grid">
+      <div><strong>Email:</strong> {{ ticket.userEmail }}</div>
+      <div><strong>Роль:</strong> <span class="role-tag">{{ ticket.userRole }}</span></div>
+      <div><strong>Регистрация:</strong> {{ ticket.userRegisteredAt | date:'dd.MM.yyyy' }}</div>
+    </div>
+    
+    <div class="user-meta__actions" *ngIf="ticket.status !== 'closed' && ticket.status !== 'resolved'">
+      <button class="btn-action btn-action--resolve" (click)="changeStatus('resolved')">Решено</button>
+      <button class="btn-action btn-action--close" (click)="changeStatus('closed')">Закрыть</button>
+    </div>
+  </div>
+
+  <div class="chat-history">
+    <div *ngFor="let msg of ticket.messages" 
+         [ngClass]="{'message--support': msg.authorRole === 'support', 'message--user': msg.authorRole === 'user'}"
+         class="message">
+      <div class="message__bubble">
+        <div class="message__author">{{ msg.authorName }} ({{ msg.authorRole }})</div>
+        <div class="message__text">{{ msg.text }}</div>
+        <div class="message__time">{{ msg.createdAt | date:'HH:mm' }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-area" *ngIf="ticket.status !== 'closed'">
+    <textarea 
+      [(ngModel)]="messageText" 
+      placeholder="Введите ответ от имени поддержки..." 
+      class="chat-textarea"
+      (keydown.enter)="$event.preventDefault(); sendMessage()">
+    </textarea>
+    <button class="btn-send" (click)="sendMessage()">Отправить</button>
+  </div>
+</div>
+
+<ng-template #noTicketTemplate>
+  <div class="no-ticket">
+    <p>Выберите тикет из списка для начала работы</p>
+  </div>
+</ng-template>

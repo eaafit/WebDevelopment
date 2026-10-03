@@ -2,16 +2,19 @@ import { TokenService } from '@internal/auth';
 import { PaymentAttachmentService } from '@internal/billing';
 import {
   Controller,
+  Get,
   Headers,
   MaxFileSizeValidator,
   Param,
   ParseFilePipe,
   Post,
+  Res,
   UnauthorizedException,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 
 const maxPdfBytes = 15 * 1024 * 1024;
 
@@ -53,6 +56,35 @@ export class PaymentAttachmentController {
       role: payload.role,
       file,
     });
+  }
+
+  @Get(':paymentId/receipt')
+  async downloadReceipt(
+    @Param('paymentId') paymentId: string,
+    @Headers('authorization') authorization: string | undefined,
+    @Res() res: Response,
+  ) {
+    const token = extractBearer(authorization);
+    if (!token) {
+      throw new UnauthorizedException();
+    }
+
+    let payload;
+    try {
+      payload = this.tokens.verifyAccessToken(token);
+    } catch {
+      throw new UnauthorizedException();
+    }
+
+    const receipt = await this.attachments.getReceiptFile({
+      paymentId,
+      userId: payload.sub,
+      role: payload.role,
+    });
+
+    res.setHeader('Content-Type', receipt.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${receipt.fileName}"`);
+    res.send(receipt.body);
   }
 }
 

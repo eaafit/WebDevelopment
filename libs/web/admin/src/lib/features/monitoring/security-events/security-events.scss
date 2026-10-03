@@ -1,0 +1,295 @@
+.security-events {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stats {
+  display: flex;
+  gap: 1rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  min-width: 150px;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+
+  background: white;
+
+  &.highlight {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+  }
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.export-button {
+  cursor: pointer;
+
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.375rem;
+
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+
+  background: #2563eb;
+
+  transition: background 0.2s;
+
+  &:hover:not(:disabled) {
+    background: #1d4ed8;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    background: #9ca3af;
+  }
+}
+
+.spinner-small {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgb(255 255 255 / 30%);
+  border-top-color: white;
+  border-radius: 50%;
+
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-state,
+.error-state,
+.empty-state {
+  padding: 2rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+
+  text-align: center;
+
+  background: #f9fafb;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+
+  p {
+    margin: 0;
+    color: #6b7280;
+  }
+}
+
+.spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-state {
+  p {
+    margin: 0;
+    color: #dc2626;
+  }
+}
+
+.empty-state {
+  p {
+    margin: 0;
+    color: #6b7280;
+  }
+}
+
+.events-table-container {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+}
+
+.events-table {
+  border-collapse: collapse;
+  width: 100%;
+
+  thead {
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+
+    th {
+      padding: 0.75rem 1rem;
+
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #374151;
+      text-align: left;
+      white-space: nowrap;
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid #e5e7eb;
+      transition: background 0.2s;
+
+      &:hover {
+        background: #f9fafb;
+      }
+
+      &.risk-warning {
+        background: #fef3c7;
+
+        &:hover {
+          background: #fde68a;
+        }
+      }
+
+      &.risk-error {
+        background: #fee2e2;
+
+        &:hover {
+          background: #fecaca;
+        }
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: #374151;
+    }
+  }
+}
+
+.date-cell {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.event-type-cell {
+  white-space: nowrap;
+}
+
+.event-type-badge {
+  display: inline-block;
+
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #1e40af;
+
+  background: #eff6ff;
+}
+
+.user-cell {
+  min-width: 200px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+.user-email {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.ip-cell {
+  font-family: monospace;
+  font-size: 0.813rem;
+  white-space: nowrap;
+}
+
+.user-agent-cell {
+  max-width: 300px;
+}
+
+.user-agent-text {
+  overflow: hidden;
+  display: block;
+
+  color: #6b7280;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-cell {
+  overflow: hidden;
+  max-width: 200px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-cell {
+  white-space: nowrap;
+}
+
+.risk-badge {
+  display: inline-block;
+
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &.risk-warning {
+    color: #92400e;
+    background: #fef3c7;
+  }
+
+  &.risk-error {
+    color: #991b1b;
+    background: #fee2e2;
+  }
+}

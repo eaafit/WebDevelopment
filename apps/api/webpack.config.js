@@ -2,6 +2,9 @@ const { NxAppWebpackPlugin } = require('@nx/webpack/app-plugin');
 const { join } = require('path');
 
 module.exports = {
+  // Пакеты в node_modules часто кладут source maps со ссылками на .ts, которых нет в публикации —
+  // source-map-loader пишет «Failed to parse source map / ENOENT»; на сборку это не влияет.
+  ignoreWarnings: [/Failed to parse source map/],
   output: {
     path: join(__dirname, '../../dist/apps/api'),
     clean: true,

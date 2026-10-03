@@ -1,0 +1,164 @@
+<section class="newsletter-page">
+  <header class="newsletter-page__hero">
+    <div>
+      <p class="newsletter-page__eyebrow">Администратор / новая рассылка</p>
+      <h2>Формирование email-кампании</h2>
+      <p class="newsletter-page__lead">
+        Выберите аудиторию, подготовьте HTML или текст письма, затем подтвердите массовую отправку.
+      </p>
+    </div>
+
+    <div class="newsletter-page__hero-actions">
+      <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="backToNewsletter()">
+        К списку
+      </button>
+    </div>
+  </header>
+
+  <section class="newsletter-status" aria-live="polite">
+    <span>{{ statusMessage() }}</span>
+    @if (recipientsCount() !== null) {
+    <strong>{{ estimating() ? 'Расчёт...' : 'Получателей: ' + recipientsCount() }}</strong>
+    }
+  </section>
+
+  @if (sentCampaign()) {
+  <section class="newsletter-result">
+    <h3>Кампания записана в историю</h3>
+    <p>
+      {{ sentCampaign()?.subject }}: доставлено {{ sentCampaign()?.sentCount }}, ошибок
+      {{ sentCampaign()?.failedCount }}.
+    </p>
+    <button type="button" class="newsletter-btn newsletter-btn--primary" (click)="backToNewsletter()">
+      Открыть историю
+    </button>
+  </section>
+  }
+
+  <section class="newsletter-compose">
+    <article class="newsletter-panel newsletter-panel--compose">
+      <div class="newsletter-panel__header">
+        <div>
+          <h3>Аудитория</h3>
+          <p>Backend отправит письмо только активным подписчикам.</p>
+        </div>
+      </div>
+
+      <div class="newsletter-audience">
+        <label class="newsletter-radio">
+          <input
+            type="radio"
+            name="audience"
+            [checked]="audienceMode() === 'all'"
+            (change)="setAudienceMode('all')" />
+          <span>
+            <strong>Все активные подписчики</strong>
+            <small>Все пользователи с активной подпиской на рассылку.</small>
+          </span>
+        </label>
+
+        <label class="newsletter-radio">
+          <input
+            type="radio"
+            name="audience"
+            [checked]="audienceMode() === 'role'"
+            (change)="setAudienceMode('role')" />
+          <span>
+            <strong>По роли</strong>
+            <small>Ограничить аудиторию выбранной ролью.</small>
+          </span>
+          <select [value]="audienceRole()" (change)="setAudienceRole($any($event.target).value)">
+            <option value="applicant">Заявитель</option>
+            <option value="notary">Нотариус</option>
+            <option value="admin">Администратор</option>
+          </select>
+        </label>
+
+        <label class="newsletter-radio">
+          <input
+            type="radio"
+            name="audience"
+            [checked]="audienceMode() === 'selected'"
+            (change)="setAudienceMode('selected')" />
+          <span>
+            <strong>Выбранные вручную</strong>
+            <small>Сейчас выбрано адресов: {{ selectedCount() }}.</small>
+          </span>
+        </label>
+      </div>
+    </article>
+
+    <article class="newsletter-panel newsletter-panel--compose">
+      <div class="newsletter-panel__header">
+        <div>
+          <h3>Письмо</h3>
+          <p>Можно использовать обычный текст или простую HTML-разметку.</p>
+        </div>
+      </div>
+
+      <form class="newsletter-form" (submit)="$event.preventDefault(); openConfirm()" novalidate>
+        <label class="newsletter-field newsletter-field--full">
+          <span>Тема</span>
+          <input
+            type="text"
+            maxlength="200"
+            placeholder="Например: Обновление тарифных планов"
+            [value]="subject()"
+            (input)="updateSubject($any($event.target).value)" />
+        </label>
+
+        <label class="newsletter-field newsletter-field--full">
+          <span>HTML или текст письма</span>
+          <textarea
+            rows="12"
+            maxlength="50000"
+            placeholder="<p>Здравствуйте! Рассказываем о важных изменениях...</p>"
+            [value]="bodyHtml()"
+            (input)="updateBody($any($event.target).value)"></textarea>
+        </label>
+
+        <div class="newsletter-form__actions">
+          <button type="button" class="newsletter-btn newsletter-btn--secondary" (click)="openPreview()">
+            Предпросмотр
+          </button>
+          <button type="submit" class="newsletter-btn newsletter-btn--primary" [disabled]="!canSend()">
+            Отправить
+          </button>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  @if (previewOpen()) {
+  <div class="newsletter-modal" role="dialog" aria-modal="true" aria-label="Предпросмотр письма">
+    <article class="newsletter-modal__panel">
+      <header class="newsletter-modal__header">
+        <h3>{{ subject() }}</h3>
+        <button type="button" class="newsletter-link" (click)="closePreview()">Закрыть</button>
+      </header>
+      <div class="newsletter-preview" [innerHTML]="bodyHtml()"></div>
+    </article>
+  </div>
+  }
+
+  @if (confirmOpen()) {
+  <div class="newsletter-modal" role="dialog" aria-modal="true" aria-label="Подтверждение отправки">
+    <article class="newsletter-modal__panel newsletter-modal__panel--confirm">
+      <header class="newsletter-modal__header">
+        <h3>Подтвердите отправку</h3>
+      </header>
+      <p>
+        Письмо «{{ subject() }}» будет отправлено получателям: {{ recipientsCount() ?? 0 }}.
+      </p>
+      <div class="newsletter-form__actions">
+        <button type="button" class="newsletter-btn newsletter-btn--ghost" [disabled]="sending()" (click)="closeConfirm()">
+          Отмена
+        </button>
+        <button type="button" class="newsletter-btn newsletter-btn--primary" [disabled]="sending()" (click)="sendCampaign()">
+          {{ sending() ? 'Отправка...' : 'Подтвердить и отправить' }}
+        </button>
+      </div>
+    </article>
+  </div>
+  }
+</section>

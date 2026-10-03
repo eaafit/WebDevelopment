@@ -1,0 +1,12 @@
+{
+  "name": "newsletter",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/newsletter/src",
+  "projectType": "library",
+  "tags": ["scope:backend"],
+  "targets": {
+    "test": {
+      "dependsOn": ["prisma:generate"]
+    }
+  }
+}

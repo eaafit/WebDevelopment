@@ -222,10 +222,11 @@ export class PromoComponent {
   savePromo(): void {
     if (this.isEditMode && this.selectedPromo) {
       // Обновление
-      const index = this.allPromocodes.findIndex((p) => p.id === this.selectedPromo!.id);
+      const selected = this.selectedPromo;
+      const index = this.allPromocodes.findIndex((p) => p.id === selected.id);
       if (index !== -1) {
         this.allPromocodes[index] = {
-          ...this.selectedPromo,
+          ...selected,
           code: this.formData.code,
           discountType: this.formData.discountType,
           discountValue: this.formData.discountValue,
@@ -268,9 +269,10 @@ export class PromoComponent {
 
   // Удаление
   deletePromo(): void {
-    if (this.promoToDelete) {
-      this.allPromocodes = this.allPromocodes.filter((p) => p.id !== this.promoToDelete!.id);
-      console.log('Удален промокод:', this.promoToDelete);
+    const toDelete = this.promoToDelete;
+    if (toDelete) {
+      this.allPromocodes = this.allPromocodes.filter((p) => p.id !== toDelete.id);
+      console.log('Удален промокод:', toDelete);
       this.showDeleteModal = false;
       this.promoToDelete = null;
     }

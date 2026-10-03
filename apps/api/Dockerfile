@@ -2,6 +2,9 @@
 #   docker build -f apps/api/Dockerfile -t notary-portal-api .
 
 FROM node:22-bookworm-slim AS builder
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 WORKDIR /repo
 ENV CI=true HUSKY=0
@@ -10,7 +13,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml nx.json tsconfig.base.json 
 COPY apps apps
 COPY libs libs
 COPY scripts scripts
-COPY eslint.config.mjs jest.preset.js jest.config.ts tsconfig.json ./
+COPY eslint.config.mjs jest.preset.js jest.config.ts ./
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec nx run api:build:production --skip-nx-cache

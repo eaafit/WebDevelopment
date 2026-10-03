@@ -3,7 +3,10 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import {
   CreateDocumentResponseSchema,
   DeleteDocumentResponseSchema,
+  DocumentStatus as RpcDocumentStatus,
   DocumentType as RpcDocumentType,
+  UpdateDocumentStatusResponseSchema,
+  UploadCopyResultResponseSchema,
   type CreateDocumentRequest,
   type CreateDocumentResponse,
   type DeleteDocumentRequest,
@@ -12,11 +15,28 @@ import {
   type GetDocumentResponse,
   type ListDocumentsByAssessmentRequest,
   type ListDocumentsByAssessmentResponse,
+  type UpdateDocumentStatusRequest,
+  type UpdateDocumentStatusResponse,
+  type UploadCopyResultRequest,
+  type UploadCopyResultResponse,
 } from '@notary-portal/api-contracts';
-import { requireAuth } from '@internal/auth-shared';
-import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
+import { getCurrentUser, requireAuth, requireRole, requireSelfOrRole, Role } from '@internal/auth-shared';
+import {
+  DocumentStatus as PrismaDocumentStatus,
+  DocumentType as PrismaDocumentType,
+} from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
-import path from 'path';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  markSpanFailure,
+  normalizeSpanActorRole,
+  normalizeSpanContentType,
+  runInSpan,
+  setSpanAttributes,
+  spanSizeBucket,
+} from '@internal/tracing';
+import * as path from 'path';
 import { Readable } from 'stream';
 import { DocumentRecordNotFoundError, DocumentRepository } from './document.repository';
 import type { DocumentQuery } from './document.query';
@@ -25,7 +45,7 @@ import {
   DocumentStorageService,
   DocumentStorageUnavailableError,
 } from './document-storage.service';
-import { toPrismaDocumentType } from './document-type.mapper';
+import { toPrismaDocumentStatus, toPrismaDocumentType } from './document-type.mapper';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 10;
@@ -60,116 +80,295 @@ export class DocumentService {
   }
 
   async createDocument(request: CreateDocumentRequest): Promise<CreateDocumentResponse> {
-    const currentUser = requireAuth();
-    const assessmentId = request.assessmentId.trim();
-    const fileName = normalizeDisplayFileName(request.fileName);
-    const fileContent = request.fileContent.length ? request.fileContent : undefined;
+    return runInSpan(
+      'DocumentService.createDocument',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentCreate,
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+        'document.content_type': normalizeSpanContentType(request.fileType),
+        'document.size_bucket': spanSizeBucket(request.fileContent.length),
+      },
+      async (span) => {
+        const currentUser = requireAuth();
+        const assessmentId = request.assessmentId.trim();
+        const fileName = normalizeDisplayFileName(request.fileName);
+        const fileContent = request.fileContent.length ? request.fileContent : undefined;
 
-    validateUuid(assessmentId, 'assessment_id');
-    if (!fileName) throw invalid('file_name', 'is required');
-    if (!fileContent) throw invalid('file_content', 'is required');
+        validateUuid(assessmentId, 'assessment_id');
+        if (!fileName) throw invalid('file_name', 'is required');
+        if (!fileContent) throw invalid('file_content', 'is required');
 
-    const uploadedById = resolveUploadedById(request.uploadedById, currentUser.sub);
-    const fileType = request.fileType?.trim() || 'application/octet-stream';
-    const documentType = toPrismaDocumentType(
-      request.documentType,
-      inferDocumentType(fileType, fileName),
-    );
+        const uploadedById = resolveUploadedById(request.uploadedById, currentUser.sub);
+        const fileType = request.fileType?.trim() || 'application/octet-stream';
+        const documentType = toPrismaDocumentType(
+          request.documentType,
+          inferDocumentType(fileType, fileName),
+        );
+        setSpanAttributes(span, {
+          'document.type': documentType,
+          'document.content_type': normalizeSpanContentType(fileType),
+          'document.size_bucket': spanSizeBucket(fileContent.length),
+        });
 
-    const assessmentExists = await this.documentRepository.assessmentExists(assessmentId);
-    if (!assessmentExists) {
-      throw new ConnectError(`assessment ${assessmentId} not found`, Code.NotFound);
-    }
-
-    let storedFile:
-      | {
-          bucketName: string;
-          objectKey: string;
-          fileSize: number;
+        const assessmentExists = await runInSpan(
+          'DocumentRepository.assessmentExists',
+          {
+            'notary.operation': 'document.assessment_exists_check',
+            'notary.entity': 'Assessment',
+            'db.operation': 'select',
+          },
+          () => this.documentRepository.assessmentExists(assessmentId),
+        );
+        if (!assessmentExists) {
+          throw new ConnectError(`assessment ${assessmentId} not found`, Code.NotFound);
         }
-      | undefined;
 
-    try {
-      storedFile = await this.documentStorageService.saveFile({
-        assessmentId,
-        fileName,
-        content: fileContent,
-        contentType: fileType,
-        documentType,
-      });
+        let storedFile:
+          | {
+              bucketName: string;
+              objectKey: string;
+              fileSize: number;
+            }
+          | undefined;
 
-      const document = await this.documentRepository.createDocument({
-        assessmentId,
-        fileName,
-        fileType,
-        fileSize: storedFile.fileSize,
-        documentType,
-        bucketName: storedFile.bucketName,
-        objectKey: storedFile.objectKey,
-        uploadedById,
-      });
+        try {
+          const savedFile = await this.documentStorageService.saveFile({
+            assessmentId,
+            fileName,
+            content: fileContent,
+            contentType: fileType,
+            documentType,
+          });
+          storedFile = savedFile;
 
-      return create(CreateDocumentResponseSchema, { document });
-    } catch (error: unknown) {
-      if (storedFile) {
-        await this.documentStorageService
-          .deleteFile({
-            bucketName: storedFile.bucketName,
-            objectKey: storedFile.objectKey,
-          })
-          .catch(() => undefined);
-      }
+          const document = await runInSpan(
+            'DocumentRepository.createDocument',
+            {
+              'notary.operation': 'document.repository.create',
+              'notary.entity': 'Document',
+              'db.operation': 'insert',
+              'document.type': documentType,
+              'document.content_type': normalizeSpanContentType(fileType),
+              'document.size_bucket': spanSizeBucket(savedFile.fileSize),
+            },
+            () =>
+              this.documentRepository.createDocument({
+                assessmentId,
+                fileName,
+                fileType,
+                fileSize: savedFile.fileSize,
+                documentType,
+                comment: normalizeComment(request.comment),
+                price: normalizePrice(request.price),
+                bucketName: savedFile.bucketName,
+                objectKey: savedFile.objectKey,
+                uploadedById,
+              }),
+          );
 
-      throw toConnectStorageError(error);
-    }
+          return create(CreateDocumentResponseSchema, { document });
+        } catch (error: unknown) {
+          if (storedFile) {
+            const rollbackFile = storedFile;
+            await runInSpan(
+              'DocumentStorageService.rollbackDeleteFile',
+              {
+                'notary.operation': 'document.storage.rollback_delete',
+                'notary.entity': 'Document',
+                'document.type': documentType,
+              },
+              async (rollbackSpan) => {
+                try {
+                  await this.documentStorageService.deleteFile({
+                    bucketName: rollbackFile.bucketName,
+                    objectKey: rollbackFile.objectKey,
+                  });
+                } catch (rollbackError) {
+                  markSpanFailure(rollbackSpan, rollbackError);
+                }
+              },
+            );
+          }
+
+          throw toConnectStorageError(error);
+        }
+      },
+    );
   }
 
   async deleteDocument(request: DeleteDocumentRequest): Promise<DeleteDocumentResponse> {
-    validateUuid(request.id, 'id');
+    return runInSpan(
+      'DocumentService.deleteDocument',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentDelete,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async (span) => {
+        validateUuid(request.id, 'id');
 
-    const document = await this.documentRepository.findDocumentRecord(request.id);
-    if (!document) {
-      throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
-    }
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+        setSpanAttributes(span, {
+          'document.type': document.documentType,
+          'document.content_type': normalizeSpanContentType(document.fileType),
+          'document.size_bucket': spanSizeBucket(document.fileSize),
+        });
 
-    try {
-      await this.documentStorageService.deleteFile({
-        bucketName: document.bucketName,
-        objectKey: document.objectKey,
-      });
-    } catch (error: unknown) {
-      throw toConnectStorageError(error);
-    }
+        try {
+          await this.documentStorageService.deleteFile({
+            bucketName: document.bucketName,
+            objectKey: document.objectKey,
+          });
+        } catch (error: unknown) {
+          throw toConnectStorageError(error);
+        }
 
-    await this.documentRepository.deleteDocument(request.id);
+        await this.documentRepository.deleteDocument(request.id);
 
-    return create(DeleteDocumentResponseSchema, { success: true });
+        return create(DeleteDocumentResponseSchema, { success: true });
+      },
+    );
   }
 
-  async getDocumentFile(documentId: string): Promise<{
+  // Сменить собственный статус заказа копии. Переходы валидируются по правилам
+  // жизненного цикла и роли: «Взять в работу»/«Готово» — только нотариус,
+  // оплата/получение/отмена — владелец заказа или нотариус.
+  async updateDocumentStatus(
+    request: UpdateDocumentStatusRequest,
+  ): Promise<UpdateDocumentStatusResponse> {
+    return runInSpan(
+      'DocumentService.updateDocumentStatus',
+      {
+        [NotarySpanAttributes.operation]: 'document.status_update',
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async (span) => {
+        validateUuid(request.id, 'id');
+        if (request.status === RpcDocumentStatus.UNSPECIFIED) {
+          throw invalid('status', 'must be specified');
+        }
+
+        const targetStatus = toPrismaDocumentStatus(
+          request.status,
+          PrismaDocumentStatus.PendingPayment,
+        );
+
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+
+        assertStatusTransition(document.status, targetStatus, document.uploadedById);
+        setSpanAttributes(span, {
+          'document.status_from': document.status,
+          'document.status_to': targetStatus,
+        });
+
+        const updated = await this.documentRepository.updateDocumentStatus(request.id, targetStatus);
+        return create(UpdateDocumentStatusResponseSchema, { document: updated });
+      },
+    );
+  }
+
+  // Нотариус прикладывает готовую копию к заказу: файл сохраняется в result-поля
+  // (отдельно от доверенности), статус заказа переходит в READY.
+  async uploadCopyResult(request: UploadCopyResultRequest): Promise<UploadCopyResultResponse> {
+    return runInSpan(
+      'DocumentService.uploadCopyResult',
+      {
+        [NotarySpanAttributes.operation]: 'document.result_upload',
+        [NotarySpanAttributes.entity]: 'Document',
+        'notary.actor.role': normalizeSpanActorRole(getCurrentUser()?.role),
+      },
+      async () => {
+        requireRole(Role.Notary);
+        validateUuid(request.id, 'id');
+
+        const fileName = normalizeDisplayFileName(request.fileName);
+        const fileContent = request.fileContent.length ? request.fileContent : undefined;
+        if (!fileName) throw invalid('file_name', 'is required');
+        if (!fileContent) throw invalid('file_content', 'is required');
+
+        const document = await this.documentRepository.findDocumentRecord(request.id);
+        if (!document) {
+          throw new ConnectError(`document ${request.id} not found`, Code.NotFound);
+        }
+
+        const fileType = request.fileType?.trim() || 'application/octet-stream';
+        const storedFile = await this.documentStorageService.saveFile({
+          assessmentId: document.assessmentId,
+          fileName,
+          content: fileContent,
+          contentType: fileType,
+          documentType: document.documentType,
+        });
+
+        const updated = await this.documentRepository.attachResult(request.id, {
+          bucketName: storedFile.bucketName,
+          objectKey: storedFile.objectKey,
+          fileName,
+          fileSize: storedFile.fileSize,
+        });
+
+        return create(UploadCopyResultResponseSchema, { document: updated });
+      },
+    );
+  }
+
+  async getDocumentFile(
+    documentId: string,
+    variant?: string,
+  ): Promise<{
     body: Readable;
     fileName: string;
     fileType: string;
     fileSize: number;
   } | null> {
-    validateUuid(documentId, 'id');
+    return runInSpan(
+      'DocumentService.getDocumentFile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentContentOpen,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async (span) => {
+        validateUuid(documentId, 'id');
 
-    const document = await this.documentRepository.findDocumentRecord(documentId);
-    if (!document) {
-      return null;
-    }
+        const document = await this.documentRepository.findDocumentRecord(documentId);
+        if (!document) {
+          return null;
+        }
 
-    const storedFile = await this.documentStorageService.getFile({
-      bucketName: document.bucketName,
-      objectKey: document.objectKey,
-    });
+        // variant=result → отдаём готовую копию нотариуса, если она приложена.
+        const useResult = variant === 'result' && !!document.resultObjectKey;
+        const location =
+          useResult && document.resultBucketName && document.resultObjectKey
+            ? { bucketName: document.resultBucketName, objectKey: document.resultObjectKey }
+            : { bucketName: document.bucketName, objectKey: document.objectKey };
+        const fileName = useResult
+          ? document.resultFileName ?? document.fileName
+          : document.fileName;
+        const fallbackSize = useResult ? document.resultFileSize ?? 0 : document.fileSize;
 
-    return {
-      body: storedFile.body,
-      fileName: document.fileName,
-      fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
-      fileSize: storedFile.contentLength ?? document.fileSize,
-    };
+        setSpanAttributes(span, {
+          'document.type': document.documentType,
+          'document.content_type': normalizeSpanContentType(document.fileType),
+          'document.size_bucket': spanSizeBucket(fallbackSize),
+        });
+
+        const storedFile = await this.documentStorageService.getFile(location);
+
+        return {
+          body: storedFile.body,
+          fileName,
+          fileType: storedFile.contentType || document.fileType || 'application/octet-stream',
+          fileSize: storedFile.contentLength ?? fallbackSize,
+        };
+      },
+    );
   }
 
   private normalizeListRequest(request: ListDocumentsByAssessmentRequest): DocumentQuery {
@@ -232,6 +431,57 @@ function invalid(field: string, msg: string): ConnectError {
 function normalizeDisplayFileName(value: string): string {
   const normalized = path.basename(value).trim().slice(0, 255);
   return normalized || 'document.bin';
+}
+
+function normalizeComment(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 2000) : undefined;
+}
+
+function normalizePrice(value: number | undefined): number {
+  if (!value || !Number.isFinite(value) || value < 0) return 0;
+  return Math.floor(value);
+}
+
+// Переходы статуса, доступные только нотариусу.
+const NOTARY_ONLY_TRANSITIONS: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]> = [
+  [PrismaDocumentStatus.Paid, PrismaDocumentStatus.InProgress], // «Взять в работу»
+  [PrismaDocumentStatus.InProgress, PrismaDocumentStatus.Ready], // «Готово»
+];
+
+// Переходы статуса, доступные владельцу заказа или нотариусу.
+const OWNER_OR_NOTARY_TRANSITIONS: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]> = [
+  [PrismaDocumentStatus.PendingPayment, PrismaDocumentStatus.Paid], // оплата
+  [PrismaDocumentStatus.Ready, PrismaDocumentStatus.Delivered], // получение
+  [PrismaDocumentStatus.PendingPayment, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.Paid, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.InProgress, PrismaDocumentStatus.Cancelled],
+  [PrismaDocumentStatus.Ready, PrismaDocumentStatus.Cancelled],
+];
+
+function matches(
+  list: ReadonlyArray<[PrismaDocumentStatus, PrismaDocumentStatus]>,
+  from: PrismaDocumentStatus,
+  to: PrismaDocumentStatus,
+): boolean {
+  return list.some(([f, t]) => f === from && t === to);
+}
+
+// Проверяет допустимость перехода статуса и права роли (бросает ConnectError при нарушении).
+function assertStatusTransition(
+  from: PrismaDocumentStatus,
+  to: PrismaDocumentStatus,
+  ownerId: string,
+): void {
+  if (matches(NOTARY_ONLY_TRANSITIONS, from, to)) {
+    requireRole(Role.Notary);
+    return;
+  }
+  if (matches(OWNER_OR_NOTARY_TRANSITIONS, from, to)) {
+    requireSelfOrRole(ownerId, Role.Notary);
+    return;
+  }
+  throw new ConnectError(`invalid status transition ${from} -> ${to}`, Code.FailedPrecondition);
 }
 
 function toConnectStorageError(error: unknown): never {

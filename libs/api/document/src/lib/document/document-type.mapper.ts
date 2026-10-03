@@ -1,5 +1,11 @@
-import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
-import { DocumentType as RpcDocumentType } from '@notary-portal/api-contracts';
+import {
+  DocumentStatus as PrismaDocumentStatus,
+  DocumentType as PrismaDocumentType,
+} from '@internal/prisma-client';
+import {
+  DocumentStatus as RpcDocumentStatus,
+  DocumentType as RpcDocumentType,
+} from '@notary-portal/api-contracts';
 
 export function toPrismaDocumentType(
   value: RpcDocumentType,
@@ -43,5 +49,47 @@ export function fromPrismaDocumentType(value: PrismaDocumentType): RpcDocumentTy
     case PrismaDocumentType.Other:
     default:
       return RpcDocumentType.OTHER;
+  }
+}
+
+export function toPrismaDocumentStatus(
+  value: RpcDocumentStatus,
+  fallback: PrismaDocumentStatus,
+): PrismaDocumentStatus {
+  switch (value) {
+    case RpcDocumentStatus.PENDING_PAYMENT:
+      return PrismaDocumentStatus.PendingPayment;
+    case RpcDocumentStatus.PAID:
+      return PrismaDocumentStatus.Paid;
+    case RpcDocumentStatus.IN_PROGRESS:
+      return PrismaDocumentStatus.InProgress;
+    case RpcDocumentStatus.READY:
+      return PrismaDocumentStatus.Ready;
+    case RpcDocumentStatus.DELIVERED:
+      return PrismaDocumentStatus.Delivered;
+    case RpcDocumentStatus.CANCELLED:
+      return PrismaDocumentStatus.Cancelled;
+    case RpcDocumentStatus.UNSPECIFIED:
+    default:
+      return fallback;
+  }
+}
+
+export function fromPrismaDocumentStatus(value: PrismaDocumentStatus): RpcDocumentStatus {
+  switch (value) {
+    case PrismaDocumentStatus.PendingPayment:
+      return RpcDocumentStatus.PENDING_PAYMENT;
+    case PrismaDocumentStatus.Paid:
+      return RpcDocumentStatus.PAID;
+    case PrismaDocumentStatus.InProgress:
+      return RpcDocumentStatus.IN_PROGRESS;
+    case PrismaDocumentStatus.Ready:
+      return RpcDocumentStatus.READY;
+    case PrismaDocumentStatus.Delivered:
+      return RpcDocumentStatus.DELIVERED;
+    case PrismaDocumentStatus.Cancelled:
+      return RpcDocumentStatus.CANCELLED;
+    default:
+      return RpcDocumentStatus.UNSPECIFIED;
   }
 }

@@ -1,0 +1,90 @@
+<div class="audit-by-entity">
+  <div class="mode-switcher">
+    <button class="mode-button" [class.active]="searchMode() === 'user'" (click)="setSearchMode('user')">
+      По пользователю
+    </button>
+    <button class="mode-button" [class.active]="searchMode() === 'assessment'" (click)="setSearchMode('assessment')">
+      По заказу
+    </button>
+  </div>
+
+  @if (searchMode() === 'user') {
+  <form [formGroup]="userForm" class="search-form">
+    <div class="form-group">
+      <label for="actorQuery">Email или ФИО</label>
+      <input
+        id="actorQuery"
+        type="text"
+        formControlName="actorQuery"
+        placeholder="Введите email или имя пользователя"
+        class="form-control" />
+    </div>
+    <div class="form-group">
+      <label for="actorUserId">ID пользователя</label>
+      <input
+        id="actorUserId"
+        type="text"
+        formControlName="actorUserId"
+        placeholder="Введите точный ID пользователя"
+        class="form-control" />
+    </div>
+  </form>
+  } @if (searchMode() === 'assessment') {
+  <form [formGroup]="assessmentForm" class="search-form">
+    <div class="form-group">
+      <label for="assessmentId">ID заказа</label>
+      <input
+        id="assessmentId"
+        type="text"
+        formControlName="assessmentId"
+        placeholder="Введите ID заказа"
+        class="form-control" />
+    </div>
+  </form>
+  } @if (loading()) {
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>Загрузка событий...</p>
+  </div>
+  } @if (error()) {
+  <div class="error-state">
+    <p>{{ error() }}</p>
+  </div>
+  } @if (!loading() && !error() && events().length === 0) {
+  <div class="empty-state">
+    <p>Введите критерии поиска для отображения событий аудита</p>
+  </div>
+  } @if (!loading() && !error() && events().length > 0) {
+  <div class="events-list">
+    <div class="events-header">
+      <span>Найдено событий: {{ events().length }}</span>
+    </div>
+    @for (event of events(); track event.id) {
+    <div class="event-card">
+      <div class="event-header">
+        <span class="event-time">{{ formatDate(event.occurredAt) }}</span>
+        <span class="event-type">{{ event.eventType }}</span>
+      </div>
+      <div class="event-body">
+        <div class="event-action">{{ event.actionTitle }}</div>
+        @if (event.actionContext) {
+        <div class="event-context">{{ event.actionContext }}</div>
+        }
+        <div class="event-actor">
+          <strong>Пользователь:</strong>
+          {{ event.actorName || event.actorEmail || event.actorUserId }}
+          <span class="actor-role">({{ event.actorRoleLabel }})</span>
+        </div>
+        @if (event.targetTitle) {
+        <div class="event-target">
+          <strong>Объект:</strong> {{ event.targetTitle }} @if (event.targetContext) {
+          <span class="target-context">— {{ event.targetContext }}</span>
+          }
+        </div>
+        }
+      </div>
+    </div>
+    }
+  </div>
+  }
+</div>

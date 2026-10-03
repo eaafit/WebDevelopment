@@ -111,6 +111,10 @@
 | timestamp      | timestamp    | timestamp    | timestamp  | Время действия                              |
 | details        | details      | details      | jsonb      | Дополнительные данные                       |
 
+Связь audit-события с доменным объектом хранится через `entity_name` + `entity_id`. Для событий заявки используется `entity_name = Assessment`, `entity_id = id заявки`; payment-события по заявке хранят `paymentId` в `details`.
+
+Индексы audit feed/export: `timestamp DESC`, `action_type`, `entity_id`, `user_id`, `entity_name, entity_id`, составной `entity_name, entity_id, timestamp DESC`.
+
 ## 9. Промокод (Promo)
 
 | Postgres    | Proto       | Prisma      | Type       | Description                 |

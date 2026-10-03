@@ -3,12 +3,16 @@ import { NotificationService } from './notification.service';
 import type {
   DeleteNotificationRequest,
   DeleteNotificationResponse,
+  GetNotificationSettingsRequest,
+  GetNotificationSettingsResponse,
   ListNotificationsRequest,
   ListNotificationsResponse,
   MarkAllAsReadRequest,
   MarkAllAsReadResponse,
   MarkAsReadRequest,
   MarkAsReadResponse,
+  UpdateNotificationSettingsRequest,
+  UpdateNotificationSettingsResponse,
 } from '@notary-portal/api-contracts';
 
 @Injectable()
@@ -26,4 +30,13 @@ export class NotificationRpcService {
 
   readonly deleteNotification = (r: DeleteNotificationRequest): Promise<DeleteNotificationResponse> =>
     this.notificationService.deleteNotification(r);
+
+  readonly getNotificationSettings = (
+    r: GetNotificationSettingsRequest,
+  ): Promise<GetNotificationSettingsResponse> => this.notificationService.getNotificationSettings(r);
+
+  readonly updateNotificationSettings = (
+    r: UpdateNotificationSettingsRequest,
+  ): Promise<UpdateNotificationSettingsResponse> =>
+    this.notificationService.updateNotificationSettings(r);
 }

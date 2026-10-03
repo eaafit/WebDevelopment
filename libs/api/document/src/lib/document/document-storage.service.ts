@@ -7,6 +7,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { DocumentType as PrismaDocumentType } from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
+import {
+  BusinessOperations,
+  NotarySpanAttributes,
+  SpanKind,
+  normalizeSpanContentType,
+  runInSpan,
+  spanSizeBucket,
+} from '@internal/tracing';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { Readable } from 'stream';
@@ -67,74 +75,107 @@ export class DocumentStorageService {
   async saveFile(
     params: SaveDocumentFileParams,
   ): Promise<StoredDocumentLocation & { fileSize: number }> {
-    const objectKey = buildObjectKey(params.assessmentId, params.documentType, params.fileName);
-    const body = Buffer.from(params.content);
+    return runInSpan(
+      'DocumentStorageService.saveFile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentStoragePut,
+        [NotarySpanAttributes.entity]: 'Document',
+        'document.type': params.documentType,
+        'document.content_type': normalizeSpanContentType(params.contentType),
+        'document.size_bucket': spanSizeBucket(params.content.length),
+      },
+      async () => {
+        const objectKey = buildObjectKey(params.assessmentId, params.documentType, params.fileName);
+        const body = Buffer.from(params.content);
 
-    try {
-      await this.client.send(
-        new PutObjectCommand({
-          Bucket: this.bucketName,
-          Key: objectKey,
-          Body: body,
-          ContentType: params.contentType,
-        }),
-      );
-    } catch (error: unknown) {
-      throw toStorageUnavailable(error);
-    }
+        try {
+          await this.client.send(
+            new PutObjectCommand({
+              Bucket: this.bucketName,
+              Key: objectKey,
+              Body: body,
+              ContentType: params.contentType,
+            }),
+          );
+        } catch (error: unknown) {
+          throw toStorageUnavailable(error);
+        }
 
-    return {
-      bucketName: this.bucketName,
-      objectKey,
-      fileSize: body.length,
-    };
+        return {
+          bucketName: this.bucketName,
+          objectKey,
+          fileSize: body.length,
+        };
+      },
+      { kind: SpanKind.CLIENT },
+    );
   }
 
   async deleteFile(location: StoredDocumentLocation): Promise<void> {
-    try {
-      await this.client.send(
-        new DeleteObjectCommand({
-          Bucket: location.bucketName,
-          Key: location.objectKey,
-        }),
-      );
-    } catch (error: unknown) {
-      if (isMissingObjectError(error)) {
-        return;
-      }
+    await runInSpan(
+      'DocumentStorageService.deleteFile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentStorageDelete,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async () => {
+        try {
+          await this.client.send(
+            new DeleteObjectCommand({
+              Bucket: location.bucketName,
+              Key: location.objectKey,
+            }),
+          );
+        } catch (error: unknown) {
+          if (isMissingObjectError(error)) {
+            return;
+          }
 
-      throw toStorageUnavailable(error);
-    }
+          throw toStorageUnavailable(error);
+        }
+      },
+      { kind: SpanKind.CLIENT },
+    );
   }
 
   async getFile(location: StoredDocumentLocation): Promise<StoredDocumentObject> {
-    try {
-      const response = await this.client.send(
-        new GetObjectCommand({
-          Bucket: location.bucketName,
-          Key: location.objectKey,
-        }),
-      );
+    return runInSpan(
+      'DocumentStorageService.getFile',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.documentStorageGet,
+        [NotarySpanAttributes.entity]: 'Document',
+      },
+      async () => {
+        try {
+          const response = await this.client.send(
+            new GetObjectCommand({
+              Bucket: location.bucketName,
+              Key: location.objectKey,
+            }),
+          );
 
-      if (!response.Body) {
-        throw new DocumentStorageUnavailableError('document object body is empty');
-      }
+          if (!response.Body) {
+            throw new DocumentStorageUnavailableError('document object body is empty');
+          }
 
-      return {
-        bucketName: location.bucketName,
-        objectKey: location.objectKey,
-        body: toNodeReadable(response.Body),
-        contentLength:
-          typeof response.ContentLength === 'number' ? response.ContentLength : undefined,
-        contentType: response.ContentType?.trim() || undefined,
-      };
-    } catch (error: unknown) {
-      if (isMissingObjectError(error)) {
-        throw new DocumentObjectNotFoundError();
-      }
+          return {
+            bucketName: location.bucketName,
+            objectKey: location.objectKey,
+            body: toNodeReadable(response.Body),
+            contentLength:
+              typeof response.ContentLength === 'number' ? response.ContentLength : undefined,
+            contentType: response.ContentType?.trim() || undefined,
+          };
+        } catch (error: unknown) {
+          if (isMissingObjectError(error)) {
+            throw new DocumentObjectNotFoundError();
+          }
 
-      throw toStorageUnavailable(error);
-    }
+          throw toStorageUnavailable(error);
+        }
+      },
+      { kind: SpanKind.CLIENT },
+    );
   }
 
   private requireEnv(name: string): string {

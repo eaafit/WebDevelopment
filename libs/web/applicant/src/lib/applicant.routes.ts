@@ -1,6 +1,8 @@
 import { Route } from '@angular/router';
 import { Applicant } from './applicant/applicant';
 import { PlaceholderPageRoute } from '@notary-portal/ui';
+import { AssessmentHistoryComponent } from '@notary-portal/ui';
+import { Copy, List, New, roleGuard, UserRole } from '@notary-portal/ui';
 
 const placeholder = (title: string, features: string[]): Partial<Route> => ({
   component: PlaceholderPageRoute,
@@ -15,17 +17,12 @@ export const applicantRoutes: Route[] = [
       { path: '', ...placeholder('Главная', ['Обзор кабинета заявителя']) } as Route,
       {
         path: 'orders',
-        ...placeholder('Мои заявки', ['Список заявок', 'Просмотр статусов', 'Фильтры']),
-      } as Route,
+        loadComponent: () => import('./features/orders/orders').then((m) => m.Orders),
+      },
       {
         path: 'orders/new',
-        ...placeholder('Подача заявки', [
-          'Ввод данных наследства/объекта',
-          'Выбор типа имущества',
-          'Прикрепление документов',
-          'Согласия/чекбоксы',
-          'Отправка',
-        ]),
+        loadComponent: () =>
+          import('./features/orders/new-order-form/new-order-form').then((m) => m.NewOrderForm),
       },
       {
         path: 'documents',
@@ -60,44 +57,60 @@ export const applicantRoutes: Route[] = [
       },
       {
         path: 'assessment/history',
-        ...placeholder('История заказов', [
-          'Лента заказов',
-          'Статусы и таймлайн',
-          'Фильтры',
-          'Уведомления по изменениям',
-        ]),
+        component: AssessmentHistoryComponent,
+        data: { role: 'applicant' },
       },
       {
         path: 'payments',
-        ...placeholder('Платежи', [
-          'Выбор тарифа',
-          'Ввод реквизитов',
-          'Промокод',
-          'История платежей',
-        ]),
-      },
+        loadComponent: () => import('./features/payments/payments').then((m) => m.Payments),
+      } as Route,
+      {
+        path: 'checkout/success',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
+      {
+        path: 'checkout/cancel',
+        loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
+      } as Route,
       {
         path: 'checkout',
         loadComponent: () => import('./features/checkout/checkout').then((m) => m.Checkout),
       },
       {
         path: 'copies',
-        ...placeholder('Копии документов', [
-          'Форма запроса',
-          'Прикрепление оснований',
-          'Расчёт стоимости',
-          'Оплата и выдача копий',
-        ]),
+        canActivate: [roleGuard(UserRole.Applicant)],
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            component: List,
+            data: { role: 'applicant' },
+          },
+          {
+            // Заказ копии инициирует заявитель (issue-20: /applicant/copies/new).
+            path: 'new',
+            component: New,
+            data: { role: 'applicant' },
+          },
+          {
+            path: ':id',
+            component: Copy,
+            data: { role: 'applicant' },
+          },
+        ],
       },
       {
         path: 'notifications',
-        ...placeholder('Уведомления', [
-          'In-app уведомления',
-          'Фильтры',
-          'Прочитано/не прочитано',
-          'История событий',
-        ]),
-      },
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.ApplicantNotifications),
+      } as Route,
+      {
+        path: 'notifications/settings',
+        loadComponent: () =>
+          import('./features/notifications/notification-settings').then(
+            (m) => m.ApplicantNotificationSettings,
+          ),
+      } as Route,
       {
         path: 'support',
         ...placeholder('Чат поддержки', ['Чат/тикеты', 'Вложения', 'SLA-статусы']),

@@ -1,0 +1,100 @@
+<section class="newsletter-list">
+  <header class="newsletter-list__header">
+    <div>
+      <p class="newsletter-list__eyebrow">Администратор / журнал отправленных писем</p>
+      <h2>Список рассылок</h2>
+      <p class="newsletter-list__lead">
+        Отдельный журнал кампаний: тема письма, дата, количество получателей и статус.
+      </p>
+    </div>
+
+    <button type="button" class="newsletter-list__btn newsletter-list__btn--primary" (click)="createNewsletter()">
+      Создать рассылку
+    </button>
+  </header>
+
+  <section class="newsletter-list__toolbar" aria-label="Фильтры рассылок">
+    <label class="newsletter-list__field">
+      <span>Статус</span>
+      <select [value]="statusFilter()" (change)="updateStatusFilter($any($event.target).value)">
+        <option value="all">Все статусы</option>
+        <option value="sent">Отправлено</option>
+        <option value="sending">Отправляется</option>
+        <option value="failed">Ошибка</option>
+        <option value="partialFailed">Частично отправлено</option>
+      </select>
+    </label>
+
+    <div class="newsletter-list__counter">
+      Найдено: <strong>{{ totalLabel() }}</strong>
+    </div>
+  </section>
+
+  <section class="newsletter-list__status" aria-live="polite">{{ statusMessage() }}</section>
+
+  <div class="newsletter-list__table-wrap">
+    <table class="newsletter-list__table">
+      <thead>
+        <tr>
+          <th>Тема письма</th>
+          <th>Дата отправки</th>
+          <th>Получатели</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (loading()) {
+        <tr>
+          <td colspan="4" class="newsletter-list__empty">Загрузка журнала рассылок...</td>
+        </tr>
+        } @else if (newsletters().length) { @for (newsletter of newsletters(); track newsletter.id) {
+        <tr
+          tabindex="0"
+          role="button"
+          [class.newsletter-list__row--active]="selectedNewsletter()?.campaign?.id === newsletter.id"
+          (click)="selectNewsletter(newsletter)"
+          (keydown.enter)="selectNewsletter(newsletter)">
+          <td class="newsletter-list__subject">{{ newsletter.subject }}</td>
+          <td>{{ newsletter.completedAt || newsletter.createdAt }}</td>
+          <td>{{ newsletter.recipientsCount }}</td>
+          <td>
+            <span class="newsletter-list__badge {{ statusClass(newsletter.status) }}">
+              {{ newsletter.statusLabel }}
+            </span>
+          </td>
+        </tr>
+        } } @else {
+        <tr>
+          <td colspan="4" class="newsletter-list__empty">Рассылки с выбранным статусом не найдены.</td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="newsletter-list__pagination">
+    <button type="button" class="newsletter-list__btn newsletter-list__btn--secondary" [disabled]="page() <= 1" (click)="previousPage()">
+      Назад
+    </button>
+    <span>{{ meta().currentPage }} / {{ meta().totalPages }}</span>
+    <button type="button" class="newsletter-list__btn newsletter-list__btn--secondary" [disabled]="page() >= meta().totalPages" (click)="nextPage()">
+      Вперёд
+    </button>
+  </footer>
+
+  @if (selectedNewsletter()) {
+  <button
+    type="button"
+    class="newsletter-list__overlay"
+    aria-label="Закрыть детали рассылки"
+    (click)="closeDetailPanel()"></button>
+  <lib-newsletter-detail-panel
+    [newsletter]="selectedNewsletter()!"
+    (repeatRequested)="repeatNewsletter($event)"
+    (closeRequested)="closeDetailPanel()"></lib-newsletter-detail-panel>
+  }
+
+  @if (toastMessage()) {
+  <div class="newsletter-list__toast" role="status">{{ toastMessage() }}</div>
+  }
+</section>

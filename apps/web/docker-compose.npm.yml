@@ -1,0 +1,23 @@
+# Nginx Proxy Manager — отдельный стек. Сеть `proxy` должна существовать заранее:
+#   docker network create proxy
+# (см. apps/web/DOCKER.md). Порты 80/81/443 на хосте; контейнер `portal` доступен NPM по сети proxy.
+
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '81:81'
+      - '443:443'
+    volumes:
+      - ./proxy-manager-data:/data
+      - ./proxy-manager-letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: proxy

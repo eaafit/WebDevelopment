@@ -4,16 +4,32 @@ import {
   AssessmentService,
   AssessmentStatus,
   type Assessment,
+  type FiasAddressHint,
+  type FiasAddressItem,
   type RealEstateObject,
 } from '@notary-portal/api-contracts';
 import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
 import type {
   AssessmentDraftModel,
-  DistrictLookupOption,
   EstimationFormDraftData,
-  LookupOption,
+  FiasAddressSuggestion,
+  SelectedFiasAddress,
 } from './estimation-form.models';
+
+export type ApplicantAssessmentUiAction =
+  | 'status_loaded'
+  | 'status_load_failed'
+  | 'return_to_params'
+  | 'create_new_assessment'
+  | 'open_history';
+
+export interface ApplicantAssessmentUiActionLog {
+  action: ApplicantAssessmentUiAction;
+  assessmentId?: string;
+  status?: string;
+  targetRoute?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AssessmentApiService {
@@ -63,24 +79,26 @@ export class AssessmentApiService {
     return this.requireAssessment(response.assessment);
   }
 
-  async listCities(): Promise<LookupOption[]> {
-    const response = await this.client.listCities({});
-    return response.cities.map((city) => ({
-      id: city.id,
-      name: city.name,
-    }));
-  }
-
-  async listDistricts(cityId?: string): Promise<DistrictLookupOption[]> {
-    const response = await this.client.listDistricts({
-      ...(cityId?.trim() && { cityId: cityId.trim() }),
+  async getFiasAddressHints(query: string): Promise<FiasAddressSuggestion[]> {
+    const response = await this.client.getFiasAddressHints({
+      query,
+      limit: 5,
     });
 
-    return response.districts.map((district) => ({
-      id: district.id,
-      name: district.name,
-      cityId: district.cityId,
-    }));
+    return response.hints.map(toFiasAddressSuggestion);
+  }
+
+  async getFiasAddressItemById(objectId: string): Promise<SelectedFiasAddress> {
+    const response = await this.client.getFiasAddressItemById({ objectId });
+    if (!response.item) {
+      throw new Error('Backend did not return FIAS address item');
+    }
+
+    return toSelectedFiasAddress(response.item);
+  }
+
+  async logApplicantAssessmentAction(input: ApplicantAssessmentUiActionLog): Promise<void> {
+    await this.client.logApplicantAssessmentAction(input);
   }
 
   private requireAssessment(assessment: Assessment | undefined): AssessmentDraftModel {
@@ -99,6 +117,8 @@ export class AssessmentApiService {
       status: assessment.status,
       updatedAt: assessment.updatedAt ? timestampDate(assessment.updatedAt).toISOString() : null,
       form: {
+        fiasObjectId: '',
+        fiasObjectGuid: '',
         cityId: realEstateObject?.cityId ?? '',
         districtId: realEstateObject?.districtId ?? '',
         address: realEstateObject?.address ?? assessment.address,
@@ -142,6 +162,31 @@ function buildRealEstateObjectInput(form: EstimationFormDraftData) {
     permittedUse: normalizeNullableString(form.permittedUse),
     utilities: normalizeNullableString(form.utilities),
     description: normalizeNullableString(form.description),
+  };
+}
+
+function toFiasAddressSuggestion(hint: FiasAddressHint): FiasAddressSuggestion {
+  return {
+    objectId: hint.objectId,
+    objectGuid: hint.objectGuid,
+    fullName: hint.fullName,
+    objectLevelId: hint.objectLevelId,
+    addressType: hint.addressType,
+    cityId: hint.cityId ?? '',
+    districtId: hint.districtId ?? '',
+  };
+}
+
+function toSelectedFiasAddress(item: FiasAddressItem): SelectedFiasAddress {
+  return {
+    objectId: item.objectId,
+    objectGuid: item.objectGuid,
+    fullName: item.fullName,
+    objectLevelId: item.objectLevelId,
+    addressType: item.addressType,
+    cityId: item.cityId ?? '',
+    districtId: item.districtId ?? '',
+    cadastralNumber: item.addressDetails?.cadastralNumber ?? '',
   };
 }
 

@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '@internal/prisma';
 import { Prisma, type Subscription as PrismaSubscriptionRecord } from '@internal/prisma-client';
 import { Injectable } from '@nestjs/common';
+import { BusinessOperations, NotarySpanAttributes, runInSpan } from '@internal/tracing';
 import {
   SUBSCRIPTION_CURRENCY,
   addSubscriptionMonths,
@@ -29,33 +30,43 @@ export class PaymentSubscriptionService {
   async createSubscription(
     request: CreateSubscriptionRequest,
   ): Promise<CreateSubscriptionResponse> {
-    const plan = getSubscriptionPlanByRpc(request.plan);
-    const startDate = request.startDate
-      ? normalizeDate(timestampDate(request.startDate))
-      : new Date();
-    const endDate = request.endDate
-      ? normalizeDate(timestampDate(request.endDate))
-      : normalizeDate(addSubscriptionMonths(startDate, plan.durationMonths));
-
-    if (endDate <= startDate) {
-      throw new ConnectError('endDate must be later than startDate', Code.InvalidArgument);
-    }
-
-    const subscription = await this.prisma.subscription.create({
-      data: {
-        userId: request.userId,
-        plan: plan.prismaPlan,
-        basePrice: plan.price,
-        currency: SUBSCRIPTION_CURRENCY,
-        startDate,
-        endDate,
-        isActive: false,
+    return runInSpan(
+      'PaymentSubscriptionService.createSubscription',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.subscriptionCreate,
+        [NotarySpanAttributes.entity]: 'Subscription',
+        'payment.type': 'subscription',
       },
-    });
+      async () => {
+        const plan = getSubscriptionPlanByRpc(request.plan);
+        const startDate = request.startDate
+          ? normalizeDate(timestampDate(request.startDate))
+          : new Date();
+        const endDate = request.endDate
+          ? normalizeDate(timestampDate(request.endDate))
+          : normalizeDate(addSubscriptionMonths(startDate, plan.durationMonths));
 
-    return create(CreateSubscriptionResponseSchema, {
-      subscription: this.toRpcSubscription(subscription),
-    });
+        if (endDate <= startDate) {
+          throw new ConnectError('endDate must be later than startDate', Code.InvalidArgument);
+        }
+
+        const subscription = await this.prisma.subscription.create({
+          data: {
+            userId: request.userId,
+            plan: plan.prismaPlan,
+            basePrice: plan.price,
+            currency: SUBSCRIPTION_CURRENCY,
+            startDate,
+            endDate,
+            isActive: false,
+          },
+        });
+
+        return create(CreateSubscriptionResponseSchema, {
+          subscription: this.toRpcSubscription(subscription),
+        });
+      },
+    );
   }
 
   async getSubscription(request: GetSubscriptionRequest): Promise<GetSubscriptionResponse> {
@@ -76,26 +87,48 @@ export class PaymentSubscriptionService {
     subscriptionId: string,
     userId: string,
   ): Promise<PrismaSubscriptionRecord> {
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { id: subscriptionId },
-    });
+    return runInSpan(
+      'PaymentSubscriptionService.resolveSubscriptionForPayment',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.subscriptionResolveForPayment,
+        [NotarySpanAttributes.entity]: 'Subscription',
+        'payment.type': 'subscription',
+        'db.operation': 'select',
+      },
+      async () => {
+        const subscription = await this.prisma.subscription.findUnique({
+          where: { id: subscriptionId },
+        });
 
-    if (!subscription || subscription.userId !== userId) {
-      throw new ConnectError('Subscription was not found', Code.NotFound);
-    }
+        if (!subscription || subscription.userId !== userId) {
+          throw new ConnectError('Subscription was not found', Code.NotFound);
+        }
 
-    if (subscription.isActive) {
-      throw new ConnectError('Subscription is already active', Code.FailedPrecondition);
-    }
+        if (subscription.isActive) {
+          throw new ConnectError('Subscription is already active', Code.FailedPrecondition);
+        }
 
-    return subscription;
+        return subscription;
+      },
+    );
   }
 
   async activateSubscription(tx: PrismaTransaction, subscriptionId: string): Promise<void> {
-    await tx.subscription.update({
-      where: { id: subscriptionId },
-      data: { isActive: true },
-    });
+    await runInSpan(
+      'PaymentSubscriptionService.activateSubscription',
+      {
+        [NotarySpanAttributes.operation]: BusinessOperations.subscriptionActivate,
+        [NotarySpanAttributes.entity]: 'Subscription',
+        'payment.type': 'subscription',
+        'payment.status.to': 'completed',
+        'db.operation': 'update',
+      },
+      () =>
+        tx.subscription.update({
+          where: { id: subscriptionId },
+          data: { isActive: true },
+        }),
+    );
   }
 
   private toRpcSubscription(subscription: PrismaSubscriptionRecord) {

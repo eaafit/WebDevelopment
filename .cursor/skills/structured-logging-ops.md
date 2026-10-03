@@ -35,5 +35,5 @@
 ### Источники в репозитории
 
 - `docs/issues/issue-32-nibylitsin-structured-logging.md`
-- `docs/issues/issue-33-nibylitsin-loki-grafana.md`
+- `docs/issues/issue-33-chernenko-loki-grafana.md`
 - `docs/issues/issue-22-nibylitsin-audit-log.md` (граница “аудит ≠ ops‑логи”)

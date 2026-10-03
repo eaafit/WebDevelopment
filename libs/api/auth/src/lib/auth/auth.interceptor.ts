@@ -1,6 +1,6 @@
 import { Code, ConnectError, type Interceptor } from '@connectrpc/connect';
 import { Injectable } from '@nestjs/common';
-import { requestContextStorage } from '@internal/auth-shared';
+import { REQUEST_IP_CONTEXT_KEY, requestContextStorage } from '@internal/auth-shared';
 import { TokenService } from './token.service';
 
 // ─── Публичные методы (без авторизации) ─────────────────────────────────────
@@ -12,6 +12,10 @@ const PUBLIC_METHODS = new Set([
   'notary.auth.v1alpha1.AuthService/RefreshToken',
   'notary.auth.v1alpha1.AuthService/ForgotPassword',
   'notary.auth.v1alpha1.AuthService/ResetPassword',
+  'notary.auth.v1alpha1.AuthService/GetOAuthAuthorizeUrl',
+  'notary.auth.v1alpha1.AuthService/OAuthLogin',
+  'notary.auth.v1alpha1.AuthService/ConfirmContact',
+  'notary.auth.v1alpha1.AuthService/ResendContactCode',
 ]);
 
 @Injectable()
@@ -24,10 +28,14 @@ export class AuthInterceptor {
   build(): Interceptor {
     return (next) => async (req) => {
       const methodKey = `${req.service.typeName}/${req.method.name}`;
+      const metadata = {
+        ip: req.contextValues.get(REQUEST_IP_CONTEXT_KEY),
+        userAgent: req.header.get('user-agent'),
+      };
 
       // Публичные методы — пропускаем без проверки токена
       if (PUBLIC_METHODS.has(methodKey)) {
-        return requestContextStorage.run({ user: null }, () => next(req));
+        return requestContextStorage.run({ user: null, metadata }, () => next(req));
       }
 
       // Читаем Bearer token из Authorization header
@@ -47,7 +55,7 @@ export class AuthInterceptor {
       }
 
       // Прокидываем payload в AsyncLocalStorage на время выполнения запроса
-      return requestContextStorage.run({ user: payload }, () => next(req));
+      return requestContextStorage.run({ user: payload, metadata }, () => next(req));
     };
   }
 }

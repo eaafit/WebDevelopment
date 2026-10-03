@@ -7,6 +7,8 @@ export interface EstimationFormLocalDraftSnapshot {
   updatedAt: string;
 }
 
+const COMPLETED_ASSESSMENTS_LIMIT = 20;
+
 @Injectable({ providedIn: 'root' })
 export class EstimationFormLocalDraftService {
   load(userId: string): EstimationFormLocalDraftSnapshot | null {
@@ -46,8 +48,60 @@ export class EstimationFormLocalDraftService {
     storage.removeItem(this.buildStorageKey(userId));
   }
 
+  markCompleted(userId: string, assessmentId: string): void {
+    const storage = this.getStorage();
+    const normalizedAssessmentId = assessmentId.trim();
+    if (!storage || !normalizedAssessmentId) {
+      return;
+    }
+
+    const completedAssessmentIds = this.loadCompletedAssessmentIds(storage, userId).filter(
+      (id) => id !== normalizedAssessmentId,
+    );
+
+    storage.setItem(
+      this.buildCompletedStorageKey(userId),
+      JSON.stringify(
+        [normalizedAssessmentId, ...completedAssessmentIds].slice(0, COMPLETED_ASSESSMENTS_LIMIT),
+      ),
+    );
+  }
+
+  isCompleted(userId: string, assessmentId: string): boolean {
+    const storage = this.getStorage();
+    const normalizedAssessmentId = assessmentId.trim();
+    if (!storage || !normalizedAssessmentId) {
+      return false;
+    }
+
+    return this.loadCompletedAssessmentIds(storage, userId).includes(normalizedAssessmentId);
+  }
+
   private buildStorageKey(userId: string): string {
     return `notary:applicant:estimation-form:${userId}`;
+  }
+
+  private buildCompletedStorageKey(userId: string): string {
+    return `${this.buildStorageKey(userId)}:completed`;
+  }
+
+  private loadCompletedAssessmentIds(storage: Storage, userId: string): string[] {
+    const storageKey = this.buildCompletedStorageKey(userId);
+    const rawValue = storage.getItem(storageKey);
+    if (!rawValue) {
+      return [];
+    }
+
+    try {
+      const parsedValue: unknown = JSON.parse(rawValue);
+      if (Array.isArray(parsedValue)) {
+        return parsedValue.filter((item): item is string => typeof item === 'string');
+      }
+    } catch {
+      storage.removeItem(storageKey);
+    }
+
+    return [];
   }
 
   private getStorage(): Storage | null {
