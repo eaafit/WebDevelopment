@@ -71,10 +71,6 @@ export class Register {
     const config = OAUTH_PROVIDERS[providerKey];
     if (!config) return;
     try {
-      if (config.stub) {
-        await this.authService.startStubOAuth(config);
-        return;
-      }
       const url = await this.authService.getAuthorizeUrl(config);
       this.redirectToProvider(url);
     } catch {

@@ -10,13 +10,11 @@ describe('Login', () => {
   let fixture: ComponentFixture<Login>;
   let login: jest.Mock;
   let getAuthorizeUrl: jest.Mock;
-  let startStubOAuth: jest.Mock;
   let logger: { warn: jest.Mock };
 
   beforeEach(async () => {
     login = jest.fn();
     getAuthorizeUrl = jest.fn();
-    startStubOAuth = jest.fn();
     logger = { warn: jest.fn() };
 
     await TestBed.configureTestingModule({
@@ -30,7 +28,6 @@ describe('Login', () => {
             error: signal<string | null>(null).asReadonly(),
             login,
             getAuthorizeUrl,
-            startStubOAuth,
           },
         },
         {
@@ -60,44 +57,38 @@ describe('Login', () => {
     expect(link?.getAttribute('href')).toContain('/auth/forgot-password');
   });
 
-  it('should start the Google stub flow without a provider redirect', async () => {
-    startStubOAuth.mockResolvedValue(undefined);
+  it('should render Google and Yandex login buttons and start the OAuth redirect on click', async () => {
+    getAuthorizeUrl.mockResolvedValue('https://google/auth?x=1');
+    const redirect = jest
+      .spyOn(component as unknown as { redirectToProvider: (u: string) => void }, 'redirectToProvider')
+      .mockImplementation(() => undefined);
     fixture.detectChanges();
 
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelector('[data-testid="google-login"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="yandex-login"]')).not.toBeNull();
     expect(root.querySelector('[data-testid="vk-login"]')).not.toBeNull();
-    expect(root.querySelector('[data-testid="apple-login"]')).not.toBeNull();
 
     await component.onOAuthLogin('google');
 
-    expect(startStubOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'google', stub: true }),
+    expect(getAuthorizeUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'google' }),
     );
-    expect(getAuthorizeUrl).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith('https://google/auth?x=1');
   });
 
-  it('should start the Yandex stub flow without a provider redirect', async () => {
-    startStubOAuth.mockResolvedValue(undefined);
+  it('should start the Yandex OAuth redirect on click', async () => {
+    getAuthorizeUrl.mockResolvedValue('https://ya/auth?x=1');
+    const redirect = jest
+      .spyOn(component as unknown as { redirectToProvider: (u: string) => void }, 'redirectToProvider')
+      .mockImplementation(() => undefined);
 
     await component.onOAuthLogin('yandex');
 
-    expect(startStubOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'yandex', stub: true }),
+    expect(getAuthorizeUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'yandex' }),
     );
-    expect(getAuthorizeUrl).not.toHaveBeenCalled();
-  });
-
-  it('should start the Apple stub flow without a provider redirect', async () => {
-    startStubOAuth.mockResolvedValue(undefined);
-
-    await component.onOAuthLogin('apple');
-
-    expect(startStubOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'apple', stub: true }),
-    );
-    expect(getAuthorizeUrl).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith('https://ya/auth?x=1');
   });
 
   it('should expose the register link', () => {

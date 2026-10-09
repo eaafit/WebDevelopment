@@ -27,8 +27,6 @@ describe('Register', () => {
             loading: signal(false).asReadonly(),
             error: errorSignal.asReadonly(),
             register,
-            getAuthorizeUrl: jest.fn(),
-            startStubOAuth: jest.fn(),
           },
         },
         {
