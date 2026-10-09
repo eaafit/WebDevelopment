@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { createClient } from '@connectrpc/connect';
 import { AuthService as RpcAuthService, OauthProvider } from '@notary-portal/api-contracts';
 import { RPC_TRANSPORT, TokenStore, USER_ROLE_HOME, WebLoggerService } from '@notary-portal/ui';
+import { OAuthApiService } from './oauth-api.service';
 import {
   authErrorLogContext,
   authRoleName,
@@ -29,18 +30,21 @@ export interface PendingVerification {
 
 /** Конфигурация внешнего OAuth-провайдера на фронте. */
 export interface OAuthProviderConfig {
-  provider: OauthProvider;
+  provider?: OauthProvider;
   /** Ключ маршрута /auth/oauth/:provider/callback и префикс лог-событий oauth.<key>.* */
   key: string;
   /** Человекочитаемое имя провайдера для UI (заголовки, сообщения). */
   displayName: string;
+  /** true — не ходим в реальный IdP, только локальный stub API. */
+  stub?: boolean;
 }
 
 /** Реестр провайдеров по ключу маршрута. Новый провайдер = новая запись. */
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
-  google: { provider: OauthProvider.GOOGLE, key: 'google', displayName: 'Google' },
-  yandex: { provider: OauthProvider.YANDEX, key: 'yandex', displayName: 'Яндекс' },
-  vk: { provider: OauthProvider.VK, key: 'vk', displayName: 'ВКонтакте' },
+  google: { provider: OauthProvider.GOOGLE, key: 'google', displayName: 'Google', stub: true },
+  yandex: { provider: OauthProvider.YANDEX, key: 'yandex', displayName: 'Яндекс', stub: true },
+  vk: { provider: OauthProvider.VK, key: 'vk', displayName: 'ВКонтакте', stub: true },
+  apple: { key: 'apple', displayName: 'Apple', stub: true },
 };
 
 /** Конфигурация провайдера по ключу маршрута, либо null для неизвестного. */
@@ -55,6 +59,7 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly transport = inject(RPC_TRANSPORT);
   private readonly logger = inject(WebLoggerService);
+  private readonly oauthApi = inject(OAuthApiService);
 
   private readonly client = createClient(RpcAuthService, this.transport);
 
@@ -87,7 +92,7 @@ export class AuthService {
         outcome: 'succeeded',
         role: authRoleName(this.tokenStore.role() ?? undefined),
       });
-      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      await this.navigateToRoleHome();
     } catch (err) {
       this.logAuthFailure('auth.login.failed', err, logContext);
       this._error.set(extractMessage(err));
@@ -123,7 +128,7 @@ export class AuthService {
         outcome: 'succeeded',
         role: authRoleName(this.tokenStore.role() ?? params.role),
       });
-      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      await this.navigateToRoleHome();
     } catch (err) {
       this.logAuthFailure('auth.register.failed', err, logContext);
       this._error.set(extractMessage(err));
@@ -139,10 +144,19 @@ export class AuthService {
    * state, сохраняет state в sessionStorage и возвращает URL для редиректа браузера.
    */
   async getAuthorizeUrl(config: OAuthProviderConfig): Promise<string> {
+    if (config.stub) {
+      const state = `stub-${config.key}-${Date.now()}`;
+      this.persistOAuthState(state);
+      this.logger.info(`oauth.${config.key}.authorize_requested`, { provider: config.key });
+      return `https://dev.stub.local/oauth/${config.key}?state=${encodeURIComponent(state)}`;
+    }
+    if (config.provider === undefined) {
+      throw new Error(`${config.displayName} на этом стенде — неизвестный провайдер.`);
+    }
     this._loading.set(true);
     this._error.set(null);
     try {
-      const res = await this.client.getOAuthAuthorizeUrl({ provider: config.provider });
+      const res = await this.oauthApi.getAuthorizeUrl(config.provider);
       if (!res.url || !res.state) throw new Error('Пустой ответ сервера');
       this.persistOAuthState(res.state);
       this.logger.info(`oauth.${config.key}.authorize_requested`, { provider: config.key });
@@ -150,6 +164,31 @@ export class AuthService {
     } catch (err) {
       this._error.set(extractMessage(err));
       this.logger.warn(`oauth.${config.key}.authorize_failed`, { provider: config.key });
+      throw err;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  /**
+   * Apple (и другие stub-провайдеры): читаем локальный IdP и сразу идём
+   * на форму подтверждения контакта. TODO: заменить на Sign in with Apple.
+   */
+  async startStubOAuth(config: OAuthProviderConfig): Promise<void> {
+    this._loading.set(true);
+    this._error.set(null);
+    try {
+      const profile = await this.oauthApi.readStubProfile(config.key, config.displayName);
+      this.persistPendingVerification({
+        ticket: `stub:${config.key}`,
+        contact: profile.email,
+        providerKey: config.key,
+      });
+      this.logger.info(`oauth.${config.key}.stub_started`, { provider: config.key });
+      await this.router.navigateByUrl('/auth/verify-contact');
+    } catch (err) {
+      this._error.set(extractMessage(err));
+      this.logger.warn(`oauth.${config.key}.stub_failed`, { provider: config.key });
       throw err;
     } finally {
       this._loading.set(false);
@@ -170,13 +209,33 @@ export class AuthService {
     this._loading.set(true);
     this._error.set(null);
     try {
+      if (config.stub) {
+        const profile = await this.oauthApi.readStubProfile(config.key, config.displayName);
+        this.persistPendingVerification({
+          ticket: `stub:${config.key}`,
+          contact: profile.email,
+          providerKey: config.key,
+        });
+        this.logger.info(`oauth.${config.key}.verification_required`, { provider: config.key });
+        await this.router.navigateByUrl('/auth/verify-contact');
+        return true;
+      }
+
       const expected = this.readOAuthState();
       this.clearOAuthState();
       if (!code || !state || !expected || state !== expected) {
         throw new Error('Некорректный ответ авторизации.');
       }
+      if (config.provider === undefined) {
+        throw new Error(`${config.displayName} не завершает вход через RPC-callback.`);
+      }
       // device_id нужен только VK ID; Google/Yandex его не присылают (пустая строка).
-      const res = await this.client.oAuthLogin({ provider: config.provider, code, state, deviceId });
+      const res = await this.oauthApi.oAuthLogin({
+        provider: config.provider,
+        code,
+        state,
+        deviceId,
+      });
 
       // Новая регистрация / первая связка → шаг подтверждения контакта (токены не выдаются).
       if (res.verificationRequired) {
@@ -190,10 +249,10 @@ export class AuthService {
         return true;
       }
 
-      if (!res.result) throw new Error('Пустой ответ сервера');
-      this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
+      if (!res.accessToken || !res.refreshToken) throw new Error('Пустой ответ сервера');
+      this.tokenStore.setTokens(res.accessToken, res.refreshToken, res.user);
       this.logger.info(`oauth.${config.key}.login_succeeded`, { provider: config.key });
-      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      await this.navigateToRoleHome();
       return true;
     } catch (err) {
       this._error.set(extractMessage(err));
@@ -245,6 +304,21 @@ export class AuthService {
     sessionStorage.removeItem(VERIFY_PROVIDER_KEY);
   }
 
+  private completeStubContact(pending: PendingVerification, code: string): void {
+    if (!/^\d{6}$/.test(code)) {
+      throw new Error('Введите 6 цифр кода.');
+    }
+    const user = {
+      id: 'apple-stub-user',
+      email: pending.contact,
+      fullName: 'Apple Stub',
+      role: 1,
+      phoneNumber: '',
+      isActive: true,
+    };
+    this.tokenStore.setTokens(makeDemoJwt(user), 'apple-stub-rt', user);
+  }
+
   /** Подтверждает контакт кодом. На успехе сохраняет токены и редиректит по роли. */
   async confirmContact(code: string): Promise<boolean> {
     const pending = this.getPendingVerification();
@@ -255,12 +329,15 @@ export class AuthService {
     this._loading.set(true);
     this._error.set(null);
     try {
-      const res = await this.client.confirmContact({ ticket: pending.ticket, code });
-      if (!res.result) throw new Error('Пустой ответ сервера');
+      if (pending.ticket.startsWith('stub:')) {
+        this.completeStubContact(pending, code);
+      } else {
+        const res = await this.oauthApi.confirmContact(pending.ticket, code);
+        this.tokenStore.setTokens(res.accessToken, res.refreshToken, res.user);
+      }
       this.clearPendingVerification();
-      this.tokenStore.setTokens(res.result.accessToken, res.result.refreshToken, res.result.user);
       this.logger.info('oauth.contact_confirmed', { provider: pending.providerKey });
-      await this.router.navigateByUrl(USER_ROLE_HOME[this.tokenStore.role()!]);
+      await this.navigateToRoleHome();
       return true;
     } catch (err) {
       this._error.set(extractMessage(err));
@@ -281,7 +358,9 @@ export class AuthService {
     this._loading.set(true);
     this._error.set(null);
     try {
-      await this.client.resendContactCode({ ticket: pending.ticket });
+      if (!pending.ticket.startsWith('stub:')) {
+        await this.oauthApi.resendContactCode(pending.ticket);
+      }
       this.logger.info('oauth.contact_code_resent', { provider: pending.providerKey });
       return true;
     } catch (err) {
@@ -369,6 +448,12 @@ export class AuthService {
     await this.router.navigateByUrl('/');
   }
 
+  private async navigateToRoleHome(): Promise<void> {
+    const role = this.tokenStore.role();
+    if (role === null) throw new Error('Не удалось определить роль пользователя.');
+    await this.router.navigateByUrl(USER_ROLE_HOME[role]);
+  }
+
   // Для интерсептора (геттер токена без обращения к сервису)
   getAccessToken(): string | null {
     return this.tokenStore.getAccessToken();
@@ -409,4 +494,17 @@ export class AuthService {
 function extractMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Неизвестная ошибка';
+}
+
+function makeDemoJwt(user: { id: string; email: string; role: number }): string {
+  const now = Math.floor(Date.now() / 1000);
+  const b64url = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `${b64url({ alg: 'none' })}.${b64url({
+    sub: user.id,
+    email: user.email,
+    role: String(user.role),
+    iat: now,
+    exp: now + 3600,
+  })}.stub`;
 }
