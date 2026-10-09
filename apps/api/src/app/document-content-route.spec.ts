@@ -45,6 +45,7 @@ describe('handleDocumentContentRequest', () => {
     });
     expect(services.documentService.getDocumentFile).toHaveBeenCalledWith(
       '33333333-3333-4333-8333-333333333333',
+      undefined,
     );
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
     expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, max-age=3600');
