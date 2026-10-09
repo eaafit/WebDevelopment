@@ -5,11 +5,10 @@
   <div class="login__error">Сессия подтверждения истекла. Войдите ещё раз.</div>
   <p class="login__footer-link"><a routerLink="/auth">Ко входу</a></p>
   } @else {
-  <p class="login__hint">
-    Мы отправили 6-значный код на <b>{{ contact }}</b>. Введите его, чтобы завершить вход.
-  </p>
-
-  @if (error()) {
+  <p class="login__hint">Мы отправили 6-значный код на <b>{{ contact }}</b>. Введите его, чтобы завершить вход.</p>
+  @if (pending()?.providerKey === 'apple') {
+  <p class="login__hint login__hint--stub">Демо Apple: подойдут любые 6 цифр.</p>
+  } @if (error()) {
   <div class="login__error">{{ error() }}</div>
   }
 
@@ -42,10 +41,7 @@
     data-testid="resend-code"
     [disabled]="loading() || resendCountdown() > 0"
     (click)="onResend()">
-    @if (resendCountdown() > 0) {
-    Отправить код повторно через {{ resendCountdown() }}с
-    } @else {
-    Отправить код повторно
+    @if (resendCountdown() > 0) { Отправить код повторно через {{ resendCountdown() }}с } @else { Отправить код повторно
     }
   </button>
 
