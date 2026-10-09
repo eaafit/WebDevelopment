@@ -5,7 +5,8 @@
     "types": [],
     "module": "es2022",
     "target": "es2022",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "allowJs": true
   },
   "include": ["src/**/*.ts"],
   "exclude": [
