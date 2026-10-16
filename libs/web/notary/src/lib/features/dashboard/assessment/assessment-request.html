@@ -1,0 +1,65 @@
+<section class="request-card">
+  <button type="button" (click)="closeRequest.emit()">← К списку заявок</button>
+  <h1>Запрос оценки с параметрами</h1>
+  <p><strong>{{ item().assessment.address }}</strong></p>
+  <p>Демонстрационный расчёт и отправка: стоимость и сроки учебные.</p>
+  <p role="status" aria-live="polite">{{ message() }}</p>
+  @if (unavailable) {
+  <p role="alert">Для завершённой или отменённой заявки отправка недоступна.</p>
+  } @if (step() === 'parameters') {
+  <form [formGroup]="form" (ngSubmit)="confirm()">
+    <label for="valuation-model">Модель оценки</label>
+    <select id="valuation-model" formControlName="model">
+      @for (model of models; track model.id) {
+      <option [value]="model.id">{{ model.name }}</option>
+      }
+    </select>
+    <label for="valuation-urgency">Срочность</label>
+    <select id="valuation-urgency" formControlName="urgency">
+      <option value="standard">Стандартная</option>
+      <option value="urgent">Срочная (+50%)</option>
+    </select>
+    <label for="valuation-comment">Комментарий</label>
+    <textarea id="valuation-comment" formControlName="comment" rows="3"></textarea>
+    @if (form.controls.comment.invalid && form.controls.comment.touched) {
+    <p role="alert">Комментарий должен содержать не более 1000 символов.</p>
+    }
+    <p>Стоимость: {{ price | currency:'RUB':'symbol':'1.0-0' }} · Срок: {{ days }} дн.</p>
+    <label class="agreement"><input type="checkbox" formControlName="confirmed" />Подтверждаю параметры объекта</label>
+    @if (form.controls.confirmed.invalid && form.controls.confirmed.touched) {
+    <p role="alert">Подтвердите параметры перед продолжением.</p>
+    }
+    <button type="submit" [disabled]="unavailable">Проверить параметры</button>
+  </form>
+  } @if (step() === 'confirmation') {
+  <h2>Подтверждение запроса</h2>
+  <dl>
+    <dt>Номер заявки</dt>
+    <dd>{{ item().assessment.id }}</dd>
+    <dt>Объект</dt>
+    <dd>{{ item().assessment.address }}</dd>
+    <dt>Модель</dt>
+    <dd>{{ model.name }}</dd>
+    <dt>Срочность</dt>
+    <dd>{{ form.controls.urgency.value === 'urgent' ? 'Срочно' : 'Стандарт' }}</dd>
+    <dt>Стоимость</dt>
+    <dd>{{ price | currency:'RUB':'symbol':'1.0-0' }}</dd>
+    <dt>Срок</dt>
+    <dd>{{ days }} дн.</dd>
+    <dt>Комментарий</dt>
+    <dd>{{ form.controls.comment.value || 'Нет' }}</dd>
+  </dl>
+  <p>Документы на этом экране не загружаются и не отправляются.</p>
+  <button type="button" (click)="back()">Изменить параметры</button>
+  <button type="button" [disabled]="unavailable" (click)="submit()">Подтвердить (демо)</button>
+  } @if (step() === 'progress') {
+  <h2>Демонстрация этапов</h2>
+  <ol>
+    @for (label of stages; track label; let i = $index) {
+    <li [class.active]="i <= stage()" [attr.aria-current]="i === stage() ? 'step' : null">
+      {{ label }} <small>{{ dates()[i] || 'Ожидается' }}</small>
+    </li>
+    }
+  </ol>
+  }
+</section>

@@ -205,6 +205,13 @@
               </td>
               <td class="td td-act">
                 <div class="row-acts">
+                  <button
+                    type="button"
+                    class="btn btn-outline"
+                    (click)="openRequest(item)"
+                    [disabled]="item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'">
+                    Создать заказ
+                  </button>
                   <!-- Редактировать -->
                   <button
                     class="act-btn act-btn--edit"
@@ -816,6 +823,8 @@
         </div>
       </form>
     </section>
+    } @if (view() === 'request' && requestItem(); as selected) {
+    <lib-assessment-request [item]="selected" (closeRequest)="view.set('list')" />
     }
   </main>
 </div>

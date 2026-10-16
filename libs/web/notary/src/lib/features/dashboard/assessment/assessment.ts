@@ -1,4 +1,5 @@
-﻿import {
+import { AssessmentRequest } from './assessment-request';
+import {
   ChangeDetectionStrategy,
   Component,
   HostListener,
@@ -10,7 +11,7 @@
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
-export type ViewMode = 'list' | 'edit' | 'pdf';
+export type ViewMode = 'list' | 'edit' | 'pdf' | 'request';
 export type AssessmentStatus = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
 export type ObjectType =
   | 'Apartment'
@@ -267,13 +268,19 @@ function generateId(): string {
 @Component({
   selector: 'lib-request-price',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, AssessmentRequest],
   templateUrl: './assessment.html',
   styleUrl: './assessment.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class RequestPrice implements OnInit {
   private readonly fb = inject(FormBuilder);
+
+  readonly requestItem = signal<AssessmentItem | null>(null);
+  openRequest(item: AssessmentItem): void {
+    this.requestItem.set(item);
+    this.view.set('request');
+  }
 
   readonly view = signal<ViewMode>('list');
   readonly assessments = signal<AssessmentItem[]>([]);
@@ -513,14 +520,7 @@ export class RequestPrice implements OnInit {
     if (this.editForm.invalid) return;
     const v = this.editForm.getRawValue();
     const { address, city, area, objectType, floorsTotal, condition } = v;
-    if (
-      !address ||
-      !city ||
-      area == null ||
-      !objectType ||
-      floorsTotal == null ||
-      !condition
-    ) {
+    if (!address || !city || area == null || !objectType || floorsTotal == null || !condition) {
       return;
     }
     const reCondition = condition as RealEstateObject['condition'];
