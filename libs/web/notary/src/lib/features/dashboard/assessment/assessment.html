@@ -4,6 +4,31 @@
          ВИД: СПИСОК ЗАЯВОК
     ═════════════════════════════════════════════════════════════════════ -->
     @if (view() === 'list') {
+    <section class="card-inner">
+      <label
+        ><input type="checkbox" #demo [checked]="demoMode()" (change)="setDemoMode(demo.checked)" /> Деморежим</label
+      >
+      <p>
+        {{ demoMode() ? 'Учебные данные. Изменения не сохраняются на сервер.' : 'Чтение API. Создание, изменение и
+        удаление отключены.' }}
+      </p>
+      <button type="button" class="btn btn-outline" [disabled]="isLoadingAssessments()" (click)="loadAssessments()">
+        Обновить список
+      </button>
+      @if (!demoMode()) {
+      <p>Поиск и фильтры применяются к текущей странице.</p>
+      <button type="button" [disabled]="page() <= 1 || isLoadingAssessments()" (click)="changePage(-1)">Назад</button>
+      <span>Страница {{ page() }} из {{ totalPages() }}</span>
+      <button type="button" [disabled]="page() >= totalPages() || isLoadingAssessments()" (click)="changePage(1)">
+        Далее
+      </button>
+      } @if (loadError()) {
+      <p role="alert">{{ loadError() }}</p>
+      } @if (detailLoading()) {
+      <p role="status">Загрузка выбранной заявки…</p>
+      }
+    </section>
+    } @if (view() === 'list') {
     <section class="card">
       <header class="card-header">
         <div>
@@ -26,7 +51,7 @@
             </svg>
             Обновить
           </button>
-          <button class="btn btn-primary btn-sm" type="button" (click)="openAddForm()">
+          <button class="btn btn-primary btn-sm" type="button" [disabled]="!demoMode()" (click)="openAddForm()">
             <svg
               width="14"
               height="14"
@@ -191,7 +216,7 @@
                 >
               </td>
               <td class="td"><span class="type-chip">{{ getTypeLabel(item.realEstate.objectType) }}</span></td>
-              <td class="td text-secondary">{{ item.realEstate.area }} м²</td>
+              <td class="td text-secondary">{{ item.realEstate.area ?? '—' }} м²</td>
               <td class="td">
                 <span [class]="getStatusClass(item.assessment.status)"
                   >{{ getStatusLabel(item.assessment.status) }}</span
@@ -209,7 +234,7 @@
                     type="button"
                     class="btn btn-outline"
                     (click)="openRequest(item)"
-                    [disabled]="item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'">
+                    [disabled]="detailLoading() || item.assessment.status === 'Unknown' || item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'">
                     Создать заказ
                   </button>
                   <!-- Редактировать -->
@@ -217,6 +242,7 @@
                     class="act-btn act-btn--edit"
                     type="button"
                     title="Редактировать"
+                    [disabled]="!demoMode()"
                     (click)="openEditForm(item)">
                     <svg
                       width="14"
@@ -236,7 +262,7 @@
                     class="act-btn act-btn--pdf"
                     type="button"
                     title="Сформировать запрос на оценку"
-                    [disabled]="item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'"
+                    [disabled]="detailLoading() || item.assessment.status === 'Unknown' || item.assessment.status === 'Cancelled' || item.assessment.status === 'Completed'"
                     (click)="openPdfForm(item)">
                     <svg
                       width="14"
@@ -254,7 +280,12 @@
                     </svg>
                   </button>
                   <!-- Удалить -->
-                  <button class="act-btn act-btn--del" type="button" title="Удалить" (click)="openDeleteModal(item)">
+                  <button
+                    class="act-btn act-btn--del"
+                    type="button"
+                    title="Удалить"
+                    [disabled]="!demoMode()"
+                    (click)="openDeleteModal(item)">
                     <svg
                       width="14"
                       height="14"

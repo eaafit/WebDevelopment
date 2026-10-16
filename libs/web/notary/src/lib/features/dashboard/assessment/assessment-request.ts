@@ -42,7 +42,7 @@ export class AssessmentRequest implements OnDestroy {
     return this.form.controls.urgency.value === 'urgent' ? 2 : this.model.days;
   }
   get unavailable(): boolean {
-    return ['Completed', 'Cancelled'].includes(this.item().assessment.status);
+    return ['Completed', 'Cancelled', 'Unknown'].includes(this.item().assessment.status);
   }
   confirm(): void {
     this.form.markAllAsTouched();

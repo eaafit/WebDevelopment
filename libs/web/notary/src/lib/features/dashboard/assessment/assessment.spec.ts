@@ -1,3 +1,4 @@
+import { AssessmentReadApiService } from './assessment-read-api.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -36,10 +37,14 @@ describe('RequestPrice', () => {
 
     await TestBed.configureTestingModule({
       imports: [RequestPrice, CommonModule, ReactiveFormsModule],
+      providers: [
+        { provide: AssessmentReadApiService, useValue: { list: jest.fn(), get: jest.fn() } },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(RequestPrice);
     component = fixture.componentInstance;
+    component.demoMode.set(true);
     fixture.detectChanges();
 
     // Advance past the 300ms setTimeout in loadAssessments
@@ -328,5 +333,58 @@ describe('RequestPrice', () => {
     const spy = jest.spyOn(component.form, 'markAllAsTouched');
     component.onSubmit();
     expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('RequestPrice API read states', () => {
+  const api = { list: jest.fn(), get: jest.fn() };
+  beforeEach(() => {
+    jest.resetAllMocks();
+    TestBed.configureTestingModule({
+      imports: [RequestPrice],
+      providers: [{ provide: AssessmentReadApiService, useValue: api }],
+    });
+  });
+
+  it('shows a genuine empty server result without mock fallback', async () => {
+    api.list.mockResolvedValue({ items: [], totalPages: 1 });
+    const fixture = TestBed.createComponent(RequestPrice);
+    await fixture.componentInstance.loadAssessments();
+    expect(api.list).toHaveBeenCalledWith(1);
+    expect(fixture.componentInstance.assessments()).toEqual([]);
+    expect(fixture.componentInstance.loadError()).toBe('');
+    expect(fixture.componentInstance.isLoadingAssessments()).toBe(false);
+    fixture.destroy();
+  });
+
+  it('reports a failed load and allows a retry', async () => {
+    api.list.mockRejectedValueOnce(new Error('offline'));
+    const fixture = TestBed.createComponent(RequestPrice);
+    const component = fixture.componentInstance;
+    await component.loadAssessments();
+    expect(component.loadError()).not.toBe('');
+    expect(component.assessments()).toEqual([]);
+    api.list.mockResolvedValue({ items: [], totalPages: 1 });
+    await component.loadAssessments();
+    expect(component.loadError()).toBe('');
+    fixture.destroy();
+  });
+
+  it('does not overwrite a newer list with a stale request', async () => {
+    let resolveOld!: (value: { items: never[]; totalPages: number }) => void;
+    api.list.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOld = resolve;
+      }),
+    );
+    const fixture = TestBed.createComponent(RequestPrice);
+    const component = fixture.componentInstance;
+    const pending = component.loadAssessments();
+    component.setDemoMode(true);
+    expect(component.assessments().length).toBe(6);
+    resolveOld({ items: [], totalPages: 1 });
+    await pending;
+    expect(component.assessments().length).toBe(6);
+    fixture.destroy();
   });
 });

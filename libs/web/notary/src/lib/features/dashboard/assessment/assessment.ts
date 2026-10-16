@@ -1,3 +1,4 @@
+import { AssessmentReadApiService } from './assessment-read-api.service';
 import { AssessmentRequest } from './assessment-request';
 import {
   ChangeDetectionStrategy,
@@ -12,14 +13,22 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 export type ViewMode = 'list' | 'edit' | 'pdf' | 'request';
-export type AssessmentStatus = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
+export type AssessmentStatus =
+  | 'New'
+  | 'Verified'
+  | 'InProgress'
+  | 'Completed'
+  | 'Cancelled'
+  | 'Unknown';
 export type ObjectType =
   | 'Apartment'
   | 'House'
   | 'Room'
   | 'Apartments'
   | 'LandPlot'
-  | 'CommercialProperty';
+  | 'CommercialProperty'
+  | 'Other'
+  | 'Unknown';
 export type SortField =
   | 'address'
   | 'objectType'
@@ -43,12 +52,20 @@ export interface RealEstateObject {
   city: string;
   district?: string;
   address: string;
-  area: number;
+  area?: number;
   objectType: ObjectType;
   roomsCount?: number;
-  floorsTotal: number;
+  floorsTotal?: number;
   floor?: number;
-  condition: 'NewBuilding' | 'Good' | 'NeedsRepair' | 'Emergency';
+  condition:
+    | 'NewBuilding'
+    | 'Good'
+    | 'NeedsRepair'
+    | 'Emergency'
+    | 'Excellent'
+    | 'Satisfactory'
+    | 'Poor'
+    | 'Unknown';
   yearBuilt?: number;
   wallMaterial?: string;
   elevatorType?: string;
@@ -70,6 +87,7 @@ interface Company {
 }
 
 export const STATUS_LABELS: Record<AssessmentStatus, string> = {
+  Unknown: 'Неизвестен',
   New: 'Новая',
   Verified: 'Проверена',
   InProgress: 'В работе',
@@ -77,6 +95,8 @@ export const STATUS_LABELS: Record<AssessmentStatus, string> = {
   Cancelled: 'Отменена',
 };
 export const OBJECT_TYPE_LABELS: Record<ObjectType, string> = {
+  Other: 'Иной объект',
+  Unknown: 'Не указан',
   Apartment: 'Квартира',
   House: 'Жилой дом',
   Room: 'Комната',
@@ -85,6 +105,10 @@ export const OBJECT_TYPE_LABELS: Record<ObjectType, string> = {
   CommercialProperty: 'Нежилое помещение',
 };
 export const CONDITION_LABELS: Record<string, string> = {
+  Excellent: 'Отличное',
+  Satisfactory: 'Удовлетворительное',
+  Poor: 'Плохое',
+  Unknown: 'Не указано',
   NewBuilding: 'Новостройка',
   Good: 'Хорошее',
   NeedsRepair: 'Требует ремонта',
@@ -276,10 +300,43 @@ function generateId(): string {
 export class RequestPrice implements OnInit {
   private readonly fb = inject(FormBuilder);
 
+  private readonly readApi = inject(AssessmentReadApiService);
+  readonly demoMode = signal(false);
+  readonly loadError = signal('');
+  readonly page = signal(1);
+  readonly totalPages = signal(1);
+  readonly detailLoading = signal(false);
+  private loadVersion = 0;
+
+  setDemoMode(demo: boolean): void {
+    this.demoMode.set(demo);
+    this.page.set(1);
+    this.clearFilters();
+    void this.loadAssessments();
+  }
+  changePage(delta: number): void {
+    const page = this.page() + delta;
+    if (page < 1 || page > this.totalPages() || this.isLoadingAssessments()) return;
+    this.page.set(page);
+    void this.loadAssessments();
+  }
+
   readonly requestItem = signal<AssessmentItem | null>(null);
-  openRequest(item: AssessmentItem): void {
-    this.requestItem.set(item);
-    this.view.set('request');
+  async openRequest(item: AssessmentItem): Promise<void> {
+    if (this.detailLoading()) return;
+    this.loadError.set('');
+    this.detailLoading.set(true);
+    const version = this.loadVersion;
+    try {
+      const selected = this.demoMode() ? item : await this.readApi.get(item.assessment.id);
+      if (version !== this.loadVersion) return;
+      this.requestItem.set(selected);
+      this.view.set('request');
+    } catch {
+      this.loadError.set('Не удалось прочитать заявку. Проверьте подключение и повторите нажатие.');
+    } finally {
+      this.detailLoading.set(false);
+    }
   }
 
   readonly view = signal<ViewMode>('list');
@@ -322,8 +379,8 @@ export class RequestPrice implements OnInit {
           vB = b.realEstate.objectType;
           break;
         case 'area':
-          vA = a.realEstate.area;
-          vB = b.realEstate.area;
+          vA = a.realEstate.area ?? 0;
+          vB = b.realEstate.area ?? 0;
           break;
         case 'status':
           vA = a.assessment.status;
@@ -359,12 +416,27 @@ export class RequestPrice implements OnInit {
     this.loadAssessments();
   }
 
-  loadAssessments(): void {
+  async loadAssessments(): Promise<void> {
+    const version = ++this.loadVersion;
     this.isLoadingAssessments.set(true);
-    setTimeout(() => {
-      this.assessments.set([...MOCK_ITEMS]);
-      this.isLoadingAssessments.set(false);
-    }, 300);
+    this.loadError.set('');
+    this.assessments.set([]);
+    try {
+      const result = this.demoMode()
+        ? { items: [...MOCK_ITEMS], totalPages: 1 }
+        : await this.readApi.list(this.page());
+      if (version !== this.loadVersion) return;
+      this.assessments.set(result.items);
+      this.totalPages.set(result.totalPages);
+    } catch {
+      if (version === this.loadVersion) {
+        this.loadError.set(
+          'Не удалось загрузить заявки. Проверьте вход в аккаунт и доступность API.',
+        );
+      }
+    } finally {
+      if (version === this.loadVersion) this.isLoadingAssessments.set(false);
+    }
   }
 
   onSearchInput(e: Event): void {
@@ -409,6 +481,7 @@ export class RequestPrice implements OnInit {
   }
 
   confirmDelete(): void {
+    if (!this.demoMode()) return;
     const item = this.deleteTarget();
     if (!item) return;
     this.isDeleting.set(true);
@@ -485,6 +558,7 @@ export class RequestPrice implements OnInit {
   });
 
   openAddForm(): void {
+    if (!this.demoMode()) return;
     this.editItem.set(null);
     this.showEditErrors.set(false);
     this.editForm.reset({ status: 'New' });
@@ -492,6 +566,7 @@ export class RequestPrice implements OnInit {
   }
 
   openEditForm(item: AssessmentItem): void {
+    if (!this.demoMode()) return;
     this.editItem.set(item);
     this.showEditErrors.set(false);
     const { assessment: a, realEstate: r } = item;
@@ -516,6 +591,7 @@ export class RequestPrice implements OnInit {
   }
 
   onSaveEdit(): void {
+    if (!this.demoMode()) return;
     this.showEditErrors.set(true);
     if (this.editForm.invalid) return;
     const v = this.editForm.getRawValue();
