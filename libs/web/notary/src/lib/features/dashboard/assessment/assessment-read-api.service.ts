@@ -5,6 +5,7 @@ import { AssessmentService, type Assessment as RpcAssessment } from '@notary-por
 import { RPC_TRANSPORT } from '@notary-portal/ui';
 import type { AssessmentItem, AssessmentStatus, ObjectType, RealEstateObject } from './assessment';
 
+// API передаёт статусы и типы числами. Таблицы переводят их в понятные значения.
 const statuses: Record<number, AssessmentStatus> = {
   1: 'New',
   2: 'Verified',
@@ -47,6 +48,7 @@ function optionalNumber(value: string | undefined): number | undefined {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
+// Преобразуем ответ API в данные, с которыми работает страница.
 export function mapAssessment(value: RpcAssessment): AssessmentItem {
   const object = value.realEstateObject;
   return {
@@ -82,6 +84,7 @@ export function mapAssessment(value: RpcAssessment): AssessmentItem {
 export class AssessmentReadApiService {
   private readonly client = createClient(AssessmentService, inject(RPC_TRANSPORT));
 
+  // Получение одной страницы: по 20 заявок.
   async list(page = 1): Promise<{ items: AssessmentItem[]; totalPages: number }> {
     const response = await this.client.listAssessments({ pagination: { page, limit: 20 } });
     return {
@@ -89,6 +92,7 @@ export class AssessmentReadApiService {
       totalPages: Math.max(1, response.meta?.totalPages ?? 1),
     };
   }
+  // Получение подробностей выбранной заявки.
   async get(id: string): Promise<AssessmentItem> {
     const response = await this.client.getAssessment({ id });
     if (!response.assessment) throw new Error('Сервер не вернул заявку.');

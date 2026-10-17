@@ -5,7 +5,7 @@
   <p>Демонстрационный расчёт и отправка: стоимость и сроки учебные.</p>
   <p role="status" aria-live="polite">{{ message() }}</p>
   @if (unavailable) {
-  <p role="alert">Для завершённой или отменённой заявки отправка недоступна.</p>
+  <p role="alert">Отправка недоступна: заявка завершена, отменена или её статус неизвестен.</p>
   } @if (step() === 'parameters') {
   <form [formGroup]="form" (ngSubmit)="confirm()">
     <label for="valuation-model">Модель оценки</label>

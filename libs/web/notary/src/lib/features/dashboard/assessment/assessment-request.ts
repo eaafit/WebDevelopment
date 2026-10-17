@@ -11,6 +11,7 @@ import type { AssessmentItem } from './assessment';
   styleUrl: './assessment-request.scss',
 })
 export class AssessmentRequest implements OnDestroy {
+  // Родитель передаёт выбранную заявку, ребёнок сообщает о возврате к списку.
   readonly item = input.required<AssessmentItem>();
   readonly closeRequest = output<void>();
   readonly step = signal<'parameters' | 'confirmation' | 'progress'>('parameters');
@@ -35,6 +36,7 @@ export class AssessmentRequest implements OnDestroy {
       this.models.find((model) => model.id === this.form.controls.model.value) ?? this.models[0]
     );
   }
+  // Срочная оценка дороже на 50% и занимает 2 дня.
   get price(): number {
     return this.model.price * (this.form.controls.urgency.value === 'urgent' ? 1.5 : 1);
   }
@@ -44,6 +46,7 @@ export class AssessmentRequest implements OnDestroy {
   get unavailable(): boolean {
     return ['Completed', 'Cancelled', 'Unknown'].includes(this.item().assessment.status);
   }
+  // Проверяем форму перед переходом на экран подтверждения.
   confirm(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.unavailable) return;
@@ -53,6 +56,7 @@ export class AssessmentRequest implements OnDestroy {
     this.step.set('parameters');
     this.form.controls.confirmed.setValue(false);
   }
+  // Учебная отправка: каждые 3 секунды показываем следующий этап.
   submit(): void {
     if (this.step() !== 'confirmation' || this.form.invalid || this.unavailable) return;
     this.step.set('progress');
@@ -66,6 +70,7 @@ export class AssessmentRequest implements OnDestroy {
       if (this.stage() === this.stages.length - 1) clearInterval(this.timer);
     }, 3000);
   }
+  // При закрытии компонента останавливаем таймер.
   ngOnDestroy(): void {
     clearInterval(this.timer);
   }
