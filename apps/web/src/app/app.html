@@ -1,1 +1,40 @@
-<router-outlet></router-outlet>
+<div class="main-box">
+    <h1>Система управления документами</h1>
+
+    <div class="upload-zone" 
+         [class.dragover]="isDragOver"
+         (dragover)="onDragOver($event)"
+         (dragleave)="onDragLeave()"
+         (drop)="onDrop($event)">
+        
+        <p>Перетащите файлы сюда (PDF или Изображения)</p>
+        <p>или</p>
+        <input type="file" #fileInput (change)="onFileSelected($event)" accept=".pdf, image/*" multiple style="display: none;">
+        <button class="select-btn" (click)="fileInput.click()">Выбрать на компьютере</button>
+        <p class="info-text">Макс. размер: 10 МБ. Форматы: PDF, JPEG, PNG</p>
+    </div>
+
+    <h2>Загруженные документы</h2>
+    
+    <div *ngIf="filesList.length === 0" class="file-list-empty">
+        <p>Нет загруженных документов</p>
+    </div>
+
+    <div *ngIf="filesList.length > 0" class="file-list">
+        <div *ngFor="let file of filesList; let i = index" class="file-item">
+            
+            <div class="preview-box" [class.pdf-type]="!file.isPreviewable">
+                <img *ngIf="file.isPreviewable" [src]="file.previewUrl" alt="Превью">
+                <span *ngIf="!file.isPreviewable">PDF</span>
+            </div>
+            
+            <div class="file-details">
+                <p class="file-name">{{ file.name }}</p>
+                <p class="file-meta">Размер: {{ file.size }} | Версия: 1.0 | Теги: Документы</p>
+            </div>
+
+            <span class="status-waiting">На проверке</span>
+            <button class="delete-btn" (click)="deleteFile(i)">Удалить</button>
+        </div>
+    </div>
+</div>
