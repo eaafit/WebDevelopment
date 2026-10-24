@@ -1,3 +1,4 @@
+import { registerAssessmentWorkspaceHttp } from '@internal/assessment';
 import 'dotenv/config';
 import './tracing';
 import { NestFactory } from '@nestjs/core';
@@ -56,7 +57,7 @@ async function bootstrap() {
           : (requestOrigin: string | undefined, cb) => {
               cb(null, requestOrigin ? requestOrigin : true);
             },
-      methods: [...connectCors.allowedMethods],
+      methods: [...connectCors.allowedMethods, 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: [
         ...connectCors.allowedHeaders,
         'Authorization',
@@ -188,20 +189,19 @@ async function bootstrap() {
     },
   );
 
-  app.use(
-    connectNodeAdapter({
-      connect: true,
-      grpc: false,
-      grpcWeb: false,
-      interceptors: [authInterceptor.build()],
-      contextValues: (req) => {
-        const values = createContextValues();
-        values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
-        return values;
-      },
-      routes: (router) => connectRouterRegistry.register(router),
-    }),
-  );
+  const rpcAdapter = connectNodeAdapter({
+    connect: true,
+    grpc: false,
+    grpcWeb: false,
+    interceptors: [authInterceptor.build()],
+    contextValues: (req) => {
+      const values = createContextValues();
+      values.set(REQUEST_IP_CONTEXT_KEY, resolveRequestIp(req));
+      return values;
+    },
+    routes: (router) => connectRouterRegistry.register(router),
+  });
+  registerAssessmentWorkspaceHttp(expressInstance, rpcAdapter);
 
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen(port);

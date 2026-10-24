@@ -1,65 +1,102 @@
-<section class="request-card">
-  <button type="button" (click)="closeRequest.emit()">← К списку заявок</button>
-  <h1>Запрос оценки с параметрами</h1>
-  <p><strong>{{ item().assessment.address }}</strong></p>
-  <p>Демонстрационный расчёт и отправка: стоимость и сроки учебные.</p>
-  <p role="status" aria-live="polite">{{ message() }}</p>
-  @if (unavailable) {
-  <p role="alert">Отправка недоступна: заявка завершена, отменена или её статус неизвестен.</p>
-  } @if (step() === 'parameters') {
-  <form [formGroup]="form" (ngSubmit)="confirm()">
-    <label for="valuation-model">Модель оценки</label>
-    <select id="valuation-model" formControlName="model">
-      @for (model of models; track model.id) {
-      <option [value]="model.id">{{ model.name }}</option>
-      }
-    </select>
-    <label for="valuation-urgency">Срочность</label>
-    <select id="valuation-urgency" formControlName="urgency">
-      <option value="standard">Стандартная</option>
-      <option value="urgent">Срочная (+50%)</option>
-    </select>
-    <label for="valuation-comment">Комментарий</label>
-    <textarea id="valuation-comment" formControlName="comment" rows="3"></textarea>
-    @if (form.controls.comment.invalid && form.controls.comment.touched) {
-    <p role="alert">Комментарий должен содержать не более 1000 символов.</p>
-    }
-    <p>Стоимость: {{ price | currency:'RUB':'symbol':'1.0-0' }} · Срок: {{ days }} дн.</p>
-    <label class="agreement"><input type="checkbox" formControlName="confirmed" />Подтверждаю параметры объекта</label>
-    @if (form.controls.confirmed.invalid && form.controls.confirmed.touched) {
-    <p role="alert">Подтвердите параметры перед продолжением.</p>
-    }
-    <button type="submit" [disabled]="unavailable">Проверить параметры</button>
-  </form>
-  } @if (step() === 'confirmation') {
-  <h2>Подтверждение запроса</h2>
-  <dl>
-    <dt>Номер заявки</dt>
-    <dd>{{ item().assessment.id }}</dd>
-    <dt>Объект</dt>
-    <dd>{{ item().assessment.address }}</dd>
-    <dt>Модель</dt>
-    <dd>{{ model.name }}</dd>
-    <dt>Срочность</dt>
-    <dd>{{ form.controls.urgency.value === 'urgent' ? 'Срочно' : 'Стандарт' }}</dd>
-    <dt>Стоимость</dt>
-    <dd>{{ price | currency:'RUB':'symbol':'1.0-0' }}</dd>
-    <dt>Срок</dt>
-    <dd>{{ days }} дн.</dd>
-    <dt>Комментарий</dt>
-    <dd>{{ form.controls.comment.value || 'Нет' }}</dd>
-  </dl>
-  <p>Документы на этом экране не загружаются и не отправляются.</p>
-  <button type="button" (click)="back()">Изменить параметры</button>
-  <button type="button" [disabled]="unavailable" (click)="submit()">Подтвердить (демо)</button>
-  } @if (step() === 'progress') {
-  <h2>Демонстрация этапов</h2>
-  <ol>
-    @for (label of stages; track label; let i = $index) {
-    <li [class.active]="i <= stage()" [attr.aria-current]="i === stage() ? 'step' : null">
-      {{ label }} <small>{{ dates()[i] || 'Ожидается' }}</small>
-    </li>
-    }
+<div class="request">
+  <ol class="steps" aria-label="Создание заказа">
+    <li [class.active]="!confirmation()">1. Параметры</li>
+    <li [class.active]="confirmation()">2. Подтверждение</li>
   </ol>
+  <div class="object">
+    <span>ОБЪЕКТ ОЦЕНКИ</span>
+    <h3>{{ item().address }}</h3>
+    <p>{{ item().property?.cityName }} · {{ item().property?.area }} м²</p>
+  </div>
+  @if (error()) {
+  <p class="error" role="alert">{{ error() }}</p>
+  } @if (!confirmation()) {
+  <form #parametersForm="ngForm" (ngSubmit)="parametersForm.valid && confirm()">
+    <fieldset>
+      <legend>Модель оценки</legend>
+      <label class="option"
+        ><input type="radio" name="model" value="standard" [(ngModel)]="parameters.model" />
+        <div><strong>Стандартная</strong><span>Базовый анализ объекта · 3 000 ₽ · 5 дней</span></div></label
+      ><label class="option"
+        ><input type="radio" name="model" value="extended" [(ngModel)]="parameters.model" />
+        <div><strong>Расширенная</strong><span>Подробный анализ и сравнение · 5 000 ₽ · 7 дней</span></div></label
+      >
+      <label class="option"
+        ><input type="radio" name="model" value="comprehensive" [(ngModel)]="parameters.model" />
+        <div><strong>Комплексная</strong><span>Подробный отчёт по объекту · 8 000 ₽ · 10 дней</span></div></label
+      >
+    </fieldset>
+    <label class="field"
+      >Срочность<select name="urgency" [(ngModel)]="parameters.urgency">
+        <option value="standard">Обычный срок</option>
+        <option value="urgent">Срочно — 2 дня, +50% к цене услуги</option>
+        <option value="express">Экспресс — 1 день, +100% к цене услуги</option>
+      </select></label
+    >
+    <label class="field"
+      >Комментарий к заказу<textarea
+        name="comment"
+        [(ngModel)]="parameters.comment"
+        maxlength="1000"
+        rows="3"
+        placeholder="Особые пожелания и уточнения для оценщика"></textarea
+      ><span class="counter">{{ parameters.comment.length }} / 1000</span></label
+    >
+    <div class="total">
+      <div><span>Стоимость услуги</span><strong>{{ money }}</strong></div>
+      <div><span>Срок выполнения</span><strong>{{ days }} дней</strong></div>
+    </div>
+    <footer>
+      <button class="secondary" type="button" (click)="cancelled.emit()">Назад к заявке</button
+      ><button class="primary" type="submit">Проверить параметры →</button>
+    </footer>
+  </form>
+  } @else {
+  <h3>Проверьте заказ перед отправкой</h3>
+  <dl>
+    <div>
+      <dt>Заявитель</dt>
+      <dd>{{ item().applicantName }}</dd>
+    </div>
+    <div>
+      <dt>Модель</dt>
+      <dd>{{ modelLabel }}</dd>
+    </div>
+    <div>
+      <dt>Срочность</dt>
+      <dd>{{ urgencyLabel }}</dd>
+    </div>
+    <div>
+      <dt>Стоимость услуги</dt>
+      <dd>{{ money }}</dd>
+    </div>
+    <div>
+      <dt>Срок</dt>
+      <dd>{{ days }} дней после создания заказа</dd>
+    </div>
+    <div>
+      <dt>Документы заявки</dt>
+      <dd>
+        @for (doc of item().documents; track doc.id) { <span class="document">{{ doc.name }}</span> } @empty { Не
+        прикреплены }
+      </dd>
+    </div>
+    @if (parameters.comment) {
+    <div>
+      <dt>Комментарий</dt>
+      <dd class="preserve">{{ parameters.comment }}</dd>
+    </div>
+    }
+  </dl>
+  <label class="agreement"
+    ><input type="checkbox" [(ngModel)]="confirmed" [disabled]="busy()" />Я проверил объект, стоимость и параметры
+    заказа</label
+  >
+  <footer>
+    <button class="secondary" (click)="back()" [disabled]="busy()">← Изменить параметры</button
+    ><button class="primary" (click)="submit()" [disabled]="!confirmed || busy()">
+      {{ busy() ? 'Создаём заказ…' : 'Подтвердить и создать заказ' }}
+    </button>
+  </footer>
   }
-</section>
+</div>

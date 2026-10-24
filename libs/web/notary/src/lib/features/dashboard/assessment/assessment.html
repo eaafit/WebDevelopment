@@ -1,74 +1,419 @@
-<main class="assessment-page">
-  @if (selectedItem(); as item) {
-  <lib-assessment-request [item]="item" (closeRequest)="selectedItem.set(null)" />
-  } @else {
-  <section class="panel">
-    <h1>Заявки на оценку недвижимости</h1>
-    <p>Выберите объект и укажите параметры запроса на оценку.</p>
-
-    <div class="controls">
-      <label class="demo-toggle">
-        <input
-          type="checkbox"
-          #demo
-          [checked]="demoMode()"
-          [disabled]="detailLoading()"
-          (change)="setDemoMode(demo.checked)" />
-        Деморежим
-      </label>
-      <button type="button" [disabled]="loading() || detailLoading()" (click)="loadItems()">Обновить список</button>
+<section class="workspace">
+  <header class="page-header">
+    <div>
+      <span class="eyebrow">НЕДВИЖИМОСТЬ / ОЦЕНКА</span>
+      <h1>Заявки на оценку</h1>
+      <p>Управляйте объектами и создавайте заказы на оценку.</p>
     </div>
-    <p class="hint">
-      {{ demoMode() ? 'Учебные заявки. Данные на сервер не отправляются.' : 'Заявки загружаются из API. Поиск работает
-      по текущей странице.' }}
-    </p>
-    <label for="assessment-search">Поиск по адресу</label>
-    <input
-      id="assessment-search"
-      type="search"
-      placeholder="Введите улицу или город"
-      #query
-      [value]="search()"
-      (input)="search.set(query.value)" />
-
-    @if (error()) {
-    <p class="error" role="alert">{{ error() }}</p>
-    } @if (loading()) {
-    <p role="status">Загрузка заявок…</p>
-    } @else {
-    <div class="items">
-      @for (item of filteredItems(); track item.assessment.id) {
-      <article class="item">
-        <div>
-          <h2>{{ item.assessment.address }}</h2>
-          <p>Город: {{ item.realEstate.city }} · Площадь: {{ item.realEstate.area ?? '—' }} м²</p>
-          <span class="status">{{ statusLabels[item.assessment.status] }}</span>
-        </div>
-        <button
-          type="button"
-          class="primary"
-          [disabled]="detailLoading() || !canRequest(item)"
-          (click)="openRequest(item)">
-          Создать запрос
-        </button>
-      </article>
-      } @empty {
-      <p>Заявки не найдены.</p>
-      }
-    </div>
-    } @if (detailLoading()) {
-    <p role="status">Загрузка выбранной заявки…</p>
-    } @if (!demoMode()) {
-    <nav class="pagination" aria-label="Страницы заявок">
-      <button type="button" [disabled]="page() <= 1 || loading() || detailLoading()" (click)="changePage(-1)">
-        ← Назад
-      </button>
-      <span aria-live="polite">Страница {{ page() }} из {{ totalPages() }}</span>
-      <button type="button" [disabled]="page() >= totalPages() || loading() || detailLoading()" (click)="changePage(1)">
+    <button class="primary" (click)="create()" [disabled]="busy() || !catalogsReady()">＋ Новая заявка</button>
+  </header>
+  @if (notice()) {
+  <div class="notice" role="status">
+    {{ notice() }}<button (click)="notice.set('')" aria-label="Закрыть уведомление">×</button>
+  </div>
+  } @if (error()) {
+  <div class="error" role="alert">{{ error() }} <button (click)="load(); loadCatalogs()">Повторить</button></div>
+  }
+  <form class="filters" (ngSubmit)="load(1)">
+    <label class="search"
+      >Поиск<input name="search" [(ngModel)]="search" placeholder="Адрес, заявитель или полный ID" maxlength="200"
+    /></label>
+    <label
+      >Статус<select name="status" [(ngModel)]="status" (ngModelChange)="load(1)">
+        <option value="">Все статусы</option>
+        @for (entry of statuses; track entry[0]) {
+        <option [value]="entry[0]">{{ entry[1] }}</option>
+        }
+      </select></label
+    >
+    <label
+      >Город<select name="city" [(ngModel)]="cityId" (ngModelChange)="load(1)">
+        <option value="">Все города</option>
+        @for (city of catalogs().cities; track city.id) {
+        <option [value]="city.id">{{ city.name }}</option>
+        }
+      </select></label
+    >
+    <label
+      >Тип объекта<select name="type" [(ngModel)]="type" (ngModelChange)="load(1)">
+        <option value="">Все типы</option>
+        @for (entry of types; track entry[0]) {
+        <option [value]="entry[0]">{{ entry[1] }}</option>
+        }
+      </select></label
+    >
+    <button class="secondary" type="submit" [disabled]="loading()">Найти</button
+    ><button class="text-button" type="button" (click)="resetFilters()">Сбросить</button>
+  </form>
+  <div class="list-heading">
+    <span>Найдено заявок: <strong>{{ total() }}</strong></span
+    ><button class="text-button" (click)="load()" [disabled]="loading()">↻ Обновить</button>
+  </div>
+  <div class="table-wrap" [attr.aria-busy]="loading()">
+    @if (loading()) {
+    <div class="loading" role="status">Загружаем заявки…</div>
+    }
+    <table>
+      <thead>
+        <tr>
+          <th>Объект недвижимости</th>
+          <th>Заявитель</th>
+          <th>Статус</th>
+          <th>Заказ</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of items(); track item.id) {
+        <tr>
+          <td data-label="Объект">
+            <button class="address" (click)="open(item)" [disabled]="busy()">{{ item.address }}</button
+            ><span class="muted"
+              >{{ city(item) }} · {{ objectTypes[item.property?.objectType || ''] || 'Характеристики не заполнены' }}@if
+              (item.property?.area != null) { · {{ item.property?.area }} м² }</span
+            ><span class="small muted">№ {{ item.id.slice(0, 8) }} · {{ item.createdAt | date:'dd.MM.yyyy' }}</span>
+          </td>
+          <td data-label="Заявитель">{{ item.applicantName }}</td>
+          <td data-label="Статус">
+            <span class="badge" [attr.data-status]="item.status">{{ labels[item.status] }}</span>
+          </td>
+          <td data-label="Заказ">
+            @if (item.order) { <strong>{{ money(item.order.servicePrice) }}</strong
+            ><span class="muted small">До {{ item.order.plannedCompletionDate | date:'dd.MM.yyyy' }}</span> } @else {
+            <span class="muted">Не создан</span> }
+          </td>
+          <td data-label="Действия">
+            <div class="row-actions">
+              <button class="secondary compact" (click)="open(item)" [disabled]="busy()">Открыть</button>@if
+              (editable(item)) {
+              <button class="text-button" (click)="open(item, 'edit')" [disabled]="busy()">Изменить</button> }@if
+              (canRequest(item)) {
+              <button class="text-button accent" (click)="open(item, 'request')" [disabled]="busy()">
+                Создать заказ
+              </button>
+              }
+            </div>
+          </td>
+        </tr>
+        } @empty { @if (!loading()) {
+        <tr>
+          <td colspan="5" class="empty">
+            <h2>Заявок пока нет</h2>
+            <p>Измените фильтры или создайте новую заявку на оценку.</p>
+            <button class="secondary" (click)="resetFilters()">Сбросить фильтры</button>
+          </td>
+        </tr>
+        } }
+      </tbody>
+    </table>
+  </div>
+  <footer class="pagination">
+    <span>По 10 заявок на странице</span>
+    <div>
+      <button class="secondary compact" (click)="load(page() - 1)" [disabled]="loading() || page() <= 1">← Назад</button
+      ><span>{{ page() }} / {{ totalPages() }}</span
+      ><button class="secondary compact" (click)="load(page() + 1)" [disabled]="loading() || page() >= totalPages()">
         Далее →
       </button>
-    </nav>
+    </div>
+  </footer>
+</section>
+@if (dialog()) {
+<div class="overlay" (click)="onOverlayClick($event)" role="presentation">
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dialog-title"
+    (click)="$event.stopPropagation()">
+    <header class="dialog-header">
+      <div>
+        <span class="eyebrow">МОДУЛЬ ОЦЕНКИ</span>
+        <h2 id="dialog-title">
+          @switch (dialog()) { @case ('create') { Новая заявка } @case ('edit') { Редактирование заявки } @case
+          ('request') { Заказ на оценку } @case ('delete') { Удалить заявку? } @case ('status') { Изменение статуса }
+          @default { Заявка № {{ selected()?.id?.slice(0, 8) }} } }
+        </h2>
+      </div>
+      <button class="close" (click)="close()" [disabled]="busy()" aria-label="Закрыть окно">×</button>
+    </header>
+    @if (dialogError()) {
+    <div class="error" role="alert">{{ dialogError() }}</div>
+    } @if (dialog() === 'create' || dialog() === 'edit') {
+    <form #editor="ngForm" (ngSubmit)="editor.valid && save()" class="editor">
+      <p class="muted">Заполните объект недвижимости. Поля со звёздочкой обязательны.</p>
+      @if (dialog() === 'create' && isNotary) {
+      <label
+        >Заявитель *<select name="applicant" [(ngModel)]="draft.userId" required>
+          <option value="" disabled>Выберите заявителя</option>
+          @for (user of catalogs().applicants; track user.id) {
+          <option [value]="user.id">{{ user.name }}</option>
+          }
+        </select></label
+      >
+      }
+      <div class="form-grid">
+        <label
+          >Город *<select name="cityId" [(ngModel)]="draft.property.cityId" required>
+            <option value="" disabled>Выберите город</option>
+            @for (city of catalogs().cities; track city.id) {
+            <option [value]="city.id">{{ city.name }}</option>
+            }
+            <option value="__custom_city__">＋ Добавить свой город…</option>
+          </select></label
+        ><label
+          >Тип недвижимости *<select name="objectType" [(ngModel)]="draft.property.objectType" required>
+            @for (entry of types; track entry[0]) {
+            <option [value]="entry[0]">{{ entry[1] }}</option>
+            }
+          </select></label
+        >
+      </div>
+      @if (addingCustomCity) {
+      <label
+        >Название города *<input
+          name="customCityName"
+          [(ngModel)]="customCityName"
+          required
+          minlength="2"
+          maxlength="100"
+          placeholder="Например, Сургут"
+      /></label>
+      }
+      <label
+        >Полный адрес *<input
+          name="address"
+          [(ngModel)]="draft.address"
+          (ngModelChange)="syncCityFromAddress($event)"
+          required
+          pattern=".*\S.*"
+          maxlength="500"
+          placeholder="Город, улица, дом, квартира"
+      /></label>
+      <div class="form-grid">
+        <label
+          >Площадь, м² *<input
+            name="area"
+            type="number"
+            [(ngModel)]="draft.property.area"
+            required
+            min="0.1"
+            max="1000000"
+            step="0.01" /></label
+        ><label
+          >Кадастровый номер<input
+            name="cadastral"
+            [(ngModel)]="draft.property.cadastralNumber"
+            pattern="(\d{12}|\d{2}:\d{2}:\d{6,7}:\d+)"
+            placeholder="77:01:0001001:123"
+        /></label>
+      </div>
+      <div class="form-grid four">
+        <label
+          >Комнат<input
+            name="rooms"
+            type="number"
+            [(ngModel)]="draft.property.roomsCount"
+            min="0"
+            max="100"
+            step="1" /></label
+        ><label
+          >Этаж<input name="floor" type="number" [(ngModel)]="draft.property.floor" min="1" max="200" step="1" /></label
+        ><label
+          >Этажей в доме<input
+            name="floors"
+            type="number"
+            [(ngModel)]="draft.property.floorsTotal"
+            min="1"
+            max="200"
+            step="1" /></label
+        ><label
+          >Год постройки<input
+            name="year"
+            type="number"
+            [(ngModel)]="draft.property.yearBuilt"
+            min="1800"
+            [max]="maxYear"
+            step="1"
+        /></label>
+      </div>
+      <label
+        >Комментарий к заявке<textarea
+          name="description"
+          [(ngModel)]="draft.description"
+          maxlength="2000"
+          rows="3"
+          placeholder="Цель оценки и сведения об объекте"></textarea>
+      </label>
+      @if (editor.submitted && editor.invalid) {
+      <p class="error" role="alert">Проверьте обязательные поля, числа и кадастровый номер.</p>
+      }
+      <footer class="dialog-actions">
+        <button class="secondary" type="button" (click)="close()" [disabled]="busy()">Отмена</button
+        ><button class="primary" type="submit" [disabled]="busy()">
+          {{ busy() ? 'Сохраняем…' : 'Сохранить заявку' }}
+        </button>
+      </footer>
+    </form>
+    } @if (dialog() === 'view') { @if (selected(); as item) {
+    <div class="detail">
+      <div class="detail-top">
+        <span class="badge" [attr.data-status]="item.status">{{ labels[item.status] }}</span
+        ><span class="muted small">Обновлена {{ item.updatedAt | date:'dd.MM.yyyy, HH:mm' }}</span>
+      </div>
+      <h3 class="detail-address">{{ item.address }}</h3>
+      <p class="muted">Заявитель: {{ item.applicantName }}</p>
+      <dl class="details-grid">
+        <div>
+          <dt>Город</dt>
+          <dd>{{ city(item) }}</dd>
+        </div>
+        <div>
+          <dt>Тип объекта</dt>
+          <dd>{{ objectTypes[item.property?.objectType || ''] || 'Не заполнен' }}</dd>
+        </div>
+        <div>
+          <dt>Площадь</dt>
+          <dd>{{ item.property?.area ?? '—' }} м²</dd>
+        </div>
+        <div>
+          <dt>Кадастровый номер</dt>
+          <dd>{{ item.property?.cadastralNumber || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Комнат</dt>
+          <dd>{{ item.property?.roomsCount ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Этаж / этажность</dt>
+          <dd>{{ item.property?.floor ?? '—' }} / {{ item.property?.floorsTotal ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Год постройки</dt>
+          <dd>{{ item.property?.yearBuilt ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Оценочная стоимость</dt>
+          <dd>{{ money(item.estimatedValue) }}</dd>
+        </div>
+      </dl>
+      @if (item.description) {
+      <h3>Комментарий к заявке</h3>
+      <p class="preserve">{{ item.description }}</p>
+      }
+      <h3>Документы <span class="muted">{{ item.documents.length }}</span></h3>
+      @for (doc of item.documents; track doc.id) {
+      <p class="document">▤ {{ doc.name }}</p>
+      } @empty {
+      <p class="muted">Документы к заявке не прикреплены.</p>
+      } @if (item.order; as order) {
+      <section class="order-summary">
+        <span class="eyebrow">СВЯЗАННЫЙ ЗАКАЗ № {{ order.id.slice(0, 8) }}</span>
+        <h3>{{ modelLabel(order.model) }} оценка · {{ urgencyLabel(order.urgency) }}</h3>
+        <div class="price-line">
+          <strong>{{ money(order.servicePrice) }}</strong
+          ><span>Плановый срок: {{ order.plannedCompletionDate | date:'dd.MM.yyyy' }}</span>
+        </div>
+        @if (order.comment) {
+        <p class="preserve">{{ order.comment }}</p>
+        }
+      </section>
+      <h3>Этапы оценки</h3>
+      <ol class="timeline">
+        @for (stage of stages(item); track stage.label) {
+        <li [class.done]="stage.reached" [class.pending]="!stage.reached">
+          <strong>{{ stage.label }}</strong> @if (stage.date) {
+          <time>{{ stage.date | date:'dd.MM.yyyy, HH:mm' }}</time> } @else {
+          <span class="muted"
+            >{{ stage.reached ? 'Дата этапа не передана' : item.status === 'Cancelled' ? 'Оценка отменена' : 'Ожидается'
+            }}</span
+          >
+          }
+        </li>
+        }
+      </ol>
+      @if (item.status !== 'Completed' && item.status !== 'Cancelled') {
+      <p class="muted small">Статус проверяется на сервере каждые 15 секунд.</p>
+      } } @else {
+      <div class="order-summary">
+        <h3>Заказ на оценку ещё не создан</h3>
+        <p class="muted">Выберите модель и срочность, проверьте параметры и подтвердите заказ.</p>
+        @if (!item.property) {
+        <p>Сначала заполните характеристики объекта через «Редактировать».</p>
+        }
+      </div>
+      } @if (item.cancelReason) {
+      <p class="error">Причина отмены: {{ item.cancelReason }}</p>
+      } @if (pollingError()) {
+      <p class="error" role="alert">Не удалось обновить статус: {{ pollingError() }}</p>
+      }
+      <footer class="dialog-actions wrap">
+        @if (item.status === 'New' && !item.order) {
+        <button class="danger text-button" (click)="deleteSelected()">Удалить</button> }@if (statusOptions(item).length)
+        { <button class="secondary" (click)="statusDialog()">Изменить статус</button> }@if (editable(item)) {
+        <button class="secondary" (click)="editSelected()">Редактировать</button> }@if (canRequest(item)) {
+        <button class="primary" (click)="showDialog('request')">Создать заказ</button> }
+      </footer>
+    </div>
+    } } @if (dialog() === 'request') { @if (selected(); as item) {
+    <lib-assessment-request
+      [item]="item"
+      (saved)="requested($event)"
+      (cancelled)="showDialog('view')"
+      (working)="busy.set($event)" />
+    } } @if (dialog() === 'delete') {
+    <div class="detail">
+      <p>
+        Заявка <strong>{{ selected()?.address }}</strong> будет удалена вместе с черновиком заказа. Восстановить её
+        нельзя.
+      </p>
+      <p class="muted">Заявки с документами, отчётами или платежами можно только отменить.</p>
+      <footer class="dialog-actions">
+        <button class="secondary" (click)="showDialog('view')" [disabled]="busy()">Оставить</button
+        ><button class="danger-button" (click)="remove()" [disabled]="busy()">
+          {{ busy() ? 'Удаляем…' : 'Удалить заявку' }}
+        </button>
+      </footer>
+    </div>
+    } @if (dialog() === 'status') {
+    <form class="editor" #statusForm="ngForm" (ngSubmit)="statusForm.valid && saveStatus()">
+      <label
+        >Новый статус<select name="targetStatus" [(ngModel)]="targetStatus">
+          @for (value of statusOptions(selected()!); track value) {
+          <option [value]="value">{{ labels[value] }}</option>
+          }
+        </select></label
+      >@if (targetStatus === 'Completed') {
+      <label
+        >Итоговая стоимость недвижимости, ₽ *<input
+          name="estimatedValue"
+          type="number"
+          [(ngModel)]="estimatedValue"
+          required
+          min="0.01"
+          max="9999999999999"
+          step="0.01"
+      /></label>
+      <p class="muted small">Это стоимость недвижимости, а не цена услуги оценки.</p>
+      }@if (targetStatus === 'Cancelled') {
+      <label
+        >Причина отмены *<textarea
+          name="reason"
+          [(ngModel)]="reason"
+          required
+          pattern=".*\S.*"
+          maxlength="500"
+          rows="3"></textarea>
+      </label>
+      }
+      <footer class="dialog-actions">
+        <button class="secondary" type="button" (click)="showDialog('view')" [disabled]="busy()">Назад</button
+        ><button class="primary" type="submit" [disabled]="busy() || statusForm.invalid">
+          {{ busy() ? 'Сохраняем…' : 'Сохранить статус' }}
+        </button>
+      </footer>
+    </form>
     }
   </section>
-  }
-</main>
+</div>
+}

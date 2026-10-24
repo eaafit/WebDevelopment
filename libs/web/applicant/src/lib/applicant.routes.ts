@@ -38,6 +38,16 @@ export const applicantRoutes: Route[] = [
           import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),
       } as Route,
       {
+        path: 'assessment/requests',
+        canActivate: [roleGuard(UserRole.Applicant)],
+        loadComponent: () => import('@notary-portal/notary').then((m) => m.RequestPrice),
+      },
+      {
+        path: 'assessment/request/:assessmentId',
+        canActivate: [roleGuard(UserRole.Applicant)],
+        loadComponent: () => import('@notary-portal/notary').then((m) => m.RequestPrice),
+      },
+      {
         path: 'assessment',
         loadComponent: () =>
           import('./features/estimation-form/estimation-form').then((m) => m.EstimationForm),

@@ -1,147 +1,212 @@
 import { TestBed } from '@angular/core/testing';
-import { RequestPrice, AssessmentItem } from './assessment';
+import { TokenStore, UserRole } from '@notary-portal/ui';
+import type { WorkspaceAssessment } from '@notary-portal/api-contracts';
+import { RequestPrice } from './assessment';
 import { AssessmentReadApiService } from './assessment-read-api.service';
 
-const item: AssessmentItem = {
-  assessment: {
-    id: 'a-1',
+const item: WorkspaceAssessment = {
+  id: '11111111-1111-4111-8111-111111111111',
+  userId: '22222222-2222-4222-8222-222222222222',
+  applicantName: 'Заявитель',
+  address: 'Москва, Тверская, 10',
+  description: '',
+  status: 'New',
+  createdAt: '2026-10-17T08:00:00Z',
+  updatedAt: '2026-10-17T08:00:00Z',
+  estimatedValue: null,
+  cancelReason: null,
+  documents: [],
+  order: null,
+  property: {
+    cityId: '33333333-3333-4333-8333-333333333333',
+    cityName: 'Москва',
     address: 'Москва, Тверская, 10',
-    status: 'New',
-    createdAt: '',
-    updatedAt: '',
-  },
-  realEstate: {
-    id: 'r-1',
-    address: 'Москва, Тверская, 10',
-    city: 'Москва',
+    area: 54,
     objectType: 'Apartment',
-    condition: 'Good',
+    cadastralNumber: '',
+    floor: 2,
+    floorsTotal: 9,
+    roomsCount: 2,
+    yearBuilt: 2000,
   },
 };
 
-// Отложенный ответ позволяет проверить поведение при медленном API.
-function pending<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((yes, no) => {
-    resolve = yes;
-    reject = no;
-  });
-  return { promise, resolve, reject };
-}
-
-describe('Страница оценки', () => {
-  let component: RequestPrice;
-  let api: { list: jest.Mock; get: jest.Mock };
-
+describe('Assessment workspace', () => {
+  const api = {
+    list: jest.fn(),
+    get: jest.fn(),
+    catalogs: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+    status: jest.fn(),
+  };
   beforeEach(() => {
-    api = {
-      list: jest.fn().mockResolvedValue({ items: [item], totalPages: 3 }),
-      get: jest.fn().mockResolvedValue(item),
-    };
+    jest.resetAllMocks();
+    api.list.mockResolvedValue({ items: [item], page: 1, totalPages: 1, total: 1 });
+    api.get.mockResolvedValue(JSON.parse(JSON.stringify(item)));
+    api.catalogs.mockResolvedValue({
+      cities: [{ id: item.property!.cityId, name: 'Москва' }],
+      applicants: [{ id: item.userId, name: 'Заявитель' }],
+    });
     TestBed.configureTestingModule({
-      providers: [{ provide: AssessmentReadApiService, useValue: api }],
+      imports: [RequestPrice],
+      providers: [
+        { provide: AssessmentReadApiService, useValue: api },
+        {
+          provide: TokenStore,
+          useValue: { role: () => UserRole.Notary, user: () => ({ id: 'notary' }) },
+        },
+      ],
     });
-    component = TestBed.createComponent(RequestPrice).componentInstance;
   });
-
-  it('загружает список и подробности из API', async () => {
-    await component.loadItems();
-    expect(api.list).toHaveBeenCalledWith(1);
-    expect(component.totalPages()).toBe(3);
-    await component.openRequest(item);
-    expect(api.get).toHaveBeenCalledWith('a-1');
-    expect(component.selectedItem()).toEqual(item);
+  const create = () => TestBed.createComponent(RequestPrice);
+  it('renders city, operations and no demo switch', async () => {
+    const fixture = create();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Москва');
+    expect(text).toContain('Создать заказ');
+    expect(text).toContain('Изменить');
+    expect(text).not.toContain('Деморежим');
+    fixture.destroy();
   });
-
-  it('не выходит за границы страниц и загружает следующую', async () => {
-    await component.loadItems();
-    component.changePage(-1);
-    expect(component.page()).toBe(1);
-    component.changePage(1);
-    expect(api.list).toHaveBeenLastCalledWith(2);
-    await Promise.resolve();
-    component.page.set(3);
-    component.changePage(1);
-    expect(component.page()).toBe(3);
+  it('sends search and filters to server with requested page', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    c.search = 'Тверская';
+    c.status = 'Verified';
+    c.cityId = 'city';
+    c.type = 'Apartment';
+    await c.load(2);
+    expect(api.list).toHaveBeenCalledWith(2, {
+      search: 'Тверская',
+      status: 'Verified',
+      cityId: 'city',
+      type: 'Apartment',
+    });
+    fixture.destroy();
   });
-
-  it('показывает ошибку и позволяет повторить загрузку', async () => {
-    api.list.mockRejectedValueOnce(new Error('network'));
-    await component.loadItems();
-    expect(component.error()).not.toBe('');
-    expect(component.loading()).toBe(false);
-    await component.loadItems();
-    expect(component.error()).toBe('');
-    expect(component.items()).toEqual([item]);
+  it('ignores stale list responses', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    let resolve!: (value: unknown) => void;
+    api.list.mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+    const old = c.load(1);
+    await c.load(2);
+    resolve({ items: [], total: 0, page: 1, totalPages: 1 });
+    await old;
+    expect(c.items()).toHaveLength(1);
+    fixture.destroy();
   });
-
-  it('в деморежиме не вызывает API и ищет по адресу', async () => {
-    component.setDemoMode(true);
-    await Promise.resolve();
-    component.search.set('  КАЗАНЬ  ');
-    expect(component.filteredItems()).toHaveLength(1);
-    await component.openRequest(component.filteredItems()[0]);
-    expect(api.list).not.toHaveBeenCalled();
-    expect(api.get).not.toHaveBeenCalled();
-    expect(component.selectedItem()?.assessment.address).toContain('Казань');
+  it('loads full detail before opening and populates editor', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    await c.open(item, 'edit');
+    expect(api.get).toHaveBeenCalledWith(item.id);
+    expect(c.draft.property.cityId).toBe(item.property!.cityId);
+    expect(c.dialog()).toBe('edit');
+    fixture.destroy();
   });
-
-  it('запрещает запрос для завершённой заявки', async () => {
-    await component.openRequest({
+  it('updates same assessment and reloads list after save', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    await c.open(item, 'edit');
+    c.draft.address = 'Новый адрес';
+    api.update.mockResolvedValue({ ...item, address: 'Новый адрес' });
+    await c.save();
+    expect(api.update).toHaveBeenCalledWith(
+      item.id,
+      expect.objectContaining({ address: 'Новый адрес' }),
+    );
+    expect(c.selected()?.address).toBe('Новый адрес');
+    expect(api.list).toHaveBeenCalled();
+    fixture.destroy();
+  });
+  it('creates an assessment with structured property', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    c.create();
+    c.draft = {
+      userId: item.userId,
+      address: item.address,
+      description: '',
+      property: item.property!,
+    };
+    api.create.mockResolvedValue(item);
+    await c.save();
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        property: expect.objectContaining({ cityId: item.property!.cityId }),
+      }),
+    );
+    expect(c.dialog()).toBe('view');
+    fixture.destroy();
+  });
+  it('keeps editor data after API error', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    await c.open(item, 'edit');
+    api.update.mockRejectedValue(new Error('Ошибка сохранения'));
+    await c.save();
+    expect(c.dialog()).toBe('edit');
+    expect(c.dialogError()).toBe('Ошибка сохранения');
+    expect(c.draft.address).toBe(item.address);
+    expect(c.busy()).toBe(false);
+    fixture.destroy();
+  });
+  it('deletes only on confirmation and reloads list', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    await c.open(item);
+    c.deleteSelected();
+    expect(api.remove).not.toHaveBeenCalled();
+    api.remove.mockResolvedValue({ deleted: true });
+    await c.remove();
+    expect(api.remove).toHaveBeenCalledWith(item.id);
+    expect(c.dialog()).toBeNull();
+    fixture.destroy();
+  });
+  it('provides valid status actions and no edits on terminal state', () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    expect(c.statusOptions(item)).toEqual(['Cancelled']);
+    expect(c.canRequest(item)).toBe(true);
+    expect(c.statusOptions({ ...item, status: 'Completed' })).toEqual([]);
+    expect(c.editable({ ...item, status: 'Completed' })).toBe(false);
+    fixture.destroy();
+  });
+  it('polls persisted status instead of advancing a timer locally', async () => {
+    const fixture = create();
+    const c = fixture.componentInstance;
+    const ordered = {
       ...item,
-      assessment: { ...item.assessment, status: 'Completed' },
-    });
-    expect(api.get).not.toHaveBeenCalled();
-    expect(component.selectedItem()).toBeNull();
-  });
-
-  it('не заменяет демоданные запоздалым ответом API', async () => {
-    const response = pending<{ items: AssessmentItem[]; totalPages: number }>();
-    api.list.mockReturnValueOnce(response.promise);
-    const loading = component.loadItems();
-    component.setDemoMode(true);
-    response.resolve({ items: [item], totalPages: 99 });
-    await loading;
-    expect(component.items()[0].assessment.id).toBe('demo-1');
-    expect(component.totalPages()).toBe(1);
-  });
-
-  it('не открывает устаревшую заявку после перезагрузки списка', async () => {
-    const response = pending<AssessmentItem>();
-    api.get.mockReturnValueOnce(response.promise);
-    const opening = component.openRequest(item);
-    await component.loadItems();
-    response.resolve(item);
-    await opening;
-    expect(component.selectedItem()).toBeNull();
-    expect(component.detailLoading()).toBe(false);
-  });
-
-  it('показывает ошибку получения подробностей', async () => {
-    api.get.mockRejectedValueOnce(new Error('network'));
-    await component.openRequest(item);
-    expect(component.error()).toContain('Не удалось открыть');
-    expect(component.detailLoading()).toBe(false);
-  });
-  it('показывает список в HTML и открывает форму по кнопке', async () => {
-    const fixture = TestBed.createComponent(RequestPrice);
-    fixture.detectChanges();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain('Москва, Тверская, 10');
-    const button = element.querySelector<HTMLButtonElement>('button.primary');
-    expect(button?.disabled).toBe(false);
-    button?.click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-    expect(element.textContent).toContain('Запрос оценки с параметрами');
-    const backButton = element.querySelector<HTMLButtonElement>('lib-assessment-request button');
-    backButton?.click();
-    fixture.detectChanges();
-    expect(element.querySelector('lib-assessment-request')).toBeNull();
-    expect(element.textContent).toContain('Заявки на оценку недвижимости');
+      status: 'Verified' as const,
+      order: {
+        id: 'order',
+        model: 'standard' as const,
+        urgency: 'standard' as const,
+        comment: '',
+        submittedAt: item.createdAt,
+        plannedCompletionDate: item.createdAt,
+        actualCompletionDate: null,
+        servicePrice: 3000,
+        history: [],
+      },
+    };
+    c.selected.set(ordered);
+    c.dialog.set('view');
+    api.get.mockResolvedValue({ ...ordered, status: 'InProgress' });
+    await c.poll();
+    expect(c.selected()?.status).toBe('InProgress');
+    expect(c.notice()).toContain('В работе');
     fixture.destroy();
   });
 });

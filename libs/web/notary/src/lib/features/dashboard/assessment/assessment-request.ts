@@ -1,77 +1,73 @@
+import {
+  EVALUATION_MODEL_LABELS,
+  EVALUATION_URGENCY_LABELS,
+  evaluationQuote,
+} from '@notary-portal/api-contracts';
 import { CommonModule } from '@angular/common';
-import { Component, input, output, signal, OnDestroy } from '@angular/core';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import type { AssessmentItem } from './assessment';
+import { Component, inject, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import type { EvaluationParameters, WorkspaceAssessment } from '@notary-portal/api-contracts';
+import { AssessmentReadApiService } from './assessment-read-api.service';
 
 @Component({
   selector: 'lib-assessment-request',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './assessment-request.html',
   styleUrl: './assessment-request.scss',
 })
-export class AssessmentRequest implements OnDestroy {
-  // Родитель передаёт выбранную заявку, ребёнок сообщает о возврате к списку.
-  readonly item = input.required<AssessmentItem>();
-  readonly closeRequest = output<void>();
-  readonly step = signal<'parameters' | 'confirmation' | 'progress'>('parameters');
-  readonly stage = signal(0);
-  readonly dates = signal<string[]>([]);
-  readonly stages = ['Получена', 'В очереди', 'Обрабатывается', 'Завершена'];
-  readonly message = signal('');
-  readonly models = [
-    { id: 'standard', name: 'Стандартная оценка', price: 3000, days: 5 },
-    { id: 'extended', name: 'Расширенная оценка', price: 5000, days: 7 },
-  ];
-  readonly form = new FormGroup({
-    model: new FormControl('standard', { nonNullable: true, validators: Validators.required }),
-    urgency: new FormControl('standard', { nonNullable: true, validators: Validators.required }),
-    comment: new FormControl('', { nonNullable: true, validators: Validators.maxLength(1000) }),
-    confirmed: new FormControl(false, { nonNullable: true, validators: Validators.requiredTrue }),
-  });
-  private timer?: ReturnType<typeof setInterval>;
-
-  get model() {
-    return (
-      this.models.find((model) => model.id === this.form.controls.model.value) ?? this.models[0]
-    );
+export class AssessmentRequest {
+  private readonly api = inject(AssessmentReadApiService);
+  readonly item = input.required<WorkspaceAssessment>();
+  readonly saved = output<WorkspaceAssessment>();
+  readonly cancelled = output<void>();
+  readonly working = output<boolean>();
+  readonly confirmation = signal(false);
+  readonly busy = signal(false);
+  readonly error = signal('');
+  parameters: EvaluationParameters = { model: 'standard', urgency: 'standard', comment: '' };
+  confirmed = false;
+  get price() {
+    return evaluationQuote(this.parameters).price;
   }
-  // Срочная оценка дороже на 50% и занимает 2 дня.
-  get price(): number {
-    return this.model.price * (this.form.controls.urgency.value === 'urgent' ? 1.5 : 1);
+  get modelLabel() {
+    return EVALUATION_MODEL_LABELS[this.parameters.model];
   }
-  get days(): number {
-    return this.form.controls.urgency.value === 'urgent' ? 2 : this.model.days;
+  get urgencyLabel() {
+    return EVALUATION_URGENCY_LABELS[this.parameters.urgency];
   }
-  get unavailable(): boolean {
-    return ['Completed', 'Cancelled', 'Unknown'].includes(this.item().assessment.status);
+  get days() {
+    return evaluationQuote(this.parameters).days;
   }
-  // Проверяем форму перед переходом на экран подтверждения.
-  confirm(): void {
-    this.form.markAllAsTouched();
-    if (this.form.invalid || this.unavailable) return;
-    this.step.set('confirmation');
+  get money() {
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: 'RUB',
+      maximumFractionDigits: 0,
+    }).format(this.price);
   }
-  back(): void {
-    this.step.set('parameters');
-    this.form.controls.confirmed.setValue(false);
+  confirm() {
+    if (this.parameters.comment.length <= 1000 && !this.item().order) {
+      this.confirmed = false;
+      this.confirmation.set(true);
+    }
   }
-  // Учебная отправка: каждые 3 секунды показываем следующий этап.
-  submit(): void {
-    if (this.step() !== 'confirmation' || this.form.invalid || this.unavailable) return;
-    this.step.set('progress');
-    this.stage.set(0);
-    this.dates.set([new Date().toLocaleString('ru-RU')]);
-    this.message.set('Демонстрация: запрос принят. Данные на сервер не отправлялись.');
-    this.timer = setInterval(() => {
-      this.stage.update((stage) => stage + 1);
-      this.dates.update((dates) => [...dates, new Date().toLocaleString('ru-RU')]);
-      this.message.set('Демонстрация: ' + this.stages[this.stage()]);
-      if (this.stage() === this.stages.length - 1) clearInterval(this.timer);
-    }, 3000);
+  back() {
+    this.confirmed = false;
+    this.confirmation.set(false);
   }
-  // При закрытии компонента останавливаем таймер.
-  ngOnDestroy(): void {
-    clearInterval(this.timer);
+  async submit() {
+    if (!this.confirmation() || !this.confirmed || this.busy() || this.item().order) return;
+    this.busy.set(true);
+    this.working.emit(true);
+    this.error.set('');
+    try {
+      this.saved.emit(await this.api.submit(this.item().id, this.parameters));
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Не удалось создать заказ');
+    } finally {
+      this.busy.set(false);
+      this.working.emit(false);
+    }
   }
 }
