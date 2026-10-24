@@ -1,11 +1,9 @@
-import { AuthModule } from '@internal/auth';
-import { AssessmentWorkspaceService } from './assessment-workspace.service';
-import { AssessmentWorkspaceController } from './assessment-workspace.controller';
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@internal/audit';
 import { BitrixLeadsModule } from '@internal/bitrix-leads';
 import { NotificationModule } from '@internal/notification';
 import { PrismaModule } from '@internal/prisma';
+import { AssessmentWorkspaceService } from './assessment-workspace.service';
 import { AssessmentRepository } from './assessment.repository';
 import { AssessmentService } from './assessment.service';
 import { AssessmentRpcService } from './assessment-rpc.service';
@@ -14,14 +12,12 @@ import { OrderModule } from '@notary-portal/order';
 
 @Module({
   imports: [
-    AuthModule,
     PrismaModule,
     AuditModule,
     NotificationModule,
     BitrixLeadsModule,
     OrderModule,
   ],
-  controllers: [AssessmentWorkspaceController],
   providers: [
     AssessmentWorkspaceService,
     AssessmentRepository,
@@ -29,6 +25,6 @@ import { OrderModule } from '@notary-portal/order';
     AssessmentRpcService,
     fiasProviderFactory,
   ],
-  exports: [AssessmentRpcService],
+  exports: [AssessmentRpcService, AssessmentWorkspaceService],
 })
 export class AssessmentModule {}

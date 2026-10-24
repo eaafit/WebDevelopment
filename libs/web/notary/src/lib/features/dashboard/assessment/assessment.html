@@ -70,7 +70,7 @@
             <button class="address" (click)="open(item)" [disabled]="busy()">{{ item.address }}</button
             ><span class="muted"
               >{{ city(item) }} · {{ objectTypes[item.property?.objectType || ''] || 'Характеристики не заполнены' }}@if
-              (item.property?.area != null) { · {{ item.property?.area }} м² }</span
+              (item.property?.area !== null && item.property?.area !== undefined) { · {{ item.property?.area }} м² }</span
             ><span class="small muted">№ {{ item.id.slice(0, 8) }} · {{ item.createdAt | date:'dd.MM.yyyy' }}</span>
           </td>
           <td data-label="Заявитель">{{ item.applicantName }}</td>
@@ -124,8 +124,7 @@
     class="dialog"
     role="dialog"
     aria-modal="true"
-    aria-labelledby="dialog-title"
-    (click)="$event.stopPropagation()">
+    aria-labelledby="dialog-title">
     <header class="dialog-header">
       <div>
         <span class="eyebrow">МОДУЛЬ ОЦЕНКИ</span>
