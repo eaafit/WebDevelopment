@@ -3,6 +3,7 @@ import { AuditModule } from '@internal/audit';
 import { BitrixLeadsModule } from '@internal/bitrix-leads';
 import { NotificationModule } from '@internal/notification';
 import { PrismaModule } from '@internal/prisma';
+import { AssessmentWorkspaceService } from './assessment-workspace.service';
 import { AssessmentRepository } from './assessment.repository';
 import { AssessmentService } from './assessment.service';
 import { AssessmentRpcService } from './assessment-rpc.service';
@@ -10,8 +11,20 @@ import { fiasProviderFactory } from '../fias/fias-provider.factory';
 import { OrderModule } from '@notary-portal/order';
 
 @Module({
-  imports: [PrismaModule, AuditModule, NotificationModule, BitrixLeadsModule, OrderModule],
-  providers: [AssessmentRepository, AssessmentService, AssessmentRpcService, fiasProviderFactory],
-  exports: [AssessmentRpcService],
+  imports: [
+    PrismaModule,
+    AuditModule,
+    NotificationModule,
+    BitrixLeadsModule,
+    OrderModule,
+  ],
+  providers: [
+    AssessmentWorkspaceService,
+    AssessmentRepository,
+    AssessmentService,
+    AssessmentRpcService,
+    fiasProviderFactory,
+  ],
+  exports: [AssessmentRpcService, AssessmentWorkspaceService],
 })
 export class AssessmentModule {}

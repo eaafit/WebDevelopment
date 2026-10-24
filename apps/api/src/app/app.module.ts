@@ -15,6 +15,7 @@ import { ConnectRouterRegistry } from './connect-router.registry';
 import { LoggingModule } from './logging/logging.module';
 import { MailModule } from './mail.module';
 import { PaymentAttachmentController } from './payment-attachment.controller';
+import { AssessmentWorkspaceController } from './assessment-workspace.controller';
 import { PortalAdminBootstrapService } from './portal-admin-bootstrap.service';
 import { OrderModule } from '@notary-portal/order';
 import { SupportModule } from '@notary-portal/support';
@@ -40,7 +41,7 @@ import { SupportModule } from '@notary-portal/support';
     SupportModule,
     // OrderController,
   ],
-  controllers: [PaymentAttachmentController],
+  controllers: [PaymentAttachmentController, AssessmentWorkspaceController],
   providers: [ConnectRouterRegistry, PortalAdminBootstrapService],
 })
 export class AppModule {}

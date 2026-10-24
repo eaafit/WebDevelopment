@@ -22,15 +22,24 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'subscription',
-        loadComponent: () => import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
+        loadComponent: () =>
+          import('./features/subscription/checkout/checkout').then((m) => m.Checkout),
       },
       {
         path: 'transactions',
-        loadComponent: () => import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
+        loadComponent: () =>
+          import('./features/dashboard/transactions/transactions').then((m) => m.Transactions),
+      },
+      {
+        path: 'assessment/request/:assessmentId',
+        canActivate: [roleGuard(UserRole.Notary)],
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
         path: 'assessment',
-        loadComponent: () => import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
+        loadComponent: () =>
+          import('./features/dashboard/assessment/assessment').then((m) => m.RequestPrice),
       },
       {
         path: 'monitoring',
@@ -61,7 +70,8 @@ export const notaryRoutes: Route[] = [
       },
       {
         path: 'notifications',
-        loadComponent: () => import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
+        loadComponent: () =>
+          import('./features/notifications/notifications').then((m) => m.NotaryNotifications),
       },
       {
         path: 'support',

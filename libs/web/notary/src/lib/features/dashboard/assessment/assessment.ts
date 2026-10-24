@@ -1,815 +1,457 @@
-﻿import {
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  OnInit,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, HostListener, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { TokenStore, UserRole } from '@notary-portal/ui';
+import { EVALUATION_MODEL_LABELS, EVALUATION_URGENCY_LABELS } from '@notary-portal/api-contracts';
+import type {
+  AssessmentDraft,
+  WorkspaceAssessment,
+  WorkspaceCatalogs,
+  WorkspaceStatus,
+} from '@notary-portal/api-contracts';
+import { AssessmentReadApiService } from './assessment-read-api.service';
+import { AssessmentRequest } from './assessment-request';
 
-export type ViewMode = 'list' | 'edit' | 'pdf';
-export type AssessmentStatus = 'New' | 'Verified' | 'InProgress' | 'Completed' | 'Cancelled';
-export type ObjectType =
-  | 'Apartment'
-  | 'House'
-  | 'Room'
-  | 'Apartments'
-  | 'LandPlot'
-  | 'CommercialProperty';
-export type SortField =
-  | 'address'
-  | 'objectType'
-  | 'area'
-  | 'status'
-  | 'createdAt'
-  | 'estimatedValue';
-export type SortDir = 'asc' | 'desc';
-
-export interface Assessment {
-  id: string;
-  status: AssessmentStatus;
-  createdAt: string;
-  updatedAt: string;
-  address: string;
-  description?: string;
-  estimatedValue?: number;
-}
-export interface RealEstateObject {
-  id: string;
-  city: string;
-  district?: string;
-  address: string;
-  area: number;
-  objectType: ObjectType;
-  roomsCount?: number;
-  floorsTotal: number;
-  floor?: number;
-  condition: 'NewBuilding' | 'Good' | 'NeedsRepair' | 'Emergency';
-  yearBuilt?: number;
-  wallMaterial?: string;
-  elevatorType?: string;
-  description?: string;
-}
-export interface AssessmentItem {
-  assessment: Assessment;
-  realEstate: RealEstateObject;
-}
-interface Notary {
-  city: string;
-  fio: string;
-  officeNumber: string;
-  officeAddress: string;
-}
-interface Company {
-  name: string;
-  address: string;
-}
-
-export const STATUS_LABELS: Record<AssessmentStatus, string> = {
+export const STATUS_LABELS: Record<WorkspaceStatus, string> = {
   New: 'Новая',
-  Verified: 'Проверена',
+  Verified: 'В очереди',
   InProgress: 'В работе',
   Completed: 'Завершена',
   Cancelled: 'Отменена',
 };
-export const OBJECT_TYPE_LABELS: Record<ObjectType, string> = {
+export const OBJECT_TYPES: Record<string, string> = {
   Apartment: 'Квартира',
-  House: 'Жилой дом',
+  House: 'Дом',
   Room: 'Комната',
   Apartments: 'Апартаменты',
-  LandPlot: 'Земельный участок',
-  CommercialProperty: 'Нежилое помещение',
+  LandPlot: 'Участок',
+  CommercialProperty: 'Коммерческая недвижимость',
+  Other: 'Другое',
 };
-export const CONDITION_LABELS: Record<string, string> = {
-  NewBuilding: 'Новостройка',
-  Good: 'Хорошее',
-  NeedsRepair: 'Требует ремонта',
-  Emergency: 'Аварийное',
-};
-export const WALL_LABELS: Record<string, string> = {
-  Brick: 'Кирпич',
-  Panel: 'Панель',
-  Block: 'Блок',
-  Monolithic: 'Монолит',
-  MonolithicBrick: 'Монолит-кирпич',
-  Wooden: 'Деревянный',
-  AeratedConcrete: 'Газобетон',
-};
-export const ELEVATOR_LABELS: Record<string, string> = {
-  None: 'Нет',
-  Cargo: 'Грузовой',
-  Passenger: 'Пассажирский',
-  PassengerAndCargo: 'Пассажирский и грузовой',
-};
-
-const MOCK_ITEMS: AssessmentItem[] = [
-  {
-    assessment: {
-      id: '1',
-      status: 'New',
-      createdAt: '2026-03-01T10:00:00Z',
-      updatedAt: '2026-03-01T10:00:00Z',
-      address: 'Москва, Тверская ул., д. 10, кв. 5',
-      description: 'Двухкомнатная квартира в центре',
-      estimatedValue: 8500000,
-    },
-    realEstate: {
-      id: 're1',
-      city: 'Москва',
-      district: 'Центральный',
-      address: 'Москва, Тверская ул., д. 10, кв. 5',
-      area: 54.6,
-      objectType: 'Apartment',
-      roomsCount: 2,
-      floorsTotal: 9,
-      floor: 5,
-      condition: 'Good',
-      yearBuilt: 1985,
-      wallMaterial: 'Brick',
-      elevatorType: 'Passenger',
-    },
+type Dialog = 'view' | 'edit' | 'create' | 'request' | 'delete' | 'status' | null;
+const emptyDraft = (): AssessmentDraft => ({
+  userId: '',
+  address: '',
+  description: '',
+  property: {
+    cityId: '',
+    address: '',
+    area: null,
+    objectType: 'Apartment',
+    cadastralNumber: '',
+    roomsCount: null,
+    floor: null,
+    floorsTotal: null,
+    yearBuilt: null,
   },
-  {
-    assessment: {
-      id: '2',
-      status: 'InProgress',
-      createdAt: '2026-03-05T14:30:00Z',
-      updatedAt: '2026-03-06T09:00:00Z',
-      address: 'Санкт-Петербург, Невский пр-т, д. 28, кв. 12',
-      estimatedValue: 12300000,
-    },
-    realEstate: {
-      id: 're2',
-      city: 'Санкт-Петербург',
-      district: 'Центральный',
-      address: 'Санкт-Петербург, Невский пр-т, д. 28, кв. 12',
-      area: 78.2,
-      objectType: 'Apartment',
-      roomsCount: 3,
-      floorsTotal: 6,
-      floor: 3,
-      condition: 'Good',
-      yearBuilt: 1972,
-      wallMaterial: 'Brick',
-      elevatorType: 'None',
-    },
-  },
-  {
-    assessment: {
-      id: '3',
-      status: 'Verified',
-      createdAt: '2026-03-08T11:00:00Z',
-      updatedAt: '2026-03-09T10:00:00Z',
-      address: 'Казань, ул. Баумана, д. 5',
-    },
-    realEstate: {
-      id: 're3',
-      city: 'Казань',
-      address: 'Казань, ул. Баумана, д. 5',
-      area: 120.0,
-      objectType: 'House',
-      roomsCount: 5,
-      floorsTotal: 2,
-      floor: 0,
-      condition: 'NeedsRepair',
-      yearBuilt: 1960,
-      wallMaterial: 'Wooden',
-      elevatorType: 'None',
-    },
-  },
-  {
-    assessment: {
-      id: '4',
-      status: 'Completed',
-      createdAt: '2026-02-20T09:00:00Z',
-      updatedAt: '2026-03-01T15:00:00Z',
-      address: 'Екатеринбург, ул. Малышева, д. 16, кв. 88',
-      estimatedValue: 4200000,
-    },
-    realEstate: {
-      id: 're4',
-      city: 'Екатеринбург',
-      district: 'Центральный',
-      address: 'Екатеринбург, ул. Малышева, д. 16, кв. 88',
-      area: 32.4,
-      objectType: 'Room',
-      floorsTotal: 12,
-      floor: 8,
-      condition: 'Good',
-      yearBuilt: 1995,
-      wallMaterial: 'Panel',
-      elevatorType: 'PassengerAndCargo',
-    },
-  },
-  {
-    assessment: {
-      id: '5',
-      status: 'New',
-      createdAt: '2026-03-15T08:00:00Z',
-      updatedAt: '2026-03-15T08:00:00Z',
-      address: 'Новосибирск, ул. Ленина, д. 32, кв. 7',
-    },
-    realEstate: {
-      id: 're5',
-      city: 'Новосибирск',
-      address: 'Новосибирск, ул. Ленина, д. 32, кв. 7',
-      area: 45.0,
-      objectType: 'Apartment',
-      roomsCount: 1,
-      floorsTotal: 5,
-      floor: 2,
-      condition: 'NewBuilding',
-      yearBuilt: 2022,
-      wallMaterial: 'Monolithic',
-      elevatorType: 'Passenger',
-    },
-  },
-  {
-    assessment: {
-      id: '6',
-      status: 'Cancelled',
-      createdAt: '2026-01-10T12:00:00Z',
-      updatedAt: '2026-01-15T12:00:00Z',
-      address: 'Москва, ул. Арбат, д. 20, офис 5',
-    },
-    realEstate: {
-      id: 're6',
-      city: 'Москва',
-      district: 'Центральный',
-      address: 'Москва, ул. Арбат, д. 20, офис 5',
-      area: 95.0,
-      objectType: 'CommercialProperty',
-      floorsTotal: 7,
-      floor: 3,
-      condition: 'Good',
-      yearBuilt: 2005,
-      wallMaterial: 'Monolithic',
-    },
-  },
-];
-
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`;
-}
-function fmtDate(d: Date): string {
-  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
-}
-function randomOutgoing(): string {
-  return `NR-${new Date().getFullYear()}-${Math.floor(Math.random() * 900000) + 100000}`;
-}
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
+});
+const CUSTOM_CITY = '__custom_city__';
 
 @Component({
   selector: 'lib-request-price',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, AssessmentRequest],
   templateUrl: './assessment.html',
   styleUrl: './assessment.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RequestPrice implements OnInit {
-  private readonly fb = inject(FormBuilder);
+export class RequestPrice implements OnInit, OnDestroy {
+  private readonly api = inject(AssessmentReadApiService);
+  private readonly tokens = inject(TokenStore);
+  private readonly route = inject(ActivatedRoute, { optional: true });
+  readonly isNotary = this.tokens.role() === UserRole.Notary;
+  readonly labels = STATUS_LABELS;
+  readonly statuses = Object.entries(STATUS_LABELS);
+  readonly types = Object.entries(OBJECT_TYPES);
+  readonly objectTypes = OBJECT_TYPES;
+  readonly items = signal<WorkspaceAssessment[]>([]);
+  readonly selected = signal<WorkspaceAssessment | null>(null);
+  readonly dialog = signal<Dialog>(null);
+  readonly loading = signal(false);
+  readonly busy = signal(false);
+  readonly error = signal('');
+  readonly dialogError = signal('');
+  readonly notice = signal('');
+  readonly catalogs = signal<WorkspaceCatalogs>({ cities: [], applicants: [] });
+  readonly catalogsReady = signal(false);
+  readonly page = signal(1);
+  readonly totalPages = signal(1);
+  readonly total = signal(0);
+  readonly pollingError = signal('');
+  readonly maxYear = new Date().getFullYear() + 5;
+  search = '';
+  status = '';
+  cityId = '';
+  type = '';
+  draft = emptyDraft();
+  customCityName = '';
+  targetStatus: WorkspaceStatus = 'InProgress';
+  reason = '';
+  estimatedValue: number | null = null;
+  private listVersion = 0;
+  private viewVersion = 0;
+  private destroyed = false;
+  private lastFocus: HTMLElement | null = null;
+  private timer?: ReturnType<typeof setInterval>;
+  private polling = false;
 
-  readonly view = signal<ViewMode>('list');
-  readonly assessments = signal<AssessmentItem[]>([]);
-  readonly isLoadingAssessments = signal(true);
-  readonly searchQuery = signal('');
-  readonly statusFilter = signal<AssessmentStatus | ''>('');
-  readonly typeFilter = signal<ObjectType | ''>('');
-  readonly sortField = signal<SortField>('createdAt');
-  readonly sortDir = signal<SortDir>('desc');
-  readonly deleteTarget = signal<AssessmentItem | null>(null);
-  readonly isDeleting = signal(false);
-
-  readonly filteredAssessments = computed(() => {
-    const q = this.searchQuery().toLowerCase().trim();
-    const st = this.statusFilter();
-    const tp = this.typeFilter();
-    const sf = this.sortField();
-    const sd = this.sortDir();
-    const list = this.assessments().filter((item) => {
-      const mQ =
-        !q ||
-        item.assessment.address.toLowerCase().includes(q) ||
-        item.realEstate.city.toLowerCase().includes(q) ||
-        (item.realEstate.district ?? '').toLowerCase().includes(q);
-      return (
-        mQ && (!st || item.assessment.status === st) && (!tp || item.realEstate.objectType === tp)
-      );
-    });
-    return [...list].sort((a, b) => {
-      let vA: string | number = '',
-        vB: string | number = '';
-      switch (sf) {
-        case 'address':
-          vA = a.assessment.address;
-          vB = b.assessment.address;
-          break;
-        case 'objectType':
-          vA = a.realEstate.objectType;
-          vB = b.realEstate.objectType;
-          break;
-        case 'area':
-          vA = a.realEstate.area;
-          vB = b.realEstate.area;
-          break;
-        case 'status':
-          vA = a.assessment.status;
-          vB = b.assessment.status;
-          break;
-        case 'createdAt':
-          vA = a.assessment.createdAt;
-          vB = b.assessment.createdAt;
-          break;
-        case 'estimatedValue':
-          vA = a.assessment.estimatedValue ?? 0;
-          vB = b.assessment.estimatedValue ?? 0;
-          break;
-      }
-      if (vA < vB) return sd === 'asc' ? -1 : 1;
-      if (vA > vB) return sd === 'asc' ? 1 : -1;
-      return 0;
-    });
-  });
-
-  readonly statusKeys = Object.keys(STATUS_LABELS) as AssessmentStatus[];
-  readonly typeKeys = Object.keys(OBJECT_TYPE_LABELS) as ObjectType[];
-  readonly conditionKeys = Object.keys(CONDITION_LABELS);
-  readonly wallKeys = Object.keys(WALL_LABELS);
-  readonly elevatorKeys = Object.keys(ELEVATOR_LABELS);
-  readonly statusLabels = STATUS_LABELS;
-  readonly typeLabels = OBJECT_TYPE_LABELS;
-  readonly conditionLabels = CONDITION_LABELS;
-  readonly wallLabels = WALL_LABELS;
-  readonly elevatorLabels = ELEVATOR_LABELS;
-
-  ngOnInit(): void {
-    this.loadAssessments();
+  ngOnInit() {
+    const id = this.route?.snapshot.paramMap.get('assessmentId');
+    if (id) void this.openId(id, 'request');
+    void this.load();
+    void this.loadCatalogs();
+    this.timer = setInterval(() => {
+      void this.poll();
+    }, 15000);
   }
-
-  loadAssessments(): void {
-    this.isLoadingAssessments.set(true);
-    setTimeout(() => {
-      this.assessments.set([...MOCK_ITEMS]);
-      this.isLoadingAssessments.set(false);
-    }, 300);
-  }
-
-  onSearchInput(e: Event): void {
-    this.searchQuery.set((e.target as HTMLInputElement).value);
-  }
-  onStatusFilterChange(e: Event): void {
-    this.statusFilter.set((e.target as HTMLSelectElement).value as AssessmentStatus | '');
-  }
-  onTypeFilterChange(e: Event): void {
-    this.typeFilter.set((e.target as HTMLSelectElement).value as ObjectType | '');
-  }
-  clearFilters(): void {
-    this.searchQuery.set('');
-    this.statusFilter.set('');
-    this.typeFilter.set('');
-  }
-  hasActiveFilters(): boolean {
-    return !!this.searchQuery() || !!this.statusFilter() || !!this.typeFilter();
-  }
-
-  sortBy(field: SortField): void {
-    if (this.sortField() === field) {
-      this.sortDir.update((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      this.sortField.set(field);
-      this.sortDir.set('asc');
-    }
-  }
-  sortIcon(f: SortField): string {
-    if (this.sortField() !== f) return '↕';
-    return this.sortDir() === 'asc' ? '↑' : '↓';
-  }
-  isSortActive(f: SortField): boolean {
-    return this.sortField() === f;
-  }
-
-  openDeleteModal(item: AssessmentItem): void {
-    this.deleteTarget.set(item);
-  }
-  closeDeleteModal(): void {
-    this.deleteTarget.set(null);
-  }
-
-  confirmDelete(): void {
-    const item = this.deleteTarget();
-    if (!item) return;
-    this.isDeleting.set(true);
-    setTimeout(() => {
-      this.assessments.update((l) => l.filter((i) => i.assessment.id !== item.assessment.id));
-      this.isDeleting.set(false);
-      this.closeDeleteModal();
-    }, 200);
-  }
-
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    this.closeDeleteModal();
-  }
-
-  getStatusLabel(s: string): string {
-    return STATUS_LABELS[s as AssessmentStatus] ?? s;
-  }
-  getStatusClass(s: string): string {
-    const m: Record<string, string> = {
-      New: 'badge--new',
-      Verified: 'badge--verified',
-      InProgress: 'badge--inprogress',
-      Completed: 'badge--completed',
-      Cancelled: 'badge--cancelled',
-    };
-    return `badge ${m[s] ?? ''}`;
-  }
-  getTypeLabel(t: string): string {
-    return OBJECT_TYPE_LABELS[t as ObjectType] ?? t;
-  }
-  formatAssessmentDate(s: string): string {
-    const d = new Date(s);
-    return isNaN(d.getTime())
-      ? s
-      : d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-  formatCurrency(v: number): string {
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: 'RUB',
-      maximumFractionDigits: 0,
-    }).format(v);
-  }
-
-  readonly editItem = signal<AssessmentItem | null>(null);
-  readonly isSaving = signal(false);
-  readonly showEditErrors = signal(false);
-  readonly cities = ['Москва', 'Санкт-Петербург', 'Казань', 'Екатеринбург', 'Новосибирск'];
-  readonly districts = ['Центральный', 'Северный', 'Южный', 'Западный', 'Восточный'];
-  get isEditMode(): boolean {
-    return !!this.editItem();
-  }
-  get editTitle(): string {
-    return this.isEditMode ? 'Редактирование заявки' : 'Новая заявка';
-  }
-
-  readonly editForm = this.fb.group({
-    status: ['New' as AssessmentStatus, Validators.required],
-    address: ['', [Validators.required, Validators.minLength(8)]],
-    description: [''],
-    estimatedValue: [null as number | null],
-    city: ['', Validators.required],
-    district: [''],
-    area: [null as number | null, [Validators.required, Validators.min(1)]],
-    objectType: ['' as ObjectType | '', Validators.required],
-    roomsCount: [null as number | null],
-    floorsTotal: [null as number | null, [Validators.required, Validators.min(1)]],
-    floor: [null as number | null],
-    condition: ['', Validators.required],
-    yearBuilt: [null as number | null],
-    wallMaterial: [''],
-    elevatorType: [''],
-  });
-
-  openAddForm(): void {
-    this.editItem.set(null);
-    this.showEditErrors.set(false);
-    this.editForm.reset({ status: 'New' });
-    this.view.set('edit');
-  }
-
-  openEditForm(item: AssessmentItem): void {
-    this.editItem.set(item);
-    this.showEditErrors.set(false);
-    const { assessment: a, realEstate: r } = item;
-    this.editForm.patchValue({
-      status: a.status,
-      address: a.address,
-      description: a.description ?? '',
-      estimatedValue: a.estimatedValue ?? null,
-      city: r.city,
-      district: r.district ?? '',
-      area: r.area,
-      objectType: r.objectType,
-      roomsCount: r.roomsCount ?? null,
-      floorsTotal: r.floorsTotal,
-      floor: r.floor ?? null,
-      condition: r.condition,
-      yearBuilt: r.yearBuilt ?? null,
-      wallMaterial: r.wallMaterial ?? '',
-      elevatorType: r.elevatorType ?? '',
-    });
-    this.view.set('edit');
-  }
-
-  onSaveEdit(): void {
-    this.showEditErrors.set(true);
-    if (this.editForm.invalid) return;
-    const v = this.editForm.getRawValue();
-    const { address, city, area, objectType, floorsTotal, condition } = v;
-    if (
-      !address ||
-      !city ||
-      area == null ||
-      !objectType ||
-      floorsTotal == null ||
-      !condition
-    ) {
-      return;
-    }
-    const reCondition = condition as RealEstateObject['condition'];
-    const now = new Date().toISOString();
-    this.isSaving.set(true);
-    setTimeout(() => {
-      const item = this.editItem();
-      if (item) {
-        const updated: AssessmentItem = {
-          assessment: {
-            ...item.assessment,
-            status: v.status as AssessmentStatus,
-            address,
-            description: v.description || undefined,
-            estimatedValue: v.estimatedValue ?? undefined,
-            updatedAt: now,
-          },
-          realEstate: {
-            ...item.realEstate,
-            city,
-            district: v.district || undefined,
-            area,
-            objectType: objectType as ObjectType,
-            roomsCount: v.roomsCount ?? undefined,
-            floorsTotal,
-            floor: v.floor ?? undefined,
-            condition: reCondition,
-            yearBuilt: v.yearBuilt ?? undefined,
-            wallMaterial: v.wallMaterial || undefined,
-            elevatorType: v.elevatorType || undefined,
-          },
-        };
-        this.assessments.update((l) =>
-          l.map((i) => (i.assessment.id === item.assessment.id ? updated : i)),
-        );
-      } else {
-        const id = generateId();
-        const newItem: AssessmentItem = {
-          assessment: {
-            id,
-            status: v.status as AssessmentStatus,
-            address,
-            description: v.description || undefined,
-            estimatedValue: v.estimatedValue ?? undefined,
-            createdAt: now,
-            updatedAt: now,
-          },
-          realEstate: {
-            id: `re-${id}`,
-            city,
-            district: v.district || undefined,
-            address,
-            area,
-            objectType: objectType as ObjectType,
-            roomsCount: v.roomsCount ?? undefined,
-            floorsTotal,
-            floor: v.floor ?? undefined,
-            condition: reCondition,
-            yearBuilt: v.yearBuilt ?? undefined,
-            wallMaterial: v.wallMaterial || undefined,
-            elevatorType: v.elevatorType || undefined,
-          },
-        };
-        this.assessments.update((l) => [newItem, ...l]);
-      }
-      this.isSaving.set(false);
-      this.view.set('list');
-    }, 200);
-  }
-
-  isEditInvalid(name: string): boolean {
-    const c = this.editForm.get(name);
-    return !!c && c.invalid && this.showEditErrors();
-  }
-
-  readonly pdfItem = signal<AssessmentItem | null>(null);
-  readonly isGenerating = signal(false);
-  selectedPdfName: string | null = null;
-  filteredNotaries: Notary[] = [];
-  requestText = '';
-  get isFormVisible(): boolean {
-    return this.view() === 'pdf';
-  }
-  selectedAssessmentId = computed(() => this.pdfItem()?.assessment.id ?? null);
-
-  readonly notaries: Notary[] = [
-    {
-      city: 'Москва',
-      fio: 'Иванов Иван Иванович',
-      officeNumber: '12',
-      officeAddress: 'г. Москва, ул. Тверская, д. 10',
-    },
-    {
-      city: 'Москва',
-      fio: 'Петров Пётр Петрович',
-      officeNumber: '48',
-      officeAddress: 'г. Москва, ул. Арбат, д. 7',
-    },
-    {
-      city: 'Санкт-Петербург',
-      fio: 'Сидорова Анна Сергеевна',
-      officeNumber: '5',
-      officeAddress: 'г. Санкт-Петербург, Невский пр., д. 25',
-    },
-    {
-      city: 'Казань',
-      fio: 'Нуриев Рустам Ильдарович',
-      officeNumber: '9',
-      officeAddress: 'г. Казань, ул. Баумана, д. 18',
-    },
-    {
-      city: 'Екатеринбург',
-      fio: 'Белова Татьяна Викторовна',
-      officeNumber: '3',
-      officeAddress: 'г. Екатеринбург, ул. Ленина, д. 52',
-    },
-  ];
-  readonly companies: Company[] = [
-    { name: 'ООО "ОценкаПрофи"', address: 'г. Москва, ул. Мясницкая, д. 15' },
-    { name: 'АО "Эксперт-Оценка"', address: 'г. Санкт-Петербург, ул. Рубинштейна, д. 9' },
-    { name: 'ООО "Рынок и Стоимость"', address: 'г. Казань, ул. Баумана, д. 3' },
-    { name: 'ИП Кузнецов А.В.', address: 'г. Екатеринбург, ул. Малышева, д. 101' },
-  ];
-  readonly propertyTypes: string[] = [
-    'Квартира',
-    'Комната',
-    'Жилой дом',
-    'Земельный участок',
-    'Нежилое помещение',
-  ];
-
-  private readonly _outgoingNumber = signal<string>(randomOutgoing());
-  private readonly _outgoingDate = signal<string>(fmtDate(new Date()));
-  readonly outgoingDisplay = computed(() => `${this._outgoingNumber()} от ${this._outgoingDate()}`);
-
-  readonly form = this.fb.group({
-    notaryCity: ['', Validators.required],
-    notaryFio: ['', Validators.required],
-    notaryOfficeNumber: [''],
-    notaryOfficeAddress: [''],
-    companyName: ['', Validators.required],
-    companyAddress: [''],
-    propertyAddress: ['', Validators.required],
-    cadastralNumber: ['', Validators.required],
-    propertyType: ['', Validators.required],
-    specialConditions: [''],
-    docRequisites: ['', Validators.required],
-    notarialAction: ['', Validators.required],
-    valuationDate: ['', Validators.required],
-    reportDueDate: ['', Validators.required],
-    extraNotes: [''],
-  });
-
-  constructor() {
-    this.buildRequestText();
-    this.form.valueChanges.subscribe(() => this.buildRequestText());
-  }
-
-  openPdfForm(item: AssessmentItem): void {
-    this.pdfItem.set(item);
-    const r = item.realEstate;
-    const conditions = [
-      r.area ? `Площадь: ${r.area} м²` : '',
-      r.floor != null ? `Этаж: ${r.floor} из ${r.floorsTotal}` : '',
-      r.yearBuilt ? `Год постройки: ${r.yearBuilt}` : '',
-      item.assessment.description ?? '',
-    ]
-      .filter(Boolean)
-      .join(', ');
-    this.form.patchValue({
-      propertyAddress: item.assessment.address,
-      propertyType: OBJECT_TYPE_LABELS[r.objectType] ?? r.objectType,
-      specialConditions: conditions,
-    });
-    this.view.set('pdf');
-  }
-  selectAssessment(item: AssessmentItem): void {
-    this.openPdfForm(item);
-  }
-
-  regenerateOutgoing(): void {
-    this._outgoingNumber.set(randomOutgoing());
-    this._outgoingDate.set(fmtDate(new Date()));
-    this.buildRequestText();
-  }
-
-  onNotaryCityChange(): void {
-    const city = this.form.get('notaryCity')?.value ?? '';
-    this.filteredNotaries = this.notaries.filter((n) => n.city === city);
-    this.form.patchValue(
-      { notaryFio: '', notaryOfficeNumber: '', notaryOfficeAddress: '' },
-      { emitEvent: false },
-    );
-    this.buildRequestText();
-  }
-  onNotaryFioChange(): void {
-    const fio = this.form.get('notaryFio')?.value ?? '';
-    const found = this.notaries.find((n) => n.fio === fio);
-    this.form.patchValue(
-      {
-        notaryOfficeNumber: found?.officeNumber ?? '',
-        notaryOfficeAddress: found?.officeAddress ?? '',
-      },
-      { emitEvent: false },
-    );
-    this.buildRequestText();
-  }
-  onCompanyChange(): void {
-    const name = this.form.get('companyName')?.value ?? '';
-    const found = this.companies.find((c) => c.name === name);
-    this.form.patchValue({ companyAddress: found?.address ?? '' }, { emitEvent: false });
-    this.buildRequestText();
-  }
-  onPdfSelected(event: Event): void {
-    this.selectedPdfName = (event.target as HTMLInputElement).files?.[0]?.name ?? null;
-    this.buildRequestText();
-  }
-
-  onSubmit(): void {
-    this.buildRequestText();
-    if (this.form.invalid) {
-      this.form.markAllAsTouched();
-      return;
-    }
-    alert('Запрос сформирован. Скопируйте текст из блока предпросмотра.');
-  }
-  async copyToClipboard(): Promise<void> {
+  async loadCatalogs() {
     try {
-      await navigator.clipboard.writeText(this.requestText);
-      alert('Текст запроса скопирован!');
-    } catch {
-      alert('Не удалось скопировать. Выделите текст вручную.');
+      this.catalogs.set(await this.api.catalogs());
+      this.catalogsReady.set(true);
+    } catch (error) {
+      this.error.set(this.message(error));
     }
   }
-
-  private buildRequestText(): void {
-    const v = this.form.getRawValue();
-    const notaryCity = v.notaryCity || '{Город}';
-    const notaryFio = v.notaryFio || '{Фамилия И.О.}';
-    const officeNumber = v.notaryOfficeNumber || '{Номер}';
-    const officeAddress = v.notaryOfficeAddress || '{Адрес нотариуса}';
-    const companyName = v.companyName || '{Название компании}';
-    const companyAddress = v.companyAddress || '{Адрес компании}';
-    const propertyAddress = v.propertyAddress || '{Адрес объекта недвижимости}';
-    const cadastralNumber = v.cadastralNumber || '{Кадастровый номер}';
-    const propertyType =
-      v.propertyType ||
-      '{Вид объекта (например: квартира, жилой дом, земельный участок, нежилое помещение)}';
-    const docRequisites =
-      v.docRequisites ||
-      '{Реквизиты документа, подтверждающего право собственности (вид, номер, дата, кем выдан)}';
-    const notarialAction =
-      v.notarialAction ||
-      '{Цель оценки (например: для заключения договора дарения, для вступления в наследство)}';
-    const valuationDate = v.valuationDate || '{Дата оценки}';
-    const reportDueDate = v.reportDueDate || '{Дата окончания срока}';
-    const special = v.specialConditions?.trim() || '—';
-    const extra = v.extraNotes?.trim() || '—';
-    this.requestText = `Нотариальный запрос о проведении оценки рыночной стоимости объекта недвижимости
-От: Нотариус города ${notaryCity} ${notaryFio}, нотариальная контора № ${officeNumber}, расположенная по адресу: ${officeAddress}
-Исх. №: ${this._outgoingNumber()}
-Дата: ${this._outgoingDate()}
-
-Кому: Руководителю
-Оценочной компании "${companyName}"
-${companyAddress}
-
-Запрос
-
-На основании необходимости совершения нотариального действия (${notarialAction}) и в соответствии со статьей 47 "Основ законодательства Российской Федерации о нотариате", прошу Вас провести оценку рыночной стоимости объекта недвижимости и предоставить в мою адрес письменный отчет об оценке, соответствующий требованиям Федерального закона от 29.07.1998 № 135-ФЗ "Об оценочной деятельности в Российской Федерации" и Федеральных стандартов оценки (ФСО).
-
-Параметры объекта для оценки:
-
-Адрес объекта: ${propertyAddress}
-Кадастровый номер: ${cadastralNumber}
-Вид объекта: ${propertyType}
-Правоустанавливающие документы: ${docRequisites}
-Цель проведения оценки: ${notarialAction}
-Дата, на которую требуется определить стоимость: ${valuationDate}
-Особые условия/характеристики: ${special}
-Дополнительные комментарии: ${extra}
-
-Отчет об оценке должен быть представлен на бумажном носителе, подписан и заверен печатью оценщика, с приложением копии квалификационного аттестата оценщика.
-
-Срок предоставления отчета: до ${reportDueDate}.
-
-Приложение:
-- Документ (PDF): ${this.selectedPdfName ?? 'не выбран'}.
-- Копия технического паспорта/плана БТИ.
-- Выписка из ЕГРН.`;
+  async load(page = this.page()) {
+    const version = ++this.listVersion;
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      const result = await this.api.list(page, {
+        search: this.search.trim(),
+        status: this.status,
+        cityId: this.cityId,
+        type: this.type,
+      });
+      if (version !== this.listVersion || this.destroyed) return;
+      this.items.set(result.items);
+      this.page.set(result.page);
+      this.totalPages.set(result.totalPages);
+      this.total.set(result.total);
+    } catch (error) {
+      if (version === this.listVersion) this.error.set(this.message(error));
+    } finally {
+      if (version === this.listVersion) this.loading.set(false);
+    }
+  }
+  resetFilters() {
+    this.search = '';
+    this.status = '';
+    this.cityId = '';
+    this.type = '';
+    void this.load(1);
+  }
+  editable(item: WorkspaceAssessment) {
+    return item.status === 'New' || item.status === 'Verified';
+  }
+  canRequest(item: WorkspaceAssessment) {
+    return this.editable(item) && !item.order && !!item.property;
+  }
+  async open(item: WorkspaceAssessment, dialog: Dialog = 'view') {
+    return this.openId(item.id, dialog);
+  }
+  private async openId(id: string, dialog: Dialog) {
+    if (this.busy()) return;
+    const version = ++this.viewVersion;
+    this.busy.set(true);
+    this.error.set('');
+    try {
+      const fresh = await this.api.get(id);
+      if (version !== this.viewVersion || this.destroyed) return;
+      this.selected.set(fresh);
+      this.draft = this.toDraft(fresh);
+      this.showDialog(dialog === 'request' && !this.canRequest(fresh) ? 'view' : dialog);
+    } catch (error) {
+      this.error.set(this.message(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  create() {
+    this.selected.set(null);
+    this.draft = emptyDraft();
+    this.customCityName = '';
+    if (!this.isNotary) this.draft.userId = this.tokens.user()?.id ?? '';
+    this.showDialog('create');
+  }
+  showDialog(dialog: Dialog) {
+    this.lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    this.dialogError.set('');
+    this.pollingError.set('');
+    this.dialog.set(dialog);
+    setTimeout(() =>
+      document
+        .querySelector<HTMLElement>('.dialog [data-autofocus], .dialog input, .dialog button')
+        ?.focus(),
+    );
+  }
+  close() {
+    if (this.busy()) return;
+    ++this.viewVersion;
+    this.dialog.set(null);
+    this.dialogError.set('');
+    this.lastFocus?.focus();
+  }
+  onOverlayClick(event: MouseEvent) {
+    if (event.target !== event.currentTarget || window.getSelection()?.toString().trim()) return;
+    this.close();
+  }
+  syncCityFromAddress(address: string) {
+    const parts = address
+      .toLocaleLowerCase('ru')
+      .split(',')
+      .map((part) => part.trim().replace(/^(?:г\.?|город)\s+/, ''));
+    const match = [...this.catalogs().cities]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find((city) => {
+        const name = city.name.toLocaleLowerCase('ru');
+        return parts.some((part) => part === name || part.startsWith(`${name} `));
+      });
+    if (!match) return;
+    this.draft.property.cityId = match.id;
+    this.customCityName = '';
+  }
+  get addingCustomCity() {
+    return this.draft.property.cityId === CUSTOM_CITY;
+  }
+  @HostListener('document:keydown', ['$event']) onKey(event: KeyboardEvent) {
+    if (!this.dialog()) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.close();
+    }
+    if (event.key !== 'Tab') return;
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '.dialog button:not(:disabled), .dialog input:not(:disabled), .dialog select:not(:disabled), .dialog textarea:not(:disabled), .dialog [tabindex="0"]',
+      ),
+    );
+    if (!elements.length) return;
+    const first = elements[0],
+      last = elements[elements.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+  private toDraft(item: WorkspaceAssessment): AssessmentDraft {
+    return {
+      userId: item.userId,
+      address: item.address,
+      description: item.description,
+      property: { ...emptyDraft().property, ...item.property },
+    };
+  }
+  editSelected() {
+    const item = this.selected();
+    if (item) {
+      this.draft = this.toDraft(item);
+      this.customCityName = '';
+      this.showDialog('edit');
+    }
+  }
+  async save() {
+    if (this.busy()) return;
+    if (
+      this.draft.property.floor &&
+      this.draft.property.floorsTotal &&
+      this.draft.property.floor > this.draft.property.floorsTotal
+    ) {
+      this.dialogError.set('Этаж не может быть выше этажности дома');
+      return;
+    }
+    const editing = this.dialog() === 'edit';
+    const id = this.selected()?.id;
+    if (this.addingCustomCity && this.customCityName.trim().length < 2) {
+      this.dialogError.set('Введите название города');
+      return;
+    }
+    await this.mutate(
+      async () => {
+        let draft = this.draft;
+        if (this.addingCustomCity) {
+          const city = await this.api.addCity(this.customCityName);
+          draft = { ...draft, property: { ...draft.property, cityId: city.id } };
+          this.draft = draft;
+          this.catalogs.update((catalogs) => ({
+            ...catalogs,
+            cities: [...catalogs.cities.filter((entry) => entry.id !== city.id), city].sort(
+              (a, b) => a.name.localeCompare(b.name, 'ru'),
+            ),
+          }));
+        }
+        return editing && id ? this.api.update(id, draft) : this.api.create(draft);
+      },
+      editing ? 'Изменения сохранены' : 'Заявка создана',
+    );
+  }
+  async mutate(action: () => Promise<WorkspaceAssessment>, notice: string) {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.dialogError.set('');
+    try {
+      const item = await action();
+      this.selected.set(item);
+      this.dialog.set('view');
+      this.notice.set(notice);
+      await this.load();
+    } catch (error) {
+      this.dialogError.set(this.message(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  requested(item: WorkspaceAssessment) {
+    this.selected.set(item);
+    this.dialog.set('view');
+    this.notice.set('Заказ создан и связан с заявкой');
+    void this.load();
+  }
+  deleteSelected() {
+    this.showDialog('delete');
+  }
+  async remove() {
+    const item = this.selected();
+    if (!item || this.busy()) return;
+    this.busy.set(true);
+    this.dialogError.set('');
+    try {
+      await this.api.remove(item.id);
+      this.dialog.set(null);
+      this.selected.set(null);
+      this.notice.set('Заявка удалена');
+      await this.load();
+    } catch (error) {
+      this.dialogError.set(this.message(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+  statusOptions(item: WorkspaceAssessment): WorkspaceStatus[] {
+    if (item.status === 'Completed' || item.status === 'Cancelled') return [];
+    const values: WorkspaceStatus[] = [];
+    if (this.isNotary && item.order && item.status === 'Verified') values.push('InProgress');
+    if (this.isNotary && item.order && item.status === 'InProgress') values.push('Completed');
+    values.push('Cancelled');
+    return values;
+  }
+  statusDialog() {
+    const item = this.selected();
+    if (!item) return;
+    this.targetStatus = this.statusOptions(item)[0];
+    this.reason = '';
+    this.estimatedValue = null;
+    this.showDialog('status');
+  }
+  async saveStatus() {
+    const item = this.selected();
+    if (!item) return;
+    await this.mutate(
+      () =>
+        this.api.status(item.id, this.targetStatus, this.reason, this.estimatedValue ?? undefined),
+      'Статус обновлён',
+    );
+  }
+  city(item: WorkspaceAssessment) {
+    const known = item.property?.cityName?.trim();
+    if (known) return known;
+    const address = item.address.toLocaleLowerCase('ru');
+    const match = this.catalogs().cities.find((city) =>
+      address
+        .split(',')
+        .some(
+          (part) =>
+            part.trim().replace(/^(г\.?|город)\s+/, '') === city.name.toLocaleLowerCase('ru'),
+        ),
+    );
+    return match ? match.name + ' (из адреса)' : 'Уточните город в карточке';
+  }
+  stages(item: WorkspaceAssessment) {
+    const history = item.order?.history ?? [];
+    const statusOrder = ['New', 'Verified', 'InProgress', 'Completed'];
+    const rank =
+      item.status === 'Cancelled'
+        ? Math.max(0, ...history.map((event) => statusOrder.indexOf(event.status)))
+        : statusOrder.indexOf(item.status);
+    return [
+      { label: 'Получена', date: item.createdAt },
+      {
+        label: 'В очереди',
+        date: history.find((event) => event.status === 'Verified')?.date ?? item.order?.submittedAt,
+      },
+      {
+        label: 'Обрабатывается',
+        date: history.find((event) => event.status === 'InProgress')?.date,
+      },
+      {
+        label: 'Завершена',
+        date:
+          history.find((event) => event.status === 'Completed')?.date ??
+          (item.status === 'Completed' ? item.order?.actualCompletionDate : undefined),
+      },
+    ].map((stage, index) => ({ ...stage, reached: !!stage.date || index <= rank }));
+  }
+  money(value: number | null | undefined) {
+    return value == null
+      ? '—'
+      : new Intl.NumberFormat('ru-RU', {
+          style: 'currency',
+          currency: 'RUB',
+          maximumFractionDigits: 0,
+        }).format(value);
+  }
+  modelLabel(value: keyof typeof EVALUATION_MODEL_LABELS) {
+    return EVALUATION_MODEL_LABELS[value] ?? 'Модель не указана';
+  }
+  urgencyLabel(value: keyof typeof EVALUATION_URGENCY_LABELS) {
+    return EVALUATION_URGENCY_LABELS[value] ?? 'Срок не указан';
+  }
+  async poll() {
+    const old = this.selected();
+    if (
+      this.polling ||
+      this.busy() ||
+      this.dialog() !== 'view' ||
+      !old?.order ||
+      ['Completed', 'Cancelled'].includes(old.status)
+    )
+      return;
+    const version = this.viewVersion;
+    this.polling = true;
+    try {
+      const fresh = await this.api.get(old.id);
+      if (
+        this.destroyed ||
+        this.busy() ||
+        this.dialog() !== 'view' ||
+        version !== this.viewVersion ||
+        this.selected()?.id !== old.id
+      )
+        return;
+      this.selected.set(fresh);
+      this.pollingError.set('');
+      this.items.update((items) => items.map((item) => (item.id === fresh.id ? fresh : item)));
+      if (fresh.status !== old.status) {
+        this.notice.set('Статус заявки: ' + this.labels[fresh.status]);
+        await this.load();
+      }
+    } catch (error) {
+      if (this.dialog() === 'view' && this.selected()?.id === old.id)
+        this.pollingError.set(this.message(error));
+    } finally {
+      this.polling = false;
+    }
+  }
+  message(error: unknown) {
+    return error instanceof Error ? error.message : 'Не удалось выполнить действие';
+  }
+  ngOnDestroy() {
+    this.destroyed = true;
+    ++this.listVersion;
+    ++this.viewVersion;
+    if (this.timer) clearInterval(this.timer);
   }
 }

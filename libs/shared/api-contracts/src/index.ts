@@ -12,3 +12,5 @@ export * from './generated/notary/report/v1alpha1/report_pb';
 export * from './generated/notary/user/v1alpha1/user_pb';
 export * from './generated/notary/order/v1/order_pb';
 export * from './generated/notary/support/v1alpha1/support_pb';
+
+export * from './assessment-workspace.types';

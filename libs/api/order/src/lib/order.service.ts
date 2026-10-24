@@ -109,7 +109,7 @@ export class OrderService {
               executor: { select: { id: true, fullName: true } },
               assessment: {
                 include: {
-                  realEstateObject: true,
+                  realEstateObject: { include: { city: true } },
                 },
               },
             },
@@ -148,7 +148,7 @@ export class OrderService {
             executor: { select: { id: true, fullName: true } },
             assessment: {
               include: {
-                realEstateObject: true,
+                realEstateObject: { include: { city: true } },
               },
             },
           },
@@ -186,13 +186,15 @@ export class OrderService {
             where: { id: orderId },
             data: {
               executorId: notaryId,
-              plannedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // +7 дней
+              ...(lead.submittedAt
+                ? {}
+                : { plannedCompletionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) }), // Preserve the agreed request deadline
             },
             include: {
               applicant: { select: { id: true, fullName: true } },
               executor: { select: { id: true, fullName: true } },
               assessment: {
-                include: { realEstateObject: true },
+                include: { realEstateObject: { include: { city: true } } },
               },
             },
           });
@@ -286,7 +288,10 @@ export class OrderService {
         ? {
             id: realEstateObject.id,
             address: realEstateObject.address,
-            city: realEstateObject.city,
+            city:
+              typeof realEstateObject.city === 'string'
+                ? realEstateObject.city
+                : (realEstateObject.city?.name ?? ''),
             area: realEstateObject.area,
             objectType: realEstateObject.objectType,
             roomsCount: realEstateObject.roomsCount,
@@ -308,8 +313,17 @@ export class OrderService {
         objectAddress: lead.assessment?.address || '',
         orderDate: lead.startDate,
         status: mappedStatus,
-        totalAmount: lead.assessment?.estimatedValue,
-        statusHistory,
+        totalAmount: lead.servicePrice ?? lead.assessment?.estimatedValue,
+        statusHistory:
+          lead.submittedAt && Array.isArray(lead.statusHistory) && lead.statusHistory.length
+            ? lead.statusHistory.map(
+                (entry: { status: string; date: string; comment?: string }) => ({
+                  status: this.mapAssessmentStatusToOrderStatus(entry.status),
+                  date: new Date(entry.date),
+                  comment: entry.comment ?? '',
+                }),
+              )
+            : statusHistory,
         applicantId: lead.applicant?.id,
         applicantName: lead.applicant?.fullName,
         notaryId: lead.executor?.id,
