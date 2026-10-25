@@ -15,7 +15,7 @@ interface UploadedFile {
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
 })
-export class AppComponent {
+export class App {
   filesList: UploadedFile[] = [];
   isDragOver = false;
 
