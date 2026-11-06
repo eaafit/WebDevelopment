@@ -1,107 +1,137 @@
+import { Injectable, inject } from '@angular/core';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { createClient } from '@connectrpc/connect';
 import {
   AssessmentService,
   AssessmentStatus,
-  RealEstateObjectType,
+  ReportService,
+  ReportSortField,
+  ReportStatus,
   type Assessment,
+  type AssessmentReport as RpcAssessmentReport,
 } from '@notary-portal/api-contracts';
-import { Injectable, inject } from '@angular/core';
 import { RPC_TRANSPORT } from '@notary-portal/ui';
+import { OBJECT_TYPE_OPTIONS } from '../../estimation-form/estimation-form.models';
+import type {
+  AssessmentReport,
+  AssessmentResultModel,
+  CalculationBreakdownRow,
+} from './assessment-results.models';
 
-export interface AssessmentResultItem {
-  id: string;
-  address: string;
-  propertyType: string;
-  estimatedValue: number | null;
-  assessedAt: string | null;
-}
+const RESULTS_PAGE_LIMIT = 50;
+const REPORTS_PAGE_LIMIT = 20;
+const MOCK_REPORT_FILE_URL = '/mock/assessment-report.pdf';
 
-export interface AssessmentResultDetail {
-  id: string;
-  address: string;
-  propertyType: string;
-  area: string | null;
-  estimatedValue: number | null;
-  assessedAt: string | null;
-  status: AssessmentStatus;
-}
-
-const OBJECT_TYPE_LABELS: Record<RealEstateObjectType, string> = {
-  [RealEstateObjectType.UNSPECIFIED]: 'Не указан',
-  [RealEstateObjectType.APARTMENT]: 'Квартира',
-  [RealEstateObjectType.HOUSE]: 'Жилой дом',
-  [RealEstateObjectType.ROOM]: 'Комната',
-  [RealEstateObjectType.APARTMENTS]: 'Апартаменты',
-  [RealEstateObjectType.LAND_PLOT]: 'Земельный участок',
-  [RealEstateObjectType.COMMERCIAL_PROPERTY]: 'Нежилое помещение',
-  [RealEstateObjectType.OTHER]: 'Другое',
-};
+/** Статусы, при которых у заявки есть итог оценки. */
+export const RESULT_STATUSES: ReadonlyArray<AssessmentStatus> = [AssessmentStatus.COMPLETED];
 
 @Injectable({ providedIn: 'root' })
 export class AssessmentResultsApiService {
   private readonly client = createClient(AssessmentService, inject(RPC_TRANSPORT));
+  private readonly reportClient = createClient(ReportService, inject(RPC_TRANSPORT));
 
-  async listCompletedAssessments(userId: string): Promise<AssessmentResultItem[]> {
-    const response = await this.client.listAssessments({
-      userId,
-      statusFilter: AssessmentStatus.COMPLETED,
-      pagination: { page: 1, limit: 100 },
-    });
+  async listResults(userId: string): Promise<AssessmentResultModel[]> {
+    const responses = await Promise.all(
+      RESULT_STATUSES.map((statusFilter) =>
+        this.client.listAssessments({
+          userId,
+          statusFilter,
+          pagination: { page: 1, limit: RESULTS_PAGE_LIMIT },
+        }),
+      ),
+    );
 
-    return response.assessments.map(toAssessmentResultItem);
+    return responses
+      .flatMap((response) => response.assessments)
+      .filter((assessment) => RESULT_STATUSES.includes(assessment.status))
+      .map(toAssessmentResultModel)
+      .sort((a, b) => (b.assessedAt ?? '').localeCompare(a.assessedAt ?? ''));
   }
 
-  async getAssessmentResult(assessmentId: string): Promise<AssessmentResultDetail> {
+  /** Возвращает null, если заявка не найдена или ещё не оценена. */
+  async getResult(assessmentId: string): Promise<AssessmentResultModel | null> {
     const response = await this.client.getAssessment({ id: assessmentId });
-    if (!response.assessment) {
-      throw new Error('Заявка не найдена');
+    const assessment = response.assessment;
+    if (!assessment || !RESULT_STATUSES.includes(assessment.status)) {
+      return null;
     }
 
-    return toAssessmentResultDetail(response.assessment);
+    return toAssessmentResultModel(assessment);
+  }
+
+  async listReports(assessmentId: string): Promise<AssessmentReport[]> {
+    const response = await this.reportClient.listReports({
+      pagination: { page: 1, limit: REPORTS_PAGE_LIMIT },
+      filters: { assessmentId },
+      sort: { field: ReportSortField.VERSION, descending: true },
+    });
+
+    return response.reports.map(toAssessmentReport);
   }
 }
 
-function toAssessmentResultItem(assessment: Assessment): AssessmentResultItem {
+function toAssessmentReport(report: RpcAssessmentReport): AssessmentReport {
+  const createdAt = report.generatedAt ? timestampDate(report.generatedAt).toISOString() : '';
+  const isSigned = report.status === ReportStatus.SIGNED;
+
   return {
-    id: assessment.id,
-    address: resolveAddress(assessment),
-    propertyType: resolvePropertyType(assessment),
-    estimatedValue: parseEstimatedValue(assessment.estimatedValue),
-    assessedAt: toIsoDate(assessment.updatedAt),
+    id: report.id,
+    assessmentId: report.assessmentId,
+    title: `Отчёт об оценке, версия ${report.version}`,
+    status: isSigned ? 'Signed' : 'Draft',
+    createdAt,
+    fileUrl: isSigned ? resolveReportFileUrl(report.reportPath) : null,
+    signedAt: isSigned && report.hasSignature ? createdAt : null,
   };
 }
 
-function toAssessmentResultDetail(assessment: Assessment): AssessmentResultDetail {
+// TODO: заменить на ссылку из файлового хранилища, когда API начнёт отдавать URL для скачивания;
+// сейчас report_path — внутренний путь, поэтому для таких отчётов открывается демо-PDF.
+function resolveReportFileUrl(reportPath: string): string {
+  return /^https?:\/\//.test(reportPath) ? reportPath : MOCK_REPORT_FILE_URL;
+}
+
+// TODO: заменить на реальную детализацию расчёта, когда бэкенд начнёт её отдавать.
+export function buildMockBreakdown(finalValue: number | null): CalculationBreakdownRow[] {
+  if (finalValue === null) {
+    return [];
+  }
+
+  const marketValue = Math.round(finalValue / 0.95);
+  return [
+    { label: 'Рыночная стоимость', value: marketValue, hint: 'Сравнительный подход' },
+    {
+      label: 'Корректировки',
+      value: finalValue - marketValue,
+      hint: 'Состояние, этаж, торг',
+    },
+    { label: 'Итоговая стоимость', value: finalValue },
+  ];
+}
+
+function toAssessmentResultModel(assessment: Assessment): AssessmentResultModel {
+  const realEstateObject = assessment.realEstateObject;
+  const objectType = realEstateObject?.objectType;
+  const assessedAt = assessment.updatedAt ?? assessment.createdAt;
+
   return {
     id: assessment.id,
-    address: resolveAddress(assessment),
-    propertyType: resolvePropertyType(assessment),
-    area: assessment.realEstateObject?.area?.trim() || null,
-    estimatedValue: parseEstimatedValue(assessment.estimatedValue),
-    assessedAt: toIsoDate(assessment.updatedAt),
-    status: assessment.status,
+    address: realEstateObject?.address || assessment.address,
+    objectTypeLabel:
+      OBJECT_TYPE_OPTIONS.find((option) => option.value === String(objectType))?.label ??
+      'Не указан',
+    area: realEstateObject?.area ?? '',
+    finalEstimatedValue: parseMoney(assessment.estimatedValue),
+    assessedAt: assessedAt ? timestampDate(assessedAt).toISOString() : null,
   };
 }
 
-function resolveAddress(assessment: Assessment): string {
-  return assessment.realEstateObject?.address?.trim() || assessment.address?.trim() || 'Адрес не указан';
-}
-
-function resolvePropertyType(assessment: Assessment): string {
-  const objectType = assessment.realEstateObject?.objectType ?? RealEstateObjectType.UNSPECIFIED;
-  return OBJECT_TYPE_LABELS[objectType] ?? 'Не указан';
-}
-
-function parseEstimatedValue(value: string | undefined): number | null {
-  if (!value?.trim()) {
+function parseMoney(value: string): number | null {
+  const normalized = value.replace(/\s/g, '').replace(',', '.');
+  if (!normalized) {
     return null;
   }
 
-  const parsed = Number(value.replace(/\s/g, '').replace(',', '.'));
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function toIsoDate(timestamp: Assessment['updatedAt']): string | null {
-  return timestamp ? timestampDate(timestamp).toISOString() : null;
 }

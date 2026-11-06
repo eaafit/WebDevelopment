@@ -1,17 +1,14 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { AssessmentStatus } from '@notary-portal/api-contracts';
+import { AssessmentResultsApiService, buildMockBreakdown } from '../assessment-results-api.service';
 import {
-  AssessmentResultsApiService,
-  type AssessmentResultDetail,
-} from '../assessment-results-api.service';
-import {
-  formatRubles,
-  getMockCalculationBreakdown,
+  formatDate,
+  formatRub,
   type AssessmentReport,
-  type CalculationBreakdownRow,
-} from '../assessment-report.models';
-import { ReportApiService } from '../report-api.service';
+  type AssessmentResultModel,
+} from '../assessment-results.models';
+
+const ASSESSMENT_ID_ROUTE_PARAM = 'assessmentId';
 
 @Component({
   selector: 'lib-assessment-result-detail',
@@ -22,88 +19,57 @@ import { ReportApiService } from '../report-api.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssessmentResultDetailComponent {
-  readonly assessment = signal<AssessmentResultDetail | null>(null);
+  readonly result = signal<AssessmentResultModel | null>(null);
   readonly reports = signal<AssessmentReport[]>([]);
-  readonly calculationRows = signal<CalculationBreakdownRow[]>([]);
-  readonly isLoading = signal(true);
+  readonly loading = signal(true);
   readonly loadError = signal<string | null>(null);
-  readonly isBreakdownExpanded = signal(true);
-  readonly downloadingReportId = signal<string | null>(null);
+  readonly breakdown = computed(() =>
+    buildMockBreakdown(this.result()?.finalEstimatedValue ?? null),
+  );
 
-  readonly formattedValue = computed(() => {
-    const value = this.assessment()?.estimatedValue;
-    return value === null || value === undefined ? '—' : formatRubles(value);
-  });
+  readonly formatRub = formatRub;
+  readonly formatDate = formatDate;
 
   private readonly route = inject(ActivatedRoute);
-  private readonly api = inject(AssessmentResultsApiService);
-  private readonly reportApi = inject(ReportApiService);
+  private readonly resultsApi = inject(AssessmentResultsApiService);
 
   constructor() {
-    void this.loadAssessment();
-  }
-
-  toggleBreakdown(): void {
-    this.isBreakdownExpanded.update((expanded) => !expanded);
-  }
-
-  formatDate(isoDate: string | null): string {
-    if (!isoDate) {
-      return '—';
-    }
-
-    return new Intl.DateTimeFormat('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(new Date(isoDate));
-  }
-
-  reportStatusLabel(status: AssessmentReport['status']): string {
-    return status === 'Signed' ? 'Подписан' : 'Черновик';
-  }
-
-  isDownloading(reportId: string): boolean {
-    return this.downloadingReportId() === reportId;
+    void this.loadResult();
   }
 
   downloadReport(report: AssessmentReport): void {
-    if (!report.fileUrl || this.downloadingReportId()) {
+    if (report.status !== 'Signed' || !report.fileUrl) {
       return;
     }
 
-    this.downloadingReportId.set(report.id);
-    window.open(report.fileUrl, '_blank', 'noopener,noreferrer');
-    window.setTimeout(() => this.downloadingReportId.set(null), 1200);
+    window.open(report.fileUrl, '_blank', 'noopener');
   }
 
-  private async loadAssessment(): Promise<void> {
-    const assessmentId = this.route.snapshot.paramMap.get('assessmentId')?.trim() ?? '';
+  private async loadResult(): Promise<void> {
+    const assessmentId = this.route.snapshot.paramMap.get(ASSESSMENT_ID_ROUTE_PARAM)?.trim() ?? '';
     if (!assessmentId) {
       this.loadError.set('Не указан идентификатор оценки.');
-      this.isLoading.set(false);
+      this.loading.set(false);
       return;
     }
 
-    this.isLoading.set(true);
-    this.loadError.set(null);
-
     try {
-      const detail = await this.api.getAssessmentResult(assessmentId);
-      if (detail.status !== AssessmentStatus.COMPLETED) {
-        this.loadError.set('Оценка ещё не завершена. Результаты будут доступны после завершения.');
+      const [result, reports] = await Promise.all([
+        this.resultsApi.getResult(assessmentId),
+        this.resultsApi.listReports(assessmentId),
+      ]);
+      if (!result) {
+        this.loadError.set('Оценка не найдена или ещё не завершена.');
         return;
       }
 
-      this.assessment.set(detail);
-      this.reports.set(await this.reportApi.listAssessmentReports(assessmentId));
-
-      const finalValue = detail.estimatedValue ?? 0;
-      this.calculationRows.set(getMockCalculationBreakdown(finalValue));
-    } catch {
+      this.result.set(result);
+      this.reports.set(reports);
+    } catch (error) {
+      console.error('[ApplicantAssessmentResultDetail] detail.load:error', error);
       this.loadError.set('Не удалось загрузить результат оценки.');
     } finally {
-      this.isLoading.set(false);
+      this.loading.set(false);
     }
   }
 }

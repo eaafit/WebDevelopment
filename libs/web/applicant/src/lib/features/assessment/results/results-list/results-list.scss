@@ -2,99 +2,80 @@
   display: block;
 }
 
-.state-message {
-  margin: 1.5rem 0 0;
-  color: var(--text-secondary);
+.results-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
 }
 
-.empty-state {
-  margin-top: 2rem;
-  padding: 2.5rem 1.5rem;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
+.results-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+
   text-align: center;
-  background: var(--bg-secondary);
 }
 
-.empty-icon {
-  margin-bottom: 0.75rem;
+.results-error {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  color: var(--failed-text);
+  background: var(--failed-bg);
+}
+
+.results-empty-icon {
   font-size: 2.5rem;
-}
-
-.empty-state h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1.25rem;
-}
-
-.empty-state p {
-  margin: 0;
-  color: var(--text-secondary);
 }
 
 .results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  margin-top: 1.5rem;
+  gap: 1.25rem;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
 }
 
 .result-card {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-
-  padding: 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-secondary);
-  box-shadow: var(--shadow-sm);
-}
-
-.result-card-title {
-  margin: 0;
-  font-size: 1rem;
-  line-height: 1.4;
-}
-
-.result-card-meta {
-  display: grid;
   gap: 0.75rem;
-  margin: 0;
+  padding: 1.5rem;
 }
 
-.result-card-meta div {
-  display: grid;
-  gap: 0.15rem;
+.result-card-top {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.result-card-meta dt {
+.result-card-address {
   margin: 0;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
 
-.result-card-meta dd {
-  margin: 0;
+  font-size: 1.05rem;
   font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.result-value {
-  font-size: 1.1rem;
-  color: var(--primary);
-}
+.result-card-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 
-.result-card .btn {
-  align-self: flex-start;
   margin-top: auto;
-}
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-sm);
 
-@media (width <= 640px) {
-  .results-grid {
-    grid-template-columns: 1fr;
-  }
+  background: var(--bg-secondary);
 
-  .result-card .btn {
-    width: 100%;
-    text-align: center;
+  strong {
+    font-size: 1.35rem;
+    color: var(--primary);
   }
 }

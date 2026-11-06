@@ -1,115 +1,106 @@
 <main class="container page">
-  <section class="card">
-    <header class="card-header detail-header">
+  <a class="link text-sm" routerLink="/applicant/assessment/results">← Все результаты</a>
+
+  @if (loading()) {
+  <div class="card detail-message mt-4">
+    <p class="text-secondary m-0">Загрузка результата...</p>
+  </div>
+  } @else if (loadError()) {
+  <div class="card detail-message mt-4">
+    <p class="detail-error m-0">{{ loadError() }}</p>
+  </div>
+  } @else if (result(); as result) {
+  <section class="card detail-summary mt-4" aria-labelledby="summary-title">
+    <div class="detail-summary-main">
+      <span class="badge badge-success">Оценено</span>
+      <h1 class="detail-summary-title" id="summary-title">Итог оценки</h1>
+      <p class="detail-value">{{ formatRub(result.finalEstimatedValue) }}</p>
+    </div>
+    <dl class="detail-facts">
       <div>
-        <a class="back-link" routerLink="/applicant/assessment/results">← К списку результатов</a>
-        <h1>Результат оценки</h1>
+        <dt>Адрес</dt>
+        <dd>{{ result.address }}</dd>
       </div>
-    </header>
-
-    @if (isLoading()) {
-    <p class="state-message">Загрузка…</p>
-    } @else if (loadError()) {
-    <p class="form-banner form-banner-error">{{ loadError() }}</p>
-    } @else if (assessment(); as item) {
-    <section class="summary-block" aria-labelledby="summary-title">
-      <h2 id="summary-title" class="section-title">Итог</h2>
-      <p class="final-value">{{ formattedValue() }}</p>
-      <dl class="summary-meta">
-        <div>
-          <dt>Адрес</dt>
-          <dd>{{ item.address }}</dd>
-        </div>
-        <div>
-          <dt>Тип имущества</dt>
-          <dd>{{ item.propertyType }}</dd>
-        </div>
-        @if (item.area) {
-        <div>
-          <dt>Площадь</dt>
-          <dd>{{ item.area }} м²</dd>
-        </div>
-        }
-        <div>
-          <dt>Дата оценки</dt>
-          <dd>{{ formatDate(item.assessedAt) }}</dd>
-        </div>
-      </dl>
-    </section>
-
-    <section class="detail-block" aria-labelledby="breakdown-title">
-      <div class="detail-block-header">
-        <h2 id="breakdown-title" class="section-title">Детализация расчёта</h2>
-        <button class="btn btn-outline btn-sm" type="button" (click)="toggleBreakdown()">
-          {{ isBreakdownExpanded() ? 'Скрыть' : 'Показать' }}
-        </button>
+      <div>
+        <dt>Тип имущества</dt>
+        <dd>{{ result.objectTypeLabel }}@if (result.area) {, {{ result.area }} м²}</dd>
       </div>
-      <p class="detail-note">Детализация носит демонстрационный характер до подключения расчётного движка.</p>
+      <div>
+        <dt>Дата оценки</dt>
+        <dd>{{ formatDate(result.assessedAt) }}</dd>
+      </div>
+    </dl>
+  </section>
 
-      @if (isBreakdownExpanded()) {
-      <table class="breakdown-table">
-        <thead>
-          <tr>
-            <th scope="col">Показатель</th>
-            <th scope="col">Значение</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (row of calculationRows(); track row.label) {
-          <tr [class.breakdown-total]="row.isTotal">
-            <td>{{ row.label }}</td>
-            <td>{{ row.value }}</td>
-          </tr>
-          }
-        </tbody>
-      </table>
+  <div class="detail-columns mt-6">
+    <section class="card" aria-labelledby="breakdown-title">
+      <h2 class="card-title" id="breakdown-title">Детализация расчёта</h2>
+      <!-- TODO: заменить mock-таблицу на реальную детализацию расчёта с бэкенда -->
+      @if (breakdown().length) {
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Показатель</th>
+              <th class="text-right">Сумма</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of breakdown(); track row.label; let last = $last) {
+            <tr [class.breakdown-total]="last">
+              <td>
+                {{ row.label }} @if (row.hint) {
+                <span class="breakdown-hint">{{ row.hint }}</span>
+                }
+              </td>
+              <td class="text-right">{{ formatRub(row.value) }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-secondary mb-2">Детализация носит демонстрационный характер.</p>
+      } @else {
+      <p class="text-secondary m-0">Оценщик ещё не указал итоговую стоимость.</p>
       }
     </section>
 
-    <section class="detail-block" aria-labelledby="reports-title">
-      <h2 id="reports-title" class="section-title">Отчёты</h2>
-      @if (reports().length === 0) {
-      <p class="detail-note">Отчёты по этой оценке пока не сформированы.</p>
-      }
-
-      <ul class="reports-list">
+    <section class="card" aria-labelledby="reports-title">
+      <h2 class="card-title" id="reports-title">Отчёты</h2>
+      @if (reports().length) {
+      <ul class="reports-list" role="list">
         @for (report of reports(); track report.id) {
         <li class="report-item">
           <div class="report-info">
-            <h3 class="report-title">{{ report.title }}</h3>
-            <p class="report-meta">
-              <span
-                class="report-badge"
-                [class.report-badge-signed]="report.status === 'Signed'"
-                [class.report-badge-draft]="report.status === 'Draft'">
-                {{ reportStatusLabel(report.status) }}
-              </span>
-              <span>{{ formatDate(report.createdAt) }}</span>
-            </p>
+            <span class="text-bold">{{ report.title }}</span>
+            <span class="text-secondary text-xs">от {{ formatDate(report.createdAt) }}</span>
+            @if (report.status === 'Signed') {
+            <span class="badge badge-success">Подписан</span>
+            } @else {
+            <span class="badge badge-pending">Черновик</span>
+            }
           </div>
-
-          @if (report.status === 'Signed' && report.fileUrl) {
-          <button
-            class="btn btn-outline btn-sm"
-            type="button"
-            [disabled]="isDownloading(report.id)"
-            (click)="downloadReport(report)">
-            {{ isDownloading(report.id) ? 'Открытие…' : 'Скачать' }}
-          </button>
-          } @else {
-          <div class="report-pending">
-            <button class="btn btn-outline btn-sm" type="button" disabled>Скачать</button>
-            <span class="report-pending-label">Ожидает подписи</span>
+          <div class="report-action">
+            <button
+              class="btn btn-primary btn-sm"
+              type="button"
+              [disabled]="report.status !== 'Signed' || !report.fileUrl"
+              (click)="downloadReport(report)">
+              Скачать
+            </button>
+            @if (report.status === 'Draft') {
+            <span class="text-secondary text-xs">Ожидает подписи</span>
+            }
           </div>
-          }
         </li>
         }
       </ul>
-    </section>
+      } @else {
+      <p class="text-secondary m-0">Отчёты пока не сформированы.</p>
+      }
 
-    <div class="detail-actions">
-      <a class="btn btn-primary" routerLink="/applicant/copies">Запросить копию</a>
-    </div>
-    }
-  </section>
+      <a class="btn btn-outline w-full mt-4" routerLink="/applicant/copies">Запросить копию</a>
+    </section>
+  </div>
+  }
 </main>
