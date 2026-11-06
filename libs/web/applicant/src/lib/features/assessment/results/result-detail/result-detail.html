@@ -1,0 +1,106 @@
+<main class="container page">
+  <a class="link text-sm" routerLink="/applicant/assessment/results">← Все результаты</a>
+
+  @if (loading()) {
+  <div class="card detail-message mt-4">
+    <p class="text-secondary m-0">Загрузка результата...</p>
+  </div>
+  } @else if (loadError()) {
+  <div class="card detail-message mt-4">
+    <p class="detail-error m-0">{{ loadError() }}</p>
+  </div>
+  } @else if (result(); as result) {
+  <section class="card detail-summary mt-4" aria-labelledby="summary-title">
+    <div class="detail-summary-main">
+      <span class="badge badge-success">Оценено</span>
+      <h1 class="detail-summary-title" id="summary-title">Итог оценки</h1>
+      <p class="detail-value">{{ formatRub(result.finalEstimatedValue) }}</p>
+    </div>
+    <dl class="detail-facts">
+      <div>
+        <dt>Адрес</dt>
+        <dd>{{ result.address }}</dd>
+      </div>
+      <div>
+        <dt>Тип имущества</dt>
+        <dd>{{ result.objectTypeLabel }}@if (result.area) {, {{ result.area }} м²}</dd>
+      </div>
+      <div>
+        <dt>Дата оценки</dt>
+        <dd>{{ formatDate(result.assessedAt) }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <div class="detail-columns mt-6">
+    <section class="card" aria-labelledby="breakdown-title">
+      <h2 class="card-title" id="breakdown-title">Детализация расчёта</h2>
+      <!-- TODO: заменить mock-таблицу на реальную детализацию расчёта с бэкенда -->
+      @if (breakdown().length) {
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Показатель</th>
+              <th class="text-right">Сумма</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of breakdown(); track row.label; let last = $last) {
+            <tr [class.breakdown-total]="last">
+              <td>
+                {{ row.label }} @if (row.hint) {
+                <span class="breakdown-hint">{{ row.hint }}</span>
+                }
+              </td>
+              <td class="text-right">{{ formatRub(row.value) }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-secondary mb-2">Детализация носит демонстрационный характер.</p>
+      } @else {
+      <p class="text-secondary m-0">Оценщик ещё не указал итоговую стоимость.</p>
+      }
+    </section>
+
+    <section class="card" aria-labelledby="reports-title">
+      <h2 class="card-title" id="reports-title">Отчёты</h2>
+      @if (reports().length) {
+      <ul class="reports-list" role="list">
+        @for (report of reports(); track report.id) {
+        <li class="report-item">
+          <div class="report-info">
+            <span class="text-bold">{{ report.title }}</span>
+            <span class="text-secondary text-xs">от {{ formatDate(report.createdAt) }}</span>
+            @if (report.status === 'Signed') {
+            <span class="badge badge-success">Подписан</span>
+            } @else {
+            <span class="badge badge-pending">Черновик</span>
+            }
+          </div>
+          <div class="report-action">
+            <button
+              class="btn btn-primary btn-sm"
+              type="button"
+              [disabled]="report.status !== 'Signed' || !report.fileUrl"
+              (click)="downloadReport(report)">
+              Скачать
+            </button>
+            @if (report.status === 'Draft') {
+            <span class="text-secondary text-xs">Ожидает подписи</span>
+            }
+          </div>
+        </li>
+        }
+      </ul>
+      } @else {
+      <p class="text-secondary m-0">Отчёты пока не сформированы.</p>
+      }
+
+      <a class="btn btn-outline w-full mt-4" routerLink="/applicant/copies">Запросить копию</a>
+    </section>
+  </div>
+  }
+</main>

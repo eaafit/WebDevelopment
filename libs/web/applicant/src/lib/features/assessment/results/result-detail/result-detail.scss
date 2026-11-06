@@ -1,0 +1,141 @@
+:host {
+  display: block;
+}
+
+.detail-message {
+  text-align: center;
+}
+
+.detail-error {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  color: var(--failed-text);
+  background: var(--failed-bg);
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 2rem;
+  align-items: center;
+}
+
+.detail-summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.detail-summary-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.detail-value {
+  margin: 0;
+
+  font-size: clamp(1.9rem, 5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--primary);
+}
+
+.detail-facts {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+
+  dt {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  dd {
+    margin: 0.15rem 0 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.detail-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.breakdown-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.breakdown-total td {
+  font-weight: 700;
+}
+
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  margin: 0;
+  padding: 0;
+
+  list-style: none;
+}
+
+.report-item {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.report-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: flex-start;
+}
+
+.report-action {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.3rem;
+  align-items: flex-end;
+
+  .btn:disabled {
+    cursor: not-allowed;
+    transform: none;
+    opacity: 0.5;
+  }
+}
+
+@media (width <= 900px) {
+  .detail-summary,
+  .detail-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (width <= 480px) {
+  .report-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .report-action {
+    align-items: stretch;
+  }
+}

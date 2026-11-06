@@ -1,0 +1,44 @@
+<main class="container page">
+  <header class="results-header">
+    <h1 class="m-0">Результаты оценки</h1>
+    <p class="text-secondary m-0">Завершённые оценки вашего имущества и отчёты по ним</p>
+  </header>
+
+  @if (loading()) {
+  <div class="results-empty card">
+    <p class="text-secondary m-0">Загрузка результатов...</p>
+  </div>
+  } @else if (loadError()) {
+  <div class="results-empty card">
+    <p class="results-error m-0">{{ loadError() }}</p>
+    <button class="btn btn-outline mt-4" type="button" (click)="loadResults()">Повторить</button>
+  </div>
+  } @else if (results().length === 0) {
+  <div class="results-empty card">
+    <div class="results-empty-icon" aria-hidden="true">📊</div>
+    <h2 class="m-0">Оценённых объектов пока нет</h2>
+    <p class="text-secondary">Результат появится здесь, когда нотариус завершит оценку заявки.</p>
+    <a class="btn btn-primary" routerLink="/applicant/assessment/status">Статус заявки</a>
+  </div>
+  } @else {
+  <ul class="results-grid" role="list">
+    @for (result of results(); track result.id) {
+    <li class="result-card card">
+      <div class="result-card-top">
+        <span class="badge badge-success">Оценено</span>
+        <span class="text-secondary text-sm">{{ formatDate(result.assessedAt) }}</span>
+      </div>
+      <h2 class="result-card-address">{{ result.address }}</h2>
+      <p class="text-secondary text-sm m-0">{{ result.objectTypeLabel }}@if (result.area) {, {{ result.area }} м²}</p>
+      <div class="result-card-value">
+        <span class="text-secondary text-sm">Итоговая стоимость</span>
+        <strong>{{ formatRub(result.finalEstimatedValue) }}</strong>
+      </div>
+      <a class="btn btn-outline btn-sm w-full" [routerLink]="['/applicant/assessment/results', result.id]">
+        Подробнее
+      </a>
+    </li>
+    }
+  </ul>
+  }
+</main>
