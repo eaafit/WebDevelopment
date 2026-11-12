@@ -45,6 +45,7 @@
 | 34  | [issue-34](issue-34-nibylitsin-tempo-tracing.md)            | Нибылицын Лукьян                    | SuperLuchito | Grafana Tempo + OpenTelemetry — трассировка бизнес-запросов |
 | 35  | [issue-35](issue-35-nibylitsin-business-process-tracing.md) | Нибылицын Лукьян                    | SuperLuchito | OpenTelemetry + Tempo — разметка бизнес-процессов API      |
 | 36  | [issue-36](issue-36-nibylitsin-tempo-dashboard.md)          | Нибылицын Лукьян                    | SuperLuchito | Grafana Tempo — дашборд бизнес-трассировок                 |
+| 37  | [issue-37](issue-37-voronin-support-ai-widget.md)           | Воронин Егор                        | —            | ИИ-чат техподдержки для гостей (Connect + виджет)          |
 
 ---
 

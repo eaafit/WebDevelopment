@@ -50,6 +50,11 @@ import {
   type UpdateTicketStatusResponse,
 } from '@notary-portal/api-contracts';
 import { Injectable } from '@nestjs/common';
+import { SupportAiService } from './support-ai.service';
+
+const NOT_CONFIGURED_MESSAGE =
+  'ИИ-помощник не настроен на сервере. Обратитесь к администратору или задайте вопрос через раздел «Справочник».';
+const UNAVAILABLE_MESSAGE = 'Сервис временно недоступен. Попробуйте позже или обратитесь в поддержку.';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,20 +67,29 @@ type TicketMessageWithAuthor = TicketMessage & { author: User };
 
 @Injectable()
 export class SupportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supportAi: SupportAiService,
+  ) {}
 
   async askSupportAi(request: AskSupportAiRequest): Promise<AskSupportAiResponse> {
-    requireAuth();
     const question = request.questionText.trim();
     if (!question) {
       throw new ConnectError('question_text is required', Code.InvalidArgument);
     }
 
-    const answerText =
-      'Спасибо за ваш вопрос. Это автоматический ответ службы поддержки (stub GigaChat). ' +
-      'Если ответ не помог, нажмите «Переключиться на оператора», и мы создадим тикет с историей диалога.';
+    if (!this.supportAi.isConfigured()) {
+      throw new ConnectError(NOT_CONFIGURED_MESSAGE, Code.FailedPrecondition);
+    }
 
-    return create(AskSupportAiResponseSchema, { answerText });
+    try {
+      const answerText = await this.supportAi.ask(question);
+      return create(AskSupportAiResponseSchema, { answerText });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error && error.message.trim() ? error.message : UNAVAILABLE_MESSAGE;
+      throw new ConnectError(message, Code.Internal);
+    }
   }
 
   async escalateToOperator(request: EscalateToOperatorRequest): Promise<EscalateToOperatorResponse> {

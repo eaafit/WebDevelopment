@@ -16,6 +16,7 @@ const PUBLIC_METHODS = new Set([
   'notary.auth.v1alpha1.AuthService/OAuthLogin',
   'notary.auth.v1alpha1.AuthService/ConfirmContact',
   'notary.auth.v1alpha1.AuthService/ResendContactCode',
+  'notary.support.v1alpha1.SupportService/AskSupportAi',
 ]);
 
 @Injectable()
