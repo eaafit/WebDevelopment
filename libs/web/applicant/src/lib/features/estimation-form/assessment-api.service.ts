@@ -40,6 +40,8 @@ export class AssessmentApiService {
     return this.requireAssessment(response.assessment);
   }
 
+
+
   async findLatestDraft(userId: string): Promise<AssessmentDraftModel | null> {
     const response = await this.client.listAssessments({
       userId,
@@ -99,6 +101,10 @@ export class AssessmentApiService {
 
   async logApplicantAssessmentAction(input: ApplicantAssessmentUiActionLog): Promise<void> {
     await this.client.logApplicantAssessmentAction(input);
+  }
+
+  async generateReport(id: string) {
+    return (this.client as any)['generateReport']({ id });
   }
 
   private requireAssessment(assessment: Assessment | undefined): AssessmentDraftModel {

@@ -648,3 +648,25 @@ model ClientSync {
 
   @@map("client_sync")
 }
+
+model RealEstateAppraisalResult {
+  id                   String   @id @default(uuid()) @db.Uuid
+  assessmentId         String   @unique @db.Uuid
+  marketValue          Decimal  @db.Decimal(15, 2)
+  valueMin             Decimal? @db.Decimal(15, 2)
+  valueMax             Decimal? @db.Decimal(15, 2)
+  confidenceLevel      String?  @db.VarChar(50)
+  valuationMethod      String   @db.VarChar(100)
+  valuationDate        DateTime @default(now())
+  calculationDetails   String?  @db.Text
+  comparables          Json?
+  restrictionsAndAssumptions String? @db.Text
+  comment              String?  @db.Text
+  createdAt            DateTime @default(now())
+  createdBy            String?  @db.Uuid
+  assessmentReportId   String?  @db.Uuid
+  reportKey            String?  @db.Text
+
+  // Связь с заявкой на оценку (если модель Assessment существует)
+  // assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}

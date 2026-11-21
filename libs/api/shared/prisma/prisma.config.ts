@@ -12,6 +12,6 @@ export default defineConfig({
     seed: 'ts-node --project tsconfig.seed.json --transpile-only seed.ts',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: "postgresql://admin:admin@localhost:5432/db?schema=public",
   },
 });

@@ -1,6 +1,15 @@
+import { GenerateReportResponseSchema, type GenerateReportRequest } from '@notary-portal/api-contracts';
+
 import { Code, ConnectError } from '@connectrpc/connect';
 import { Injectable, Logger } from '@nestjs/common';
-import { AssessmentService } from './assessment.service';
+import { create } from '@bufbuild/protobuf';
+import {
+  AddCommentResponseSchema,
+  GetAppraisalResultResponseSchema,
+  type AddCommentRequest,
+  type GetAppraisalResultRequest,
+} from '@notary-portal/api-contracts';
+import { AssessmentService } from './assessment.service'; // <-- ВАЖНЫЙ ИМПОРТ
 import type {
   CancelAssessmentRequest,
   CancelAssessmentResponse,
@@ -120,6 +129,40 @@ export class AssessmentRpcService {
   readonly cancelAssessment = (r: CancelAssessmentRequest): Promise<CancelAssessmentResponse> =>
     this.handleRpcCall('cancelAssessment', () => this.assessmentService.cancelAssessment(r));
 
+
+  readonly generateReport = (r: GenerateReportRequest) =>
+    this.handleRpcCall('generateReport', async () => {
+      const { url } = await this.assessmentService.generateAndUploadPdf(r.id);
+      return create(GenerateReportResponseSchema, { url });
+    });
+
+  // --- НАШИ НОВЫЕ МЕТОДЫ (Контроллер вызывает методы Сервиса) ---
+  readonly getAppraisalResult = (r: GetAppraisalResultRequest) =>
+  this.handleRpcCall('getAppraisalResult', async () => {
+    const row = await this.assessmentService.getAppraisalResult(r.id);
+    if (!row) {
+      throw new ConnectError('Результат оценки не найден', Code.NotFound);
+    }
+    return create(GetAppraisalResultResponseSchema, {
+      result: {
+        id: row.id,
+        assessmentId: row.assessmentId,
+        marketValue: Number(row.marketValue),
+        valueMin: Number(row.valueMin),
+        valueMax: Number(row.valueMax),
+        confidenceLevel: row.confidenceLevel ?? '',
+        valuationMethod: row.valuationMethod ?? '',
+        comment: row.comment ?? '',
+      },
+    });
+  });
+
+  readonly addComment = (r: AddCommentRequest) =>
+  this.handleRpcCall('addComment', async () => {
+    await this.assessmentService.addComment(r.assessmentId, r.text);
+    return create(AddCommentResponseSchema, { success: true });
+  });
+  // --- ВСПОМОГАТЕЛЬНЫЙ МЕТОД ---
   private async handleRpcCall<T>(operation: string, action: () => Promise<T>): Promise<T> {
     this.logger.log(`Starting assessment RPC ${operation}`);
 

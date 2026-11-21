@@ -69,6 +69,7 @@ export class ConnectRouterRegistry {
 
     // ─── Assessment ──────────────────────────────────────────
     router.service(AssessmentService, {
+      generateReport: this.assessmentRpcService.generateReport,
       createAssessment: this.assessmentRpcService.createAssessment,
       getAssessment: this.assessmentRpcService.getAssessment,
       updateAssessment: this.assessmentRpcService.updateAssessment,
@@ -85,6 +86,8 @@ export class ConnectRouterRegistry {
       verifyAssessment: this.assessmentRpcService.verifyAssessment,
       completeAssessment: this.assessmentRpcService.completeAssessment,
       cancelAssessment: this.assessmentRpcService.cancelAssessment,
+      getAppraisalResult: this.assessmentRpcService.getAppraisalResult,
+      addComment: this.assessmentRpcService.addComment,
     });
 
     // ─── Document ────────────────────────────────────────────

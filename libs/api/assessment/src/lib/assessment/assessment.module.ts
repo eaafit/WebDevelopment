@@ -6,10 +6,12 @@ import { AssessmentRepository } from './assessment.repository';
 import { AssessmentService } from './assessment.service';
 import { AssessmentRpcService } from './assessment-rpc.service';
 import { fiasProviderFactory } from '../fias/fias-provider.factory';
+import { PdfService } from './pdf.service';
+
 
 @Module({
   imports: [PrismaModule, AuditModule, NotificationModule],
-  providers: [AssessmentRepository, AssessmentService, AssessmentRpcService, fiasProviderFactory],
+  providers: [AssessmentRepository, AssessmentService, AssessmentRpcService, fiasProviderFactory, PdfService],
   exports: [AssessmentRpcService],
 })
 export class AssessmentModule {}

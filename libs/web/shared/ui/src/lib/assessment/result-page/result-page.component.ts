@@ -5,6 +5,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ResultValueCardComponent } from '../result-value-card/result-value-card';
 import { MarketComparisonComponent } from '../market-comparison/market-comparison';
 import { Assessment, Report, CalculationFactor, Comment } from '../models/assessment.interface';
+import { AssessmentApiService } from '../assessment-api.service';
 
 @Component({
   selector: 'lib-result-page',
@@ -29,7 +30,8 @@ export class ResultPageComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private assessmentApi: AssessmentApiService
   ) {
     this.commentForm = this.fb.group({
       text: ['', [Validators.required, Validators.minLength(1)]]
@@ -37,7 +39,7 @@ export class ResultPageComponent implements OnInit {
   }
 
   ngOnInit() {
-  this.assessmentId = this.route.snapshot.paramMap.get('id') || 'mock-123';
+  this.assessmentId = this.route.snapshot.paramMap.get('id') || '00000000-0000-0000-0000-000000000001';
 
   this.loadAssessment();
   this.loadMockReports();
@@ -45,24 +47,45 @@ export class ResultPageComponent implements OnInit {
   this.loadCalculationFactors();
 }
 
-  loadAssessment() {
-    // TODO: Replace with actual API call
-    // const assessment = await this.assessmentService.getAssessment({ id: this.assessmentId });
+  async loadAssessment() {
+    if (!this.assessmentId) return;
 
-    // Mock assessment data
-    this.assessment = {
-      id: this.assessmentId!,
-      finalEstimatedValue: 5500000,
-      address: 'г. Москва, ул. Примерная, д. 123, кв. 45',
-      propertyType: 'Квартира',
-      area: 45.5,
-      assessmentDate: new Date(),
-      propertyCondition: 'Хорошее',
-      floor: '5',
-      totalFloors: 9,
-      buildYear: 2015
-    };
+    try {
+      // Делаем реальный запрос к бэкенду (в базу данных)
+      const response: any = await this.assessmentApi.getAppraisalResult(this.assessmentId);
+
+      if (response && response.result) {
+        const dbResult = response.result;
+
+        this.assessment = {
+          id: dbResult.assessmentId,
+          finalEstimatedValue: Number(dbResult.marketValue),
+          address: 'г. Екатеринбург, ул. Малышева, 18', // Адрес берем из заявки (пока мок)
+          propertyType: 'Квартира',
+          area: 45.5,
+          assessmentDate: new Date(),
+          propertyCondition: 'Хорошее',
+          floor: '5',
+          totalFloors: 9,
+          buildYear: 2015
+        };
+
+        // Загружаем комментарий из базы, если он есть
+        if (dbResult.comment) {
+          this.comments = [{
+            id: 'db-comment',
+            author: 'Нотариус (из БД)',
+            text: dbResult.comment,
+            createdAt: new Date(),
+            isAdmin: true
+          }];
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка при загрузке данных из БД:', error);
+    }
   }
+
 
   loadMockReports() {
     // TODO: Replace with actual API call when ReportService is available
@@ -149,10 +172,14 @@ export class ResultPageComponent implements OnInit {
     this.showCalculationDetails = !this.showCalculationDetails;
   }
 
-  downloadReport(report: Report) {
-    if (report.downloadUrl) {
-      // TODO: Implement actual download logic
-      window.open(report.downloadUrl, '_blank');
+async downloadReport(report?: Report) {
+    if (!this.assessmentId) return;
+    try {
+      const res: any = await this.assessmentApi.generateReport(this.assessmentId);
+      window.location.href = res.url;
+    } catch (error) {
+      console.error('Ошибка при генерации PDF:', error);
+      alert('Не удалось сформировать PDF.');
     }
   }
 
@@ -162,17 +189,27 @@ export class ResultPageComponent implements OnInit {
     // this.router.navigate(['/applicant/copies']);
   }
 
-  addComment() {
-    if (this.commentForm.valid) {
+  async addComment() {
+    if (this.commentForm.valid && this.assessmentId) {
+      const text = this.commentForm.value.text;
+
+
       const newComment: Comment = {
         id: Date.now().toString(),
         author: 'Вы',
-        text: this.commentForm.value.text,
+        text: text,
         createdAt: new Date()
       };
-
       this.comments.unshift(newComment);
       this.commentForm.reset();
+
+      // И отправляем в базу данных
+      try {
+        await this.assessmentApi.addComment(this.assessmentId, text);
+        console.log('Комментарий успешно сохранен в базе!');
+      } catch (error) {
+        console.error('Ошибка сохранения комментария:', error);
+      }
     }
   }
 

@@ -9,6 +9,10 @@ service AssessmentService {
   rpc CreateAssessment(CreateAssessmentRequest) returns (CreateAssessmentResponse);
   rpc GetAssessment(GetAssessmentRequest) returns (GetAssessmentResponse);
   rpc UpdateAssessment(UpdateAssessmentRequest) returns (UpdateAssessmentResponse);
+  rpc GetAppraisalResult (GetAppraisalResultRequest) returns (GetAppraisalResultResponse);
+  rpc AddComment (AddCommentRequest) returns (AddCommentResponse);
+  rpc GenerateReport (GenerateReportRequest) returns (GenerateReportResponse);
+
 
   // Получение списка (для заявителя - свои, для нотариуса - доступные)
   rpc ListAssessments(ListAssessmentsRequest) returns (ListAssessmentsResponse);
@@ -342,4 +346,40 @@ message CompleteAssessmentResponse {
 
 message CancelAssessmentResponse {
   Assessment assessment = 1;
+}
+
+message GetAppraisalResultRequest {
+  string id = 1;
+}
+
+message GetAppraisalResultResponse {
+  RealEstateAppraisalResult result = 1;
+}
+
+message AddCommentRequest {
+  string assessmentId = 1;
+  string text = 2;
+}
+
+message AddCommentResponse {
+  bool success = 1;
+}
+
+message RealEstateAppraisalResult {
+  string id = 1;
+  string assessmentId = 2;
+  double marketValue = 3;
+  double valueMin = 4;
+  double valueMax = 5;
+  string confidenceLevel = 6;
+  string valuationMethod = 7;
+  string comment = 8;
+}
+
+message GenerateReportRequest {
+  string id = 1;
+}
+
+message GenerateReportResponse {
+  string url = 1;
 }

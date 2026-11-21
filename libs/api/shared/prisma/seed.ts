@@ -184,6 +184,40 @@ async function main(): Promise<void> {
   await upsertSecurityEvents(userIds);
   await upsertAssessmentProcessingHistory(assessmentIds, userIds);
 
+  const testUser = await prisma.user.findFirst({ where: { role: Role.Applicant } });
+  const testAssessmentId = '00000000-0000-0000-0000-000000000001';
+
+  if (testUser) {
+    
+    await prisma.assessment.upsert({
+      where: { id: testAssessmentId },
+      update: {},
+      create: {
+        id: testAssessmentId,
+        userId: testUser.id,
+        address: 'г. Екатеринбург, ул. Малышева, 18',
+        status: AssessmentStatus.Completed,
+        estimatedValue: '5500000.00',
+      }
+    });
+
+
+    await prisma.realEstateAppraisalResult.upsert({
+      where: { assessmentId: testAssessmentId },
+      update: {},
+      create: {
+        assessmentId: testAssessmentId,
+        marketValue: 5500000.00,
+        valueMin: 4950000.00,
+        valueMax: 6050000.00,
+        confidenceLevel: "85",
+        valuationMethod: "Сравнительный подход",
+        comment: "Оценка проведена в соответствии с требованиями.",
+        createdBy: testUser.id,
+      }
+    });
+  }
+
   const [
     userCount,
     assessmentCount,
